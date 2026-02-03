@@ -101,11 +101,19 @@ Campaign HQ (Auntie Rose)
 - assigned_district_id, assigned_village_id, assigned_block_id (based on role)
 
 **Supporters** (collected from blue forms / digital sign-up)
+
+*Original blue form fields:*
 - print_name, contact_number, dob, email, street_address
-- village, precinct, block/section
 - registered_voter (Y/N)
-- yard_sign (Y/N)
-- motorcade_available (Y/N)
+
+*Added per mom's direction (not on paper form):*
+- village (per supporter — paper form only has this in the header)
+- precinct
+- yard_sign (Y/N) — "will you put a sign on your yard?"
+- motorcade_available (Y/N) — "will you join motorcades?"
+
+*System fields:*
+- block/section
 - source: "block_leader_entry" | "self_signup" | "referral"
 - entered_by (user reference, null if self-signup)
 - referral_from (village/user, if referral)
@@ -276,12 +284,13 @@ Campaign HQ (Auntie Rose)
 
 | Phase | Target | What Ships |
 |-------|--------|-----------|
-| Phase 1 | Feb 10-14 | Digital form, QR signup, supporter database |
+| Phase 1 | Feb 10-14 | Digital form, QR signup, supporter database — **Tamuning only** |
 | Phase 2 | Feb 21 | Quota dashboards, reporting (before Feb 23 deadline) |
-| Phase 3 | March-April | Motorcade check-in, events |
+| Phase 3 | March-April | Expand to all 19 villages, motorcade check-in, events |
 | Phase 4 | July | Election day war room, poll watcher app, call bank |
 
-**Critical date:** Feb 23 — first quota deadline (493 names for Tamuning)
+**Scope:** Phase 1 starts with **Tamuning only** — one village, its precincts and blocks. Expand island-wide after proven.
+**Critical date:** Feb 23 — first quota deadline
 **Critical date:** Aug 1 — Primary Election Day
 
 ---
