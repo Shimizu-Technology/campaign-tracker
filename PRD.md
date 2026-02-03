@@ -12,7 +12,8 @@
 A web application to digitize and automate the campaign supporter tracking process for the Guam gubernatorial election. Replaces paper-based "Block List" forms with a digital system that handles supporter sign-up, quota tracking, organizational hierarchy management, event check-ins, and real-time election day voter turnout monitoring.
 
 **Working Name:** Campaign Tracker (TBD — open to a better name)
-**Campaign:** Josh Tenorio & Tina Muña Barnes for Governor & Lt. Governor
+**Initial Campaign:** Josh Tenorio & Tina Muña Barnes for Governor & Lt. Governor
+**Architecture:** Multi-campaign platform — reusable across elections and candidates
 
 ---
 
@@ -67,13 +68,18 @@ Campaign HQ (Auntie Rose)
 
 ## 5. Data Model (Conceptual)
 
-### 5.1 Organizational Structure
+### 5.1 Multi-Campaign Structure
 
-**Districts**
-- name, number, description
+**Campaigns** (top-level tenant — e.g., "Josh & Tina 2026", "Previous Campaign 2022")
+- name, election_year, election_type (primary/general), status (active/archived)
+- candidate_names, party, branding (colors, logo)
+- All data below is scoped to a campaign
+
+**Districts** (internal campaign grouping — changes per campaign)
+- name, number, description, campaign_id
 - coordinator (user reference)
 
-**Villages**
+**Villages** (Guam's 19 municipalities — shared reference data, not campaign-specific)
 - name, district_id
 - chief (user reference), co_chief (user reference)
 - precinct_ids (a village may span multiple precincts)
@@ -282,27 +288,31 @@ Campaign HQ (Auntie Rose)
 
 ## 10. ❓ Questions & Clarifications Needed
 
-### Must Answer Before Building
+### ✅ Answered (Feb 3, 2026)
 
-1. **How many districts, villages, and precincts are there?** Need the full organizational map to seed the database. Can Auntie Rose provide a list?
+1. ✅ **Villages:** 19 villages on Guam (see `docs/guam-villages.md` for full list with 2020 census populations). Largest: Dededo (44,908), Yigo (19,339), Tamuning (18,489). Total island population: 153,836. **Still need:** exact precinct count per village + district assignments from Auntie Rose.
 
-2. **What are the actual quota numbers?** 493 for Tamuning by Feb 23 — what about every other village? Is there a master quota sheet?
+2. ✅ **Quotas:** 493 was just an example, not the real Tamuning quota. Tamuning has 18,489 people — actual quotas will be much larger. **Still need:** real quota numbers from the campaign team.
 
-3. **Who is Ryan?** (From notes: "After Ryan comes up with the list that they use to see the reports") — Is Ryan doing data entry now? Will they use this system?
+3. ✅ **Ryan:** Works at Guam airport. Been Auntie Rose's tech person since ~2009 across multiple campaigns. May be too busy for this one. This system likely replaces what he used to do manually.
 
-4. **Precinct-to-village mapping** — Do we have a list of all precincts and which village(s) they belong to? This is critical for election day.
+4. ✅ **Multi-campaign: YES.** Auntie Rose has run multiple campaigns over the years. Data must persist across elections. If candidates win and run again, same system. **Architecture: multi-campaign platform, not single-use.**
 
-5. **Registered voter list** — How does the campaign get the master list of registered voters from the election commission? What format? (PDF, Excel, database?) Can we get a sample?
+5. ⏳ **Registered voter list** — Need to ask campaign team how they get election commission data and in what format.
 
-6. **Calvo's QR system** — Can Leon get a screenshot or link to see what the competing campaign is doing? Good to match or beat it.
+### Still Need Answers
 
-7. **Who are the admins?** Just Auntie Rose? A team? How many people will have full access?
+6. **Precinct-to-village mapping** — How many precincts per village? Need from election commission or Auntie Rose.
 
-8. **Multi-campaign or single?** Is this ONLY for Josh & Tina, or should we build it to be reusable for future elections? (Affects architecture — multi-tenant vs single-tenant)
+7. **District assignments** — Which villages belong to which campaign districts? How many districts total?
 
-9. **Domain / hosting?** Will this live on a campaign domain? Or a Shimizu Technology subdomain for now?
+8. **Who are the admins?** Just Auntie Rose? A team? How many people will have full access?
 
-10. **Budget for SMS?** If we want to send text reminders to supporters or use SMS for the call bank, there's a cost per message (Twilio). Is that in scope?
+9. **Calvo's QR system** — Can Leon get a screenshot/link of the competing campaign's digital signup?
+
+10. **Domain / hosting?** Campaign domain or Shimizu subdomain for now?
+
+11. **Budget for SMS?** Twilio for text reminders / call bank — in scope or not?
 
 ### Should Clarify But Won't Block Phase 1
 
