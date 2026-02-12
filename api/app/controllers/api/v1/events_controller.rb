@@ -36,6 +36,9 @@ module Api
             supporters = supporters.where(village_id: event.village_id) if event.village_id.present?
             supporters.find_each do |supporter|
               event.event_rsvps.create(supporter: supporter, rsvp_status: "invited")
+              # Notify via SMS
+              SmsService.motorcade_notification(supporter, event) if supporter.contact_number.present?
+              sleep(0.1) # Rate limit
             end
           end
 

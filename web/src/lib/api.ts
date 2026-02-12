@@ -49,4 +49,13 @@ export const getPollWatcher = () => api.get('/poll_watcher').then(r => r.data);
 export const submitPollReport = (data: any) => api.post('/poll_watcher/report', { report: data }).then(r => r.data);
 export const getPrecinctHistory = (id: number) => api.get(`/poll_watcher/precinct/${id}/history`).then(r => r.data);
 
+// SMS
+export const getSmsStatus = () => api.get('/sms/status').then(r => r.data);
+export const sendTestSms = (phone: string, message: string) =>
+  api.post('/sms/send', { phone, message }).then(r => r.data);
+export const sendSmsBlast = (data: { message: string; village_id?: number; motorcade_available?: string; registered_voter?: string; yard_sign?: string; dry_run?: string }) =>
+  api.post('/sms/blast', data).then(r => r.data);
+export const sendEventNotify = (eventId: number, type: string) =>
+  api.post('/sms/event_notify', { event_id: eventId, type }).then(r => r.data);
+
 export default api;

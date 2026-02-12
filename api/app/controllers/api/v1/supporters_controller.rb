@@ -22,6 +22,9 @@ module Api
         end
 
         if supporter.save
+          # Send welcome SMS (async-safe, won't block response)
+          SmsService.welcome_supporter(supporter) if supporter.contact_number.present?
+
           render json: {
             message: "Si Yu'os Ma'åse! Thank you for supporting Josh & Tina!",
             supporter: supporter_json(supporter),

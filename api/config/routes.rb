@@ -40,6 +40,12 @@ Rails.application.routes.draw do
         end
       end
 
+      # SMS
+      get "sms/status", to: "sms#status"
+      post "sms/send", to: "sms#send_single"
+      post "sms/blast", to: "sms#blast"
+      post "sms/event_notify", to: "sms#event_notify"
+
       # Events
       resources :events, only: [ :index, :show, :create ] do
         member do
