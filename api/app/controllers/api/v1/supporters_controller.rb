@@ -1,10 +1,12 @@
 # frozen_string_literal: true
 
+require "csv"
+
 module Api
   module V1
     class SupportersController < ApplicationController
       include Authenticatable
-      before_action :authenticate_request, only: [:index, :check_duplicate]
+      before_action :authenticate_request, only: [:index, :check_duplicate, :export]
 
       # POST /api/v1/supporters (public signup — no auth required)
       def create
@@ -57,6 +59,34 @@ module Api
           supporters: supporters.map { |s| supporter_json(s) },
           pagination: { page: page, per_page: per_page, total: total, pages: (total.to_f / per_page).ceil }
         }
+      end
+
+      # GET /api/v1/supporters/export
+      def export
+        supporters = Supporter.includes(:village, :precinct).order(created_at: :desc)
+        supporters = supporters.where(village_id: params[:village_id]) if params[:village_id].present?
+        supporters = supporters.where(status: params[:status]) if params[:status].present?
+
+        csv_data = CSV.generate(headers: true) do |csv|
+          csv << ["Name", "Phone", "Village", "Precinct", "Street Address", "Email", "DOB",
+                  "Registered Voter", "Yard Sign", "Motorcade Available", "Source", "Date Signed Up"]
+          supporters.find_each do |s|
+            csv << [
+              s.print_name, s.contact_number, s.village&.name, s.precinct&.number,
+              s.street_address, s.email, s.dob&.strftime("%m/%d/%Y"),
+              s.registered_voter ? "Yes" : "No",
+              s.yard_sign ? "Yes" : "No",
+              s.motorcade_available ? "Yes" : "No",
+              s.source&.humanize,
+              s.created_at&.strftime("%m/%d/%Y")
+            ]
+          end
+        end
+
+        send_data csv_data,
+          filename: "supporters-#{Date.current.iso8601}.csv",
+          type: "text/csv",
+          disposition: "attachment"
       end
 
       # GET /api/v1/supporters/check_duplicate

@@ -18,6 +18,15 @@ export const createSupporter = (data: any, leaderCode?: string) =>
 export const getSupporters = (params?: any) => api.get('/supporters', { params }).then(r => r.data);
 export const checkDuplicate = (name: string, villageId: number) =>
   api.get('/supporters/check_duplicate', { params: { name, village_id: villageId } }).then(r => r.data);
+export const exportSupportersCsv = (params?: any) =>
+  api.get('/supporters/export', { params, responseType: 'blob' }).then(r => {
+    const url = URL.createObjectURL(r.data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `supporters-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
 
 // Events
 export const getEvents = (params?: any) => api.get('/events', { params }).then(r => r.data);

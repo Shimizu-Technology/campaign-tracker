@@ -9,6 +9,7 @@ Rails.application.routes.draw do
       resources :supporters, only: [ :create, :index ] do
         collection do
           get :check_duplicate
+          get :export
         end
       end
 
