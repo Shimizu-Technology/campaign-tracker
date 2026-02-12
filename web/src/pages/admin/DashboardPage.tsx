@@ -48,23 +48,25 @@ export default function DashboardPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-[#1B3A6B] text-white py-4 px-4 shadow-lg">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-bold">{campaign?.name || 'Campaign Tracker'}</h1>
-            <p className="text-blue-200 text-sm">{campaign?.candidate_names}</p>
-          </div>
-          <div className="flex gap-3">
-            <Link to="/admin/supporters/new" className="bg-[#C41E3A] hover:bg-[#a01830] px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1">
-              <ClipboardPlus className="w-4 h-4" /> New Entry
-            </Link>
-            <Link to="/admin/qr" className="bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1">
-              <QrCode className="w-4 h-4" /> QR
-            </Link>
-            <Link to="/admin/events" className="bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1">
-              <CalendarPlus className="w-4 h-4" /> Events
-            </Link>
+      <header className="bg-[#1B3A6B] text-white py-3 px-4 shadow-lg">
+        <div className="max-w-6xl mx-auto">
+          <div className="flex items-center justify-between mb-2 sm:mb-0">
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-xl font-bold truncate">{campaign?.name || 'Campaign Tracker'}</h1>
+              <p className="text-blue-200 text-xs sm:text-sm truncate">{campaign?.candidate_names}</p>
+            </div>
             <UserButton afterSignOutUrl="/" />
+          </div>
+          <div className="flex gap-2 sm:gap-3 mt-2 sm:mt-0 sm:absolute sm:right-4 sm:top-4">
+            <Link to="/admin/supporters/new" className="bg-[#C41E3A] hover:bg-[#a01830] px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1">
+              <ClipboardPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> <span className="hidden xs:inline">New</span> Entry
+            </Link>
+            <Link to="/admin/qr" className="bg-white/10 hover:bg-white/20 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1">
+              <QrCode className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> QR
+            </Link>
+            <Link to="/admin/events" className="bg-white/10 hover:bg-white/20 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1">
+              <CalendarPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Events
+            </Link>
           </div>
         </div>
       </header>

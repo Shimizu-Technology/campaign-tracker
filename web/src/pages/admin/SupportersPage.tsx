@@ -50,8 +50,37 @@ export default function SupportersPage() {
           </p>
         )}
 
-        {/* Table */}
-        <div className="bg-white rounded-xl shadow-sm border overflow-x-auto">
+        {/* Mobile Card View */}
+        <div className="md:hidden space-y-3">
+          {data?.supporters?.map((s: any) => (
+            <div key={s.id} className="bg-white rounded-xl shadow-sm border p-4">
+              <div className="flex items-center justify-between mb-1">
+                <span className="font-semibold text-gray-900">{s.print_name}</span>
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                  s.source === 'qr_signup' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                }`}>
+                  {s.source === 'qr_signup' ? 'QR' : 'Staff'}
+                </span>
+              </div>
+              <div className="text-sm text-gray-500 space-y-0.5">
+                <div className="flex justify-between">
+                  <span>{s.village_name}</span>
+                  <span>{s.contact_number}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>{s.registered_voter ? '✓ Registered' : 'Not registered'}</span>
+                  <span>{new Date(s.created_at).toLocaleDateString()}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+          {data?.supporters?.length === 0 && (
+            <div className="text-center text-gray-400 py-8">No supporters found</div>
+          )}
+        </div>
+
+        {/* Desktop Table */}
+        <div className="hidden md:block bg-white rounded-xl shadow-sm border overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-gray-50">
