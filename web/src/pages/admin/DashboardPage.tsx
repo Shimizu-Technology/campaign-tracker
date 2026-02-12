@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getDashboard } from '../../lib/api';
 import { Link } from 'react-router-dom';
 import { Users, MapPin, TrendingUp, CalendarPlus, ClipboardPlus, BarChart3, QrCode } from 'lucide-react';
+import { UserButton } from '@clerk/clerk-react';
 
 interface VillageData {
   id: number;
@@ -63,6 +64,7 @@ export default function DashboardPage() {
             <Link to="/admin/events" className="bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1">
               <CalendarPlus className="w-4 h-4" /> Events
             </Link>
+            <UserButton afterSignOutUrl="/" />
           </div>
         </div>
       </header>

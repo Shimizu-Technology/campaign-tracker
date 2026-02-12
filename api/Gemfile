@@ -54,3 +54,4 @@ gem "rqrcode"
 
 # Pagination
 gem "kaminari"
+gem "dotenv-rails", groups: [:development, :test]
