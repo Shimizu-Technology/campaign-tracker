@@ -1,0 +1,62 @@
+# frozen_string_literal: true
+
+module Api
+  module V1
+    class VillagesController < ApplicationController
+      # GET /api/v1/villages (public — for signup form dropdown)
+      def index
+        villages = Village.includes(:precincts).order(:name)
+        render json: {
+          villages: villages.map { |v|
+            {
+              id: v.id,
+              name: v.name,
+              region: v.region,
+              registered_voters: v.registered_voters,
+              precincts: v.precincts.order(:number).map { |p|
+                { id: p.id, number: p.number, alpha_range: p.alpha_range }
+              }
+            }
+          }
+        }
+      end
+
+      # GET /api/v1/villages/:id
+      def show
+        village = Village.includes(:precincts, :blocks).find(params[:id])
+        campaign = Campaign.active.first
+
+        quota = village.quotas.where(campaign: campaign).first
+        supporter_count = village.supporters.active.count
+
+        render json: {
+          village: {
+            id: village.id,
+            name: village.name,
+            region: village.region,
+            registered_voters: village.registered_voters,
+            supporter_count: supporter_count,
+            quota_target: quota&.target_count || 0,
+            precincts: village.precincts.order(:number).map { |p|
+              {
+                id: p.id,
+                number: p.number,
+                alpha_range: p.alpha_range,
+                registered_voters: p.registered_voters,
+                polling_site: p.polling_site,
+                supporter_count: p.supporters.active.count
+              }
+            },
+            blocks: village.blocks.order(:name).map { |b|
+              {
+                id: b.id,
+                name: b.name,
+                supporter_count: b.supporters.active.count
+              }
+            }
+          }
+        }
+      end
+    end
+  end
+end

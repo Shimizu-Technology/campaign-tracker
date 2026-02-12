@@ -1,0 +1,143 @@
+# frozen_string_literal: true
+
+module Api
+  module V1
+    class EventsController < ApplicationController
+      include Authenticatable
+      before_action :authenticate_request, except: []
+
+      # GET /api/v1/events
+      def index
+        events = Event.includes(:village).order(date: :desc)
+        events = events.where(status: params[:status]) if params[:status].present?
+
+        render json: {
+          events: events.map { |e| event_json(e) }
+        }
+      end
+
+      # GET /api/v1/events/:id
+      def show
+        event = Event.includes(event_rsvps: :supporter).find(params[:id])
+        render json: { event: event_detail_json(event) }
+      end
+
+      # POST /api/v1/events
+      def create
+        campaign = Campaign.active.first
+        event = Event.new(event_params)
+        event.campaign = campaign
+        event.status = "upcoming"
+
+        if event.save
+          # Auto-populate RSVPs from motorcade-available supporters
+          if event.event_type == "motorcade"
+            supporters = Supporter.active.motorcade_available
+            supporters = supporters.where(village_id: event.village_id) if event.village_id.present?
+            supporters.find_each do |supporter|
+              event.event_rsvps.create(supporter: supporter, rsvp_status: "invited")
+            end
+          end
+
+          render json: { event: event_detail_json(event) }, status: :created
+        else
+          render json: { errors: event.errors.full_messages }, status: :unprocessable_entity
+        end
+      end
+
+      # POST /api/v1/events/:id/check_in
+      def check_in
+        event = Event.find(params[:id])
+        supporter = Supporter.find(params[:supporter_id])
+
+        rsvp = event.event_rsvps.find_or_create_by(supporter: supporter) do |r|
+          r.rsvp_status = "confirmed"
+        end
+
+        rsvp.check_in!(current_user)
+
+        render json: {
+          message: "#{supporter.print_name} checked in!",
+          rsvp: {
+            id: rsvp.id,
+            supporter_name: supporter.print_name,
+            attended: rsvp.attended,
+            checked_in_at: rsvp.checked_in_at&.iso8601
+          },
+          event_stats: {
+            invited: event.invited_count,
+            attended: event.reload.attended_count,
+            quota: event.quota,
+            quota_met: event.quota_met?
+          }
+        }
+      end
+
+      # GET /api/v1/events/:id/attendees
+      def attendees
+        event = Event.find(params[:id])
+
+        rsvps = event.event_rsvps.includes(:supporter).order(:rsvp_status)
+        if params[:search].present?
+          q = "%#{params[:search].downcase}%"
+          rsvps = rsvps.joins(:supporter).where("LOWER(supporters.print_name) LIKE ?", q)
+        end
+
+        render json: {
+          attendees: rsvps.map { |r|
+            {
+              rsvp_id: r.id,
+              supporter_id: r.supporter_id,
+              print_name: r.supporter.print_name,
+              contact_number: r.supporter.contact_number,
+              village: r.supporter.village&.name,
+              rsvp_status: r.rsvp_status,
+              attended: r.attended,
+              checked_in_at: r.checked_in_at&.iso8601
+            }
+          },
+          stats: {
+            total_invited: event.invited_count,
+            confirmed: event.confirmed_count,
+            attended: event.attended_count,
+            show_up_rate: event.show_up_rate,
+            quota: event.quota,
+            quota_met: event.quota_met?
+          }
+        }
+      end
+
+      private
+
+      def event_params
+        params.require(:event).permit(:name, :event_type, :date, :time, :location, :description, :village_id, :quota)
+      end
+
+      def event_json(event)
+        {
+          id: event.id,
+          name: event.name,
+          event_type: event.event_type,
+          date: event.date,
+          time: event.time,
+          location: event.location,
+          village_name: event.village&.name,
+          quota: event.quota,
+          status: event.status,
+          invited_count: event.invited_count,
+          attended_count: event.attended_count,
+          show_up_rate: event.show_up_rate
+        }
+      end
+
+      def event_detail_json(event)
+        event_json(event).merge(
+          description: event.description,
+          confirmed_count: event.confirmed_count,
+          quota_met: event.quota_met?,
+          no_show_count: event.event_rsvps.no_shows.count
+        )
+      end
+    end
+  end
+end

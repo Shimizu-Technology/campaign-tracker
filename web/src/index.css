@@ -1,0 +1,12 @@
+@import "tailwindcss";
+
+:root {
+  --campaign-blue: #1B3A6B;
+  --campaign-red: #C41E3A;
+  --campaign-light: #E8EDF5;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}

@@ -45,7 +45,6 @@ end
 
 # Auth
 gem "jwt"
-gem "clerk-sdk-ruby", require: "clerk"
 
 # CORS
 gem "rack-cors"
