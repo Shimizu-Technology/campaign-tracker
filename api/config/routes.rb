@@ -19,6 +19,9 @@ Rails.application.routes.draw do
         resources :supporters, only: [ :create ]
       end
 
+      # War Room
+      get "war_room", to: "war_room#index"
+
       # Poll Watcher
       get "poll_watcher", to: "poll_watcher#index"
       post "poll_watcher/report", to: "poll_watcher#report"

@@ -13,6 +13,7 @@ import CheckInPage from './pages/admin/CheckInPage';
 import QRCodePage from './pages/admin/QRCodePage';
 import LeaderboardPage from './pages/admin/LeaderboardPage';
 import PollWatcherPage from './pages/admin/PollWatcherPage';
+import WarRoomPage from './pages/admin/WarRoomPage';
 import AdminLayout from './components/AdminLayout';
 
 const queryClient = new QueryClient({
@@ -47,6 +48,7 @@ export default function App() {
           <Route path="/admin/qr" element={<AdminRoute><QRCodePage /></AdminRoute>} />
           <Route path="/admin/leaderboard" element={<AdminRoute><LeaderboardPage /></AdminRoute>} />
           <Route path="/admin/poll-watcher" element={<AdminRoute><PollWatcherPage /></AdminRoute>} />
+          <Route path="/admin/war-room" element={<AdminRoute><WarRoomPage /></AdminRoute>} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>
