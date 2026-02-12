@@ -3,8 +3,10 @@
 module Api
   module V1
     class DashboardController < ApplicationController
+      include Authenticatable
+      before_action :authenticate_request
+
       # GET /api/v1/dashboard
-      # Public-ish for POC — add auth later
       def show
         campaign = Campaign.active.first
 

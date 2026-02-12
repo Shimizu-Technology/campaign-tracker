@@ -3,6 +3,9 @@
 module Api
   module V1
     class SupportersController < ApplicationController
+      include Authenticatable
+      before_action :authenticate_request, only: [:index, :check_duplicate]
+
       # POST /api/v1/supporters (public signup — no auth required)
       def create
         supporter = Supporter.new(public_supporter_params)

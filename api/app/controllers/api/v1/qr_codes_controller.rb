@@ -5,7 +5,10 @@ require "rqrcode"
 module Api
   module V1
     class QrCodesController < ApplicationController
-      # GET /api/v1/qr_codes/:code
+      include Authenticatable
+      before_action :authenticate_request, only: [:generate]
+
+      # GET /api/v1/qr_codes/:code (public — QR images need to be accessible)
       # Returns a QR code SVG for the given leader code
       def show
         code = params[:id]

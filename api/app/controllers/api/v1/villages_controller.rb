@@ -3,6 +3,9 @@
 module Api
   module V1
     class VillagesController < ApplicationController
+      include Authenticatable
+      before_action :authenticate_request, only: [:show]
+
       # GET /api/v1/villages (public — for signup form dropdown)
       def index
         villages = Village.includes(:precincts).order(:name)
