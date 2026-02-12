@@ -135,10 +135,31 @@ Campaign HQ (Auntie Rose)
 
 ### 5.4 Events
 
-**Motorcades / Events**
-- name, date, location
-- expected_attendees (from supporter motorcade_available)
-- check_ins (supporter_id, checked_in_at)
+**Events** (motorcades, rallies, fundraisers, meetings)
+- name, event_type (motorcade/rally/fundraiser/meeting/other)
+- date, time, location, description
+- campaign_id, village_id (nullable — some events are island-wide)
+- quota (minimum attendees needed)
+- status (upcoming/active/completed/cancelled)
+
+**Event RSVPs**
+- event_id, supporter_id
+- rsvp_status: invited / confirmed / declined / no_response
+- attended (boolean — marked day-of via check-in)
+- checked_in_at (timestamp)
+- checked_in_by (user who marked them present)
+
+**Supporter Engagement Tracking (computed)**
+Each supporter builds a reliability track record over time:
+- events_invited_count, events_attended_count, events_no_show_count
+- **reliability_score:** (attended / invited) × 100
+- last_event_date
+
+**Why this matters:**
+- Quota planning: "Dededo has 62% show-up rate, invite 325 to get 200"
+- Accountability: Chiefs see which block leaders' supporters actually show up
+- Election day priority: High-reliability supporters who haven't voted = urgent calls
+- Pattern detection: "Paper supporters" (signed up, never attend) vs. committed supporters
 
 ### 5.5 Quotas
 
