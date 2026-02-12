@@ -3,8 +3,9 @@
 module Api
   module V1
     class EventsController < ApplicationController
-      include Authenticatable
-      before_action :authenticate_request, except: []
+      # TODO: Add auth back after Clerk setup (CT-9)
+      # include Authenticatable
+      # before_action :authenticate_request
 
       # GET /api/v1/events
       def index
@@ -54,7 +55,7 @@ module Api
           r.rsvp_status = "confirmed"
         end
 
-        rsvp.check_in!(current_user)
+        rsvp.check_in!(User.first)
 
         render json: {
           message: "#{supporter.print_name} checked in!",
