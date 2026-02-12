@@ -19,6 +19,11 @@ Rails.application.routes.draw do
         resources :supporters, only: [ :create ]
       end
 
+      # Poll Watcher
+      get "poll_watcher", to: "poll_watcher#index"
+      post "poll_watcher/report", to: "poll_watcher#report"
+      get "poll_watcher/precinct/:id/history", to: "poll_watcher#history"
+
       # Leaderboard
       get "leaderboard", to: "leaderboard#index"
 

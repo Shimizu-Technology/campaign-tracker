@@ -157,8 +157,9 @@ export default function DashboardPage() {
         </div>
 
         {/* Quick Links */}
-        <div className="mt-8 flex gap-4 justify-center">
+        <div className="mt-8 flex flex-wrap gap-4 justify-center">
           <Link to="/admin/supporters" className="text-[#1B3A6B] hover:underline text-sm">View All Supporters →</Link>
+          <Link to="/admin/poll-watcher" className="text-[#1B3A6B] hover:underline text-sm">Poll Watcher →</Link>
           <Link to="/signup" className="text-[#1B3A6B] hover:underline text-sm">Public Signup Form →</Link>
         </div>
       </div>

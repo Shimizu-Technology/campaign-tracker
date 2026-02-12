@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_12_111754) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_12_214132) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -288,6 +288,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_12_111754) do
     t.index ["pay_period_id"], name: "index_payroll_items_on_pay_period_id"
   end
 
+  create_table "poll_reports", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "notes"
+    t.bigint "precinct_id", null: false
+    t.string "report_type", default: "turnout_update", null: false
+    t.datetime "reported_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id"
+    t.integer "voter_count", null: false
+    t.index ["precinct_id", "reported_at"], name: "index_poll_reports_on_precinct_id_and_reported_at"
+    t.index ["precinct_id"], name: "index_poll_reports_on_precinct_id"
+    t.index ["user_id"], name: "index_poll_reports_on_user_id"
+  end
+
   create_table "precincts", force: :cascade do |t|
     t.string "alpha_range"
     t.datetime "created_at", null: false
@@ -405,6 +419,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_12_111754) do
   add_foreign_key "pay_periods", "companies"
   add_foreign_key "payroll_items", "employees"
   add_foreign_key "payroll_items", "pay_periods"
+  add_foreign_key "poll_reports", "precincts"
+  add_foreign_key "poll_reports", "users"
   add_foreign_key "precincts", "villages"
   add_foreign_key "quotas", "campaigns"
   add_foreign_key "quotas", "districts"

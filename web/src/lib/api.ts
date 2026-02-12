@@ -41,4 +41,9 @@ export const checkInAttendee = (eventId: number, supporterId: number) =>
 export const getEventAttendees = (eventId: number, search?: string) =>
   api.get(`/events/${eventId}/attendees`, { params: { search } }).then(r => r.data);
 
+// Poll Watcher
+export const getPollWatcher = () => api.get('/poll_watcher').then(r => r.data);
+export const submitPollReport = (data: any) => api.post('/poll_watcher/report', { report: data }).then(r => r.data);
+export const getPrecinctHistory = (id: number) => api.get(`/poll_watcher/precinct/${id}/history`).then(r => r.data);
+
 export default api;
