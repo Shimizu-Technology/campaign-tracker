@@ -3,8 +3,10 @@ import { getWarRoom } from '../../lib/api';
 import { Link } from 'react-router-dom';
 import {
   ArrowLeft, Radio, Users, TrendingUp, MapPin, Phone,
-  AlertTriangle, Clock, Activity, Eye, CheckCircle
+  AlertTriangle, Clock, Activity, Eye, CheckCircle, X
 } from 'lucide-react';
+import { useCampaignUpdates } from '../../hooks/useCampaignUpdates';
+import { useRealtimeToast } from '../../hooks/useRealtimeToast';
 
 function turnoutColor(pct: number) {
   if (pct >= 50) return 'text-green-600';
@@ -54,10 +56,13 @@ function timeAgo(iso: string) {
 }
 
 export default function WarRoomPage() {
+  const { toasts, handleEvent, dismiss } = useRealtimeToast();
+  useCampaignUpdates(handleEvent);
+
   const { data, isLoading } = useQuery({
     queryKey: ['war_room'],
     queryFn: getWarRoom,
-    refetchInterval: 10_000, // Refresh every 10s
+    refetchInterval: 30_000, // Fallback poll every 30s (WebSocket handles instant updates)
   });
 
   if (isLoading) {
@@ -74,6 +79,30 @@ export default function WarRoomPage() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
+      {/* Real-time toast notifications */}
+      {toasts.length > 0 && (
+        <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm">
+          {toasts.map(toast => (
+            <div
+              key={toast.id}
+              className={`rounded-lg p-3 pr-8 shadow-lg border text-sm animate-slide-in relative ${
+                toast.type === 'success' ? 'bg-green-900/90 border-green-700 text-green-100' :
+                toast.type === 'warning' ? 'bg-yellow-900/90 border-yellow-700 text-yellow-100' :
+                'bg-blue-900/90 border-blue-700 text-blue-100'
+              }`}
+            >
+              {toast.message}
+              <button
+                onClick={() => dismiss(toast.id)}
+                className="absolute top-2 right-2 text-white/50 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-black/50 border-b border-gray-700 py-3 px-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">

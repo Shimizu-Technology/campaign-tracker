@@ -66,6 +66,10 @@ module Api
 
         if report.save
           precinct = report.precinct
+
+          # Broadcast to war room / dashboard
+          CampaignBroadcast.poll_report(report)
+
           render json: {
             message: "Report submitted for Precinct #{precinct.number}",
             report: {

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getPollWatcher, submitPollReport } from '../../lib/api';
+import { useCampaignUpdates } from '../../hooks/useCampaignUpdates';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Eye, Send, CheckCircle, Clock, AlertTriangle, MapPin } from 'lucide-react';
 
@@ -26,6 +27,7 @@ function turnoutBg(pct: number | null) {
 }
 
 export default function PollWatcherPage() {
+  useCampaignUpdates(); // Auto-invalidates on real-time events
   const queryClient = useQueryClient();
   const [selectedPrecinct, setSelectedPrecinct] = useState<any>(null);
   const [voterCount, setVoterCount] = useState('');

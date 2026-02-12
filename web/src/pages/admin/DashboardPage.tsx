@@ -3,6 +3,7 @@ import { getDashboard } from '../../lib/api';
 import { Link } from 'react-router-dom';
 import { Users, MapPin, TrendingUp, CalendarPlus, ClipboardPlus, BarChart3, QrCode, Trophy, MessageSquare } from 'lucide-react';
 import { UserButton } from '@clerk/clerk-react';
+import { useCampaignUpdates } from '../../hooks/useCampaignUpdates';
 
 interface VillageData {
   id: number;
@@ -30,6 +31,8 @@ function statusBg(status: string) {
 }
 
 export default function DashboardPage() {
+  useCampaignUpdates(); // Auto-invalidates dashboard queries on real-time events
+
   const { data, isLoading } = useQuery({
     queryKey: ['dashboard'],
     queryFn: getDashboard,

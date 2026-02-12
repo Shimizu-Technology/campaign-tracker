@@ -59,6 +59,9 @@ module Api
 
         rsvp.check_in!(current_user)
 
+        # Broadcast check-in
+        CampaignBroadcast.event_check_in(event, supporter, rsvp)
+
         render json: {
           message: "#{supporter.print_name} checked in!",
           rsvp: {

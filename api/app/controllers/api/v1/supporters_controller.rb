@@ -25,6 +25,9 @@ module Api
           # Send welcome SMS (async-safe, won't block response)
           SmsService.welcome_supporter(supporter) if supporter.contact_number.present?
 
+          # Broadcast to connected clients
+          CampaignBroadcast.new_supporter(supporter)
+
           render json: {
             message: "Si Yu'os Ma'åse! Thank you for supporting Josh & Tina!",
             supporter: supporter_json(supporter),
