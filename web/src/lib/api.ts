@@ -7,6 +7,7 @@ const api = axios.create({
 
 // Dashboard
 export const getDashboard = () => api.get('/dashboard').then(r => r.data);
+export const getStats = () => api.get('/stats').then(r => r.data);
 
 // Villages
 export const getVillages = () => api.get('/villages').then(r => r.data);
@@ -27,6 +28,9 @@ export const exportSupportersCsv = (params?: any) =>
     a.click();
     URL.revokeObjectURL(url);
   });
+
+// Leaderboard
+export const getLeaderboard = () => api.get('/leaderboard').then(r => r.data);
 
 // Events
 export const getEvents = (params?: any) => api.get('/events', { params }).then(r => r.data);

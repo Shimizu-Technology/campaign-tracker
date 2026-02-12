@@ -1,7 +1,17 @@
 import { Link } from 'react-router-dom';
 import { Users, BarChart3, ClipboardList } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import api from '../lib/api';
 
 export default function LandingPage() {
+  const { data } = useQuery({
+    queryKey: ['stats'],
+    queryFn: () => api.get('/stats').then(r => r.data),
+    staleTime: 60_000,
+  });
+
+  const totalSupporters = data?.total_supporters || 0;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1B3A6B] to-[#0f2340] text-white">
       <div className="max-w-4xl mx-auto px-4 py-12">
@@ -16,6 +26,13 @@ export default function LandingPage() {
           <p className="text-lg text-blue-300">
             Together, we build a stronger Guam
           </p>
+          {totalSupporters > 0 && (
+            <div className="mt-6 inline-flex items-center gap-2 bg-white/10 backdrop-blur px-6 py-3 rounded-full">
+              <Users className="w-5 h-5 text-blue-200" />
+              <span className="text-2xl font-bold">{totalSupporters.toLocaleString()}</span>
+              <span className="text-blue-200">supporters and counting</span>
+            </div>
+          )}
         </div>
 
         {/* CTA */}

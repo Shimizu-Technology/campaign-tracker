@@ -11,6 +11,7 @@ import EventsPage from './pages/admin/EventsPage';
 import EventDetailPage from './pages/admin/EventDetailPage';
 import CheckInPage from './pages/admin/CheckInPage';
 import QRCodePage from './pages/admin/QRCodePage';
+import LeaderboardPage from './pages/admin/LeaderboardPage';
 import AdminLayout from './components/AdminLayout';
 
 const queryClient = new QueryClient({
@@ -43,6 +44,7 @@ export default function App() {
           <Route path="/admin/events/:id" element={<AdminRoute><EventDetailPage /></AdminRoute>} />
           <Route path="/admin/events/:id/checkin" element={<AdminRoute><CheckInPage /></AdminRoute>} />
           <Route path="/admin/qr" element={<AdminRoute><QRCodePage /></AdminRoute>} />
+          <Route path="/admin/leaderboard" element={<AdminRoute><LeaderboardPage /></AdminRoute>} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>

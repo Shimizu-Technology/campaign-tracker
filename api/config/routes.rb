@@ -5,6 +5,7 @@ Rails.application.routes.draw do
     namespace :v1 do
       # Public
       get "dashboard", to: "dashboard#show"
+      get "stats", to: "dashboard#stats"
       resources :villages, only: [ :index, :show ]
       resources :supporters, only: [ :create, :index ] do
         collection do
@@ -17,6 +18,9 @@ Rails.application.routes.draw do
       namespace :staff do
         resources :supporters, only: [ :create ]
       end
+
+      # Leaderboard
+      get "leaderboard", to: "leaderboard#index"
 
       # QR Codes
       resources :qr_codes, only: [ :show ] do

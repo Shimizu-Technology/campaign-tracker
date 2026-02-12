@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getDashboard } from '../../lib/api';
 import { Link } from 'react-router-dom';
-import { Users, MapPin, TrendingUp, CalendarPlus, ClipboardPlus, BarChart3, QrCode } from 'lucide-react';
+import { Users, MapPin, TrendingUp, CalendarPlus, ClipboardPlus, BarChart3, QrCode, Trophy } from 'lucide-react';
 import { UserButton } from '@clerk/clerk-react';
 
 interface VillageData {
@@ -57,7 +57,7 @@ export default function DashboardPage() {
             </div>
             <UserButton afterSignOutUrl="/" />
           </div>
-          <div className="flex gap-2 sm:gap-3 mt-2 sm:mt-0 sm:absolute sm:right-4 sm:top-4">
+          <div className="flex gap-2 sm:gap-3 mt-2">
             <Link to="/admin/supporters/new" className="bg-[#C41E3A] hover:bg-[#a01830] px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1">
               <ClipboardPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> <span className="hidden xs:inline">New</span> Entry
             </Link>
@@ -66,6 +66,9 @@ export default function DashboardPage() {
             </Link>
             <Link to="/admin/events" className="bg-white/10 hover:bg-white/20 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1">
               <CalendarPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Events
+            </Link>
+            <Link to="/admin/leaderboard" className="bg-yellow-500/80 hover:bg-yellow-500 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1">
+              <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Top
             </Link>
           </div>
         </div>

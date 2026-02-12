@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getSupporters, exportSupportersCsv } from '../../lib/api';
+import { getSupporters, exportSupportersCsv, getVillages } from '../../lib/api';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Search, ClipboardPlus, Download } from 'lucide-react';
 
@@ -9,6 +9,9 @@ export default function SupportersPage() {
   const [search, setSearch] = useState('');
   const [villageFilter, setVillageFilter] = useState('');
   const [page, setPage] = useState(1);
+
+  const { data: villageData } = useQuery({ queryKey: ['villages'], queryFn: getVillages });
+  const villages = villageData?.villages || [];
 
   const { data, isLoading } = useQuery({
     queryKey: ['supporters', search, villageFilter, page],
@@ -40,16 +43,28 @@ export default function SupportersPage() {
       </header>
 
       <div className="max-w-6xl mx-auto px-4 py-6">
-        {/* Search */}
-        <div className="relative mb-6">
-          <Search className="w-5 h-5 absolute left-3 top-3 text-gray-400" />
-          <input
-            type="text"
-            value={search}
-            onChange={e => { setSearch(e.target.value); setPage(1); }}
-            placeholder="Search by name or phone..."
-            className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
-          />
+        {/* Filters */}
+        <div className="flex gap-3 mb-6">
+          <div className="relative flex-1">
+            <Search className="w-5 h-5 absolute left-3 top-3 text-gray-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={e => { setSearch(e.target.value); setPage(1); }}
+              placeholder="Search by name or phone..."
+              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+            />
+          </div>
+          <select
+            value={villageFilter}
+            onChange={e => { setVillageFilter(e.target.value); setPage(1); }}
+            className="px-3 py-3 border border-gray-300 rounded-lg bg-white text-gray-700 focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+          >
+            <option value="">All Villages</option>
+            {villages.map((v: any) => (
+              <option key={v.id} value={v.id}>{v.name}</option>
+            ))}
+          </select>
         </div>
 
         {/* Count */}
@@ -77,7 +92,7 @@ export default function SupportersPage() {
                   <span>{s.contact_number}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>{s.registered_voter ? '✓ Registered' : 'Not registered'}</span>
+                  <span className={s.registered_voter ? 'text-green-600 font-medium' : 'text-gray-400'}>{s.registered_voter ? 'Registered' : 'Not registered'}</span>
                   <span>{new Date(s.created_at).toLocaleDateString()}</span>
                 </div>
               </div>

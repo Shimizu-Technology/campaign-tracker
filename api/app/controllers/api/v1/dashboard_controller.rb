@@ -4,7 +4,16 @@ module Api
   module V1
     class DashboardController < ApplicationController
       include Authenticatable
-      before_action :authenticate_request
+      before_action :authenticate_request, only: [:show]
+
+      # GET /api/v1/stats (public — no auth)
+      def stats
+        render json: {
+          total_supporters: Supporter.active.count,
+          total_villages: Village.count,
+          campaign_name: Campaign.active.first&.name || "Josh & Tina 2026"
+        }
+      end
 
       # GET /api/v1/dashboard
       def show
