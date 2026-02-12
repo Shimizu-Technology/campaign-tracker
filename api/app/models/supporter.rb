@@ -20,6 +20,8 @@ class Supporter < ApplicationRecord
   scope :this_week, -> { where("supporters.created_at >= ?", Time.current.beginning_of_week) }
 
   def self.potential_duplicates(name, village_id)
+    return none if name.blank? || village_id.blank?
+
     where(village_id: village_id)
       .where("LOWER(print_name) = ?", name.downcase.strip)
       .active

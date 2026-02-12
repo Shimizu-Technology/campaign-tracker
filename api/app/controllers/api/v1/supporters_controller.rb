@@ -11,7 +11,7 @@ module Api
       # POST /api/v1/supporters (public signup — no auth required)
       def create
         supporter = Supporter.new(public_supporter_params)
-        supporter.source = params[:leader_code].present? ? "qr_signup" : "qr_signup"
+        supporter.source = params[:leader_code].present? ? "qr_signup" : "staff_entry"
         supporter.status = "active"
         supporter.leader_code = params[:leader_code]
 
