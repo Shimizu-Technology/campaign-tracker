@@ -36,7 +36,7 @@ export default function PollWatcherPage() {
   const [successMsg, setSuccessMsg] = useState('');
   const [filterVillage, setFilterVillage] = useState('');
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['poll_watcher'],
     queryFn: getPollWatcher,
     refetchInterval: 15_000, // Refresh every 15s on election day
@@ -69,6 +69,21 @@ export default function PollWatcherPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-gray-400 text-lg">Loading precincts...</div>
+      </div>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center p-8">
+          <AlertTriangle className="w-12 h-12 text-[#1B3A6B] mx-auto mb-4 opacity-50" />
+          <h2 className="text-xl font-bold text-gray-700 mb-2">Can't connect to server</h2>
+          <p className="text-gray-500 mb-4">Check your connection and try again.</p>
+          <button onClick={() => window.location.reload()} className="bg-[#1B3A6B] text-white px-4 py-2 rounded-lg hover:bg-[#152e55]">
+            Retry
+          </button>
+        </div>
       </div>
     );
   }

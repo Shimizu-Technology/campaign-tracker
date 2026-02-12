@@ -33,7 +33,7 @@ function statusBg(status: string) {
 export default function DashboardPage() {
   useCampaignUpdates(); // Auto-invalidates dashboard queries on real-time events
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: ['dashboard'],
     queryFn: getDashboard,
   });
@@ -42,6 +42,21 @@ export default function DashboardPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-gray-400 text-lg">Loading dashboard...</div>
+      </div>
+    );
+  }
+
+  if (isError || !data) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center p-8">
+          <Users className="w-12 h-12 text-[#1B3A6B] mx-auto mb-4 opacity-50" />
+          <h2 className="text-xl font-bold text-gray-700 mb-2">Can't connect to server</h2>
+          <p className="text-gray-500 mb-4">Check your connection and try again.</p>
+          <button onClick={() => window.location.reload()} className="bg-[#1B3A6B] text-white px-4 py-2 rounded-lg hover:bg-[#152e55]">
+            Retry
+          </button>
+        </div>
       </div>
     );
   }

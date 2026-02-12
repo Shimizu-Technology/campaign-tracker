@@ -1,6 +1,6 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getVillages, createSupporter, scanForm } from '../../lib/api';
+import { getVillages, createSupporter, scanForm, checkDuplicate } from '../../lib/api';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Check, AlertTriangle, Loader2, Camera, ScanLine } from 'lucide-react';
 
@@ -29,6 +29,28 @@ export default function StaffEntryPage() {
   const [lastVillage, setLastVillage] = useState('');
   const [successCount, setSuccessCount] = useState(0);
   const [showSuccess, setShowSuccess] = useState(false);
+
+  // Duplicate detection
+  const [duplicateWarning, setDuplicateWarning] = useState('');
+  const dupeTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  const checkForDuplicate = useCallback((name: string, villageId: string) => {
+    if (dupeTimerRef.current) clearTimeout(dupeTimerRef.current);
+    if (!name.trim() || !villageId) return;
+    dupeTimerRef.current = setTimeout(async () => {
+      try {
+        const result = await checkDuplicate(name.trim(), Number(villageId));
+        if (result.duplicates && result.duplicates.length > 0) {
+          const villageName = villages.find(v => v.id === Number(villageId))?.name || 'this village';
+          setDuplicateWarning(`A supporter with this name already exists in ${villageName}`);
+        } else {
+          setDuplicateWarning('');
+        }
+      } catch {
+        // silently ignore
+      }
+    }, 500);
+  }, []);
 
   // OCR Scanner
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -96,6 +118,7 @@ export default function StaffEntryPage() {
     onSuccess: () => {
       setSuccessCount(prev => prev + 1);
       setShowSuccess(true);
+      setDuplicateWarning('');
       setLastVillage(form.village_id);
       // Reset form but keep village for bulk entry
       setForm({
@@ -200,6 +223,15 @@ export default function StaffEntryPage() {
       )}
 
       {/* Duplicate Warning */}
+      {duplicateWarning && (
+        <div className="max-w-lg mx-auto px-4 mt-4">
+          <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-lg flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 flex-shrink-0" /> {duplicateWarning}
+          </div>
+        </div>
+      )}
+
+      {/* Submit Error */}
       {submit.isError && (
         <div className="max-w-lg mx-auto px-4 mt-4">
           <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-lg flex items-center gap-2">
@@ -236,6 +268,7 @@ export default function StaffEntryPage() {
             autoFocus
             value={form.print_name}
             onChange={e => updateField('print_name', e.target.value)}
+            onBlur={() => checkForDuplicate(form.print_name, form.village_id)}
             className={inputClass("print_name")}
             placeholder="Print Name"
           />

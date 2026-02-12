@@ -66,6 +66,15 @@ export default function SignupPage() {
         </div>
       </div>
 
+      {/* Leader code banner */}
+      {leaderCode && (
+        <div className="max-w-lg mx-auto px-4 mt-4">
+          <div className="bg-blue-50 border border-blue-200 text-[#1B3A6B] px-4 py-3 rounded-lg text-sm font-medium text-center">
+            🤝 You were invited by a campaign supporter!
+          </div>
+        </div>
+      )}
+
       {/* Form */}
       <form onSubmit={handleSubmit} className="max-w-lg mx-auto px-4 py-6 space-y-4">
         {/* Name */}

@@ -15,6 +15,11 @@ module Api
         supporter.status = "active"
         supporter.leader_code = params[:leader_code]
 
+        # Default unchecked booleans to false (checkboxes send nothing when unchecked)
+        supporter.registered_voter = false if supporter.registered_voter.nil?
+        supporter.yard_sign = false if supporter.yard_sign.nil?
+        supporter.motorcade_available = false if supporter.motorcade_available.nil?
+
         # Check for duplicates
         dupes = Supporter.potential_duplicates(supporter.print_name, supporter.village_id)
         if dupes.exists?
