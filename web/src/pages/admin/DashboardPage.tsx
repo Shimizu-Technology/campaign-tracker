@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getDashboard } from '../../lib/api';
 import { Link } from 'react-router-dom';
-import { Users, MapPin, TrendingUp, CalendarPlus, ClipboardPlus, BarChart3 } from 'lucide-react';
+import { Users, MapPin, TrendingUp, CalendarPlus, ClipboardPlus, BarChart3, QrCode } from 'lucide-react';
 
 interface VillageData {
   id: number;
@@ -56,6 +56,9 @@ export default function DashboardPage() {
           <div className="flex gap-3">
             <Link to="/admin/supporters/new" className="bg-[#C41E3A] hover:bg-[#a01830] px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1">
               <ClipboardPlus className="w-4 h-4" /> New Entry
+            </Link>
+            <Link to="/admin/qr" className="bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1">
+              <QrCode className="w-4 h-4" /> QR
             </Link>
             <Link to="/admin/events" className="bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1">
               <CalendarPlus className="w-4 h-4" /> Events

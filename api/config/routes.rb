@@ -17,6 +17,16 @@ Rails.application.routes.draw do
         resources :supporters, only: [ :create ]
       end
 
+      # QR Codes
+      resources :qr_codes, only: [ :show ] do
+        member do
+          get :info
+        end
+        collection do
+          post :generate
+        end
+      end
+
       # Events
       resources :events, only: [ :index, :show, :create ] do
         member do

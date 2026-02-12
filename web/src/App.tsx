@@ -10,6 +10,7 @@ import VillageDetailPage from './pages/admin/VillageDetailPage';
 import EventsPage from './pages/admin/EventsPage';
 import EventDetailPage from './pages/admin/EventDetailPage';
 import CheckInPage from './pages/admin/CheckInPage';
+import QRCodePage from './pages/admin/QRCodePage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,6 +37,7 @@ export default function App() {
           <Route path="/admin/events" element={<EventsPage />} />
           <Route path="/admin/events/:id" element={<EventDetailPage />} />
           <Route path="/admin/events/:id/checkin" element={<CheckInPage />} />
+          <Route path="/admin/qr" element={<QRCodePage />} />
         </Routes>
       </BrowserRouter>
     </QueryClientProvider>
