@@ -41,6 +41,9 @@ Rails.application.routes.draw do
         end
       end
 
+      # Form Scanner (OCR)
+      post "scan", to: "scan#create"
+
       # SMS
       get "sms/status", to: "sms#status"
       post "sms/send", to: "sms#send_single"

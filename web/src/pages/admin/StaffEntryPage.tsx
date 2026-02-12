@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getVillages, createSupporter } from '../../lib/api';
+import { getVillages, createSupporter, scanForm } from '../../lib/api';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Check, AlertTriangle, Loader2 } from 'lucide-react';
+import { ArrowLeft, Check, AlertTriangle, Loader2, Camera, ScanLine } from 'lucide-react';
 
 interface Village {
   id: number;
@@ -29,6 +29,60 @@ export default function StaffEntryPage() {
   const [lastVillage, setLastVillage] = useState('');
   const [successCount, setSuccessCount] = useState(0);
   const [showSuccess, setShowSuccess] = useState(false);
+
+  // OCR Scanner
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState('');
+  const [scannedFields, setScannedFields] = useState<Set<string>>(new Set());
+
+  const handleScan = async (file: File) => {
+    setScanning(true);
+    setScanError('');
+    setScannedFields(new Set());
+
+    try {
+      // Convert to base64
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
+      });
+
+      const result = await scanForm(base64);
+
+      if (result.success && result.extracted) {
+        const data = result.extracted;
+        const filled = new Set<string>();
+
+        // Auto-fill form with extracted data
+        const updates: any = { ...emptyForm };
+        if (data.print_name) { updates.print_name = data.print_name; filled.add('print_name'); }
+        if (data.contact_number) { updates.contact_number = data.contact_number; filled.add('contact_number'); }
+        if (data.email) { updates.email = data.email; filled.add('email'); }
+        if (data.dob) { updates.dob = data.dob; filled.add('dob'); }
+        if (data.street_address) { updates.street_address = data.street_address; filled.add('street_address'); }
+        if (data.registered_voter != null) { updates.registered_voter = data.registered_voter; filled.add('registered_voter'); }
+        if (data.yard_sign != null) { updates.yard_sign = data.yard_sign; filled.add('yard_sign'); }
+        if (data.motorcade_available != null) { updates.motorcade_available = data.motorcade_available; filled.add('motorcade_available'); }
+
+        // Match village
+        if (data.village_id) {
+          updates.village_id = String(data.village_id);
+          filled.add('village_id');
+        }
+
+        setForm(updates);
+        setScannedFields(filled);
+      } else {
+        setScanError(result.error || 'Could not extract form data');
+      }
+    } catch (err: any) {
+      setScanError(err?.response?.data?.error || 'Scan failed — try again');
+    } finally {
+      setScanning(false);
+    }
+  };
 
   const { data: villageData } = useQuery({
     queryKey: ['villages'],
@@ -64,8 +118,16 @@ export default function StaffEntryPage() {
     });
   };
 
-  const updateField = (field: string, value: any) =>
+  const updateField = (field: string, value: any) => {
     setForm(prev => ({ ...prev, [field]: value }));
+    // Clear scan highlight when user edits
+    setScannedFields(prev => { const next = new Set(prev); next.delete(field); return next; });
+  };
+
+  const inputClass = (field: string) =>
+    `w-full px-3 py-3 border rounded-lg text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent ${
+      scannedFields.has(field) ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-200' : 'border-gray-300'
+    }`;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -77,14 +139,56 @@ export default function StaffEntryPage() {
           </Link>
           <div className="flex items-center justify-between">
             <h1 className="text-xl font-bold">Staff Entry Form</h1>
-            {successCount > 0 && (
-              <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm font-medium">
-                {successCount} entered
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {successCount > 0 && (
+                <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm font-medium">
+                  {successCount} entered
+                </span>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) handleScan(file);
+                  e.target.value = '';
+                }}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={scanning}
+                className="bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 disabled:opacity-50 transition-all"
+              >
+                {scanning ? (
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Scanning...</>
+                ) : (
+                  <><Camera className="w-4 h-4" /> Scan Form</>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </header>
+
+      {/* Scan Results */}
+      {scannedFields.size > 0 && (
+        <div className="max-w-lg mx-auto px-4 mt-4">
+          <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg flex items-center gap-2">
+            <ScanLine className="w-5 h-5" />
+            <span>Scanned {scannedFields.size} fields — <strong>review and confirm</strong> before saving</span>
+          </div>
+        </div>
+      )}
+      {scanError && (
+        <div className="max-w-lg mx-auto px-4 mt-4">
+          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5" /> {scanError}
+          </div>
+        </div>
+      )}
 
       {/* Success Toast */}
       {showSuccess && (
@@ -113,7 +217,7 @@ export default function StaffEntryPage() {
             required
             value={form.village_id}
             onChange={e => updateField('village_id', e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent bg-white"
+            className={`${inputClass('village_id')} bg-white`}
           >
             <option value="">Select village</option>
             {villages.map(v => (
@@ -132,7 +236,7 @@ export default function StaffEntryPage() {
             autoFocus
             value={form.print_name}
             onChange={e => updateField('print_name', e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+            className={inputClass("print_name")}
             placeholder="Print Name"
           />
         </div>
@@ -145,7 +249,7 @@ export default function StaffEntryPage() {
             required
             value={form.contact_number}
             onChange={e => updateField('contact_number', e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+            className={inputClass("contact_number")}
             placeholder="671-555-1234"
           />
         </div>
@@ -157,7 +261,7 @@ export default function StaffEntryPage() {
             type="date"
             value={form.dob}
             onChange={e => updateField('dob', e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+            className={inputClass("dob")}
           />
         </div>
 
@@ -168,7 +272,7 @@ export default function StaffEntryPage() {
             type="email"
             value={form.email}
             onChange={e => updateField('email', e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+            className={inputClass("email")}
             placeholder="email@example.com"
           />
         </div>
@@ -180,7 +284,7 @@ export default function StaffEntryPage() {
             type="text"
             value={form.street_address}
             onChange={e => updateField('street_address', e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+            className={inputClass("street_address")}
             placeholder="123 Marine Corps Dr"
           />
         </div>

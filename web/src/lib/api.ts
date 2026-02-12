@@ -49,6 +49,10 @@ export const getPollWatcher = () => api.get('/poll_watcher').then(r => r.data);
 export const submitPollReport = (data: any) => api.post('/poll_watcher/report', { report: data }).then(r => r.data);
 export const getPrecinctHistory = (id: number) => api.get(`/poll_watcher/precinct/${id}/history`).then(r => r.data);
 
+// Form Scanner (OCR)
+export const scanForm = (image: string) =>
+  api.post('/scan', { image }).then(r => r.data);
+
 // SMS
 export const getSmsStatus = () => api.get('/sms/status').then(r => r.data);
 export const sendTestSms = (phone: string, message: string) =>
