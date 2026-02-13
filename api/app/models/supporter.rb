@@ -16,7 +16,7 @@ class Supporter < ApplicationRecord
   validates :print_name, presence: true
   validates :contact_number, presence: true
   validates :status, inclusion: { in: %w[active inactive duplicate unverified] }
-  validates :source, inclusion: { in: %w[staff_entry qr_signup referral bulk_import] }
+  validates :source, inclusion: { in: %w[staff_entry qr_signup referral bulk_import] }, allow_nil: true
   validates :turnout_status, inclusion: { in: TURNOUT_STATUSES }
   validates :turnout_source, inclusion: { in: TURNOUT_SOURCES }, allow_blank: true
   validate :precinct_matches_village

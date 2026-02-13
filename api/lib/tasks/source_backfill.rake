@@ -21,6 +21,9 @@ namespace :supporters do
     puts "  → Without leader_code (→ staff_entry): #{without_leader_code.count}"
 
     unless dry_run
+      # Using update_all intentionally — bypasses callbacks/validations for bulk efficiency.
+      # Model validation now allows nil source (allow_nil: true) so legacy records
+      # can be re-saved without error even before backfill runs.
       updated_qr = with_leader_code.update_all(source: "qr_signup")
       updated_staff = without_leader_code.update_all(source: "staff_entry")
       puts "\nApplied:"
