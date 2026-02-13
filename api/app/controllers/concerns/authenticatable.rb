@@ -7,6 +7,9 @@ require "jwt"
 module Authenticatable
   extend ActiveSupport::Concern
 
+  JWKS_CACHE = { key: nil, fetched_at: nil }
+  JWKS_CACHE_TTL = 3600 # 1 hour
+
   private
 
   def authenticate_request
@@ -24,11 +27,16 @@ module Authenticatable
 
       # Auto-create user on first login if they have a Clerk account
       unless @current_user
+        clerk_user = fetch_clerk_user(clerk_id)
+        email = clerk_user[:email] || "#{clerk_id}@clerk.dev"
+        admin_emails = ENV.fetch("ADMIN_EMAILS", "lmshimizu@gmail.com").split(",").map(&:strip)
+        role = admin_emails.include?(email) ? "campaign_admin" : "block_leader"
+
         @current_user = User.create!(
           clerk_id: clerk_id,
-          email: decoded["email"] || "#{clerk_id}@clerk.dev",
-          name: decoded["name"] || decoded["first_name"] || "New User",
-          role: "block_leader" # Default role, admin upgrades later
+          email: email,
+          name: clerk_user[:name] || "New User",
+          role: role
         )
       end
     rescue JWT::DecodeError => e
@@ -60,19 +68,7 @@ module Authenticatable
   end
 
   def decode_clerk_jwt(token)
-    # Decode the Clerk publishable key to get the domain
-    # pk_test_dHJ1c3RlZC1tb29zZS04LmNsZXJrLmFjY291bnRzLmRldiQ
-    # Base64 decodes to: trusted-moose-8.clerk.accounts.dev$
-    clerk_domain = extract_clerk_domain
-
-    jwks_url = "https://#{clerk_domain}/.well-known/jwks.json"
-    uri = URI(jwks_url)
-    response = Net::HTTP.get(uri)
-    jwks_hash = JSON.parse(response)
-
-    # Get the first key
-    jwk_data = jwks_hash["keys"].first
-    jwk = JWT::JWK.import(jwk_data)
+    jwk = cached_clerk_jwk
 
     decoded = JWT.decode(
       token,
@@ -86,6 +82,51 @@ module Authenticatable
     )
 
     decoded.first
+  end
+
+  def cached_clerk_jwk
+    cache = JWKS_CACHE
+    if cache[:key] && cache[:fetched_at] && (Time.now - cache[:fetched_at]) < JWKS_CACHE_TTL
+      return cache[:key]
+    end
+
+    clerk_domain = extract_clerk_domain
+    jwks_url = "https://#{clerk_domain}/.well-known/jwks.json"
+    uri = URI(jwks_url)
+    response = Net::HTTP.get(uri)
+    jwks_hash = JSON.parse(response)
+    jwk_data = jwks_hash["keys"].first
+    jwk = JWT::JWK.import(jwk_data)
+
+    cache[:key] = jwk
+    cache[:fetched_at] = Time.now
+    jwk
+  end
+
+  def fetch_clerk_user(clerk_id)
+    secret_key = ENV["CLERK_SECRET_KEY"]
+    return { email: nil, name: nil } unless secret_key.present?
+
+    uri = URI("https://api.clerk.com/v1/users/#{clerk_id}")
+    http = Net::HTTP.new(uri.host, uri.port)
+    http.use_ssl = true
+    req = Net::HTTP::Get.new(uri)
+    req["Authorization"] = "Bearer #{secret_key}"
+
+    response = http.request(req)
+    return { email: nil, name: nil } unless response.is_a?(Net::HTTPSuccess)
+
+    data = JSON.parse(response.body)
+    primary_email = data.dig("email_addresses")&.find { |e| e["id"] == data["primary_email_address_id"] }
+    email = primary_email&.dig("email_address")
+    first_name = data["first_name"]
+    last_name = data["last_name"]
+    name = [first_name, last_name].compact.join(" ").presence
+
+    { email: email, name: name }
+  rescue StandardError => e
+    Rails.logger.warn("Failed to fetch Clerk user #{clerk_id}: #{e.message}")
+    { email: nil, name: nil }
   end
 
   def extract_clerk_domain

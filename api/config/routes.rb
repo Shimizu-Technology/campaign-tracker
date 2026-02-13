@@ -50,6 +50,9 @@ Rails.application.routes.draw do
       post "sms/blast", to: "sms#blast"
       post "sms/event_notify", to: "sms#event_notify"
 
+      # Users (admin only)
+      resources :users, only: [ :index, :update ]
+
       # Events
       resources :events, only: [ :index, :show, :create ] do
         member do
