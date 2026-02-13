@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getEvents, createEvent, getVillages } from '../../lib/api';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Calendar, MapPin, Users, X } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { ArrowLeft, Plus, Calendar, MapPin, Search, Users, X } from 'lucide-react';
 
 interface EventForm {
   name: string;
@@ -24,6 +24,7 @@ interface EventItem {
   id: number;
   name: string;
   event_type: string;
+  status?: string;
   date: string;
   location?: string;
   village_name?: string;
@@ -33,16 +34,24 @@ interface EventItem {
   show_up_rate: number;
 }
 
+type EventSortField = 'date' | 'name' | 'event_type' | 'attended_count' | 'show_up_rate';
+
 export default function EventsPage() {
   const queryClient = useQueryClient();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState<EventForm>({
     name: '', event_type: 'motorcade', date: '', time: '', location: '',
     description: '', village_id: '', quota: '',
   });
 
-  const { data: eventsData } = useQuery({ queryKey: ['events'], queryFn: () => getEvents() });
+  const { data: eventsData, isFetching } = useQuery({ queryKey: ['events'], queryFn: () => getEvents() });
   const { data: villageData } = useQuery({ queryKey: ['villages'], queryFn: getVillages });
+  const [search, setSearch] = useState(searchParams.get('search') || '');
+  const [typeFilter, setTypeFilter] = useState(searchParams.get('type') || '');
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
+  const [sortBy, setSortBy] = useState<EventSortField>((searchParams.get('sort_by') as EventSortField) || 'date');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>((searchParams.get('sort_dir') as 'asc' | 'desc') || 'desc');
 
   const create = useMutation({
     mutationFn: (data: Record<string, unknown>) => createEvent(data),
@@ -53,8 +62,43 @@ export default function EventsPage() {
     },
   });
 
-  const events: EventItem[] = eventsData?.events || [];
+  const events: EventItem[] = useMemo(() => eventsData?.events || [], [eventsData]);
   const villages: VillageOption[] = villageData?.villages || [];
+  const filteredEvents = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const filtered = events.filter((e) => {
+      const searchHit = q.length === 0 ||
+        e.name.toLowerCase().includes(q) ||
+        (e.location || '').toLowerCase().includes(q) ||
+        (e.village_name || '').toLowerCase().includes(q);
+      const typeHit = typeFilter ? e.event_type === typeFilter : true;
+      const statusHit = statusFilter ? (e.status || '') === statusFilter : true;
+      return searchHit && typeHit && statusHit;
+    });
+
+    return [...filtered].sort((a, b) => {
+      const dir = sortDir === 'asc' ? 1 : -1;
+      if (sortBy === 'date') {
+        const aDate = new Date(a.date).getTime();
+        const bDate = new Date(b.date).getTime();
+        return (aDate - bDate) * dir;
+      }
+      if (sortBy === 'name') return a.name.localeCompare(b.name) * dir;
+      if (sortBy === 'event_type') return a.event_type.localeCompare(b.event_type) * dir;
+      if (sortBy === 'attended_count') return (a.attended_count - b.attended_count) * dir;
+      return (a.show_up_rate - b.show_up_rate) * dir;
+    });
+  }, [events, search, typeFilter, statusFilter, sortBy, sortDir]);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (typeFilter) params.set('type', typeFilter);
+    if (statusFilter) params.set('status', statusFilter);
+    params.set('sort_by', sortBy);
+    params.set('sort_dir', sortDir);
+    setSearchParams(params, { replace: true });
+  }, [search, typeFilter, statusFilter, sortBy, sortDir, setSearchParams]);
 
   const typeColors: Record<string, string> = {
     motorcade: 'bg-blue-100 text-blue-700',
@@ -65,15 +109,15 @@ export default function EventsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#f5f7fb]">
       <header className="bg-[#1B3A6B] text-white py-4 px-4">
         <div className="max-w-4xl mx-auto">
           <Link to="/admin" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-2">
             <ArrowLeft className="w-4 h-4" /> Dashboard
           </Link>
           <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold">Events</h1>
-            <button onClick={() => setShowCreate(true)} className="bg-[#C41E3A] hover:bg-[#a01830] px-3 py-2 rounded-lg text-sm font-medium flex items-center gap-1">
+            <h1 className="text-2xl font-bold tracking-tight">Events</h1>
+            <button onClick={() => setShowCreate(true)} className="bg-[#C41E3A] hover:bg-[#a01830] px-3 py-2 min-h-[44px] rounded-xl text-sm font-medium flex items-center gap-1">
               <Plus className="w-4 h-4" /> New Event
             </button>
           </div>
@@ -83,10 +127,10 @@ export default function EventsPage() {
       <div className="max-w-4xl mx-auto px-4 py-6">
         {/* Create Modal */}
         {showCreate && (
-          <div className="bg-white rounded-xl shadow-lg border p-6 mb-6">
+          <div className="app-card p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">Create Event</h2>
-              <button onClick={() => setShowCreate(false)}><X className="w-5 h-5 text-gray-400" /></button>
+              <button onClick={() => setShowCreate(false)} className="p-2 min-h-[44px] min-w-[44px] flex items-center justify-center"><X className="w-5 h-5 text-gray-400" /></button>
             </div>
             <form onSubmit={e => { e.preventDefault(); create.mutate({
               ...form,
@@ -94,10 +138,10 @@ export default function EventsPage() {
               quota: form.quota ? Number(form.quota) : null,
             }); }} className="space-y-3">
               <input required value={form.name} onChange={e => setForm(f => ({...f, name: e.target.value}))}
-                placeholder="Event name" className="w-full px-3 py-2 border rounded-lg" />
-              <div className="grid grid-cols-2 gap-3">
+                placeholder="Event name" className="w-full px-3 py-2 border border-gray-300 rounded-xl" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <select value={form.event_type} onChange={e => setForm(f => ({...f, event_type: e.target.value}))}
-                  className="px-3 py-2 border rounded-lg bg-white">
+                  className="px-3 py-2 border border-gray-300 rounded-xl bg-white">
                   <option value="motorcade">Motorcade</option>
                   <option value="rally">Rally</option>
                   <option value="fundraiser">Fundraiser</option>
@@ -105,27 +149,27 @@ export default function EventsPage() {
                   <option value="other">Other</option>
                 </select>
                 <input required type="date" value={form.date} onChange={e => setForm(f => ({...f, date: e.target.value}))}
-                  className="px-3 py-2 border rounded-lg" />
+                  className="px-3 py-2 border border-gray-300 rounded-xl" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <input type="time" value={form.time} onChange={e => setForm(f => ({...f, time: e.target.value}))}
-                  className="px-3 py-2 border rounded-lg" placeholder="Time" />
+                  className="px-3 py-2 border border-gray-300 rounded-xl" placeholder="Time" />
                 <input value={form.location} onChange={e => setForm(f => ({...f, location: e.target.value}))}
-                  className="px-3 py-2 border rounded-lg" placeholder="Location" />
+                  className="px-3 py-2 border border-gray-300 rounded-xl" placeholder="Location" />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <select value={form.village_id} onChange={e => setForm(f => ({...f, village_id: e.target.value}))}
-                  className="px-3 py-2 border rounded-lg bg-white">
+                  className="px-3 py-2 border border-gray-300 rounded-xl bg-white">
                   <option value="">All villages</option>
                   {villages.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
                 </select>
                 <input type="number" value={form.quota} onChange={e => setForm(f => ({...f, quota: e.target.value}))}
-                  className="px-3 py-2 border rounded-lg" placeholder="Quota (min attendees)" />
+                  className="px-3 py-2 border border-gray-300 rounded-xl" placeholder="Quota (min attendees)" />
               </div>
               <textarea value={form.description} onChange={e => setForm(f => ({...f, description: e.target.value}))}
-                className="w-full px-3 py-2 border rounded-lg" rows={2} placeholder="Description (optional)" />
+                className="w-full px-3 py-2 border border-gray-300 rounded-xl" rows={2} placeholder="Description (optional)" />
               <button type="submit" disabled={create.isPending}
-                className="w-full bg-[#1B3A6B] hover:bg-[#152e55] text-white font-bold py-3 rounded-lg">
+                className="w-full bg-[#1B3A6B] hover:bg-[#152e55] text-white font-bold py-3 rounded-xl">
                 {create.isPending ? 'Creating...' : 'Create Event'}
               </button>
             </form>
@@ -133,13 +177,75 @@ export default function EventsPage() {
         )}
 
         {/* Events List */}
-        <div className="space-y-4">
-          {events.map((e) => (
+        <div className="app-card p-4 mb-4 grid grid-cols-1 md:grid-cols-5 gap-3">
+          <div className="relative md:col-span-2">
+            <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search events, location, or village..."
+              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl min-h-[44px]"
+            />
+          </div>
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="border border-gray-300 rounded-xl px-3 py-2 bg-white min-h-[44px]"
+          >
+            <option value="">All event types</option>
+            <option value="motorcade">Motorcade</option>
+            <option value="rally">Rally</option>
+            <option value="fundraiser">Fundraiser</option>
+            <option value="meeting">Meeting</option>
+            <option value="other">Other</option>
+          </select>
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="border border-gray-300 rounded-xl px-3 py-2 bg-white min-h-[44px]"
+          >
+            <option value="">All statuses</option>
+            <option value="upcoming">Upcoming</option>
+            <option value="active">Active</option>
+            <option value="completed">Completed</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+          <select
+            value={`${sortBy}:${sortDir}`}
+            onChange={(e) => {
+              const [field, dir] = e.target.value.split(':') as [EventSortField, 'asc' | 'desc'];
+              setSortBy(field);
+              setSortDir(dir);
+            }}
+            className="border border-gray-300 rounded-xl px-3 py-2 bg-white min-h-[44px]"
+          >
+            <option value="date:desc">Newest first</option>
+            <option value="date:asc">Oldest first</option>
+            <option value="name:asc">Name A-Z</option>
+            <option value="name:desc">Name Z-A</option>
+            <option value="attended_count:desc">Most attended</option>
+            <option value="attended_count:asc">Least attended</option>
+            <option value="show_up_rate:desc">Highest show-up</option>
+            <option value="show_up_rate:asc">Lowest show-up</option>
+          </select>
+        </div>
+        <div className="mb-2">
+          <p
+            aria-live="polite"
+            className={`text-xs text-gray-400 transition-opacity duration-200 ${isFetching ? 'opacity-100' : 'opacity-0'}`}
+          >
+            Updating...
+          </p>
+        </div>
+
+        <div className={`space-y-4 transition-opacity duration-200 ${isFetching ? 'opacity-70' : 'opacity-100'}`}>
+          {filteredEvents.map((e) => (
             <Link key={e.id} to={`/admin/events/${e.id}`}
-              className="block bg-white rounded-xl shadow-sm border p-4 hover:shadow-md transition-shadow">
+              className="block app-card p-4 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="font-semibold text-gray-800">{e.name}</h3>
-                <span className={`px-2 py-0.5 rounded text-xs font-medium ${typeColors[e.event_type] || typeColors.other}`}>
+                <span className={`app-chip ${typeColors[e.event_type] || typeColors.other}`}>
                   {e.event_type}
                 </span>
               </div>
@@ -155,9 +261,9 @@ export default function EventsPage() {
               </div>
             </Link>
           ))}
-          {events.length === 0 && (
+          {filteredEvents.length === 0 && (
             <div className="text-center text-gray-400 py-12">
-              No events yet. Create one to start tracking attendance.
+              No events match current filters.
             </div>
           )}
         </div>

@@ -42,13 +42,13 @@ export default function QRCodePage() {
     : null;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#f5f7fb]">
       <header className="bg-[#1B3A6B] text-white py-4 px-4">
         <div className="max-w-lg mx-auto">
           <Link to="/admin" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-2">
             <ArrowLeft className="w-4 h-4" /> Dashboard
           </Link>
-          <h1 className="text-xl font-bold flex items-center gap-2">
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <QrCode className="w-6 h-6" /> QR Code Generator
           </h1>
           <p className="text-blue-200 text-sm mt-1">Generate unique QR codes for block leaders</p>
@@ -57,7 +57,7 @@ export default function QRCodePage() {
 
       <div className="max-w-lg mx-auto px-4 py-6">
         {/* Generator Form */}
-        <form onSubmit={handleGenerate} className="bg-white rounded-xl shadow-sm border p-6 mb-6">
+        <form onSubmit={handleGenerate} className="app-card p-6 mb-6">
           <h2 className="font-semibold text-gray-800 mb-4">Generate New QR Code</h2>
           <div className="space-y-3">
             <div>
@@ -68,7 +68,7 @@ export default function QRCodePage() {
                 value={name}
                 onChange={e => setName(e.target.value)}
                 placeholder="Pedro Reyes"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
               />
             </div>
             <div>
@@ -79,13 +79,13 @@ export default function QRCodePage() {
                 value={village}
                 onChange={e => setVillage(e.target.value)}
                 placeholder="Tamuning"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
               />
             </div>
             <button
               type="submit"
               disabled={generate.isPending}
-              className="w-full bg-[#1B3A6B] hover:bg-[#152e55] text-white font-bold py-3 rounded-lg"
+              className="w-full bg-[#1B3A6B] hover:bg-[#152e55] text-white font-bold py-3 rounded-xl"
             >
               {generate.isPending ? 'Generating...' : 'Generate QR Code'}
             </button>
@@ -94,7 +94,7 @@ export default function QRCodePage() {
 
         {/* Generated QR */}
         {generated && (
-          <div className="bg-white rounded-xl shadow-sm border p-6 text-center">
+          <div className="app-card p-6 text-center">
             <h2 className="font-semibold text-gray-800 mb-2">QR Code for {name}</h2>
             <p className="text-sm text-gray-500 mb-4">Village: {village} · Code: {generated.code}</p>
 
@@ -108,7 +108,7 @@ export default function QRCodePage() {
             </div>
 
             {/* Signup URL */}
-            <div className="bg-gray-50 rounded-lg p-3 mb-4">
+            <div className="bg-gray-50 rounded-xl p-3 mb-4">
               <p className="text-xs text-gray-500 mb-1">Signup Link</p>
               <p className="text-sm text-[#1B3A6B] font-mono break-all">{generated.signup_url}</p>
             </div>
@@ -117,7 +117,7 @@ export default function QRCodePage() {
             <div className="flex gap-3">
               <button
                 onClick={copyLink}
-                className="flex-1 flex items-center justify-center gap-2 border border-gray-300 rounded-lg py-2 px-4 hover:bg-gray-50 text-sm font-medium"
+                className="flex-1 flex items-center justify-center gap-2 border border-gray-300 rounded-xl py-2 px-4 hover:bg-gray-50 text-sm font-medium"
               >
                 {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
                 {copied ? 'Copied!' : 'Copy Link'}
@@ -125,7 +125,7 @@ export default function QRCodePage() {
               <a
                 href={qrSvgUrl!}
                 download={`qr-${generated.code}.svg`}
-                className="flex-1 flex items-center justify-center gap-2 bg-[#1B3A6B] text-white rounded-lg py-2 px-4 hover:bg-[#152e55] text-sm font-medium"
+                className="flex-1 flex items-center justify-center gap-2 bg-[#1B3A6B] text-white rounded-xl py-2 px-4 hover:bg-[#152e55] text-sm font-medium"
               >
                 <Download className="w-4 h-4" /> Download SVG
               </a>

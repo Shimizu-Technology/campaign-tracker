@@ -16,6 +16,12 @@ class Api::V1::EventsControllerTest < ActionDispatch::IntegrationTest
     )
 
     @village = Village.create!(name: "Events Village")
+    @poll_watcher = User.create!(
+      clerk_id: "clerk-events-pw",
+      email: "events-pw@example.com",
+      name: "Events Poll Watcher",
+      role: "poll_watcher"
+    )
   end
 
   test "motorcade event enqueues invite job" do
@@ -49,5 +55,13 @@ class Api::V1::EventsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :created
     assert_enqueued_jobs 0
+  end
+
+  test "poll watcher cannot access events endpoints" do
+    get "/api/v1/events", headers: auth_headers(@poll_watcher)
+
+    assert_response :forbidden
+    payload = JSON.parse(response.body)
+    assert_equal "events_access_required", payload["code"]
   end
 end

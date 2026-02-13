@@ -5,6 +5,7 @@ module Api
     class EventsController < ApplicationController
       include Authenticatable
       before_action :authenticate_request
+      before_action :require_events_access!
 
       # GET /api/v1/events
       def index

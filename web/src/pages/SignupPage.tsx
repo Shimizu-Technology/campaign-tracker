@@ -57,10 +57,15 @@ export default function SignupPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    const validPrecinctIds = new Set((selectedVillage?.precincts || []).map((p) => String(p.id)));
+    const normalizedPrecinctId = form.precinct_id && validPrecinctIds.has(form.precinct_id)
+      ? Number(form.precinct_id)
+      : null;
+
     signup.mutate({
       ...form,
       village_id: Number(form.village_id),
-      precinct_id: form.precinct_id ? Number(form.precinct_id) : null,
+      precinct_id: normalizedPrecinctId,
     });
   };
 
@@ -68,11 +73,11 @@ export default function SignupPage() {
     setForm(prev => ({ ...prev, [field]: value }));
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#f5f7fb]">
       {/* Header */}
       <div className="bg-[#1B3A6B] text-white py-6 px-4">
         <div className="max-w-lg mx-auto">
-          <Link to="/" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-2">
+          <Link to="/" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-2 min-h-[44px]">
             <ArrowLeft className="w-4 h-4" /> Back
           </Link>
           <h1 className="text-2xl font-bold">Support Josh & Tina</h1>
@@ -89,8 +94,12 @@ export default function SignupPage() {
         </div>
       )}
 
-      {/* Form */}
-      <form onSubmit={handleSubmit} className="max-w-lg mx-auto px-4 py-6 space-y-4">
+      <form onSubmit={handleSubmit} className="max-w-lg mx-auto px-4 py-6">
+        <div className="app-card p-4 md:p-5 space-y-4">
+          <div>
+            <h2 className="app-section-title text-lg">Supporter Information</h2>
+            <p className="text-sm text-gray-500">Please fill out the form below to join the campaign effort.</p>
+          </div>
         {/* Name */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
@@ -99,7 +108,7 @@ export default function SignupPage() {
             required
             value={form.print_name}
             onChange={e => updateField('print_name', e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
             placeholder="Juan dela Cruz"
           />
         </div>
@@ -112,7 +121,7 @@ export default function SignupPage() {
             required
             value={form.contact_number}
             onChange={e => updateField('contact_number', e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
             placeholder="+1671XXXXXXX"
           />
         </div>
@@ -123,8 +132,11 @@ export default function SignupPage() {
           <select
             required
             value={form.village_id}
-            onChange={e => updateField('village_id', e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent bg-white"
+            onChange={e => {
+              updateField('village_id', e.target.value);
+              updateField('precinct_id', '');
+            }}
+            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent bg-white"
           >
             <option value="">Select your village</option>
             {villages.map(v => (
@@ -140,7 +152,7 @@ export default function SignupPage() {
             <select
               value={form.precinct_id}
               onChange={e => updateField('precinct_id', e.target.value)}
-              className="w-full px-3 py-3 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent bg-white"
+              className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent bg-white"
             >
               <option value="">Not sure</option>
               {selectedVillage.precincts.map(p => (
@@ -157,7 +169,7 @@ export default function SignupPage() {
             type="text"
             value={form.street_address}
             onChange={e => updateField('street_address', e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
             placeholder="123 Marine Corps Dr"
           />
         </div>
@@ -169,7 +181,7 @@ export default function SignupPage() {
             type="email"
             value={form.email}
             onChange={e => updateField('email', e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
             placeholder="juan@example.com"
           />
         </div>
@@ -181,45 +193,45 @@ export default function SignupPage() {
             type="date"
             value={form.dob}
             onChange={e => updateField('dob', e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
           />
         </div>
 
         {/* Registered Voter */}
-        <div className="flex items-center gap-3 py-2">
+        <label htmlFor="registered_voter" className="flex items-center gap-3 py-2 min-h-[44px] cursor-pointer">
           <input
             type="checkbox"
             id="registered_voter"
             checked={form.registered_voter}
             onChange={e => updateField('registered_voter', e.target.checked)}
-            className="w-5 h-5 text-[#1B3A6B] rounded"
+            className="w-5 h-5 text-[#1B3A6B] rounded shrink-0"
           />
-          <label htmlFor="registered_voter" className="text-gray-700">I am a registered voter</label>
-        </div>
+          <span className="text-gray-700">I am a registered voter</span>
+        </label>
 
         {/* Yard Sign */}
-        <div className="flex items-center gap-3 py-2">
+        <label htmlFor="yard_sign" className="flex items-center gap-3 py-2 min-h-[44px] cursor-pointer">
           <input
             type="checkbox"
             id="yard_sign"
             checked={form.yard_sign}
             onChange={e => updateField('yard_sign', e.target.checked)}
-            className="w-5 h-5 text-[#1B3A6B] rounded"
+            className="w-5 h-5 text-[#1B3A6B] rounded shrink-0"
           />
-          <label htmlFor="yard_sign" className="text-gray-700">I'll put a yard sign up</label>
-        </div>
+          <span className="text-gray-700">I'll put a yard sign up</span>
+        </label>
 
         {/* Motorcade */}
-        <div className="flex items-center gap-3 py-2">
+        <label htmlFor="motorcade" className="flex items-center gap-3 py-2 min-h-[44px] cursor-pointer">
           <input
             type="checkbox"
             id="motorcade"
             checked={form.motorcade_available}
             onChange={e => updateField('motorcade_available', e.target.checked)}
-            className="w-5 h-5 text-[#1B3A6B] rounded"
+            className="w-5 h-5 text-[#1B3A6B] rounded shrink-0"
           />
-          <label htmlFor="motorcade" className="text-gray-700">I'll join motorcades</label>
-        </div>
+          <span className="text-gray-700">I'll join motorcades</span>
+        </label>
 
         {/* Error */}
         {signup.isError && (
@@ -229,20 +241,21 @@ export default function SignupPage() {
         )}
 
         {/* Submit */}
-        <button
-          type="submit"
-          disabled={signup.isPending}
-          className="w-full bg-[#C41E3A] hover:bg-[#a01830] text-white font-bold py-4 rounded-xl text-lg shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-        >
-          {signup.isPending ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Signing up...
-            </>
-          ) : (
-            'Sign Up!'
-          )}
-        </button>
+          <button
+            type="submit"
+            disabled={signup.isPending}
+            className="w-full bg-[#C41E3A] hover:bg-[#a01830] text-white font-bold py-4 rounded-2xl text-lg shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {signup.isPending ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Signing up...
+              </>
+            ) : (
+              'Sign Up!'
+            )}
+          </button>
+        </div>
       </form>
     </div>
   );

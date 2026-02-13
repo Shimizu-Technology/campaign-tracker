@@ -7,14 +7,18 @@ module Api
     class SupportersController < ApplicationController
       MAX_PER_PAGE = 200
       MAX_EXPORT_ROWS = 10_000
+      ALLOWED_SORT_FIELDS = %w[created_at print_name village_name precinct_number source registered_voter].freeze
 
       include Authenticatable
       before_action :authenticate_request, only: [ :index, :check_duplicate, :export, :show, :update ]
+      before_action :require_supporter_access!, only: [ :index, :check_duplicate, :export, :show ]
 
       # POST /api/v1/supporters (public signup — no auth required)
       def create
         if staff_entry_mode?
           authenticate_request
+          return if performed?
+          require_staff_entry_access!
           return if performed?
         end
 
@@ -39,8 +43,13 @@ module Api
         if supporter.save
           log_audit!(supporter, action: "created", changed_data: supporter.saved_changes.except("updated_at"))
 
-          # Send welcome SMS (async-safe, won't block response)
-          SmsService.welcome_supporter(supporter) if supporter.contact_number.present?
+          # Queue welcome SMS so signup response is not blocked by external API latency.
+          if supporter.contact_number.present?
+            SendSmsJob.perform_later(
+              to: supporter.contact_number,
+              body: SmsService.welcome_supporter_body(supporter)
+            )
+          end
 
           # Broadcast to connected clients
           CampaignBroadcast.new_supporter(supporter)
@@ -57,6 +66,14 @@ module Api
 
       # PATCH /api/v1/supporters/:id
       def update
+        unless supporter_edit_allowed?
+          return render_api_error(
+            message: "You do not have permission to edit supporters",
+            status: :forbidden,
+            code: "supporter_edit_access_required"
+          )
+        end
+
         supporter = Supporter.find(params[:id])
         updates = supporter_update_params.to_h
         updates[:precinct_id] = nil if updates.key?(:precinct_id) && updates[:precinct_id].blank?
@@ -77,7 +94,6 @@ module Api
       # GET /api/v1/supporters (authenticated)
       def index
         supporters = Supporter.includes(:village, :precinct, :block)
-          .order(created_at: :desc)
 
         # Filters
         supporters = supporters.where(village_id: params[:village_id]) if params[:village_id].present?
@@ -92,9 +108,21 @@ module Api
         supporters = supporters.where(motorcade_available: true) if params[:motorcade_available] == "true"
 
         if params[:search].present?
-          q = "%#{params[:search].downcase}%"
-          supporters = supporters.where("LOWER(print_name) LIKE ? OR contact_number LIKE ?", q, q)
+          raw = params[:search].to_s.strip
+          name_query = "%#{raw.downcase}%"
+          phone_digits = raw.gsub(/\D/, "")
+          if phone_digits.present?
+            phone_query = "%#{phone_digits}%"
+            supporters = supporters.where(
+              "LOWER(print_name) LIKE :name_query OR regexp_replace(contact_number, '\\D', '', 'g') LIKE :phone_query",
+              name_query: name_query,
+              phone_query: phone_query
+            )
+          else
+            supporters = supporters.where("LOWER(print_name) LIKE ?", name_query)
+          end
         end
+        supporters = apply_index_sort(supporters)
 
         # Pagination
         page = [ (params[:page] || 1).to_i, 1 ].max
@@ -116,12 +144,17 @@ module Api
 
         render json: {
           supporter: supporter_detail_json(supporter),
+          permissions: {
+            can_edit: supporter_edit_allowed?
+          },
           audit_logs: audit_logs.map do |log|
             {
               id: log.id,
               action: log.action,
+              action_label: audit_action_label(log.action),
               actor_user_id: log.actor_user_id,
               actor_name: log.actor_user&.name,
+              actor_role: log.actor_user&.role,
               changed_data: log.changed_data,
               metadata: log.metadata,
               created_at: log.created_at&.iso8601
@@ -259,12 +292,52 @@ module Api
           auditable: supporter,
           actor_user: current_user,
           action: action,
-          changed_data: changed_data,
+          changed_data: normalized_changed_data(changed_data),
           metadata: {
             entry_mode: params[:entry_mode],
             leader_code: params[:leader_code]
           }.compact
         )
+      end
+
+      def supporter_edit_allowed?
+        current_user&.admin? || current_user&.coordinator?
+      end
+
+      def normalized_changed_data(changed_data)
+        changed_data.each_with_object({}) do |(field, value), output|
+          if value.is_a?(Array) && value.length == 2
+            output[field] = { from: value[0], to: value[1] }
+          else
+            output[field] = { from: nil, to: value }
+          end
+        end
+      end
+
+      def audit_action_label(action)
+        case action
+        when "created"
+          "Supporter created"
+        when "updated"
+          "Supporter updated"
+        else
+          action.to_s.humanize
+        end
+      end
+
+      def apply_index_sort(scope)
+        sort_by = ALLOWED_SORT_FIELDS.include?(params[:sort_by]) ? params[:sort_by] : "created_at"
+        sort_dir = params[:sort_dir] == "asc" ? :asc : :desc
+        sort_dir_sql = sort_dir == :asc ? "ASC" : "DESC"
+
+        case sort_by
+        when "village_name"
+          scope.left_joins(:village).reorder(Arel.sql("villages.name #{sort_dir_sql}"), created_at: :desc)
+        when "precinct_number"
+          scope.left_joins(:precinct).reorder(Arel.sql("precincts.number #{sort_dir_sql}"), created_at: :desc)
+        else
+          scope.reorder(sort_by => sort_dir)
+        end
       end
     end
   end

@@ -5,6 +5,7 @@ module Api
     class LeaderboardController < ApplicationController
       include Authenticatable
       before_action :authenticate_request
+      before_action :require_leaderboard_access!
 
       # GET /api/v1/leaderboard
       def index

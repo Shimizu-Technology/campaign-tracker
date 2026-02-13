@@ -51,14 +51,14 @@ export default function CheckInPage() {
   if (!event) return <div className="min-h-screen flex items-center justify-center text-gray-400">Loading...</div>;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#f5f7fb]">
       {/* Sticky Header */}
       <header className="bg-[#1B3A6B] text-white py-4 px-4 sticky top-0 z-10">
         <div className="max-w-lg mx-auto">
           <Link to={`/admin/events/${id}`} className="flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-2">
             <ArrowLeft className="w-4 h-4" /> Event Detail
           </Link>
-          <h1 className="text-lg font-bold">{event.name} — Check In</h1>
+            <h1 className="text-xl font-bold tracking-tight">{event.name} — Check In</h1>
 
           {/* Live Counter */}
           {stats && (
@@ -85,7 +85,7 @@ export default function CheckInPage() {
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search supporter name..."
-              className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-lg text-white placeholder-blue-300 text-lg focus:ring-2 focus:ring-white/30 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-blue-300 text-lg focus:ring-2 focus:ring-white/30 focus:border-transparent"
             />
           </div>
         </div>
@@ -95,7 +95,7 @@ export default function CheckInPage() {
       <div className="max-w-lg mx-auto px-4 py-4">
         {attendees.map((a) => (
           <div key={a.rsvp_id}
-            className={`flex items-center justify-between p-4 mb-2 rounded-xl border ${
+            className={`flex items-center justify-between p-4 mb-2 rounded-2xl border ${
               a.attended ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'
             }`}
           >
@@ -112,7 +112,7 @@ export default function CheckInPage() {
               <button
                 onClick={() => checkIn.mutate(a.supporter_id)}
                 disabled={checkIn.isPending}
-                className="bg-[#1B3A6B] hover:bg-[#152e55] text-white px-4 py-2 min-h-[44px] rounded-lg font-medium text-sm flex items-center gap-1"
+                className="bg-[#1B3A6B] hover:bg-[#152e55] text-white px-4 py-2 min-h-[44px] rounded-xl font-medium text-sm flex items-center gap-1"
               >
                 {checkIn.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Check In'}
               </button>

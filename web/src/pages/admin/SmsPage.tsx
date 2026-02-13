@@ -61,7 +61,7 @@ export default function SmsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#f5f7fb]">
       <header className="bg-[#1B3A6B] text-white py-4 px-4">
         <div className="max-w-2xl mx-auto">
           <Link to="/admin" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-2">
@@ -70,7 +70,7 @@ export default function SmsPage() {
           <div className="flex items-center gap-3">
             <MessageSquare className="w-7 h-7 text-green-400" />
             <div>
-              <h1 className="text-xl font-bold">SMS Center</h1>
+              <h1 className="text-2xl font-bold tracking-tight">SMS Center</h1>
               <p className="text-blue-200 text-sm">Send texts to supporters</p>
             </div>
           </div>
@@ -79,7 +79,7 @@ export default function SmsPage() {
 
       <div className="max-w-2xl mx-auto px-4 py-6">
         {/* Status Banner */}
-        <div className="bg-white rounded-xl shadow-sm border p-4 mb-6">
+        <div className="app-card p-4 mb-6">
           <div className="grid grid-cols-3 gap-3 text-center">
             <div>
               <Zap className={`w-5 h-5 mx-auto mb-1 ${smsStatus?.configured ? 'text-green-500' : 'text-red-500'}`} />
@@ -104,7 +104,7 @@ export default function SmsPage() {
         </div>
 
         {!smsStatus?.configured && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 flex items-start gap-3">
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-6 flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
             <div>
               <p className="text-red-800 font-medium">ClickSend not configured</p>
@@ -114,7 +114,7 @@ export default function SmsPage() {
         )}
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-6">
           {([
             { key: 'blast', label: 'Blast', icon: Users },
             { key: 'event', label: 'Event Notify', icon: Zap },
@@ -123,7 +123,7 @@ export default function SmsPage() {
             <button
               key={key}
               onClick={() => setActiveTab(key)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+              className={`flex items-center justify-center gap-2 px-4 py-2 min-h-[44px] rounded-xl text-sm font-medium transition-all ${
                 activeTab === key
                   ? 'bg-[#1B3A6B] text-white shadow-sm'
                   : 'bg-white text-gray-600 border hover:bg-gray-50'
@@ -174,14 +174,14 @@ function BlastTab() {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-xl shadow-sm border p-4">
+      <div className="app-card p-4">
         <h3 className="font-semibold text-gray-900 mb-3">Compose Blast Message</h3>
 
         <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Type your message to supporters..."
-          className="w-full border rounded-lg p-3 h-32 text-sm resize-none focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+          className="w-full border border-gray-300 rounded-xl p-3 h-32 text-sm resize-none focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
           maxLength={480}
         />
         <div className="flex justify-between text-xs text-gray-400 mt-1">
@@ -190,10 +190,10 @@ function BlastTab() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl shadow-sm border p-4">
+      <div className="app-card p-4">
         <h3 className="font-semibold text-gray-900 mb-3">Filters</h3>
         <div className="space-y-2">
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-sm min-h-[44px]">
             <input
               type="checkbox"
               checked={filters.motorcade}
@@ -202,7 +202,7 @@ function BlastTab() {
             />
             Motorcade available only
           </label>
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-sm min-h-[44px]">
             <input
               type="checkbox"
               checked={filters.registered}
@@ -211,7 +211,7 @@ function BlastTab() {
             />
             Registered voters only
           </label>
-          <label className="flex items-center gap-2 text-sm">
+          <label className="flex items-center gap-2 text-sm min-h-[44px]">
             <input
               type="checkbox"
               checked={filters.yardSign}
@@ -283,7 +283,7 @@ function EventTab({ events }: { events: EventItem[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-xl shadow-sm border p-4">
+      <div className="app-card p-4">
         <h3 className="font-semibold text-gray-900 mb-3">Event Notification</h3>
 
         <div className="space-y-3">
@@ -292,7 +292,7 @@ function EventTab({ events }: { events: EventItem[] }) {
             <select
               value={selectedEvent}
               onChange={(e) => setSelectedEvent(e.target.value)}
-              className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-[#1B3A6B]"
+              className="w-full border border-gray-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#1B3A6B]"
             >
               <option value="">Select an event...</option>
               {events.map((event) => (
@@ -305,7 +305,7 @@ function EventTab({ events }: { events: EventItem[] }) {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Notification Type</label>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {[
                 { key: 'rsvp', label: 'RSVP Confirm' },
                 { key: 'reminder', label: 'Reminder' },
@@ -314,7 +314,7 @@ function EventTab({ events }: { events: EventItem[] }) {
                 <button
                   key={key}
                   onClick={() => setNotifyType(key)}
-                  className={`py-2 rounded-lg text-sm font-medium border transition-all ${
+                  className={`py-2 min-h-[44px] rounded-xl text-sm font-medium border transition-all ${
                     notifyType === key
                       ? 'bg-[#1B3A6B] text-white border-[#1B3A6B]'
                       : 'bg-white text-gray-600 hover:bg-gray-50'
@@ -368,7 +368,7 @@ function TestTab() {
 
   return (
     <div className="space-y-4">
-      <div className="bg-white rounded-xl shadow-sm border p-4">
+      <div className="app-card p-4">
         <h3 className="font-semibold text-gray-900 mb-3">Send Test SMS</h3>
         <div className="space-y-3">
           <div>
@@ -378,7 +378,7 @@ function TestTab() {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="+1671XXXXXXX"
-              className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-[#1B3A6B]"
+              className="w-full border border-gray-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#1B3A6B]"
             />
           </div>
           <div>
@@ -386,7 +386,7 @@ function TestTab() {
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              className="w-full border rounded-lg p-3 h-24 text-sm resize-none focus:ring-2 focus:ring-[#1B3A6B]"
+              className="w-full border border-gray-300 rounded-xl p-3 h-24 text-sm resize-none focus:ring-2 focus:ring-[#1B3A6B]"
             />
           </div>
         </div>

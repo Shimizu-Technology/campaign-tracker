@@ -2,6 +2,8 @@ class User < ApplicationRecord
   ROLES = %w[campaign_admin district_coordinator village_chief block_leader poll_watcher].freeze
 
   has_many :entered_supporters, class_name: "Supporter", foreign_key: :entered_by_user_id, dependent: :nullify
+  has_many :turnout_updated_supporters, class_name: "Supporter", foreign_key: :turnout_updated_by_user_id, dependent: :nullify
+  has_many :supporter_contact_attempts, foreign_key: :recorded_by_user_id, dependent: :restrict_with_exception
 
   validates :clerk_id, presence: true, uniqueness: true
   validates :email, presence: true, uniqueness: true

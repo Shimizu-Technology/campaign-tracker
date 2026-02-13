@@ -13,6 +13,7 @@
 ActiveRecord::Schema[8.1].define(version: 2026_02_13_195000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+  enable_extension "pg_trgm"
 
   create_table "audit_logs", force: :cascade do |t|
     t.string "action", null: false
@@ -312,10 +313,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_13_195000) do
     t.integer "voter_count", null: false
     t.index ["precinct_id", "reported_at"], name: "index_poll_reports_on_precinct_id_and_reported_at"
     t.index ["precinct_id"], name: "index_poll_reports_on_precinct_id"
+    t.index ["reported_at"], name: "index_poll_reports_on_reported_at"
     t.index ["user_id"], name: "index_poll_reports_on_user_id"
   end
 
   create_table "precincts", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
     t.string "alpha_range"
     t.datetime "created_at", null: false
     t.string "number"
@@ -323,6 +326,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_13_195000) do
     t.integer "registered_voters"
     t.datetime "updated_at", null: false
     t.bigint "village_id", null: false
+    t.index ["active"], name: "index_precincts_on_active"
     t.index ["village_id"], name: "index_precincts_on_village_id"
   end
 
@@ -338,6 +342,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_13_195000) do
     t.index ["campaign_id"], name: "index_quotas_on_campaign_id"
     t.index ["district_id"], name: "index_quotas_on_district_id"
     t.index ["village_id"], name: "index_quotas_on_village_id"
+  end
+
+  create_table "supporter_contact_attempts", force: :cascade do |t|
+    t.string "channel", null: false
+    t.datetime "created_at", null: false
+    t.text "note"
+    t.string "outcome", null: false
+    t.datetime "recorded_at", null: false
+    t.bigint "recorded_by_user_id", null: false
+    t.bigint "supporter_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["outcome"], name: "index_supporter_contact_attempts_on_outcome"
+    t.index ["recorded_by_user_id"], name: "index_supporter_contact_attempts_on_recorded_by_user_id"
+    t.index ["supporter_id", "recorded_at"], name: "index_contact_attempts_on_supporter_and_recorded_at"
+    t.index ["supporter_id"], name: "index_supporter_contact_attempts_on_supporter_id"
   end
 
   create_table "supporters", force: :cascade do |t|
@@ -356,16 +375,31 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_13_195000) do
     t.string "source"
     t.string "status"
     t.string "street_address"
+    t.text "turnout_note"
+    t.string "turnout_source"
+    t.string "turnout_status", default: "unknown", null: false
+    t.datetime "turnout_updated_at"
+    t.bigint "turnout_updated_by_user_id"
     t.datetime "updated_at", null: false
     t.bigint "village_id", null: false
     t.boolean "yard_sign"
+    t.index "lower((print_name)::text) gin_trgm_ops", name: "index_supporters_on_lower_print_name_trgm", using: :gin
     t.index ["block_id"], name: "index_supporters_on_block_id"
+    t.index ["contact_number"], name: "index_supporters_on_contact_number_trgm", opclass: :gin_trgm_ops, using: :gin
+    t.index ["created_at"], name: "index_supporters_on_created_at"
     t.index ["entered_by_user_id"], name: "index_supporters_on_entered_by_user_id"
     t.index ["leader_code"], name: "index_supporters_on_leader_code"
+    t.index ["precinct_id", "created_at"], name: "index_supporters_on_precinct_id_and_created_at"
+    t.index ["precinct_id", "turnout_status"], name: "index_supporters_on_precinct_id_and_turnout_status"
     t.index ["precinct_id"], name: "index_supporters_on_precinct_id"
     t.index ["print_name", "village_id"], name: "index_supporters_on_name_village"
     t.index ["source"], name: "index_supporters_on_source"
+    t.index ["status", "village_id", "motorcade_available"], name: "idx_on_status_village_id_motorcade_available_edb4af7743"
+    t.index ["status", "village_id"], name: "index_supporters_on_status_and_village_id"
     t.index ["status"], name: "index_supporters_on_status"
+    t.index ["turnout_status"], name: "index_supporters_on_turnout_status"
+    t.index ["turnout_updated_by_user_id"], name: "index_supporters_on_turnout_updated_by_user_id"
+    t.index ["village_id", "created_at"], name: "index_supporters_on_village_id_and_created_at"
     t.index ["village_id"], name: "index_supporters_on_village_id"
   end
 
@@ -439,8 +473,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_13_195000) do
   add_foreign_key "quotas", "campaigns"
   add_foreign_key "quotas", "districts"
   add_foreign_key "quotas", "villages"
+  add_foreign_key "supporter_contact_attempts", "supporters"
+  add_foreign_key "supporter_contact_attempts", "users", column: "recorded_by_user_id"
   add_foreign_key "supporters", "blocks"
   add_foreign_key "supporters", "precincts"
+  add_foreign_key "supporters", "users", column: "turnout_updated_by_user_id"
   add_foreign_key "supporters", "villages"
   add_foreign_key "villages", "districts"
 end

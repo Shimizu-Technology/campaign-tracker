@@ -248,6 +248,12 @@ Event created (motorcade) → System pulls RSVPs from supporters
 - **Mobile UX hardening sweep**
   - Complete responsive QA for all admin pages (filters, tables, headers, action bars)
   - Prioritize field-worker screens and supporter management flows for touch-first ergonomics
+- **Election-day supporter strike-list operations**
+  - Add supporter-level turnout status workflow ("voted" / "not yet voted") for campaign operations
+  - Add poll watcher strike-list interface scoped to assigned precincts/villages
+  - Add war room view of supporter-level "not yet voted" queues for rapid GOTV outreach
+  - Add call outcome logging to track contact attempts and outcomes during election-day push
+  - Add legal/compliance notes in-app clarifying campaign-tracked turnout vs official election records
 
 ---
 

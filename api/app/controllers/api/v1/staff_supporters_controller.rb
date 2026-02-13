@@ -5,6 +5,7 @@ module Api
     class StaffSupportersController < ApplicationController
       include Authenticatable
       before_action :authenticate_request
+      before_action :require_staff_entry_access!
 
       # POST /api/v1/staff/supporters (authenticated staff entry)
       def create

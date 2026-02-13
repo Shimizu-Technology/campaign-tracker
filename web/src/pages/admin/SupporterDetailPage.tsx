@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Home, Pencil, Save, UserRound, X } from 'lucide-react';
 import { getSupporter, getVillages, updateSupporter } from '../../lib/api';
+import { formatDateTime } from '../../lib/datetime';
 
 interface VillageOption {
   id: number;
@@ -35,9 +36,56 @@ interface SupporterDetail {
 interface AuditLogItem {
   id: number;
   action: string;
+  action_label?: string;
   actor_name?: string;
-  changed_data: Record<string, unknown>;
+  actor_role?: string;
+  changed_data: Record<string, { from: unknown; to: unknown }>;
   created_at: string;
+}
+
+interface SupporterPermissions {
+  can_edit: boolean;
+}
+
+const AUDIT_FIELD_LABELS: Record<string, string> = {
+  id: 'Record ID',
+  print_name: 'Name',
+  contact_number: 'Phone',
+  email: 'Email',
+  dob: 'Date of birth',
+  street_address: 'Street address',
+  village_id: 'Village ID',
+  precinct_id: 'Precinct ID',
+  source: 'Source',
+  status: 'Status',
+  registered_voter: 'Registered voter',
+  yard_sign: 'Yard sign',
+  motorcade_available: 'Motorcade available',
+  created_at: 'Created at',
+};
+
+function humanizeRole(role?: string) {
+  return role ? role.replaceAll('_', ' ') : 'public/system';
+}
+
+function humanizeAuditValue(value: unknown) {
+  if (value === null || value === undefined || value === '') return 'empty';
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'string') {
+    if (value.includes('T') && !Number.isNaN(new Date(value).getTime())) return formatDateTime(value);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      const parsed = new Date(`${value}T00:00:00`);
+      if (!Number.isNaN(parsed.getTime())) {
+        return new Intl.DateTimeFormat('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        }).format(parsed);
+      }
+    }
+  }
+
+  return String(value);
 }
 
 export default function SupporterDetailPage() {
@@ -59,11 +107,13 @@ export default function SupporterDetailPage() {
   });
 
   const supporter: SupporterDetail | undefined = data?.supporter;
+  const permissions: SupporterPermissions | undefined = data?.permissions;
   const auditLogs: AuditLogItem[] = data?.audit_logs || [];
   const villages: VillageOption[] = useMemo(() => villagesData?.villages || [], [villagesData]);
 
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<Partial<SupporterDetail> | null>(null);
+  const canEdit = permissions?.can_edit ?? false;
 
   const baseForm = useMemo(() => {
     if (!supporter) return null;
@@ -130,6 +180,7 @@ export default function SupporterDetailPage() {
   };
 
   const startEdit = () => {
+    if (!canEdit) return;
     if (!baseForm) return;
     setDraft(baseForm);
     setIsEditing(true);
@@ -151,7 +202,7 @@ export default function SupporterDetailPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#f5f7fb]">
       <header className="bg-[#1B3A6B] text-white py-4 px-4">
         <div className="max-w-4xl mx-auto">
           <div className="flex items-center justify-between mb-2">
@@ -166,24 +217,25 @@ export default function SupporterDetailPage() {
               <Home className="w-4 h-4" /> Home
             </button>
           </div>
-          <h1 className="text-xl font-bold flex items-center gap-2">
+          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <UserRound className="w-5 h-5" /> {supporter.print_name}
           </h1>
           <p className="text-blue-200 text-sm">
-            Signed up {new Date(supporter.created_at).toLocaleString()} · {supporter.source === 'qr_signup' ? 'Public Signup' : 'Staff Entry'}
+            Signed up {formatDateTime(supporter.created_at)} · {supporter.source === 'qr_signup' ? 'Public Signup' : 'Staff Entry'}
           </p>
         </div>
       </header>
 
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        <section className="bg-white rounded-xl border shadow-sm p-4">
+        <section className="app-card p-4">
           <div className="flex items-center justify-between gap-3 mb-3">
             <h2 className="font-semibold text-gray-900">Supporter Details</h2>
             {!isEditing ? (
               <button
                 type="button"
                 onClick={startEdit}
-                className="bg-white border border-gray-300 text-gray-700 px-3 py-2 min-h-[44px] rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-gray-50"
+                disabled={!canEdit}
+                className="bg-white border border-gray-300 text-gray-700 px-3 py-2 min-h-[44px] rounded-xl text-sm font-medium flex items-center gap-2 hover:bg-gray-50"
               >
                 <Pencil className="w-4 h-4" /> Edit
               </button>
@@ -192,7 +244,7 @@ export default function SupporterDetailPage() {
                 <button
                   type="button"
                   onClick={cancelEdit}
-                  className="bg-white border border-gray-300 text-gray-700 px-3 py-2 min-h-[44px] rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-gray-50"
+                  className="bg-white border border-gray-300 text-gray-700 px-3 py-2 min-h-[44px] rounded-xl text-sm font-medium flex items-center gap-2 hover:bg-gray-50"
                 >
                   <X className="w-4 h-4" /> Cancel
                 </button>
@@ -200,32 +252,37 @@ export default function SupporterDetailPage() {
                   type="button"
                   onClick={() => saveMutation.mutate(currentForm as Record<string, unknown>)}
                   disabled={saveMutation.isPending}
-                  className="bg-[#1B3A6B] text-white px-4 py-2 min-h-[44px] rounded-lg text-sm font-medium flex items-center gap-2 disabled:opacity-50"
+                  className="bg-[#1B3A6B] text-white px-4 py-2 min-h-[44px] rounded-xl text-sm font-medium flex items-center gap-2 disabled:opacity-50"
                 >
                   <Save className="w-4 h-4" /> {saveMutation.isPending ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             )}
           </div>
+          {!canEdit && (
+            <p className="mb-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Read-only: only campaign admins and district coordinators can edit supporter records.
+            </p>
+          )}
           <div className="grid md:grid-cols-2 gap-3">
             <input
               value={String(currentForm.print_name || '')}
               onChange={(e) => updateDraft({ print_name: e.target.value })}
-              className="border rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-700"
+              className="border border-gray-300 rounded-xl px-3 py-2 disabled:bg-gray-50 disabled:text-gray-700"
               disabled={!isEditing}
               placeholder="Full Name"
             />
             <input
               value={String(currentForm.contact_number || '')}
               onChange={(e) => updateDraft({ contact_number: e.target.value })}
-              className="border rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-700"
+              className="border border-gray-300 rounded-xl px-3 py-2 disabled:bg-gray-50 disabled:text-gray-700"
               disabled={!isEditing}
               placeholder="Phone Number"
             />
             <input
               value={String(currentForm.email || '')}
               onChange={(e) => updateDraft({ email: e.target.value })}
-              className="border rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-700"
+              className="border border-gray-300 rounded-xl px-3 py-2 disabled:bg-gray-50 disabled:text-gray-700"
               disabled={!isEditing}
               placeholder="Email"
             />
@@ -233,20 +290,20 @@ export default function SupporterDetailPage() {
               type="date"
               value={String(currentForm.dob || '')}
               onChange={(e) => updateDraft({ dob: e.target.value })}
-              className="border rounded-lg px-3 py-2 disabled:bg-gray-50 disabled:text-gray-700"
+              className="border border-gray-300 rounded-xl px-3 py-2 disabled:bg-gray-50 disabled:text-gray-700"
               disabled={!isEditing}
             />
             <input
               value={String(currentForm.street_address || '')}
               onChange={(e) => updateDraft({ street_address: e.target.value })}
-              className="border rounded-lg px-3 py-2 md:col-span-2 disabled:bg-gray-50 disabled:text-gray-700"
+              className="border border-gray-300 rounded-xl px-3 py-2 md:col-span-2 disabled:bg-gray-50 disabled:text-gray-700"
               disabled={!isEditing}
               placeholder="Street Address"
             />
             <select
               value={String(currentForm.village_id || '')}
               onChange={(e) => updateDraft({ village_id: Number(e.target.value), precinct_id: null })}
-              className="border rounded-lg px-3 py-2 bg-white disabled:bg-gray-50 disabled:text-gray-700"
+              className="border border-gray-300 rounded-xl px-3 py-2 bg-white disabled:bg-gray-50 disabled:text-gray-700"
               disabled={!isEditing}
             >
               {villages.map((v) => (
@@ -256,7 +313,7 @@ export default function SupporterDetailPage() {
             <select
               value={currentForm.precinct_id ? String(currentForm.precinct_id) : ''}
               onChange={(e) => updateDraft({ precinct_id: e.target.value ? Number(e.target.value) : null })}
-              className="border rounded-lg px-3 py-2 bg-white disabled:bg-gray-50 disabled:text-gray-700"
+              className="border border-gray-300 rounded-xl px-3 py-2 bg-white disabled:bg-gray-50 disabled:text-gray-700"
               disabled={!isEditing}
             >
               <option value="">Not assigned</option>
@@ -297,40 +354,65 @@ export default function SupporterDetailPage() {
           </div>
         </section>
 
-        <section className="bg-white rounded-xl border shadow-sm p-4">
+        <section className="app-card p-4">
           <h2 className="font-semibold text-gray-900 mb-2">Engagement Snapshot</h2>
           <div className="grid grid-cols-3 gap-3 text-center">
-            <div className="border rounded-lg p-3">
+            <div className="border rounded-xl p-3">
               <div className="text-xl font-bold">{supporter.events_invited_count}</div>
               <div className="text-xs text-gray-500">Invited</div>
             </div>
-            <div className="border rounded-lg p-3">
+            <div className="border rounded-xl p-3">
               <div className="text-xl font-bold">{supporter.events_attended_count}</div>
               <div className="text-xs text-gray-500">Attended</div>
             </div>
-            <div className="border rounded-lg p-3">
+            <div className="border rounded-xl p-3">
               <div className="text-xl font-bold">{supporter.reliability_score ?? '—'}</div>
               <div className="text-xs text-gray-500">Reliability</div>
             </div>
           </div>
         </section>
 
-        <section className="bg-white rounded-xl border shadow-sm p-4">
-          <h2 className="font-semibold text-gray-900 mb-2">Audit History</h2>
-          {auditLogs.length === 0 ? (
-            <p className="text-sm text-gray-500">No changes logged yet.</p>
-          ) : (
-            <div className="space-y-2">
-              {auditLogs.map((log) => (
-                <div key={log.id} className="border rounded-lg p-3">
-                  <div className="text-sm font-medium text-gray-900">
-                    {log.action} by {log.actor_name || 'System/Public'}
-                  </div>
-                  <div className="text-xs text-gray-500">{new Date(log.created_at).toLocaleString()}</div>
-                </div>
-              ))}
-            </div>
-          )}
+        <section className="app-card p-4">
+          <details>
+            <summary className="cursor-pointer font-semibold text-gray-900">
+              Audit History ({auditLogs.length})
+            </summary>
+            <p className="text-xs text-gray-500 mt-1">Shows what changed, who changed it, and when.</p>
+            {auditLogs.length === 0 ? (
+              <p className="text-sm text-gray-500 mt-3">No changes logged yet.</p>
+            ) : (
+              <div className="space-y-2 mt-3">
+                {auditLogs.map((log) => {
+                  const changedFields = Object.entries(log.changed_data || {});
+                  return (
+                    <details key={log.id} className="border rounded-xl p-3">
+                      <summary className="cursor-pointer">
+                        <div className="text-sm font-medium text-gray-900 inline">
+                          {log.action_label || log.action} by {log.actor_name || 'System/Public'}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {humanizeRole(log.actor_role)} · {formatDateTime(log.created_at)}
+                          {changedFields.length > 0 ? ` · ${changedFields.length} field${changedFields.length === 1 ? '' : 's'} changed` : ''}
+                        </div>
+                      </summary>
+                      {changedFields.length > 0 && (
+                        <div className="mt-2 space-y-1">
+                          {changedFields.map(([field, diff]) => (
+                            <div key={field} className="text-xs text-gray-700">
+                              <span className="font-medium">{AUDIT_FIELD_LABELS[field] || field.replaceAll('_', ' ')}:</span>{' '}
+                              <span className="text-gray-500">{humanizeAuditValue(diff.from)}</span>
+                              {' -> '}
+                              <span>{humanizeAuditValue(diff.to)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </details>
+                  );
+                })}
+              </div>
+            )}
+          </details>
         </section>
       </div>
     </div>

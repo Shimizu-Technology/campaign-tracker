@@ -22,7 +22,7 @@ export default function EventDetailPage() {
   if (!event) return <div className="min-h-screen flex items-center justify-center text-gray-400">Loading...</div>;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#f5f7fb]">
       <header className="bg-[#1B3A6B] text-white py-4 px-4">
         <div className="max-w-4xl mx-auto">
           <Link to="/admin/events" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-2">
@@ -30,11 +30,11 @@ export default function EventDetailPage() {
           </Link>
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-xl font-bold">{event.name}</h1>
+              <h1 className="text-2xl font-bold tracking-tight">{event.name}</h1>
               <p className="text-blue-200 text-sm">{event.date} · {event.location} · {event.village_name || 'All villages'}</p>
             </div>
             <Link to={`/admin/events/${id}/checkin`}
-              className="bg-[#C41E3A] hover:bg-[#a01830] px-4 py-2 rounded-lg font-medium flex items-center gap-1">
+              className="bg-[#C41E3A] hover:bg-[#a01830] px-4 py-2 rounded-xl font-medium flex items-center gap-1">
               <ClipboardCheck className="w-4 h-4" /> Check In
             </Link>
           </div>
@@ -45,19 +45,19 @@ export default function EventDetailPage() {
         {/* Stats */}
         {stats && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white rounded-xl shadow-sm p-4 border text-center">
+            <div className="app-card p-4 text-center">
               <div className="text-2xl font-bold text-gray-900">{stats.total_invited}</div>
               <div className="text-sm text-gray-500">Invited</div>
             </div>
-            <div className="bg-white rounded-xl shadow-sm p-4 border text-center">
+            <div className="app-card p-4 text-center">
               <div className="text-2xl font-bold text-gray-900">{stats.confirmed}</div>
               <div className="text-sm text-gray-500">Confirmed</div>
             </div>
-            <div className="bg-white rounded-xl shadow-sm p-4 border text-center">
+            <div className="app-card p-4 text-center">
               <div className="text-2xl font-bold text-green-600">{stats.attended}</div>
               <div className="text-sm text-gray-500">Attended</div>
             </div>
-            <div className="bg-white rounded-xl shadow-sm p-4 border text-center">
+            <div className="app-card p-4 text-center">
               <div className={`text-2xl font-bold ${stats.show_up_rate >= 70 ? 'text-green-600' : stats.show_up_rate >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
                 {stats.show_up_rate}%
               </div>
@@ -68,7 +68,7 @@ export default function EventDetailPage() {
 
         {/* Quota progress */}
         {event.quota && stats && (
-          <div className="bg-white rounded-xl shadow-sm p-4 border mb-6">
+          <div className="app-card p-4 mb-6">
             <div className="flex justify-between mb-2">
               <span className="font-semibold">Quota: {event.quota}</span>
               <span className={event.quota_met ? 'text-green-600 font-medium' : 'text-red-600 font-medium'}>
@@ -85,8 +85,8 @@ export default function EventDetailPage() {
         )}
 
         {/* Attendee List */}
-        <h2 className="text-lg font-semibold text-gray-700 mb-4">Attendees ({attendees.length})</h2>
-        <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+        <h2 className="app-section-title text-xl mb-4">Attendees ({attendees.length})</h2>
+        <div className="app-card overflow-hidden">
           {attendees.map((a) => (
             <div key={a.rsvp_id} className="flex items-center justify-between px-4 py-3 border-b last:border-0">
               <div>

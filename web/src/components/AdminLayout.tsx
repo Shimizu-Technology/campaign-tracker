@@ -1,5 +1,6 @@
 import { SignedIn, SignedOut, SignInButton, UserButton, useAuth } from '@clerk/clerk-react';
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import api from '../lib/api';
 
 // Set auth token on API client whenever it changes
@@ -68,6 +69,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <p className="text-xs text-gray-400 mt-4">
               Contact your campaign admin for an account
             </p>
+            <Link
+              to="/"
+              className="mt-4 inline-flex items-center justify-center text-sm text-[#1B3A6B] hover:text-[#152e55] font-medium"
+            >
+              Back to Home
+            </Link>
           </div>
         </div>
       </SignedOut>

@@ -6,6 +6,16 @@ Campaign supporter tracking, quota management, and election day war room for the
 
 See [PRD.md](./PRD.md) for full product requirements.
 
+## Documentation Map
+
+- [PRD](./PRD.md) - product requirements and scope
+- [System Overview](./docs/system-overview.md) - how the app works end-to-end (architecture, flows, auth, ops)
+- [Build Plan](./docs/build-plan.md) - implementation plan and phased roadmap
+- [Execution Tracker](./docs/execution-tracker.md) - current work status (Done / Now / Next / Later)
+- [RBAC Matrix](./docs/rbac-matrix.md) - role permissions, access boundaries, and QA checklist
+- [Testing Handoff Pack](./docs/testing/README.md) - manual QA checklists for engineers (RBAC + critical flows)
+- [Issue Audit + Test Plan](./docs/issue-audit-and-test-plan-2026-02-13.md) - validated findings and regression checks
+
 ## What This Does
 
 1. **Digital Blue Form** — Replace paper Block List forms with online data entry + QR code self-signup

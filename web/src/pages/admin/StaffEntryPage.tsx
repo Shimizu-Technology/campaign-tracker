@@ -55,6 +55,13 @@ export default function StaffEntryPage() {
   const [successCount, setSuccessCount] = useState(0);
   const [showSuccess, setShowSuccess] = useState(false);
 
+  const { data: villageData } = useQuery({
+    queryKey: ['villages'],
+    queryFn: getVillages,
+  });
+  const villages: Village[] = useMemo(() => villageData?.villages || [], [villageData]);
+  const selectedVillage = villages.find(v => v.id === Number(form.village_id));
+
   // Duplicate detection
   const [duplicateWarning, setDuplicateWarning] = useState('');
   const dupeTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
@@ -131,13 +138,6 @@ export default function StaffEntryPage() {
       setScanning(false);
     }
   };
-
-  const { data: villageData } = useQuery({
-    queryKey: ['villages'],
-    queryFn: getVillages,
-  });
-  const villages: Village[] = useMemo(() => villageData?.villages || [], [villageData]);
-  const selectedVillage = villages.find(v => v.id === Number(form.village_id));
 
   const submit = useMutation({
     mutationFn: (data: Record<string, unknown>) => createSupporter(data, undefined, 'staff'),

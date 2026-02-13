@@ -7,7 +7,19 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
       clerk_id: "clerk-supporters",
       email: "supporters@example.com",
       name: "Supporters User",
+      role: "district_coordinator"
+    )
+    @readonly_user = User.create!(
+      clerk_id: "clerk-readonly",
+      email: "readonly@example.com",
+      name: "Read Only User",
       role: "block_leader"
+    )
+    @poll_watcher = User.create!(
+      clerk_id: "clerk-poll-watcher",
+      email: "pollwatcher@example.com",
+      name: "Poll Watcher User",
+      role: "poll_watcher"
     )
 
     250.times do |idx|
@@ -29,6 +41,14 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_response :unauthorized
     payload = JSON.parse(response.body)
     assert_equal "authorization_token_required", payload["code"]
+  end
+
+  test "poll watcher cannot view supporters index" do
+    get "/api/v1/supporters", headers: auth_headers(@poll_watcher)
+
+    assert_response :forbidden
+    payload = JSON.parse(response.body)
+    assert_equal "supporter_access_required", payload["code"]
   end
 
   test "index clamps per_page to max allowed" do
@@ -161,6 +181,33 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes ids, assigned.id
   end
 
+  test "index supports sorting by print_name ascending" do
+    Supporter.create!(
+      print_name: "Sort Test Zulu",
+      contact_number: "6715559100",
+      village: @village,
+      source: "staff_entry",
+      status: "active"
+    )
+    Supporter.create!(
+      print_name: "Sort Test Alpha",
+      contact_number: "6715559101",
+      village: @village,
+      source: "staff_entry",
+      status: "active"
+    )
+
+    get "/api/v1/supporters",
+      params: { search: "Sort Test", sort_by: "print_name", sort_dir: "asc" },
+      headers: auth_headers(@user)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    names = payload.fetch("supporters").map { |s| s.fetch("print_name") }
+    assert_equal "Sort Test Alpha", names.first
+    assert_equal "Sort Test Zulu", names.last
+  end
+
   test "show returns supporter details and audit logs" do
     supporter = Supporter.create!(
       print_name: "Show Supporter",
@@ -173,7 +220,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
       auditable: supporter,
       actor_user: @user,
       action: "updated",
-      changed_data: { "precinct_id" => [ nil, 1 ] },
+      changed_data: { "precinct_id" => { "from" => nil, "to" => 1 } },
       metadata: {}
     )
 
@@ -183,6 +230,9 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     payload = JSON.parse(response.body)
     assert_equal supporter.id, payload.dig("supporter", "id")
     assert_equal 1, payload.fetch("audit_logs").length
+    assert_equal true, payload.dig("permissions", "can_edit")
+    assert_equal "district_coordinator", payload.dig("audit_logs", 0, "actor_role")
+    assert_equal "Supporter updated", payload.dig("audit_logs", 0, "action_label")
   end
 
   test "update creates audit log entry" do
@@ -205,5 +255,41 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     log = AuditLog.order(created_at: :desc).first
     assert_equal "updated", log.action
     assert_equal @user.id, log.actor_user_id
+    assert_equal({ "from" => nil, "to" => precinct.id }, log.changed_data["precinct_id"])
+  end
+
+  test "update is forbidden for non editor roles" do
+    precinct = Precinct.create!(number: "SP-5", village: @village, registered_voters: 100)
+    supporter = Supporter.create!(
+      print_name: "Read Only Supporter",
+      contact_number: "6715559002",
+      village: @village,
+      source: "staff_entry",
+      status: "active"
+    )
+
+    patch "/api/v1/supporters/#{supporter.id}",
+      params: { supporter: { precinct_id: precinct.id } },
+      headers: auth_headers(@readonly_user)
+
+    assert_response :forbidden
+    payload = JSON.parse(response.body)
+    assert_equal "supporter_edit_access_required", payload["code"]
+  end
+
+  test "show returns edit permissions false for non editor roles" do
+    supporter = Supporter.create!(
+      print_name: "Show Read Only",
+      contact_number: "6715559003",
+      village: @village,
+      source: "staff_entry",
+      status: "active"
+    )
+
+    get "/api/v1/supporters/#{supporter.id}", headers: auth_headers(@readonly_user)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal false, payload.dig("permissions", "can_edit")
   end
 end

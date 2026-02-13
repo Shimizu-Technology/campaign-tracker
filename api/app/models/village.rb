@@ -7,6 +7,7 @@ class Village < ApplicationRecord
   has_many :events, dependent: :nullify
 
   validates :name, presence: true, uniqueness: true
+  validates :registered_voters, numericality: { greater_than_or_equal_to: 0 }, allow_nil: true
 
   def supporter_count
     supporters.active.count

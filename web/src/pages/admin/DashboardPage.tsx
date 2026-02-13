@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query';
 import { getDashboard } from '../../lib/api';
 import { Link } from 'react-router-dom';
-import { Users, MapPin, TrendingUp, CalendarPlus, ClipboardPlus, BarChart3, QrCode, Trophy, MessageSquare } from 'lucide-react';
+import { Users, MapPin, TrendingUp, CalendarPlus, ClipboardPlus, BarChart3, QrCode, Trophy, MessageSquare, Shield, ChevronDown, Target } from 'lucide-react';
 import { UserButton } from '@clerk/clerk-react';
 import { useCampaignUpdates } from '../../hooks/useCampaignUpdates';
+import { useSession } from '../../hooks/useSession';
 
 interface VillageData {
   id: number;
@@ -32,6 +33,7 @@ function statusBg(status: string) {
 
 export default function DashboardPage() {
   useCampaignUpdates(); // Auto-invalidates dashboard queries on real-time events
+  const { data: sessionData } = useSession();
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ['dashboard'],
@@ -62,35 +64,93 @@ export default function DashboardPage() {
   }
 
   const { campaign, summary, villages } = data;
+  const primaryActions = [
+    ...(sessionData?.permissions?.can_create_staff_supporters
+      ? [ { to: '/admin/supporters/new', label: 'New Entry', icon: ClipboardPlus, className: 'bg-[#C41E3A] hover:bg-[#a01830]' } ]
+      : []),
+    ...(sessionData?.permissions?.can_view_supporters
+      ? [ { to: '/admin/supporters', label: 'Supporters', icon: Users, className: 'bg-white/10 hover:bg-white/20' } ]
+      : []),
+    ...(sessionData?.permissions?.can_access_events
+      ? [ { to: '/admin/events', label: 'Events', icon: CalendarPlus, className: 'bg-white/10 hover:bg-white/20' } ]
+      : []),
+    ...(sessionData?.permissions?.can_access_war_room
+      ? [ { to: '/admin/war-room', label: 'War Room', icon: TrendingUp, className: 'bg-[#C41E3A]/80 hover:bg-[#C41E3A]' } ]
+      : []),
+  ] as const;
+  const secondaryActions = [
+    ...(sessionData?.permissions?.can_access_qr ? [ { to: '/admin/qr', label: 'QR', icon: QrCode } ] : []),
+    ...(sessionData?.permissions?.can_access_poll_watcher ? [ { to: '/admin/poll-watcher', label: 'Poll Watcher', icon: MapPin } ] : []),
+    ...(sessionData?.permissions?.can_access_leaderboard ? [ { to: '/admin/leaderboard', label: 'Top', icon: Trophy } ] : []),
+    ...(sessionData?.permissions?.can_send_sms ? [ { to: '/admin/sms', label: 'SMS', icon: MessageSquare } ] : []),
+    ...(sessionData?.permissions?.can_manage_users ? [ { to: '/admin/users', label: 'Users', icon: Shield } ] : []),
+    ...(sessionData?.permissions?.can_manage_configuration ? [ { to: '/admin/quotas', label: 'Quotas', icon: Target } ] : []),
+    ...(sessionData?.permissions?.can_manage_configuration ? [ { to: '/admin/precincts', label: 'Precincts', icon: MapPin } ] : []),
+  ] as const;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#f5f7fb]">
       {/* Header */}
       <header className="bg-[#1B3A6B] text-white py-3 px-4 shadow-lg">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between mb-2 sm:mb-0">
             <div className="min-w-0">
-              <h1 className="text-lg sm:text-xl font-bold truncate">{campaign?.name || 'Campaign Tracker'}</h1>
-              <p className="text-blue-200 text-xs sm:text-sm truncate">{campaign?.candidate_names}</p>
+              <h1 className="text-lg sm:text-xl font-bold tracking-tight truncate">{campaign?.name || 'Campaign Tracker'}</h1>
+              <p className="text-blue-200 text-sm truncate">{campaign?.candidate_names}</p>
             </div>
             <UserButton afterSignOutUrl="/" />
           </div>
-          <div className="flex gap-2 sm:gap-3 mt-2">
-            <Link to="/admin/supporters/new" className="bg-[#C41E3A] hover:bg-[#a01830] px-2.5 sm:px-3 py-1.5 sm:py-2 min-h-[44px] rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1">
-              <ClipboardPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> <span className="hidden xs:inline">New</span> Entry
-            </Link>
-            <Link to="/admin/qr" className="bg-white/10 hover:bg-white/20 px-2.5 sm:px-3 py-1.5 sm:py-2 min-h-[44px] rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1">
-              <QrCode className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> QR
-            </Link>
-            <Link to="/admin/events" className="bg-white/10 hover:bg-white/20 px-2.5 sm:px-3 py-1.5 sm:py-2 min-h-[44px] rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1">
-              <CalendarPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Events
-            </Link>
-            <Link to="/admin/leaderboard" className="bg-yellow-500/80 hover:bg-yellow-500 px-2.5 sm:px-3 py-1.5 sm:py-2 min-h-[44px] rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1">
-              <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Top
-            </Link>
-            <Link to="/admin/sms" className="bg-green-600/80 hover:bg-green-600 px-2.5 sm:px-3 py-1.5 sm:py-2 min-h-[44px] rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1">
-              <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> SMS
-            </Link>
+          <div className="mt-3 space-y-2">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {primaryActions.map((action) => {
+                const Icon = action.icon;
+                return (
+                  <Link
+                    key={action.to}
+                    to={action.to}
+                    className={`${action.className} px-3 py-2 min-h-[44px] rounded-xl text-sm font-medium flex items-center justify-center gap-2 shadow-sm`}
+                  >
+                    <Icon className="w-4 h-4" /> {action.label}
+                  </Link>
+                );
+              })}
+            </div>
+
+            <div className="hidden md:flex flex-wrap gap-2">
+              {secondaryActions.map((action) => {
+                const Icon = action.icon;
+                return (
+                  <Link
+                    key={action.to}
+                    to={action.to}
+                    className="bg-white/10 hover:bg-white/20 px-3 py-2 min-h-[44px] rounded-xl text-xs font-medium flex items-center gap-1.5"
+                  >
+                    <Icon className="w-3.5 h-3.5" /> {action.label}
+                  </Link>
+                );
+              })}
+            </div>
+
+            <details className="md:hidden bg-white/10 rounded-xl">
+              <summary className="list-none cursor-pointer px-3 py-2 min-h-[44px] text-sm font-medium flex items-center justify-between">
+                More Tools
+                <ChevronDown className="w-4 h-4" />
+              </summary>
+              <div className="grid grid-cols-2 gap-2 px-2 pb-2">
+                {secondaryActions.map((action) => {
+                  const Icon = action.icon;
+                  return (
+                    <Link
+                      key={action.to}
+                      to={action.to}
+                      className="bg-white/10 hover:bg-white/20 px-2.5 py-2 min-h-[44px] rounded-xl text-xs font-medium flex items-center justify-center gap-1.5"
+                    >
+                      <Icon className="w-3.5 h-3.5" /> {action.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            </details>
           </div>
         </div>
       </header>
@@ -98,14 +158,14 @@ export default function DashboardPage() {
       <div className="max-w-6xl mx-auto px-4 py-6">
         {/* Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-xl shadow-sm p-4 border">
+          <div className="app-card p-4">
             <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
               <Users className="w-4 h-4" /> Total Supporters
             </div>
             <div className="text-3xl font-bold text-gray-900">{summary.total_supporters.toLocaleString()}</div>
             <div className="text-sm text-gray-500">of {summary.total_target.toLocaleString()} goal</div>
           </div>
-          <div className="bg-white rounded-xl shadow-sm p-4 border">
+          <div className="app-card p-4">
             <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
               <TrendingUp className="w-4 h-4" /> Progress
             </div>
@@ -114,14 +174,14 @@ export default function DashboardPage() {
               {summary.status === 'on_track' ? 'On Track' : summary.status === 'behind' ? 'Behind' : 'Critical'}
             </div>
           </div>
-          <div className="bg-white rounded-xl shadow-sm p-4 border">
+          <div className="app-card p-4">
             <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
               <BarChart3 className="w-4 h-4" /> Today
             </div>
             <div className="text-3xl font-bold text-gray-900">{summary.today_signups}</div>
             <div className="text-sm text-gray-500">{summary.week_signups} this week</div>
           </div>
-          <div className="bg-white rounded-xl shadow-sm p-4 border">
+          <div className="app-card p-4">
             <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
               <MapPin className="w-4 h-4" /> Coverage
             </div>
@@ -131,7 +191,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Overall Progress Bar */}
-        <div className="bg-white rounded-xl shadow-sm p-4 border mb-8">
+        <div className="app-card p-4 mb-8">
           <div className="flex items-center justify-between mb-2">
             <span className="font-semibold text-gray-700">Island-Wide Progress</span>
             <span className="text-sm text-gray-500">
@@ -147,7 +207,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Village Grid */}
-        <h2 className="text-lg font-semibold text-gray-700 mb-4">Village Progress</h2>
+        <h2 className="app-section-title text-2xl mb-4">Village Progress</h2>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {villages.map((v: VillageData) => (
             <Link
@@ -177,13 +237,6 @@ export default function DashboardPage() {
           ))}
         </div>
 
-        {/* Quick Links */}
-        <div className="mt-8 flex flex-wrap gap-4 justify-center">
-          <Link to="/admin/supporters" className="text-[#1B3A6B] hover:underline text-sm">View All Supporters →</Link>
-          <Link to="/admin/poll-watcher" className="text-[#1B3A6B] hover:underline text-sm">Poll Watcher →</Link>
-          <Link to="/admin/war-room" className="text-[#C41E3A] hover:underline text-sm font-medium">War Room →</Link>
-          <Link to="/signup" className="text-[#1B3A6B] hover:underline text-sm">Public Signup Form →</Link>
-        </div>
       </div>
     </div>
   );

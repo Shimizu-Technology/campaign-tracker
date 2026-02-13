@@ -7,12 +7,14 @@ class SmsService
 
   class << self
     # ── Supporter signup confirmation ──────────────────────────────
-    def welcome_supporter(supporter)
-      body = "Si Yu'os Ma'åse, #{supporter.print_name}! " \
-             "Thank you for supporting #{CAMPAIGN_NAME}. " \
-             "Together we'll make Guam better for everyone. 🤙 #JoshAndTina2026"
+    def welcome_supporter_body(supporter)
+      "Si Yu'os Ma'åse, #{supporter.print_name}! " \
+      "Thank you for supporting #{CAMPAIGN_NAME}. " \
+      "Together we'll make Guam better for everyone. 🤙 #JoshAndTina2026"
+    end
 
-      send(to: supporter.contact_number, body: body, category: "welcome")
+    def welcome_supporter(supporter)
+      send(to: supporter.contact_number, body: welcome_supporter_body(supporter), category: "welcome")
     end
 
     # ── Event RSVP confirmation ────────────────────────────────────

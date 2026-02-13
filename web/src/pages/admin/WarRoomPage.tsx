@@ -1,12 +1,14 @@
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getWarRoom } from '../../lib/api';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft, Radio, Users, TrendingUp, MapPin, Phone,
-  AlertTriangle, Clock, Activity, Eye, CheckCircle, X
+  AlertTriangle, Clock, Activity, Eye, CheckCircle, X, Search
 } from 'lucide-react';
 import { useCampaignUpdates } from '../../hooks/useCampaignUpdates';
 import { useRealtimeToast } from '../../hooks/useRealtimeToast';
+import { useSession } from '../../hooks/useSession';
 
 interface WarRoomVillage {
   id: number;
@@ -19,6 +21,9 @@ interface WarRoomVillage {
   voters_reported: number;
   supporter_count: number;
   motorcade_count: number;
+  not_yet_voted_count: number;
+  outreach_attempted_count: number;
+  outreach_reached_count: number;
 }
 
 interface CallPriority {
@@ -48,14 +53,29 @@ interface WarRoomStats {
   reporting_pct: number;
   total_supporters: number;
   last_hour_reports: number;
+  total_not_yet_voted: number;
+  total_outreach_attempted: number;
+  total_outreach_reached: number;
+}
+
+interface NotYetVotedQueueItem {
+  id: number;
+  name: string;
+  turnout_pct: number;
+  not_yet_voted_count: number;
+  outreach_attempted_count: number;
+  outreach_reached_count: number;
 }
 
 interface WarRoomData {
   villages: WarRoomVillage[];
   stats: WarRoomStats;
   call_priorities: CallPriority[];
+  not_yet_voted_queue: NotYetVotedQueueItem[];
   activity: ActivityItem[];
 }
+
+type WarRoomVillageSortField = 'turnout_pct' | 'name' | 'supporter_count';
 
 function turnoutColor(pct: number) {
   if (pct >= 50) return 'text-green-600';
@@ -104,15 +124,55 @@ function timeAgo(iso: string) {
   return `${hrs}h ${mins % 60}m ago`;
 }
 
+function supporterLabel(count: number) {
+  return `${count} supporter${count === 1 ? "" : "s"}`;
+}
+
 export default function WarRoomPage() {
   const { toasts, handleEvent, dismiss } = useRealtimeToast();
   useCampaignUpdates(handleEvent);
+  const { data: sessionData } = useSession();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [villageSearch, setVillageSearch] = useState(searchParams.get('village_search') || '');
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
+  const [sortBy, setSortBy] = useState<WarRoomVillageSortField>((searchParams.get('sort_by') as WarRoomVillageSortField) || 'turnout_pct');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>((searchParams.get('sort_dir') as 'asc' | 'desc') || 'desc');
 
   const { data, isLoading, isError } = useQuery<WarRoomData>({
     queryKey: ['war_room'],
     queryFn: getWarRoom,
     refetchInterval: 30_000, // Fallback poll every 30s (WebSocket handles instant updates)
   });
+
+  const villages = useMemo(() => data?.villages || [], [data?.villages]);
+  const filteredVillages = useMemo(() => {
+    const q = villageSearch.trim().toLowerCase();
+    const filtered = villages.filter((village) => {
+      const searchHit = q.length === 0 || village.name.toLowerCase().includes(q);
+      const statusHit = statusFilter === ''
+        ? true
+        : statusFilter === 'issues'
+          ? village.has_issues
+          : village.status === statusFilter;
+      return searchHit && statusHit;
+    });
+
+    return [...filtered].sort((a, b) => {
+      const dir = sortDir === 'asc' ? 1 : -1;
+      if (sortBy === 'name') return a.name.localeCompare(b.name) * dir;
+      if (sortBy === 'supporter_count') return (a.supporter_count - b.supporter_count) * dir;
+      return (a.turnout_pct - b.turnout_pct) * dir;
+    });
+  }, [villages, villageSearch, statusFilter, sortBy, sortDir]);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (villageSearch) params.set('village_search', villageSearch);
+    if (statusFilter) params.set('status', statusFilter);
+    params.set('sort_by', sortBy);
+    params.set('sort_dir', sortDir);
+    setSearchParams(params, { replace: true });
+  }, [villageSearch, statusFilter, sortBy, sortDir, setSearchParams]);
 
   if (isLoading) {
     return (
@@ -139,13 +199,13 @@ export default function WarRoomPage() {
     );
   }
 
-  const { villages, stats, call_priorities, activity } = data;
+  const { stats, call_priorities, activity, not_yet_voted_queue } = data;
 
   return (
     <div className="min-h-screen bg-gray-900 text-white">
       {/* Real-time toast notifications */}
       {toasts.length > 0 && (
-        <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm">
+        <div className="fixed top-16 left-2 right-2 sm:left-auto sm:right-4 z-50 space-y-2 max-w-sm sm:max-w-md">
           {toasts.map(toast => (
             <div
               key={toast.id}
@@ -171,19 +231,21 @@ export default function WarRoomPage() {
       <header className="bg-black/50 border-b border-gray-700 py-3 px-4">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link to="/admin" className="text-gray-400 hover:text-white">
+            <Link to="/admin" className="text-gray-400 hover:text-white min-h-[44px] min-w-[44px] flex items-center justify-center">
               <ArrowLeft className="w-5 h-5" />
             </Link>
             <Radio className="w-5 h-5 text-red-500 animate-pulse" />
             <div>
-              <h1 className="text-lg font-bold">WAR ROOM</h1>
+              <h1 className="text-lg font-bold tracking-tight">WAR ROOM</h1>
               <p className="text-xs text-gray-400">Election Day Command Center</p>
             </div>
           </div>
           <div className="flex items-center gap-4 text-sm">
-            <Link to="/admin/poll-watcher" className="text-blue-400 hover:text-blue-300 flex items-center gap-1">
-              <Eye className="w-4 h-4" /> Poll Watcher
-            </Link>
+            {sessionData?.permissions?.can_access_poll_watcher && (
+              <Link to="/admin/poll-watcher" className="text-blue-400 hover:text-blue-300 min-h-[44px] px-2 flex items-center gap-1">
+                <Eye className="w-4 h-4" /> Poll Watcher
+              </Link>
+            )}
             <span className="text-gray-500">
               {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
             </span>
@@ -233,6 +295,35 @@ export default function WarRoomPage() {
             <div className="text-xs text-gray-500">reports received</div>
           </div>
         </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+          <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+            <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+              <Users className="w-3.5 h-3.5" /> NOT YET VOTED
+            </div>
+            <div className="text-2xl font-bold text-amber-400">
+              {stats.total_not_yet_voted.toLocaleString()}
+            </div>
+            <div className="text-xs text-gray-500">remaining outreach queue</div>
+          </div>
+          <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+            <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+              <Phone className="w-3.5 h-3.5" /> ATTEMPTED
+            </div>
+            <div className="text-2xl font-bold text-blue-400">
+              {stats.total_outreach_attempted.toLocaleString()}
+            </div>
+            <div className="text-xs text-gray-500">supporters contacted</div>
+          </div>
+          <div className="bg-gray-800 rounded-xl p-4 border border-gray-700">
+            <div className="flex items-center gap-2 text-gray-400 text-xs mb-1">
+              <CheckCircle className="w-3.5 h-3.5" /> REACHED
+            </div>
+            <div className="text-2xl font-bold text-green-400">
+              {stats.total_outreach_reached.toLocaleString()}
+            </div>
+            <div className="text-xs text-gray-500">supporters reached</div>
+          </div>
+        </div>
 
         <div className="grid md:grid-cols-3 gap-4">
           {/* Village Map - 2 cols */}
@@ -240,11 +331,53 @@ export default function WarRoomPage() {
             <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
               <TrendingUp className="w-4 h-4" /> Village Turnout
             </h2>
+            <div className="bg-gray-800 border border-gray-700 rounded-xl p-3 mb-3 grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <div className="relative sm:col-span-2">
+                <Search className="w-4 h-4 absolute left-3 top-3 text-gray-500" />
+                <input
+                  type="text"
+                  value={villageSearch}
+                  onChange={(e) => setVillageSearch(e.target.value)}
+                  placeholder="Search village..."
+                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-gray-900 border border-gray-700 text-sm min-h-[44px]"
+                />
+              </div>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-3 py-2 rounded-xl bg-gray-900 border border-gray-700 text-sm min-h-[44px]"
+              >
+                <option value="">All statuses</option>
+                <option value="strong">Strong</option>
+                <option value="moderate">Moderate</option>
+                <option value="low">Low</option>
+                <option value="issues">With issues</option>
+              </select>
+              <select
+                value={`${sortBy}:${sortDir}`}
+                onChange={(e) => {
+                  const [field, dir] = e.target.value.split(':') as [WarRoomVillageSortField, 'asc' | 'desc'];
+                  setSortBy(field);
+                  setSortDir(dir);
+                }}
+                className="px-3 py-2 rounded-xl bg-gray-900 border border-gray-700 text-sm min-h-[44px]"
+              >
+                <option value="turnout_pct:desc">Highest turnout</option>
+                <option value="turnout_pct:asc">Lowest turnout</option>
+                <option value="name:asc">Village A-Z</option>
+                <option value="name:desc">Village Z-A</option>
+                <option value="supporter_count:desc">Most supporters</option>
+                <option value="supporter_count:asc">Least supporters</option>
+              </select>
+            </div>
+            <p className="text-xs text-gray-500 mb-3">
+              Showing {filteredVillages.length} of {villages.length} villages
+            </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {villages.map((v) => (
+              {filteredVillages.map((v) => (
                 <div
                   key={v.id}
-                  className={`bg-gray-800 rounded-lg border p-3 ${
+                  className={`bg-gray-800 rounded-xl border p-3 ${
                     v.has_issues ? 'border-red-500/50' : 'border-gray-700'
                   }`}
                 >
@@ -268,15 +401,46 @@ export default function WarRoomPage() {
                   </div>
                   <div className="flex justify-between text-xs text-gray-500 mt-1">
                     <span>{v.voters_reported.toLocaleString()} voted</span>
-                    <span>{v.supporter_count} supporters</span>
+                    <span>{supporterLabel(v.supporter_count)}</span>
                   </div>
                 </div>
               ))}
             </div>
+            {filteredVillages.length === 0 && (
+              <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-sm text-gray-500 text-center mt-2">
+                No villages match current filters.
+              </div>
+            )}
           </div>
 
           {/* Right Sidebar */}
           <div className="space-y-4">
+            {/* Not-yet-voted Queue */}
+            <div>
+              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <Users className="w-4 h-4 text-amber-400" /> Not Yet Voted Queue
+              </h2>
+              {not_yet_voted_queue.length > 0 ? (
+                <div className="space-y-2">
+                  {not_yet_voted_queue.map((v) => (
+                    <div key={v.id} className="bg-amber-900/20 border border-amber-700/50 rounded-xl p-3">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-sm">{v.name}</span>
+                        <span className="text-amber-300 font-bold text-sm">{v.not_yet_voted_count} pending</span>
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        Turnout {v.turnout_pct}% · Attempted {v.outreach_attempted_count} · Reached {v.outreach_reached_count}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center text-sm text-gray-500">
+                  No pending not-yet-voted queue.
+                </div>
+              )}
+            </div>
+
             {/* Call Bank Priorities */}
             <div>
               <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
@@ -285,19 +449,19 @@ export default function WarRoomPage() {
               {call_priorities.length > 0 ? (
                 <div className="space-y-2">
                   {call_priorities.map((v) => (
-                    <div key={v.id} className="bg-red-900/30 border border-red-800/50 rounded-lg p-3">
+                    <div key={v.id} className="bg-red-900/30 border border-red-800/50 rounded-xl p-3">
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-sm">{v.name}</span>
                         <span className="text-red-400 font-bold text-sm">{v.turnout_pct}%</span>
                       </div>
                       <div className="text-xs text-gray-400">
-                        {v.supporter_count} supporters to call · {v.motorcade_count} motorcade ready
+                        {supporterLabel(v.supporter_count)} to call · {v.motorcade_count} motorcade ready
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 text-center text-sm text-gray-500">
+                <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center text-sm text-gray-500">
                   {stats.reporting_precincts === 0 ? (
                     <>No reports yet — waiting for poll watchers</>
                   ) : (
@@ -315,7 +479,7 @@ export default function WarRoomPage() {
               {activity.length > 0 ? (
                 <div className="space-y-2 max-h-96 overflow-y-auto">
                   {activity.map((a) => (
-                    <div key={a.id} className="bg-gray-800 border border-gray-700 rounded-lg p-3">
+                    <div key={a.id} className="bg-gray-800 border border-gray-700 rounded-xl p-3">
                       <div className="flex items-center justify-between">
                         <span className="text-sm">
                           {reportTypeIcon(a.report_type)} Precinct {a.precinct_number}
@@ -334,7 +498,7 @@ export default function WarRoomPage() {
                   ))}
                 </div>
               ) : (
-                <div className="bg-gray-800 border border-gray-700 rounded-lg p-4 text-center text-sm text-gray-500">
+                <div className="bg-gray-800 border border-gray-700 rounded-xl p-4 text-center text-sm text-gray-500">
                   Waiting for first reports...
                 </div>
               )}

@@ -36,9 +36,16 @@ module Authenticatable
       decoded = decode_clerk_jwt(token)
       clerk_id = decoded["sub"]
       token_email = extract_token_email(decoded)
+      token_name = extract_token_name(decoded)
+      token_email ||= fetch_clerk_email(clerk_id)
+      token_name ||= fetch_clerk_name(clerk_id)
 
       @current_user = User.find_by(clerk_id: clerk_id)
-      @current_user ||= find_or_link_user_by_email(clerk_id: clerk_id, token_email: token_email, decoded: decoded)
+      @current_user ||= find_or_link_user_by_email(clerk_id: clerk_id, token_email: token_email, token_name: token_name)
+
+      if @current_user && token_name.present? && @current_user.name != token_name
+        @current_user.update(name: token_name)
+      end
 
       # Auto-create user on first login if they have a Clerk account
       unless @current_user
@@ -55,7 +62,7 @@ module Authenticatable
         @current_user = User.create!(
           clerk_id: clerk_id,
           email: token_email || "#{clerk_id}@clerk.dev",
-          name: decoded["name"] || decoded["first_name"] || "New User",
+          name: token_name || "New User",
           role: "block_leader"
         )
       end
@@ -88,6 +95,16 @@ module Authenticatable
     end
   end
 
+  def require_user_manager!
+    unless can_manage_users?
+      render_api_error(
+        message: "User management access required",
+        status: :forbidden,
+        code: "user_management_access_required"
+      )
+    end
+  end
+
   def require_coordinator_or_above!
     unless current_user&.admin? || current_user&.coordinator?
       render_api_error(
@@ -96,6 +113,127 @@ module Authenticatable
         code: "coordinator_access_required"
       )
     end
+  end
+
+  def require_supporter_access!
+    return if can_view_supporters?
+
+    render_api_error(
+      message: "Supporter access required",
+      status: :forbidden,
+      code: "supporter_access_required"
+    )
+  end
+
+  def require_staff_entry_access!
+    return if can_create_staff_supporters?
+
+    render_api_error(
+      message: "Staff entry access required",
+      status: :forbidden,
+      code: "staff_entry_access_required"
+    )
+  end
+
+  def require_events_access!
+    return if can_access_events?
+
+    render_api_error(
+      message: "Events access required",
+      status: :forbidden,
+      code: "events_access_required"
+    )
+  end
+
+  def require_qr_access!
+    return if can_access_qr?
+
+    render_api_error(
+      message: "QR tools access required",
+      status: :forbidden,
+      code: "qr_access_required"
+    )
+  end
+
+  def require_leaderboard_access!
+    return if can_access_leaderboard?
+
+    render_api_error(
+      message: "Leaderboard access required",
+      status: :forbidden,
+      code: "leaderboard_access_required"
+    )
+  end
+
+  def require_war_room_access!
+    return if can_access_war_room?
+
+    render_api_error(
+      message: "War room access required",
+      status: :forbidden,
+      code: "war_room_access_required"
+    )
+  end
+
+  def require_poll_watcher_access!
+    return if can_access_poll_watcher?
+
+    render_api_error(
+      message: "Poll watcher access required",
+      status: :forbidden,
+      code: "poll_watcher_access_required"
+    )
+  end
+
+  def can_manage_users?
+    current_user&.admin? || current_user&.coordinator?
+  end
+
+  def can_manage_configuration?
+    current_user&.admin? || current_user&.coordinator?
+  end
+
+  def can_send_sms?
+    current_user&.admin? || current_user&.coordinator?
+  end
+
+  def can_edit_supporters?
+    current_user&.admin? || current_user&.coordinator?
+  end
+
+  def can_view_supporters?
+    current_user&.admin? || current_user&.coordinator? || current_user&.chief? || current_user&.leader?
+  end
+
+  def can_create_staff_supporters?
+    can_view_supporters?
+  end
+
+  def can_access_events?
+    can_view_supporters?
+  end
+
+  def can_access_qr?
+    can_view_supporters?
+  end
+
+  def can_access_leaderboard?
+    can_view_supporters?
+  end
+
+  def can_access_war_room?
+    current_user&.admin? || current_user&.coordinator? || current_user&.chief? || current_user&.poll_watcher?
+  end
+
+  def can_access_poll_watcher?
+    can_access_war_room?
+  end
+
+  def manageable_roles_for_current_user
+    return User::ROLES if current_user&.admin?
+    return [ "village_chief", "block_leader", "poll_watcher" ] if current_user&.coordinator?
+
+    []
   end
 
   def extract_token
@@ -139,7 +277,7 @@ module Authenticatable
     decoded
   end
 
-  def find_or_link_user_by_email(clerk_id:, token_email:, decoded:)
+  def find_or_link_user_by_email(clerk_id:, token_email:, token_name:)
     return nil if token_email.blank?
 
     user = User.find_by(email: token_email)
@@ -147,7 +285,7 @@ module Authenticatable
 
     user.update!(
       clerk_id: clerk_id,
-      name: decoded["name"] || decoded["first_name"] || user.name
+      name: token_name || user.name
     )
     user
   end
@@ -159,6 +297,79 @@ module Authenticatable
       decoded["https://clerk.dev/email"]
 
     raw&.downcase
+  end
+
+  def extract_token_name(decoded)
+    return decoded["name"] if decoded["name"].present?
+
+    parts = [ decoded["first_name"], decoded["last_name"] ].compact
+    return nil if parts.empty?
+
+    parts.join(" ")
+  end
+
+  def fetch_clerk_email(clerk_id)
+    return nil if clerk_id.blank?
+
+    secret_key = ENV["CLERK_SECRET_KEY"]
+    return nil if secret_key.blank?
+
+    Rails.cache.fetch("clerk_user_email:#{clerk_id}", expires_in: 10.minutes) do
+      uri = URI("https://api.clerk.com/v1/users/#{clerk_id}")
+      request = Net::HTTP::Get.new(uri)
+      request["Authorization"] = "Bearer #{secret_key}"
+      request["Content-Type"] = "application/json"
+
+      response = Net::HTTP.start(uri.host, uri.port, use_ssl: true) do |http|
+        http.request(request)
+      end
+      unless response.is_a?(Net::HTTPSuccess)
+        Rails.logger.warn("[Authenticatable] Clerk user lookup failed status=#{response.code}")
+        next nil
+      end
+
+      payload = JSON.parse(response.body)
+      primary_id = payload["primary_email_address_id"]
+      email_entries = payload["email_addresses"] || []
+      primary = email_entries.find { |entry| entry["id"] == primary_id } || email_entries.first
+
+      primary&.dig("email_address")&.downcase
+    end
+  rescue StandardError => e
+    Rails.logger.warn("[Authenticatable] Clerk user lookup error: #{e.class} #{e.message}")
+    nil
+  end
+
+  def fetch_clerk_name(clerk_id)
+    return nil if clerk_id.blank?
+
+    secret_key = ENV["CLERK_SECRET_KEY"]
+    return nil if secret_key.blank?
+
+    Rails.cache.fetch("clerk_user_name:#{clerk_id}", expires_in: 10.minutes) do
+      uri = URI("https://api.clerk.com/v1/users/#{clerk_id}")
+      request = Net::HTTP::Get.new(uri)
+      request["Authorization"] = "Bearer #{secret_key}"
+      request["Content-Type"] = "application/json"
+
+      response = Net::HTTP.start(uri.host, uri.port, use_ssl: true) do |http|
+        http.request(request)
+      end
+      unless response.is_a?(Net::HTTPSuccess)
+        Rails.logger.warn("[Authenticatable] Clerk user name lookup failed status=#{response.code}")
+        next nil
+      end
+
+      payload = JSON.parse(response.body)
+      full_name = payload["full_name"]
+      next full_name if full_name.present?
+
+      parts = [ payload["first_name"], payload["last_name"] ].compact
+      parts.join(" ").presence
+    end
+  rescue StandardError => e
+    Rails.logger.warn("[Authenticatable] Clerk user name lookup error: #{e.class} #{e.message}")
+    nil
   end
 
   def clerk_jwks(clerk_domain)
