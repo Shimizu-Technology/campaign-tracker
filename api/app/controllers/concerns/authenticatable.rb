@@ -247,8 +247,9 @@ module Authenticatable
 
     jwks_hash = clerk_jwks(clerk_domain)
 
-    # Get the first key
-    jwk_data = jwks_hash["keys"].first
+    # Find the matching key by kid (key ID) from the JWT header to handle key rotation
+    token_header = JWT.decode(token, nil, false).last
+    jwk_data = jwks_hash["keys"].find { |k| k["kid"] == token_header["kid"] } || jwks_hash["keys"].first
     jwk = JWT::JWK.import(jwk_data)
 
     verify_aud = ENV["CLERK_JWT_AUDIENCE"].present?

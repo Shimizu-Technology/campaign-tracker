@@ -10,7 +10,7 @@ module Api
       # GET /api/v1/leaderboard
       def index
         # Group supporters by leader_code, count signups
-        leaders = Supporter.where.not(leader_code: [nil, ""])
+        leaders = Supporter.where.not(leader_code: [ nil, "" ])
           .group(:leader_code)
           .having("COUNT(*) >= 2")
           .order("count_all DESC")
@@ -29,7 +29,7 @@ module Api
         end
 
         # Stats
-        total_qr_signups = Supporter.where.not(leader_code: [nil, ""]).count
+        total_qr_signups = Supporter.where.not(leader_code: [ nil, "" ]).count
         active_leaders = leaders.size
         top_leader_count = leaders.values.first || 0
 

@@ -1,0 +1,14 @@
+{
+  "ignored_warnings": [
+    {
+      "fingerprint": "c6982d9f9509b931821b24f70f9d973df89e370e67dbccff68a8e062a20e1f68",
+      "note": "Role assignment in user_create_params is intentional — endpoint is restricted to campaign_admin/district_coordinator only via RBAC checks in the controller"
+    },
+    {
+      "fingerprint": "8636a8cad12c8330c4b5e883d7b2c03ce72a4fffc336d707a24be1484f8087c5",
+      "note": "Role assignment in user_update_params is intentional — endpoint is restricted to campaign_admin/district_coordinator only via RBAC checks in the controller"
+    }
+  ],
+  "updated": "2026-02-14",
+  "brakeman_version": "8.0.2"
+}

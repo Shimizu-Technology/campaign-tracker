@@ -76,7 +76,7 @@ VILLAGE_DISTRIBUTION = {
   "Piti" => 8,
   "Malesso'" => 8,
   "Humåtak" => 5,
-  "Hagåtña" => 4,
+  "Hagåtña" => 4
 }.freeze
 
 total_created = 0

@@ -6,7 +6,7 @@ module Api
   module V1
     class QrCodesController < ApplicationController
       include Authenticatable
-      before_action :authenticate_request, only: [:generate]
+      before_action :authenticate_request, only: [ :generate ]
       before_action :require_qr_access!, only: [ :generate ]
 
       # GET /api/v1/qr_codes/:code (public — QR images need to be accessible)

@@ -11,6 +11,6 @@ class CreatePollReports < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :poll_reports, [:precinct_id, :reported_at]
+    add_index :poll_reports, [ :precinct_id, :reported_at ]
   end
 end

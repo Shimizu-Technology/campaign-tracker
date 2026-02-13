@@ -54,6 +54,6 @@ gem "rqrcode"
 
 # Pagination
 gem "kaminari"
-gem "dotenv-rails", groups: [:development, :test]
+gem "dotenv-rails", groups: [ :development, :test ]
 
 gem "resend", "~> 1.0"

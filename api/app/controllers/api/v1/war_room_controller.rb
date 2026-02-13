@@ -68,8 +68,8 @@ module Api
             outreach_attempted_count: outreach_attempted_count,
             outreach_reached_count: outreach_reached_count,
             status: reporting_count == 0 ? "no_data" :
-                    (total_voted * 100.0 / [total_registered, 1].max) >= 50 ? "strong" :
-                    (total_voted * 100.0 / [total_registered, 1].max) >= 30 ? "moderate" : "low",
+                    (total_voted * 100.0 / [ total_registered, 1 ].max) >= 50 ? "strong" :
+                    (total_voted * 100.0 / [ total_registered, 1 ].max) >= 30 ? "moderate" : "low",
             has_issues: village_reports.any? { |r| r.report_type == "issue" }
           }
         end

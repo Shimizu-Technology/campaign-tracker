@@ -35,7 +35,9 @@ module ApplicationCable
         JSON.parse(Net::HTTP.get(URI(jwks_url)))
       end
 
-      jwk_data = jwks_hash["keys"].first
+      # Find the matching key by kid (key ID) from the JWT header to handle key rotation
+      token_header = JWT.decode(token, nil, false).last
+      jwk_data = jwks_hash["keys"].find { |k| k["kid"] == token_header["kid"] } || jwks_hash["keys"].first
       jwk = JWT::JWK.import(jwk_data)
 
       verify_aud = ENV["CLERK_JWT_AUDIENCE"].present?

@@ -58,7 +58,7 @@ module Api
         quota.target_date = quota.target_date.presence
 
         if quota.save
-          changed_data = { target_count: [original_target, quota.target_count] }
+          changed_data = { target_count: [ original_target, quota.target_count ] }
           changed_data[:period] = [ nil, quota.period ] if original_target.nil?
           log_quota_audit!(quota, changed_data: changed_data)
 

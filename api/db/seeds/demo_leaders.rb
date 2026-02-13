@@ -15,7 +15,7 @@ LEADERS = [
   { name: "Antonio Perez", village: "Dededo", code: "ANPE-DED-Q7R8", signups: 9 },
   { name: "Gloria Muna", village: "Asan-Ma'ina", code: "GLMU-ASA-S9T0", signups: 8 },
   { name: "Ben Toves", village: "Agana Heights", code: "BETO-AGA-U1V2", signups: 7 },
-  { name: "Catherine Ada", village: "Mongmong/Toto/Maite", code: "CAAD-MON-W3X4", signups: 5 },
+  { name: "Catherine Ada", village: "Mongmong/Toto/Maite", code: "CAAD-MON-W3X4", signups: 5 }
 ]
 
 LEADERS.each do |leader|
