@@ -14,8 +14,8 @@ namespace :supporters do
       next
     end
 
-    with_leader_code = null_source.where.not(leader_code: [nil, ""])
-    without_leader_code = null_source.where(leader_code: [nil, ""])
+    with_leader_code = null_source.where.not(leader_code: [ nil, "" ])
+    without_leader_code = null_source.where(leader_code: [ nil, "" ])
 
     puts "  → With leader_code (→ qr_signup): #{with_leader_code.count}"
     puts "  → Without leader_code (→ staff_entry): #{without_leader_code.count}"
