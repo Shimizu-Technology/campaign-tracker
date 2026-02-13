@@ -103,7 +103,7 @@ class FormScanner
           clean = content.strip.gsub(/\A```json\s*/, "").gsub(/\s*```\z/, "")
           begin
             extracted = JSON.parse(clean)
-            Rails.logger.info("[FormScanner] Extracted: #{extracted['print_name']} from #{extracted['village']}")
+            Rails.logger.info("[FormScanner] Extraction successful")
 
             # Normalize village name to match our DB
             extracted["village_id"] = match_village(extracted["village"]) if extracted["village"]

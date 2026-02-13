@@ -8,7 +8,7 @@
 
 ### Scope
 - **POC focuses on:** Digital blue form + public QR signup + live dashboard + event attendance tracking
-- **Referrals:** Phase 2 (after core functionality works)
+- **Referrals + performance hardening:** Phase 2 (after core functionality works)
 - **Districts:** Configurable — admin can create/edit districts and assign villages. Not hardcoded.
 - **Election Day War Room:** Phase 4 (future — after primary infrastructure is proven)
 
@@ -225,6 +225,30 @@ Event created (motorcade) → System pulls RSVPs from supporters
 - Campaign finance tracking
 - Social media integration
 
+### Phase 2 Additions (Post-POC Hardening)
+- **Dashboard performance hardening**
+  - Keep query-count optimized dashboard aggregation (bulk grouped counts, no per-village count loops)
+  - Add short-lived cache window for `/api/v1/dashboard` (target: 15-30s, with safe busting on supporter/event mutations)
+- **War room performance pass**
+  - Profile `war_room` endpoint query count and remove N+1 patterns
+  - Add focused endpoint performance tests for election-day volume scenarios
+- **Database/index tuning**
+  - Review and add indexes for frequent filters/sorts (`supporters`, `poll_reports`, `event_rsvps`)
+  - Validate with `EXPLAIN` for top read paths used in dashboard/war-room views
+- **Observability**
+  - Add lightweight request timing + query-count visibility for key admin endpoints in non-production environments
+- **Signup/data model enhancements (optional based on operations feedback)**
+  - Add supporter confirmation email option (in addition to existing SMS flow)
+  - Split `street_address` into structured fields (e.g., street, village, zip/postal code)
+  - Make precinct management configurable by admins if districting/commission mappings change
+- **Supporter operations and accountability**
+  - Add supporter profile page (`/admin/supporters/:id`) with richer details and edit actions
+  - Add role-gated supporter edit capabilities (admin/coordinator first)
+  - Add audit/history log for supporter changes (who changed what, when)
+- **Mobile UX hardening sweep**
+  - Complete responsive QA for all admin pages (filters, tables, headers, action bars)
+  - Prioritize field-worker screens and supporter management flows for touch-first ergonomics
+
 ---
 
 ## Pages
@@ -237,6 +261,7 @@ Event created (motorcade) → System pulls RSVPs from supporters
 | `/thank-you` | Confirmation page after signup | Public |
 | `/admin` | Dashboard overview (island-wide) | All staff |
 | `/admin/supporters` | Supporter list + search + filter + export | All staff |
+| `/admin/supporters/:id` | Supporter profile + edit + audit history | All staff (role-gated edits in Phase 2) |
 | `/admin/supporters/new` | Staff entry form (digital blue form) | All staff |
 | `/admin/villages/:id` | Village detail: supporters, blocks, precincts | Village chief+ |
 | `/admin/events` | Event list + create | District coordinator+ |
@@ -339,6 +364,7 @@ Event created (motorcade) → System pulls RSVPs from supporters
 - **Blue form photo:** `docs/blue-form-reference.jpg`
 - **Election research:** `docs/guam-election-research.md`
 - **Village/precinct data:** `docs/guam-villages.md`
+- **Execution tracker (live status):** `docs/execution-tracker.md`
 - **Full PRD:** `PRD.md`
 - **Shimizu Starter-App guides:** `~/clawd/obsidian-vault/starter-app/`
 

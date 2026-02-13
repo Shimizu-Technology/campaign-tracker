@@ -10,9 +10,22 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_12_214132) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_13_195000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+
+  create_table "audit_logs", force: :cascade do |t|
+    t.string "action", null: false
+    t.bigint "actor_user_id"
+    t.bigint "auditable_id", null: false
+    t.string "auditable_type", null: false
+    t.jsonb "changed_data", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.index ["action"], name: "index_audit_logs_on_action"
+    t.index ["actor_user_id"], name: "index_audit_logs_on_actor_user_id"
+    t.index ["auditable_type", "auditable_id", "created_at"], name: "index_audit_logs_on_auditable_and_created_at"
+  end
 
   create_table "blocks", force: :cascade do |t|
     t.datetime "created_at", null: false
@@ -401,6 +414,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_12_214132) do
     t.index ["name"], name: "index_villages_on_name", unique: true
   end
 
+  add_foreign_key "audit_logs", "users", column: "actor_user_id"
   add_foreign_key "blocks", "villages"
   add_foreign_key "company_ytd_totals", "companies"
   add_foreign_key "deduction_types", "companies"

@@ -5,6 +5,7 @@ import SignupPage from './pages/SignupPage';
 import ThankYouPage from './pages/ThankYouPage';
 import DashboardPage from './pages/admin/DashboardPage';
 import SupportersPage from './pages/admin/SupportersPage';
+import SupporterDetailPage from './pages/admin/SupporterDetailPage';
 import StaffEntryPage from './pages/admin/StaffEntryPage';
 import VillageDetailPage from './pages/admin/VillageDetailPage';
 import EventsPage from './pages/admin/EventsPage';
@@ -41,6 +42,7 @@ export default function App() {
           {/* Admin — requires Clerk auth */}
           <Route path="/admin" element={<AdminRoute><DashboardPage /></AdminRoute>} />
           <Route path="/admin/supporters" element={<AdminRoute><SupportersPage /></AdminRoute>} />
+          <Route path="/admin/supporters/:id" element={<AdminRoute><SupporterDetailPage /></AdminRoute>} />
           <Route path="/admin/supporters/new" element={<AdminRoute><StaffEntryPage /></AdminRoute>} />
           <Route path="/admin/villages/:id" element={<AdminRoute><VillageDetailPage /></AdminRoute>} />
           <Route path="/admin/events" element={<AdminRoute><EventsPage /></AdminRoute>} />

@@ -4,10 +4,39 @@ import { getEvents, createEvent, getVillages } from '../../lib/api';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Plus, Calendar, MapPin, Users, X } from 'lucide-react';
 
+interface EventForm {
+  name: string;
+  event_type: string;
+  date: string;
+  time: string;
+  location: string;
+  description: string;
+  village_id: string;
+  quota: string;
+}
+
+interface VillageOption {
+  id: number;
+  name: string;
+}
+
+interface EventItem {
+  id: number;
+  name: string;
+  event_type: string;
+  date: string;
+  location?: string;
+  village_name?: string;
+  attended_count: number;
+  invited_count: number;
+  quota?: number;
+  show_up_rate: number;
+}
+
 export default function EventsPage() {
   const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<EventForm>({
     name: '', event_type: 'motorcade', date: '', time: '', location: '',
     description: '', village_id: '', quota: '',
   });
@@ -16,7 +45,7 @@ export default function EventsPage() {
   const { data: villageData } = useQuery({ queryKey: ['villages'], queryFn: getVillages });
 
   const create = useMutation({
-    mutationFn: (data: any) => createEvent(data),
+    mutationFn: (data: Record<string, unknown>) => createEvent(data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['events'] });
       setShowCreate(false);
@@ -24,8 +53,8 @@ export default function EventsPage() {
     },
   });
 
-  const events = eventsData?.events || [];
-  const villages = villageData?.villages || [];
+  const events: EventItem[] = eventsData?.events || [];
+  const villages: VillageOption[] = villageData?.villages || [];
 
   const typeColors: Record<string, string> = {
     motorcade: 'bg-blue-100 text-blue-700',
@@ -88,7 +117,7 @@ export default function EventsPage() {
                 <select value={form.village_id} onChange={e => setForm(f => ({...f, village_id: e.target.value}))}
                   className="px-3 py-2 border rounded-lg bg-white">
                   <option value="">All villages</option>
-                  {villages.map((v: any) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                  {villages.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
                 </select>
                 <input type="number" value={form.quota} onChange={e => setForm(f => ({...f, quota: e.target.value}))}
                   className="px-3 py-2 border rounded-lg" placeholder="Quota (min attendees)" />
@@ -105,7 +134,7 @@ export default function EventsPage() {
 
         {/* Events List */}
         <div className="space-y-4">
-          {events.map((e: any) => (
+          {events.map((e) => (
             <Link key={e.id} to={`/admin/events/${e.id}`}
               className="block bg-white rounded-xl shadow-sm border p-4 hover:shadow-md transition-shadow">
               <div className="flex items-center justify-between mb-2">

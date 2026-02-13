@@ -21,7 +21,35 @@ See [PRD.md](./PRD.md) for full product requirements.
 
 ## Getting Started
 
-*Coming soon — project is in planning/PRD phase.*
+### Environment Variables
+
+Set these in your deployment environment (Render/Netlify) and local `.env` files:
+
+- **API (`api/`)**
+  - `CLERK_PUBLISHABLE_KEY` - Clerk publishable key used for JWT domain derivation
+  - `CLERK_JWT_AUDIENCE` - optional audience check for Clerk JWT verification
+  - `AUTO_PROVISION_USERS` - defaults to `false`; set `true` only if you intentionally allow first-login user auto-creation
+  - `BOOTSTRAP_ADMIN_EMAILS` - comma-separated user emails to upsert as privileged seed users
+  - `BOOTSTRAP_ADMIN_ROLE` - role assigned to bootstrap emails (default: `campaign_admin`)
+  - `ALLOWED_ORIGINS` - comma-separated frontend origins for CORS
+  - `FRONTEND_URL` - canonical frontend URL for QR/signup links
+  - `CLICKSEND_USERNAME`, `CLICKSEND_API_KEY`, `CLICKSEND_SENDER_ID` - SMS provider config
+  - `OPENROUTER_API_KEY` - OCR extraction integration
+  - `REDIS_URL` - ActionCable production pub/sub backend
+
+- **Web (`web/`)**
+  - `VITE_CLERK_PUBLISHABLE_KEY` - Clerk frontend key
+  - `VITE_API_URL` - API origin (for production and direct API/cable URL building)
+
+See `api/.env.example` and `web/.env.example` for templates.
+
+Bootstrap flow: run seeds with `BOOTSTRAP_ADMIN_EMAILS` set. On first Clerk login, the API links the Clerk `sub` to the seeded email record and preserves the seeded role.
+
+### Quick Start (Local)
+
+1. Start API: `cd api && bin/rails server -p 3000`
+2. Start web: `cd web && npm install && npm run dev`
+3. Open app at `http://localhost:5175`
 
 ## License
 

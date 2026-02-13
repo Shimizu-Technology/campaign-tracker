@@ -1,5 +1,6 @@
 import { useEffect, useCallback } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useAuth } from '@clerk/clerk-react';
 import { subscribeToCampaign, type CampaignEvent, type CampaignEventType } from '../lib/cable';
 
 /**
@@ -11,6 +12,7 @@ import { subscribeToCampaign, type CampaignEvent, type CampaignEventType } from 
  */
 export function useCampaignUpdates(onEvent?: (event: CampaignEvent) => void) {
   const queryClient = useQueryClient();
+  const { getToken, isLoaded, isSignedIn } = useAuth();
 
   const handleEvent = useCallback((event: CampaignEvent) => {
     // Invalidate relevant queries based on event type
@@ -31,7 +33,24 @@ export function useCampaignUpdates(onEvent?: (event: CampaignEvent) => void) {
   }, [queryClient, onEvent]);
 
   useEffect(() => {
-    const unsubscribe = subscribeToCampaign(handleEvent);
-    return unsubscribe;
-  }, [handleEvent]);
+    if (!isLoaded || !isSignedIn) return;
+
+    let unsubscribe: (() => void) | undefined;
+    let cancelled = false;
+
+    const connect = async () => {
+      const token = await getToken();
+      if (cancelled) return;
+
+      if (!token) return;
+      unsubscribe = subscribeToCampaign(handleEvent, token);
+    };
+
+    connect();
+
+    return () => {
+      cancelled = true;
+      unsubscribe?.();
+    };
+  }, [getToken, handleEvent, isLoaded, isSignedIn]);
 }

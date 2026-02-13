@@ -8,7 +8,7 @@ Rails.application.routes.draw do
       get "dashboard", to: "dashboard#show"
       get "stats", to: "dashboard#stats"
       resources :villages, only: [ :index, :show ]
-      resources :supporters, only: [ :create, :index ] do
+      resources :supporters, only: [ :create, :index, :show, :update ] do
         collection do
           get :check_duplicate
           get :export

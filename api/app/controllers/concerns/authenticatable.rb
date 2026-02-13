@@ -10,31 +10,67 @@ module Authenticatable
   private
 
   def authenticate_request
+    if Rails.env.test? && request.headers["X-Test-User-Id"].present?
+      @current_user = User.find_by(id: request.headers["X-Test-User-Id"])
+      unless @current_user
+        render_api_error(
+          message: "Invalid test user",
+          status: :unauthorized,
+          code: "invalid_test_user"
+        )
+      end
+      return
+    end
+
     token = extract_token
     unless token
-      render json: { error: "Authorization token required" }, status: :unauthorized
+      render_api_error(
+        message: "Authorization token required",
+        status: :unauthorized,
+        code: "authorization_token_required"
+      )
       return
     end
 
     begin
       decoded = decode_clerk_jwt(token)
       clerk_id = decoded["sub"]
+      token_email = extract_token_email(decoded)
 
       @current_user = User.find_by(clerk_id: clerk_id)
+      @current_user ||= find_or_link_user_by_email(clerk_id: clerk_id, token_email: token_email, decoded: decoded)
 
       # Auto-create user on first login if they have a Clerk account
       unless @current_user
+        auto_provision = ActiveModel::Type::Boolean.new.cast(ENV.fetch("AUTO_PROVISION_USERS", "false"))
+        unless auto_provision
+          render_api_error(
+            message: "User is not authorized for this application",
+            status: :forbidden,
+            code: "user_not_authorized"
+          )
+          return
+        end
+
         @current_user = User.create!(
           clerk_id: clerk_id,
-          email: decoded["email"] || "#{clerk_id}@clerk.dev",
+          email: token_email || "#{clerk_id}@clerk.dev",
           name: decoded["name"] || decoded["first_name"] || "New User",
-          role: "block_leader" # Default role, admin upgrades later
+          role: "block_leader"
         )
       end
     rescue JWT::DecodeError => e
-      render json: { error: "Invalid token: #{e.message}" }, status: :unauthorized
+      render_api_error(
+        message: "Invalid token: #{e.message}",
+        status: :unauthorized,
+        code: "invalid_token"
+      )
     rescue JWT::ExpiredSignature
-      render json: { error: "Token expired" }, status: :unauthorized
+      render_api_error(
+        message: "Token expired",
+        status: :unauthorized,
+        code: "token_expired"
+      )
     end
   end
 
@@ -44,13 +80,21 @@ module Authenticatable
 
   def require_admin!
     unless current_user&.admin?
-      render json: { error: "Admin access required" }, status: :forbidden
+      render_api_error(
+        message: "Admin access required",
+        status: :forbidden,
+        code: "admin_access_required"
+      )
     end
   end
 
   def require_coordinator_or_above!
     unless current_user&.admin? || current_user&.coordinator?
-      render json: { error: "Coordinator access required" }, status: :forbidden
+      render_api_error(
+        message: "Coordinator access required",
+        status: :forbidden,
+        code: "coordinator_access_required"
+      )
     end
   end
 
@@ -61,27 +105,25 @@ module Authenticatable
 
   def decode_clerk_jwt(token)
     # Decode the Clerk publishable key to get the domain
-    # pk_test_dHJ1c3RlZC1tb29zZS04LmNsZXJrLmFjY291bnRzLmRldiQ
-    # Base64 decodes to: trusted-moose-8.clerk.accounts.dev$
     clerk_domain = extract_clerk_domain
 
-    jwks_url = "https://#{clerk_domain}/.well-known/jwks.json"
-    uri = URI(jwks_url)
-    response = Net::HTTP.get(uri)
-    jwks_hash = JSON.parse(response)
+    jwks_hash = clerk_jwks(clerk_domain)
 
     # Get the first key
     jwk_data = jwks_hash["keys"].first
     jwk = JWT::JWK.import(jwk_data)
 
+    verify_aud = ENV["CLERK_JWT_AUDIENCE"].present?
     decoded = JWT.decode(
       token,
       jwk.public_key,
       true,
       {
         algorithm: "RS256",
-        verify_iss: false,
-        verify_aud: false
+        verify_iss: true,
+        iss: "https://#{clerk_domain}",
+        verify_aud: verify_aud,
+        aud: ENV["CLERK_JWT_AUDIENCE"]
       }
     )
 
@@ -95,5 +137,34 @@ module Authenticatable
     # Base64 decode to get domain (ends with $)
     decoded = Base64.decode64(encoded).chomp("$")
     decoded
+  end
+
+  def find_or_link_user_by_email(clerk_id:, token_email:, decoded:)
+    return nil if token_email.blank?
+
+    user = User.find_by(email: token_email)
+    return nil unless user
+
+    user.update!(
+      clerk_id: clerk_id,
+      name: decoded["name"] || decoded["first_name"] || user.name
+    )
+    user
+  end
+
+  def extract_token_email(decoded)
+    raw = decoded["email"] ||
+      decoded["email_address"] ||
+      decoded.dig("primary_email_address", "email_address") ||
+      decoded["https://clerk.dev/email"]
+
+    raw&.downcase
+  end
+
+  def clerk_jwks(clerk_domain)
+    Rails.cache.fetch("clerk_jwks:#{clerk_domain}", expires_in: 1.hour) do
+      jwks_url = "https://#{clerk_domain}/.well-known/jwks.json"
+      JSON.parse(Net::HTTP.get(URI(jwks_url)))
+    end
   end
 end

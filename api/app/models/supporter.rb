@@ -6,11 +6,14 @@ class Supporter < ApplicationRecord
 
   has_many :event_rsvps, dependent: :destroy
   has_many :events, through: :event_rsvps
+  has_many :audit_logs, as: :auditable, dependent: :destroy
 
   validates :print_name, presence: true
   validates :contact_number, presence: true
   validates :status, inclusion: { in: %w[active inactive duplicate unverified] }
   validates :source, inclusion: { in: %w[staff_entry qr_signup referral bulk_import] }
+  validate :precinct_matches_village
+  validate :block_matches_village
 
   scope :active, -> { where(status: "active") }
   scope :registered_voters, -> { where(registered_voter: true) }
@@ -40,5 +43,21 @@ class Supporter < ApplicationRecord
     invited = events_invited_count
     return nil if invited == 0
     ((events_attended_count.to_f / invited) * 100).round(1)
+  end
+
+  private
+
+  def precinct_matches_village
+    return if precinct.blank? || village_id.blank?
+    return if precinct.village_id == village_id
+
+    errors.add(:precinct_id, "must belong to the selected village")
+  end
+
+  def block_matches_village
+    return if block.blank? || village_id.blank?
+    return if block.village_id == village_id
+
+    errors.add(:block_id, "must belong to the selected village")
   end
 end

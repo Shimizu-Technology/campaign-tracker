@@ -1,6 +1,8 @@
 # Campaign Tracker Seed Data
 # Source: GEC Precinct Breakdown as of January 25, 2026
 
+require "digest"
+
 puts "Seeding Campaign Tracker..."
 
 # Campaign
@@ -198,4 +200,32 @@ puts "  #{total_villages} villages seeded"
 puts "  #{total_precincts} precincts seeded"
 puts "  #{Quota.count} quotas created"
 puts "  Total registered voters: #{Village.sum(:registered_voters)}"
+
+bootstrap_admin_emails = ENV.fetch("BOOTSTRAP_ADMIN_EMAILS", "")
+  .split(",")
+  .map { |email| email.strip.downcase }
+  .reject(&:blank?)
+bootstrap_role = ENV.fetch("BOOTSTRAP_ADMIN_ROLE", "campaign_admin")
+
+if bootstrap_admin_emails.any?
+  unless User::ROLES.include?(bootstrap_role)
+    raise "Invalid BOOTSTRAP_ADMIN_ROLE=#{bootstrap_role.inspect}. Allowed: #{User::ROLES.join(', ')}"
+  end
+
+  bootstrap_admin_emails.each do |email|
+    placeholder_clerk_id = "seed-#{Digest::SHA256.hexdigest(email).first(24)}"
+    default_name = email.split("@").first.tr("._", " ").split.map(&:capitalize).join(" ")
+
+    user = User.find_or_initialize_by(email: email)
+    user.clerk_id = placeholder_clerk_id if user.clerk_id.blank?
+    user.name = default_name if user.name.blank?
+    user.role = bootstrap_role
+    user.save!
+
+    puts "  Bootstrap user: #{email} (#{bootstrap_role})"
+  end
+else
+  puts "  No BOOTSTRAP_ADMIN_EMAILS configured; skipping bootstrap user seed"
+end
+
 puts "Done!"

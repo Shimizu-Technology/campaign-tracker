@@ -41,7 +41,7 @@ class ClicksendClient
         ]
       }
 
-      Rails.logger.info("[ClicksendClient] Sending SMS to #{formatted_to} (#{encoded_body.length} chars)")
+      Rails.logger.info("[ClicksendClient] Sending SMS to #{mask_phone(formatted_to)} (#{encoded_body.length} chars)")
 
       auth = Base64.strict_encode64("#{username}:#{api_key}")
       uri  = URI("#{BASE_URL}/sms/send")
@@ -68,7 +68,7 @@ class ClicksendClient
         json = JSON.parse(response.body) rescue {}
         if json["response_code"] == "SUCCESS"
           message_id = json.dig("data", "messages", 0, "message_id") rescue "unknown"
-          Rails.logger.info("[ClicksendClient] Sent SMS to #{formatted_to} — ID: #{message_id}")
+          Rails.logger.info("[ClicksendClient] Sent SMS to #{mask_phone(formatted_to)} — ID: #{message_id}")
           { success: true, message_id: message_id }
         else
           Rails.logger.error("[ClicksendClient] API error: #{json['response_code']} — #{json['response_msg']}")
@@ -102,6 +102,15 @@ class ClicksendClient
     rescue StandardError => e
       Rails.logger.error("[ClicksendClient] Balance check failed: #{e.message}")
       nil
+    end
+
+    def mask_phone(phone)
+      return "unknown" if phone.blank?
+
+      normalized = phone.to_s
+      return "****" if normalized.length <= 4
+
+      "#{'*' * (normalized.length - 4)}#{normalized[-4, 4]}"
     end
   end
 end

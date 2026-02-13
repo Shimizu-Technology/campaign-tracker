@@ -3,6 +3,20 @@ import { getLeaderboard } from '../../lib/api';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Trophy, Medal, Award, TrendingUp, Users, Target } from 'lucide-react';
 
+interface LeaderboardEntry {
+  leader_code: string;
+  rank: number;
+  signup_count: number;
+  village_name: string;
+}
+
+interface LeaderboardStats {
+  total_qr_signups: number;
+  active_leaders: number;
+  avg_signups_per_leader: number;
+  top_leader_signups: number;
+}
+
 function rankIcon(rank: number) {
   if (rank === 1) return <Trophy className="w-6 h-6 text-yellow-500" />;
   if (rank === 2) return <Medal className="w-6 h-6 text-gray-400" />;
@@ -31,7 +45,13 @@ export default function LeaderboardPage() {
     );
   }
 
-  const { leaderboard, stats } = data;
+  const leaderboard: LeaderboardEntry[] = data?.leaderboard || [];
+  const stats: LeaderboardStats = data?.stats || {
+    total_qr_signups: 0,
+    active_leaders: 0,
+    avg_signups_per_leader: 0,
+    top_leader_signups: 0,
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -72,13 +92,13 @@ export default function LeaderboardPage() {
 
         {/* Leaderboard */}
         <div className="space-y-3">
-          {leaderboard.map((leader: any) => (
+          {leaderboard.map((leader) => (
             <div
               key={leader.leader_code}
               className={`rounded-xl shadow-sm border p-4 ${rankBg(leader.rank)} transition-all`}
             >
               <div className="flex items-center gap-3">
-                <div className="flex-shrink-0">{rankIcon(leader.rank)}</div>
+                <div className="shrink-0">{rankIcon(leader.rank)}</div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-gray-900 truncate">

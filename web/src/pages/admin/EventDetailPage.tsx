@@ -1,7 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { useParams, Link } from 'react-router-dom';
 import { getEvent, getEventAttendees } from '../../lib/api';
-import { ArrowLeft, CheckCircle, XCircle, Users, ClipboardCheck } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, ClipboardCheck } from 'lucide-react';
+
+interface Attendee {
+  rsvp_id: number;
+  print_name: string;
+  village: string;
+  attended: boolean;
+}
 
 export default function EventDetailPage() {
   const { id } = useParams();
@@ -10,7 +17,7 @@ export default function EventDetailPage() {
 
   const event = eventData?.event;
   const stats = attendeeData?.stats;
-  const attendees = attendeeData?.attendees || [];
+  const attendees: Attendee[] = attendeeData?.attendees || [];
 
   if (!event) return <div className="min-h-screen flex items-center justify-center text-gray-400">Loading...</div>;
 
@@ -80,7 +87,7 @@ export default function EventDetailPage() {
         {/* Attendee List */}
         <h2 className="text-lg font-semibold text-gray-700 mb-4">Attendees ({attendees.length})</h2>
         <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-          {attendees.map((a: any) => (
+          {attendees.map((a) => (
             <div key={a.rsvp_id} className="flex items-center justify-between px-4 py-3 border-b last:border-0">
               <div>
                 <span className="font-medium text-gray-800">{a.print_name}</span>

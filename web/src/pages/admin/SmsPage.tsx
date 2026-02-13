@@ -3,8 +3,41 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, MessageSquare, Send, Users, Zap, DollarSign, CheckCircle, AlertTriangle, Phone } from 'lucide-react';
 import { getSmsStatus, sendTestSms, sendSmsBlast, getEvents, sendEventNotify } from '../../lib/api';
+import { DEFAULT_GUAM_PHONE_PREFIX } from '../../lib/phone';
 
 type Tab = 'blast' | 'event' | 'test';
+
+interface SmsBlastResult {
+  dry_run?: boolean;
+  queued?: boolean;
+  recipient_count?: number;
+  total_targeted?: number;
+  sent?: number;
+  failed?: number;
+  skipped?: number;
+}
+
+interface EventItem {
+  id: number;
+  name: string;
+  date: string;
+  invited_count: number;
+}
+
+interface EventNotifyResult {
+  event: string;
+  type: string;
+  sent?: number;
+  failed?: number;
+  queued?: boolean;
+  total_targeted?: number;
+}
+
+interface SmsTestResult {
+  success: boolean;
+  message_id?: string;
+  error?: string;
+}
 
 export default function SmsPage() {
   const [activeTab, setActiveTab] = useState<Tab>('blast');
@@ -112,14 +145,12 @@ export default function SmsPage() {
 
 function BlastTab() {
   const [message, setMessage] = useState('');
-  const [villageId, setVillageId] = useState('');
   const [filters, setFilters] = useState({ motorcade: false, registered: false, yardSign: false });
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<SmsBlastResult | null>(null);
 
   const dryRunMutation = useMutation({
     mutationFn: () => sendSmsBlast({
       message,
-      village_id: villageId ? Number(villageId) : undefined,
       motorcade_available: filters.motorcade ? 'true' : undefined,
       registered_voter: filters.registered ? 'true' : undefined,
       yard_sign: filters.yardSign ? 'true' : undefined,
@@ -131,7 +162,6 @@ function BlastTab() {
   const sendMutation = useMutation({
     mutationFn: () => sendSmsBlast({
       message,
-      village_id: villageId ? Number(villageId) : undefined,
       motorcade_available: filters.motorcade ? 'true' : undefined,
       registered_voter: filters.registered ? 'true' : undefined,
       yard_sign: filters.yardSign ? 'true' : undefined,
@@ -241,10 +271,10 @@ function BlastTab() {
   );
 }
 
-function EventTab({ events }: { events: any[] }) {
+function EventTab({ events }: { events: EventItem[] }) {
   const [selectedEvent, setSelectedEvent] = useState('');
   const [notifyType, setNotifyType] = useState('rsvp');
-  const [result, setResult] = useState<any>(null);
+  const [result, setResult] = useState<EventNotifyResult | null>(null);
 
   const mutation = useMutation({
     mutationFn: () => sendEventNotify(Number(selectedEvent), notifyType),
@@ -265,7 +295,7 @@ function EventTab({ events }: { events: any[] }) {
               className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-[#1B3A6B]"
             >
               <option value="">Select an event...</option>
-              {events.map((event: any) => (
+              {events.map((event) => (
                 <option key={event.id} value={event.id}>
                   {event.name} — {event.date} ({event.invited_count} invited)
                 </option>
@@ -327,9 +357,9 @@ function EventTab({ events }: { events: any[] }) {
 }
 
 function TestTab() {
-  const [phone, setPhone] = useState('');
-  const [message, setMessage] = useState('Test message from Campaign Tracker! 🤙');
-  const [result, setResult] = useState<any>(null);
+  const [phone, setPhone] = useState(DEFAULT_GUAM_PHONE_PREFIX);
+  const [message, setMessage] = useState('Test message from Campaign Tracker.');
+  const [result, setResult] = useState<SmsTestResult | null>(null);
 
   const mutation = useMutation({
     mutationFn: () => sendTestSms(phone, message),
@@ -347,7 +377,7 @@ function TestTab() {
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="+1 671 555 1234"
+              placeholder="+1671XXXXXXX"
               className="w-full border rounded-lg p-2.5 text-sm focus:ring-2 focus:ring-[#1B3A6B]"
             />
           </div>

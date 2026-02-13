@@ -3,13 +3,45 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getPollWatcher, submitPollReport } from '../../lib/api';
 import { useCampaignUpdates } from '../../hooks/useCampaignUpdates';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Eye, Send, CheckCircle, Clock, AlertTriangle, MapPin } from 'lucide-react';
+import { ArrowLeft, Eye, Send, CheckCircle, Clock, AlertTriangle, MapPin, BarChart3, Timer, Lock } from 'lucide-react';
+
+interface PrecinctItem {
+  id: number;
+  number: string;
+  polling_site?: string;
+  registered_voters?: number;
+  alpha_range?: string;
+  reporting: boolean;
+  turnout_pct: number | null;
+  last_voter_count?: number;
+  last_notes?: string;
+}
+
+interface VillageItem {
+  id: number;
+  name: string;
+  reporting_count: number;
+  total_precincts: number;
+  precincts: PrecinctItem[];
+}
+
+interface PollWatcherStats {
+  reporting_precincts: number;
+  total_precincts: number;
+  total_voters_reported: number;
+  overall_turnout_pct: number;
+}
+
+interface PollWatcherData {
+  villages: VillageItem[];
+  stats: PollWatcherStats;
+}
 
 const REPORT_TYPES = [
-  { value: 'turnout_update', label: 'Turnout Update', icon: '📊' },
-  { value: 'line_length', label: 'Long Lines', icon: '🕐' },
-  { value: 'issue', label: 'Report Issue', icon: '⚠️' },
-  { value: 'closing', label: 'Polls Closing', icon: '🔒' },
+  { value: 'turnout_update', label: 'Turnout Update', icon: BarChart3 },
+  { value: 'line_length', label: 'Long Lines', icon: Timer },
+  { value: 'issue', label: 'Report Issue', icon: AlertTriangle },
+  { value: 'closing', label: 'Polls Closing', icon: Lock },
 ];
 
 function turnoutColor(pct: number | null) {
@@ -29,14 +61,14 @@ function turnoutBg(pct: number | null) {
 export default function PollWatcherPage() {
   useCampaignUpdates(); // Auto-invalidates on real-time events
   const queryClient = useQueryClient();
-  const [selectedPrecinct, setSelectedPrecinct] = useState<any>(null);
+  const [selectedPrecinct, setSelectedPrecinct] = useState<PrecinctItem | null>(null);
   const [voterCount, setVoterCount] = useState('');
   const [reportType, setReportType] = useState('turnout_update');
   const [notes, setNotes] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [filterVillage, setFilterVillage] = useState('');
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError } = useQuery<PollWatcherData>({
     queryKey: ['poll_watcher'],
     queryFn: getPollWatcher,
     refetchInterval: 15_000, // Refresh every 15s on election day
@@ -90,7 +122,7 @@ export default function PollWatcherPage() {
 
   const { villages, stats } = data;
   const filteredVillages = filterVillage
-    ? villages.filter((v: any) => v.id === parseInt(filterVillage))
+    ? villages.filter((v) => v.id === parseInt(filterVillage))
     : villages;
 
   return (
@@ -115,7 +147,7 @@ export default function PollWatcherPage() {
         {/* Success Message */}
         {successMsg && (
           <div className="bg-green-50 border border-green-200 text-green-700 rounded-xl p-3 mb-4 flex items-center gap-2">
-            <CheckCircle className="w-5 h-5 flex-shrink-0" />
+            <CheckCircle className="w-5 h-5 shrink-0" />
             <span className="font-medium">{successMsg}</span>
           </div>
         )}
@@ -154,18 +186,18 @@ export default function PollWatcherPage() {
 
             {/* Report Type */}
             <div className="grid grid-cols-2 gap-2 mb-3">
-              {REPORT_TYPES.map(rt => (
+              {REPORT_TYPES.map(({ value, label, icon: Icon }) => (
                 <button
-                  key={rt.value}
+                  key={value}
                   type="button"
-                  onClick={() => setReportType(rt.value)}
-                  className={`p-2 rounded-lg border text-sm font-medium text-left flex items-center gap-2 ${
-                    reportType === rt.value
+                  onClick={() => setReportType(value)}
+                  className={`p-2 min-h-[44px] rounded-lg border text-sm font-medium text-left flex items-center gap-2 ${
+                    reportType === value
                       ? 'border-[#1B3A6B] bg-blue-50 text-[#1B3A6B]'
                       : 'border-gray-200 text-gray-600 hover:bg-gray-50'
                   }`}
                 >
-                  <span>{rt.icon}</span> {rt.label}
+                  <Icon className="w-4 h-4" /> {label}
                 </button>
               ))}
             </div>
@@ -210,7 +242,7 @@ export default function PollWatcherPage() {
           </form>
         ) : (
           <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 mb-4 text-sm text-blue-700 flex items-center gap-2">
-            <MapPin className="w-4 h-4 flex-shrink-0" />
+            <MapPin className="w-4 h-4 shrink-0" />
             Tap a precinct below to submit a report
           </div>
         )}
@@ -222,7 +254,7 @@ export default function PollWatcherPage() {
           className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-4"
         >
           <option value="">All Villages ({stats.total_precincts} precincts)</option>
-          {villages.map((v: any) => (
+          {villages.map((v) => (
             <option key={v.id} value={v.id}>
               {v.name} ({v.reporting_count}/{v.total_precincts} reporting)
             </option>
@@ -230,7 +262,7 @@ export default function PollWatcherPage() {
         </select>
 
         {/* Precinct List */}
-        {filteredVillages.map((village: any) => (
+        {filteredVillages.map((village) => (
           <div key={village.id} className="mb-4">
             <div className="flex items-center justify-between mb-2">
               <h3 className="font-semibold text-gray-700">{village.name}</h3>
@@ -239,11 +271,11 @@ export default function PollWatcherPage() {
               </span>
             </div>
             <div className="space-y-2">
-              {village.precincts.map((p: any) => (
+              {village.precincts.map((p) => (
                 <button
                   key={p.id}
                   onClick={() => setSelectedPrecinct(p)}
-                  className={`w-full text-left rounded-xl border p-3 transition-all ${
+                  className={`w-full text-left rounded-xl border p-3 min-h-[44px] transition-all ${
                     selectedPrecinct?.id === p.id
                       ? 'border-[#1B3A6B] bg-blue-50 ring-2 ring-[#1B3A6B]/20'
                       : p.reporting

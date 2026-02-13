@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { getVillages, createSupporter } from '../lib/api';
+import { DEFAULT_GUAM_PHONE_PREFIX } from '../lib/phone';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -11,13 +12,26 @@ interface Village {
   precincts: { id: number; number: string; alpha_range: string }[];
 }
 
+type SignupForm = {
+  print_name: string;
+  contact_number: string;
+  email: string;
+  dob: string;
+  street_address: string;
+  village_id: string;
+  precinct_id: string;
+  registered_voter: boolean;
+  yard_sign: boolean;
+  motorcade_available: boolean;
+};
+
 export default function SignupPage() {
   const navigate = useNavigate();
   const { leaderCode } = useParams();
 
   const [form, setForm] = useState({
     print_name: '',
-    contact_number: '',
+    contact_number: DEFAULT_GUAM_PHONE_PREFIX,
     email: '',
     dob: '',
     street_address: '',
@@ -37,7 +51,7 @@ export default function SignupPage() {
   const selectedVillage = villages.find(v => v.id === Number(form.village_id));
 
   const signup = useMutation({
-    mutationFn: (data: any) => createSupporter(data, leaderCode),
+    mutationFn: (data: Record<string, unknown>) => createSupporter(data, leaderCode),
     onSuccess: () => navigate('/thank-you'),
   });
 
@@ -50,7 +64,7 @@ export default function SignupPage() {
     });
   };
 
-  const updateField = (field: string, value: any) =>
+  const updateField = <K extends keyof SignupForm>(field: K, value: SignupForm[K]) =>
     setForm(prev => ({ ...prev, [field]: value }));
 
   return (
@@ -70,7 +84,7 @@ export default function SignupPage() {
       {leaderCode && (
         <div className="max-w-lg mx-auto px-4 mt-4">
           <div className="bg-blue-50 border border-blue-200 text-[#1B3A6B] px-4 py-3 rounded-lg text-sm font-medium text-center">
-            🤝 You were invited by a campaign supporter!
+            You were invited by a campaign supporter.
           </div>
         </div>
       )}
@@ -99,7 +113,7 @@ export default function SignupPage() {
             value={form.contact_number}
             onChange={e => updateField('contact_number', e.target.value)}
             className="w-full px-3 py-3 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
-            placeholder="671-555-1234"
+            placeholder="+1671XXXXXXX"
           />
         </div>
 

@@ -1,6 +1,7 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getVillages, createSupporter, scanForm, checkDuplicate } from '../../lib/api';
+import { DEFAULT_GUAM_PHONE_PREFIX } from '../../lib/phone';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Check, AlertTriangle, Loader2, Camera, ScanLine } from 'lucide-react';
 
@@ -10,9 +11,34 @@ interface Village {
   precincts: { id: number; number: string; alpha_range: string }[];
 }
 
+type StaffForm = {
+  print_name: string;
+  contact_number: string;
+  email: string;
+  dob: string;
+  street_address: string;
+  village_id: string;
+  precinct_id: string;
+  registered_voter: boolean;
+  yard_sign: boolean;
+  motorcade_available: boolean;
+};
+
+type ExtractedScanData = Partial<{
+  print_name: string;
+  contact_number: string;
+  email: string;
+  dob: string;
+  street_address: string;
+  village_id: number | string;
+  registered_voter: boolean;
+  yard_sign: boolean;
+  motorcade_available: boolean;
+}>;
+
 const emptyForm = {
   print_name: '',
-  contact_number: '',
+  contact_number: DEFAULT_GUAM_PHONE_PREFIX,
   email: '',
   dob: '',
   street_address: '',
@@ -26,7 +52,6 @@ const emptyForm = {
 export default function StaffEntryPage() {
   const queryClient = useQueryClient();
   const [form, setForm] = useState(emptyForm);
-  const [lastVillage, setLastVillage] = useState('');
   const [successCount, setSuccessCount] = useState(0);
   const [showSuccess, setShowSuccess] = useState(false);
 
@@ -50,7 +75,7 @@ export default function StaffEntryPage() {
         // silently ignore
       }
     }, 500);
-  }, []);
+  }, [villages]);
 
   // OCR Scanner
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -74,11 +99,11 @@ export default function StaffEntryPage() {
       const result = await scanForm(base64);
 
       if (result.success && result.extracted) {
-        const data = result.extracted;
+        const data = result.extracted as ExtractedScanData;
         const filled = new Set<string>();
 
         // Auto-fill form with extracted data
-        const updates: any = { ...emptyForm };
+        const updates: StaffForm = { ...emptyForm };
         if (data.print_name) { updates.print_name = data.print_name; filled.add('print_name'); }
         if (data.contact_number) { updates.contact_number = data.contact_number; filled.add('contact_number'); }
         if (data.email) { updates.email = data.email; filled.add('email'); }
@@ -99,8 +124,9 @@ export default function StaffEntryPage() {
       } else {
         setScanError(result.error || 'Could not extract form data');
       }
-    } catch (err: any) {
-      setScanError(err?.response?.data?.error || 'Scan failed — try again');
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { error?: string } } };
+      setScanError(error?.response?.data?.error || 'Scan failed — try again');
     } finally {
       setScanning(false);
     }
@@ -110,16 +136,15 @@ export default function StaffEntryPage() {
     queryKey: ['villages'],
     queryFn: getVillages,
   });
-  const villages: Village[] = villageData?.villages || [];
+  const villages: Village[] = useMemo(() => villageData?.villages || [], [villageData]);
   const selectedVillage = villages.find(v => v.id === Number(form.village_id));
 
   const submit = useMutation({
-    mutationFn: (data: any) => createSupporter(data),
+    mutationFn: (data: Record<string, unknown>) => createSupporter(data, undefined, 'staff'),
     onSuccess: () => {
       setSuccessCount(prev => prev + 1);
       setShowSuccess(true);
       setDuplicateWarning('');
-      setLastVillage(form.village_id);
       // Reset form but keep village for bulk entry
       setForm({
         ...emptyForm,
@@ -141,7 +166,7 @@ export default function StaffEntryPage() {
     });
   };
 
-  const updateField = (field: string, value: any) => {
+  const updateField = <K extends keyof StaffForm>(field: K, value: StaffForm[K]) => {
     setForm(prev => ({ ...prev, [field]: value }));
     // Clear scan highlight when user edits
     setScannedFields(prev => { const next = new Set(prev); next.delete(field); return next; });
@@ -226,7 +251,7 @@ export default function StaffEntryPage() {
       {duplicateWarning && (
         <div className="max-w-lg mx-auto px-4 mt-4">
           <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-lg flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 flex-shrink-0" /> {duplicateWarning}
+            <AlertTriangle className="w-5 h-5 shrink-0" /> {duplicateWarning}
           </div>
         </div>
       )}
@@ -283,7 +308,7 @@ export default function StaffEntryPage() {
             value={form.contact_number}
             onChange={e => updateField('contact_number', e.target.value)}
             className={inputClass("contact_number")}
-            placeholder="671-555-1234"
+            placeholder="+1671XXXXXXX"
           />
         </div>
 

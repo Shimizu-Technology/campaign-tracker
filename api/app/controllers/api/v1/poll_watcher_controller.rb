@@ -9,10 +9,14 @@ module Api
       # GET /api/v1/poll_watcher
       # Returns all precincts grouped by village with latest report data
       def index
-        latest_reports = PollReport.today.latest_per_precinct.index_by(&:precinct_id)
+        accessible_precincts = precinct_scope_for_current_user.includes(:village).order(:number)
+        latest_reports = PollReport.today
+          .latest_per_precinct
+          .where(precinct_id: accessible_precincts.select(:id))
+          .index_by(&:precinct_id)
 
-        villages = Village.includes(:precincts).order(:name).map do |village|
-          precincts = village.precincts.order(:number).map do |p|
+        villages = accessible_precincts.group_by(&:village).sort_by { |village, _| village.name }.map do |village, village_precincts|
+          precincts = village_precincts.map do |p|
             report = latest_reports[p.id]
             {
               id: p.id,
@@ -40,10 +44,10 @@ module Api
         end
 
         # Island-wide stats
-        total_precincts = Precinct.count
+        total_precincts = accessible_precincts.size
         reporting = latest_reports.size
         total_voters_reported = latest_reports.values.sum(&:voter_count)
-        total_registered = Precinct.where(id: latest_reports.keys).sum(:registered_voters)
+        total_registered = accessible_precincts.sum { |p| p.registered_voters || 0 }
 
         render json: {
           villages: villages,
@@ -60,13 +64,21 @@ module Api
 
       # POST /api/v1/poll_watcher/report
       def report
+        precinct = precinct_scope_for_current_user.find_by(id: report_params[:precinct_id])
+        unless precinct
+          return render_api_error(
+            message: "Not authorized for this precinct",
+            status: :forbidden,
+            code: "precinct_not_authorized"
+          )
+        end
+
         report = PollReport.new(report_params)
+        report.precinct = precinct
         report.user = current_user
         report.reported_at = Time.current
 
         if report.save
-          precinct = report.precinct
-
           # Broadcast to war room / dashboard
           CampaignBroadcast.poll_report(report)
 
@@ -88,7 +100,15 @@ module Api
 
       # GET /api/v1/poll_watcher/precinct/:id/history
       def history
-        precinct = Precinct.find(params[:id])
+        precinct = precinct_scope_for_current_user.find_by(id: params[:id])
+        unless precinct
+          return render_api_error(
+            message: "Not authorized for this precinct",
+            status: :forbidden,
+            code: "precinct_not_authorized"
+          )
+        end
+
         reports = precinct.poll_reports.today.chronological.limit(50)
 
         render json: {
@@ -114,6 +134,20 @@ module Api
 
       def report_params
         params.require(:report).permit(:precinct_id, :voter_count, :report_type, :notes)
+      end
+
+      def precinct_scope_for_current_user
+        scope = Precinct.all
+
+        if current_user.admin?
+          scope
+        elsif current_user.coordinator?
+          current_user.assigned_district_id.present? ? scope.joins(:village).where(villages: { district_id: current_user.assigned_district_id }) : scope
+        elsif current_user.chief? || current_user.leader? || current_user.poll_watcher?
+          current_user.assigned_village_id.present? ? scope.where(village_id: current_user.assigned_village_id) : scope.none
+        else
+          scope.none
+        end
       end
     end
   end

@@ -76,19 +76,19 @@ export default function DashboardPage() {
             <UserButton afterSignOutUrl="/" />
           </div>
           <div className="flex gap-2 sm:gap-3 mt-2">
-            <Link to="/admin/supporters/new" className="bg-[#C41E3A] hover:bg-[#a01830] px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1">
+            <Link to="/admin/supporters/new" className="bg-[#C41E3A] hover:bg-[#a01830] px-2.5 sm:px-3 py-1.5 sm:py-2 min-h-[44px] rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1">
               <ClipboardPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> <span className="hidden xs:inline">New</span> Entry
             </Link>
-            <Link to="/admin/qr" className="bg-white/10 hover:bg-white/20 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1">
+            <Link to="/admin/qr" className="bg-white/10 hover:bg-white/20 px-2.5 sm:px-3 py-1.5 sm:py-2 min-h-[44px] rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1">
               <QrCode className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> QR
             </Link>
-            <Link to="/admin/events" className="bg-white/10 hover:bg-white/20 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1">
+            <Link to="/admin/events" className="bg-white/10 hover:bg-white/20 px-2.5 sm:px-3 py-1.5 sm:py-2 min-h-[44px] rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1">
               <CalendarPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Events
             </Link>
-            <Link to="/admin/leaderboard" className="bg-yellow-500/80 hover:bg-yellow-500 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1">
+            <Link to="/admin/leaderboard" className="bg-yellow-500/80 hover:bg-yellow-500 px-2.5 sm:px-3 py-1.5 sm:py-2 min-h-[44px] rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1">
               <Trophy className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> Top
             </Link>
-            <Link to="/admin/sms" className="bg-green-600/80 hover:bg-green-600 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1">
+            <Link to="/admin/sms" className="bg-green-600/80 hover:bg-green-600 px-2.5 sm:px-3 py-1.5 sm:py-2 min-h-[44px] rounded-lg text-xs sm:text-sm font-medium flex items-center gap-1">
               <MessageSquare className="w-3.5 h-3.5 sm:w-4 sm:h-4" /> SMS
             </Link>
           </div>

@@ -6,6 +6,7 @@ vendor/bundle/
 .env
 .env.local
 .env.*.local
+web/.env.production
 
 # Build
 dist/

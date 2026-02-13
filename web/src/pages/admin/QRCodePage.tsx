@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, QrCode, Copy, Check, Download } from 'lucide-react';
 import api from '../../lib/api';
@@ -11,6 +11,7 @@ interface QRResult {
 }
 
 export default function QRCodePage() {
+  const apiOrigin = import.meta.env.VITE_API_URL?.replace(/\/$/, '');
   const [name, setName] = useState('');
   const [village, setVillage] = useState('');
   const [generated, setGenerated] = useState<QRResult | null>(null);
@@ -34,7 +35,11 @@ export default function QRCodePage() {
     }
   };
 
-  const qrSvgUrl = generated ? `/api/v1/qr_codes/${generated.code}` : null;
+  const qrSvgUrl = generated
+    ? (generated.qr_svg_url.startsWith('http')
+      ? generated.qr_svg_url
+      : (apiOrigin ? `${apiOrigin}${generated.qr_svg_url}` : generated.qr_svg_url))
+    : null;
 
   return (
     <div className="min-h-screen bg-gray-50">

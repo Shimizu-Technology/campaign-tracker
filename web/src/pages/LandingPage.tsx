@@ -1,19 +1,19 @@
 import { Link } from 'react-router-dom';
 import { Users, BarChart3, ClipboardList } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import api from '../lib/api';
+import { getStats } from '../lib/api';
 
 export default function LandingPage() {
   const { data } = useQuery({
     queryKey: ['stats'],
-    queryFn: () => api.get('/stats').then(r => r.data),
+    queryFn: getStats,
     staleTime: 60_000,
   });
 
   const totalSupporters = data?.total_supporters || 0;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1B3A6B] to-[#0f2340] text-white">
+    <div className="min-h-screen bg-linear-to-br from-[#1B3A6B] to-[#0f2340] text-white">
       <div className="max-w-4xl mx-auto px-4 py-12">
         {/* Header */}
         <div className="text-center mb-12">

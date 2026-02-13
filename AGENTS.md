@@ -7,12 +7,12 @@ Campaign supporter tracking system for Guam gubernatorial election (Josh Tenorio
 - **Backend:** Rails 8 API-only (Ruby 3.3+)
 - **Frontend:** React + Vite + TypeScript + Tailwind CSS v4
 - **Database:** PostgreSQL
-- **Auth:** Built-in email/password (no Clerk — campaign staff only)
+- **Auth:** Clerk JWT + role-based access (campaign staff only)
 - **Hosting:** Render (API) + Netlify (frontend)
 - **Real-time:** ActionCable or polling (for election day)
 
 ## Architecture
-- Monorepo: `campaign-tracker-api/` + `campaign-tracker-web/`
+- Monorepo: `api/` + `web/`
 - API-first: All data via JSON endpoints
 - Mobile-first design (field workers use phones)
 - Offline capability needed for election day (Phase 4)

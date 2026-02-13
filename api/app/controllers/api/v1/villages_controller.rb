@@ -4,7 +4,7 @@ module Api
   module V1
     class VillagesController < ApplicationController
       include Authenticatable
-      before_action :authenticate_request, only: [:show]
+      before_action :authenticate_request, only: [ :show ]
 
       # GET /api/v1/villages (public — for signup form dropdown)
       def index
@@ -31,6 +31,8 @@ module Api
 
         quota = village.quotas.where(campaign: campaign).first
         supporter_count = village.supporters.active.count
+        precinct_supporter_counts = village.supporters.active.where.not(precinct_id: nil).group(:precinct_id).count
+        unassigned_precinct_count = village.supporters.active.where(precinct_id: nil).count
 
         render json: {
           village: {
@@ -47,9 +49,10 @@ module Api
                 alpha_range: p.alpha_range,
                 registered_voters: p.registered_voters,
                 polling_site: p.polling_site,
-                supporter_count: p.supporters.active.count
+                supporter_count: precinct_supporter_counts[p.id] || 0
               }
             },
+            unassigned_precinct_count: unassigned_precinct_count,
             blocks: village.blocks.order(:name).map { |b|
               {
                 id: b.id,

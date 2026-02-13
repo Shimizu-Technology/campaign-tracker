@@ -4,30 +4,49 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getEvent, getEventAttendees, checkInAttendee } from '../../lib/api';
 import { ArrowLeft, Search, CheckCircle, Loader2, Users } from 'lucide-react';
 
+interface Attendee {
+  rsvp_id: number;
+  supporter_id: number;
+  print_name: string;
+  village: string;
+  contact_number: string;
+  attended: boolean;
+}
+
 export default function CheckInPage() {
   const { id } = useParams();
+  const hasValidId = !!id && !Number.isNaN(Number(id));
   const eventId = Number(id);
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
 
-  const { data: eventData } = useQuery({ queryKey: ['event', id], queryFn: () => getEvent(eventId) });
-  const { data: attendeeData, refetch } = useQuery({
+  const { data: eventData } = useQuery({
+    queryKey: ['event', id],
+    queryFn: () => getEvent(eventId),
+    enabled: hasValidId,
+  });
+  const { data: attendeeData } = useQuery({
     queryKey: ['attendees', id, search],
     queryFn: () => getEventAttendees(eventId, search || undefined),
     refetchInterval: 5000,
+    enabled: hasValidId,
   });
 
   const checkIn = useMutation({
     mutationFn: (supporterId: number) => checkInAttendee(eventId, supporterId),
     onSuccess: () => {
-      refetch();
       queryClient.invalidateQueries({ queryKey: ['event', id] });
+      queryClient.invalidateQueries({ queryKey: ['attendees', id] });
     },
   });
 
   const event = eventData?.event;
   const stats = attendeeData?.stats;
-  const attendees = attendeeData?.attendees || [];
+  const attendees: Attendee[] = attendeeData?.attendees || [];
+
+  if (!hasValidId) {
+    return <div className="min-h-screen flex items-center justify-center text-gray-400">Invalid event link.</div>;
+  }
 
   if (!event) return <div className="min-h-screen flex items-center justify-center text-gray-400">Loading...</div>;
 
@@ -74,7 +93,7 @@ export default function CheckInPage() {
 
       {/* Attendee List */}
       <div className="max-w-lg mx-auto px-4 py-4">
-        {attendees.map((a: any) => (
+        {attendees.map((a) => (
           <div key={a.rsvp_id}
             className={`flex items-center justify-between p-4 mb-2 rounded-xl border ${
               a.attended ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'
@@ -93,7 +112,7 @@ export default function CheckInPage() {
               <button
                 onClick={() => checkIn.mutate(a.supporter_id)}
                 disabled={checkIn.isPending}
-                className="bg-[#1B3A6B] hover:bg-[#152e55] text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-1"
+                className="bg-[#1B3A6B] hover:bg-[#152e55] text-white px-4 py-2 min-h-[44px] rounded-lg font-medium text-sm flex items-center gap-1"
               >
                 {checkIn.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Check In'}
               </button>

@@ -5,4 +5,6 @@ test:
   adapter: test
 
 production:
-  adapter: async
+  adapter: redis
+  url: <%= ENV["REDIS_URL"] || "redis://localhost:6379/1" %>
+  channel_prefix: campaign_tracker_production

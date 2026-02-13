@@ -3,8 +3,35 @@ import { useParams, Link } from 'react-router-dom';
 import { getVillage } from '../../lib/api';
 import { ArrowLeft, MapPin } from 'lucide-react';
 
+interface PrecinctDetail {
+  id: number;
+  number: string;
+  alpha_range: string;
+  supporter_count: number;
+  polling_site: string;
+  registered_voters: number;
+}
+
+interface BlockDetail {
+  id: number;
+  name: string;
+  supporter_count: number;
+}
+
+interface VillageDetail {
+  name: string;
+  region: string;
+  registered_voters: number;
+  supporter_count: number;
+  quota_target: number;
+  unassigned_precinct_count: number;
+  precincts: PrecinctDetail[];
+  blocks: BlockDetail[];
+}
+
 export default function VillageDetailPage() {
   const { id } = useParams();
+  const returnTo = `/admin/villages/${id}`;
   const { data, isLoading } = useQuery({
     queryKey: ['village', id],
     queryFn: () => getVillage(Number(id)),
@@ -12,7 +39,7 @@ export default function VillageDetailPage() {
 
   if (isLoading) return <div className="min-h-screen flex items-center justify-center text-gray-400">Loading...</div>;
 
-  const v = data?.village;
+  const v: VillageDetail | undefined = data?.village;
   if (!v) return <div className="p-8 text-center text-gray-400">Village not found</div>;
 
   const pct = v.quota_target > 0 ? ((v.supporter_count / v.quota_target) * 100).toFixed(1) : '0';
@@ -48,9 +75,26 @@ export default function VillageDetailPage() {
 
         {/* Precincts */}
         <h2 className="text-lg font-semibold text-gray-700 mb-4">Precincts</h2>
+        {v.unassigned_precinct_count > 0 && (
+          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-lg p-3 mb-4 text-sm">
+            {v.unassigned_precinct_count} supporter{v.unassigned_precinct_count > 1 ? "s are" : " is"} in this village without a precinct assignment.
+            {" "}
+            <Link
+              to={`/admin/supporters?village_id=${id}&unassigned_precinct=true&return_to=${encodeURIComponent(returnTo)}`}
+              className="underline font-medium hover:text-yellow-900"
+            >
+              View and assign
+            </Link>
+            .
+          </div>
+        )}
         <div className="grid md:grid-cols-2 gap-4 mb-8">
-          {v.precincts.map((p: any) => (
-            <div key={p.id} className="bg-white rounded-xl shadow-sm p-4 border">
+          {v.precincts.map((p) => (
+            <Link
+              key={p.id}
+              to={`/admin/supporters?village_id=${id}&precinct_id=${p.id}&return_to=${encodeURIComponent(returnTo)}`}
+              className="bg-white rounded-xl shadow-sm p-4 border block hover:shadow-md transition-shadow"
+            >
               <div className="flex justify-between items-center">
                 <div>
                   <span className="font-semibold text-gray-800">Precinct {p.number}</span>
@@ -59,7 +103,7 @@ export default function VillageDetailPage() {
                 <span className="text-sm text-gray-600">{p.supporter_count} supporters</span>
               </div>
               <p className="text-xs text-gray-400 mt-1">{p.polling_site} · {p.registered_voters} voters</p>
-            </div>
+            </Link>
           ))}
         </div>
 
@@ -68,7 +112,7 @@ export default function VillageDetailPage() {
           <>
             <h2 className="text-lg font-semibold text-gray-700 mb-4">Blocks</h2>
             <div className="grid md:grid-cols-3 gap-4">
-              {v.blocks.map((b: any) => (
+              {v.blocks.map((b) => (
                 <div key={b.id} className="bg-white rounded-xl shadow-sm p-4 border">
                   <span className="font-medium text-gray-800">{b.name}</span>
                   <span className="text-sm text-gray-500 ml-2">{b.supporter_count} supporters</span>

@@ -1,9 +1,23 @@
 import axios from 'axios';
 
+const API_BASE_URL = import.meta.env.VITE_API_URL
+  ? `${import.meta.env.VITE_API_URL.replace(/\/$/, '')}/api/v1`
+  : '/api/v1';
+
+type QueryParams = Record<string, string | number | boolean | null | undefined>;
+type JsonRecord = Record<string, unknown>;
+
 const api = axios.create({
-  baseURL: '/api/v1',
+  baseURL: API_BASE_URL,
   headers: { 'Content-Type': 'application/json' },
 });
+
+api.interceptors.response.use(
+  response => response,
+  error => {
+    return Promise.reject(error);
+  }
+);
 
 // Dashboard
 export const getDashboard = () => api.get('/dashboard').then(r => r.data);
@@ -14,12 +28,20 @@ export const getVillages = () => api.get('/villages').then(r => r.data);
 export const getVillage = (id: number) => api.get(`/villages/${id}`).then(r => r.data);
 
 // Supporters
-export const createSupporter = (data: any, leaderCode?: string) =>
-  api.post(`/supporters${leaderCode ? `?leader_code=${leaderCode}` : ''}`, { supporter: data }).then(r => r.data);
-export const getSupporters = (params?: any) => api.get('/supporters', { params }).then(r => r.data);
+export const createSupporter = (data: JsonRecord, leaderCode?: string, entryMode?: 'staff') => {
+  const params = new URLSearchParams();
+  if (leaderCode) params.set('leader_code', leaderCode);
+  if (entryMode === 'staff') params.set('entry_mode', 'staff');
+  const query = params.toString();
+  return api.post(`/supporters${query ? `?${query}` : ''}`, { supporter: data }).then(r => r.data);
+};
+export const getSupporters = (params?: QueryParams) => api.get('/supporters', { params }).then(r => r.data);
+export const getSupporter = (id: number) => api.get(`/supporters/${id}`).then(r => r.data);
+export const updateSupporter = (id: number, data: JsonRecord) =>
+  api.patch(`/supporters/${id}`, { supporter: data }).then(r => r.data);
 export const checkDuplicate = (name: string, villageId: number) =>
   api.get('/supporters/check_duplicate', { params: { name, village_id: villageId } }).then(r => r.data);
-export const exportSupportersCsv = (params?: any) =>
+export const exportSupportersCsv = (params?: QueryParams) =>
   api.get('/supporters/export', { params, responseType: 'blob' }).then(r => {
     const url = URL.createObjectURL(r.data);
     const a = document.createElement('a');
@@ -27,15 +49,16 @@ export const exportSupportersCsv = (params?: any) =>
     a.download = `supporters-${new Date().toISOString().slice(0, 10)}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+    return { downloaded: true };
   });
 
 // Leaderboard
 export const getLeaderboard = () => api.get('/leaderboard').then(r => r.data);
 
 // Events
-export const getEvents = (params?: any) => api.get('/events', { params }).then(r => r.data);
+export const getEvents = (params?: QueryParams) => api.get('/events', { params }).then(r => r.data);
 export const getEvent = (id: number) => api.get(`/events/${id}`).then(r => r.data);
-export const createEvent = (data: any) => api.post('/events', { event: data }).then(r => r.data);
+export const createEvent = (data: JsonRecord) => api.post('/events', { event: data }).then(r => r.data);
 export const checkInAttendee = (eventId: number, supporterId: number) =>
   api.post(`/events/${eventId}/check_in`, { supporter_id: supporterId }).then(r => r.data);
 export const getEventAttendees = (eventId: number, search?: string) =>
@@ -46,7 +69,7 @@ export const getWarRoom = () => api.get('/war_room').then(r => r.data);
 
 // Poll Watcher
 export const getPollWatcher = () => api.get('/poll_watcher').then(r => r.data);
-export const submitPollReport = (data: any) => api.post('/poll_watcher/report', { report: data }).then(r => r.data);
+export const submitPollReport = (data: JsonRecord) => api.post('/poll_watcher/report', { report: data }).then(r => r.data);
 export const getPrecinctHistory = (id: number) => api.get(`/poll_watcher/precinct/${id}/history`).then(r => r.data);
 
 // Form Scanner (OCR)

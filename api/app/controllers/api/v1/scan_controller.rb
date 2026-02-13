@@ -12,7 +12,11 @@ module Api
         image_data = params[:image]
 
         if image_data.blank?
-          return render json: { error: "Image data is required" }, status: :unprocessable_entity
+          return render_api_error(
+            message: "Image data is required",
+            status: :unprocessable_entity,
+            code: "image_data_required"
+          )
         end
 
         result = FormScanner.extract(image_data)
@@ -27,6 +31,7 @@ module Api
           render json: {
             success: false,
             error: result[:error],
+            code: "scan_extraction_failed",
             raw_response: result[:raw_response]
           }, status: :unprocessable_entity
         end

@@ -28,6 +28,10 @@ class User < ApplicationRecord
     role == "block_leader"
   end
 
+  def poll_watcher?
+    role == "poll_watcher"
+  end
+
   def can_manage_users?
     admin? || coordinator?
   end

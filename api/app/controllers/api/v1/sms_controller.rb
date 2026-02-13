@@ -5,6 +5,7 @@ module Api
     class SmsController < ApplicationController
       include Authenticatable
       before_action :authenticate_request
+      before_action :require_coordinator_or_above!, only: [ :send_single, :blast, :event_notify ]
 
       # GET /api/v1/sms/status
       # Check ClickSend account status + balance
@@ -24,7 +25,11 @@ module Api
         message = params[:message]
 
         if phone.blank? || message.blank?
-          return render json: { error: "Phone and message required" }, status: :unprocessable_entity
+          return render_api_error(
+            message: "Phone and message required",
+            status: :unprocessable_entity,
+            code: "sms_phone_and_message_required"
+          )
         end
 
         result = ClicksendClient.send_sms(to: phone, body: message)
@@ -35,9 +40,15 @@ module Api
       # Send SMS to filtered supporters
       def blast
         message = params[:message]
-        return render json: { error: "Message is required" }, status: :unprocessable_entity if message.blank?
+        if message.blank?
+          return render_api_error(
+            message: "Message is required",
+            status: :unprocessable_entity,
+            code: "sms_message_required"
+          )
+        end
 
-        supporters = Supporter.active.where.not(contact_number: [nil, ""])
+        supporters = Supporter.active.where.not(contact_number: [ nil, "" ])
 
         # Optional filters
         supporters = supporters.where(village_id: params[:village_id]) if params[:village_id].present?
@@ -51,8 +62,19 @@ module Api
           return render json: { dry_run: true, recipient_count: count, message: message }
         end
 
-        results = SmsService.blast(supporters, message)
-        render json: results.merge(total_targeted: count)
+        filters = {
+          "village_id" => params[:village_id],
+          "motorcade_available" => params[:motorcade_available],
+          "registered_voter" => params[:registered_voter],
+          "yard_sign" => params[:yard_sign]
+        }
+        SmsBlastJob.perform_later(message: message, filters: filters)
+
+        render json: {
+          queued: true,
+          total_targeted: count,
+          message: "SMS blast queued successfully"
+        }, status: :accepted
       end
 
       # POST /api/v1/sms/event_notify
@@ -64,30 +86,14 @@ module Api
         rsvps = event.event_rsvps.includes(:supporter)
         rsvps = rsvps.where(rsvp_status: "confirmed") if notification_type == "reminder"
 
-        sent = 0
-        failed = 0
+        EventNotifyJob.perform_later(event_id: event.id, notification_type: notification_type)
 
-        rsvps.find_each do |rsvp|
-          supporter = rsvp.supporter
-          next if supporter.contact_number.blank?
-
-          case notification_type
-          when "rsvp"
-            SmsService.event_rsvp_confirmation(supporter, event)
-          when "reminder"
-            SmsService.event_reminder(supporter, event)
-          when "motorcade"
-            SmsService.motorcade_notification(supporter, event)
-          end
-
-          sent += 1
-          sleep(0.1)
-        rescue StandardError => e
-          Rails.logger.error("[SmsController] Failed for supporter #{supporter&.id}: #{e.message}")
-          failed += 1
-        end
-
-        render json: { sent: sent, failed: failed, event: event.name, type: notification_type }
+        render json: {
+          queued: true,
+          event: event.name,
+          type: notification_type,
+          total_targeted: rsvps.size
+        }, status: :accepted
       end
     end
   end

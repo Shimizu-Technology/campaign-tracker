@@ -8,6 +8,55 @@ import {
 import { useCampaignUpdates } from '../../hooks/useCampaignUpdates';
 import { useRealtimeToast } from '../../hooks/useRealtimeToast';
 
+interface WarRoomVillage {
+  id: number;
+  name: string;
+  status: string;
+  has_issues: boolean;
+  reporting_precincts: number;
+  total_precincts: number;
+  turnout_pct: number;
+  voters_reported: number;
+  supporter_count: number;
+  motorcade_count: number;
+}
+
+interface CallPriority {
+  id: number;
+  name: string;
+  turnout_pct: number;
+  supporter_count: number;
+  motorcade_count: number;
+}
+
+interface ActivityItem {
+  id: number;
+  report_type: string;
+  precinct_number: string;
+  reported_at: string;
+  village_name: string;
+  voter_count: number;
+  notes?: string;
+}
+
+interface WarRoomStats {
+  island_turnout_pct: number;
+  total_voted: number;
+  total_registered: number;
+  reporting_precincts: number;
+  total_precincts: number;
+  reporting_pct: number;
+  total_supporters: number;
+  last_hour_reports: number;
+}
+
+interface WarRoomData {
+  villages: WarRoomVillage[];
+  stats: WarRoomStats;
+  call_priorities: CallPriority[];
+  activity: ActivityItem[];
+}
+
 function turnoutColor(pct: number) {
   if (pct >= 50) return 'text-green-600';
   if (pct >= 30) return 'text-yellow-600';
@@ -38,11 +87,11 @@ function statusLabel(status: string, hasIssues: boolean) {
 
 function reportTypeIcon(type: string) {
   switch (type) {
-    case 'turnout_update': return '📊';
-    case 'line_length': return '🕐';
-    case 'issue': return '⚠️';
-    case 'closing': return '🔒';
-    default: return '📋';
+    case 'turnout_update': return 'TURNOUT';
+    case 'line_length': return 'LINES';
+    case 'issue': return 'ISSUE';
+    case 'closing': return 'CLOSING';
+    default: return 'REPORT';
   }
 }
 
@@ -59,7 +108,7 @@ export default function WarRoomPage() {
   const { toasts, handleEvent, dismiss } = useRealtimeToast();
   useCampaignUpdates(handleEvent);
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError } = useQuery<WarRoomData>({
     queryKey: ['war_room'],
     queryFn: getWarRoom,
     refetchInterval: 30_000, // Fallback poll every 30s (WebSocket handles instant updates)
@@ -192,7 +241,7 @@ export default function WarRoomPage() {
               <TrendingUp className="w-4 h-4" /> Village Turnout
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {villages.map((v: any) => (
+              {villages.map((v) => (
                 <div
                   key={v.id}
                   className={`bg-gray-800 rounded-lg border p-3 ${
@@ -235,7 +284,7 @@ export default function WarRoomPage() {
               </h2>
               {call_priorities.length > 0 ? (
                 <div className="space-y-2">
-                  {call_priorities.map((v: any) => (
+                  {call_priorities.map((v) => (
                     <div key={v.id} className="bg-red-900/30 border border-red-800/50 rounded-lg p-3">
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-sm">{v.name}</span>
@@ -265,7 +314,7 @@ export default function WarRoomPage() {
               </h2>
               {activity.length > 0 ? (
                 <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {activity.map((a: any) => (
+                  {activity.map((a) => (
                     <div key={a.id} className="bg-gray-800 border border-gray-700 rounded-lg p-3">
                       <div className="flex items-center justify-between">
                         <span className="text-sm">
