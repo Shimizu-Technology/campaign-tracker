@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Allow: /signup
+Disallow: /admin
+Disallow: /admin/*
+
+Sitemap: https://campaign-tracker-jt2026.netlify.app/sitemap.xml
