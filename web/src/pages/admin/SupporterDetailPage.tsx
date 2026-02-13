@@ -231,14 +231,15 @@ export default function SupporterDetailPage() {
           <div className="flex items-center justify-between gap-3 mb-3">
             <h2 className="font-semibold text-gray-900">Supporter Details</h2>
             {!isEditing ? (
-              <button
-                type="button"
-                onClick={startEdit}
-                disabled={!canEdit}
-                className="bg-white border border-gray-300 text-gray-700 px-3 py-2 min-h-[44px] rounded-xl text-sm font-medium flex items-center gap-2 hover:bg-gray-50"
-              >
-                <Pencil className="w-4 h-4" /> Edit
-              </button>
+              canEdit && (
+                <button
+                  type="button"
+                  onClick={startEdit}
+                  className="bg-white border border-gray-300 text-gray-700 px-3 py-2 min-h-[44px] rounded-xl text-sm font-medium flex items-center gap-2 hover:bg-gray-50"
+                >
+                  <Pencil className="w-4 h-4" /> Edit
+                </button>
+              )
             ) : (
               <div className="flex items-center gap-2">
                 <button
@@ -259,9 +260,9 @@ export default function SupporterDetailPage() {
               </div>
             )}
           </div>
-          {!canEdit && (
-            <p className="mb-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              Read-only: only campaign admins and district coordinators can edit supporter records.
+          {!canEdit && !isEditing && (
+            <p className="mb-3 text-xs text-gray-500 italic">
+              View only — editing requires campaign admin or district coordinator role.
             </p>
           )}
           <div className="grid md:grid-cols-2 gap-3">
