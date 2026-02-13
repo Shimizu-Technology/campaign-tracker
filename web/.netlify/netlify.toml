@@ -1,6 +1,5 @@
 plugins = []
 headers = []
-redirects = []
 
 [build]
 base = "."
