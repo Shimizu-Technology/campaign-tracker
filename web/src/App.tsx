@@ -1,26 +1,39 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Link, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import AdminLayout from './components/AdminLayout';
+import { useSession } from './hooks/useSession';
+
+// Eagerly loaded (public pages — fast initial load)
 import LandingPage from './pages/LandingPage';
 import SignupPage from './pages/SignupPage';
 import ThankYouPage from './pages/ThankYouPage';
-import DashboardPage from './pages/admin/DashboardPage';
-import SupportersPage from './pages/admin/SupportersPage';
-import SupporterDetailPage from './pages/admin/SupporterDetailPage';
-import StaffEntryPage from './pages/admin/StaffEntryPage';
-import VillageDetailPage from './pages/admin/VillageDetailPage';
-import EventsPage from './pages/admin/EventsPage';
-import EventDetailPage from './pages/admin/EventDetailPage';
-import CheckInPage from './pages/admin/CheckInPage';
-import QRCodePage from './pages/admin/QRCodePage';
-import LeaderboardPage from './pages/admin/LeaderboardPage';
-import PollWatcherPage from './pages/admin/PollWatcherPage';
-import WarRoomPage from './pages/admin/WarRoomPage';
-import SmsPage from './pages/admin/SmsPage';
-import UsersPage from './pages/admin/UsersPage';
-import QuotaSettingsPage from './pages/admin/QuotaSettingsPage';
-import PrecinctSettingsPage from './pages/admin/PrecinctSettingsPage';
-import AdminLayout from './components/AdminLayout';
-import { useSession } from './hooks/useSession';
+
+// Lazy loaded (admin pages — loaded on demand)
+const DashboardPage = lazy(() => import('./pages/admin/DashboardPage'));
+const SupportersPage = lazy(() => import('./pages/admin/SupportersPage'));
+const SupporterDetailPage = lazy(() => import('./pages/admin/SupporterDetailPage'));
+const StaffEntryPage = lazy(() => import('./pages/admin/StaffEntryPage'));
+const VillageDetailPage = lazy(() => import('./pages/admin/VillageDetailPage'));
+const EventsPage = lazy(() => import('./pages/admin/EventsPage'));
+const EventDetailPage = lazy(() => import('./pages/admin/EventDetailPage'));
+const CheckInPage = lazy(() => import('./pages/admin/CheckInPage'));
+const QRCodePage = lazy(() => import('./pages/admin/QRCodePage'));
+const LeaderboardPage = lazy(() => import('./pages/admin/LeaderboardPage'));
+const PollWatcherPage = lazy(() => import('./pages/admin/PollWatcherPage'));
+const WarRoomPage = lazy(() => import('./pages/admin/WarRoomPage'));
+const SmsPage = lazy(() => import('./pages/admin/SmsPage'));
+const UsersPage = lazy(() => import('./pages/admin/UsersPage'));
+const QuotaSettingsPage = lazy(() => import('./pages/admin/QuotaSettingsPage'));
+const PrecinctSettingsPage = lazy(() => import('./pages/admin/PrecinctSettingsPage'));
+
+function LazyFallback() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#f5f7fb]">
+      <div className="text-gray-400 text-lg">Loading...</div>
+    </div>
+  );
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -80,6 +93,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <Suspense fallback={<LazyFallback />}>
         <Routes>
           {/* Public — no auth required */}
           <Route path="/" element={<LandingPage />} />
@@ -240,6 +254,7 @@ export default function App() {
             }
           />
         </Routes>
+        </Suspense>
       </BrowserRouter>
     </QueryClientProvider>
   );
