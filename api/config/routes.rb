@@ -10,9 +10,13 @@ Rails.application.routes.draw do
       get "stats", to: "dashboard#stats"
       resources :villages, only: [ :index, :show, :update ]
       resources :supporters, only: [ :create, :index, :show, :update ] do
+        member do
+          patch :verify
+        end
         collection do
           get :check_duplicate
           get :export
+          post :bulk_verify
         end
       end
       resources :users, only: [ :index, :create, :update ] do

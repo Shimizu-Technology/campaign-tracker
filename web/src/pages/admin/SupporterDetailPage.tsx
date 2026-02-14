@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Home, Pencil, Save, UserRound, X } from 'lucide-react';
-import { getSupporter, getVillages, updateSupporter } from '../../lib/api';
+import { getSupporter, getVillages, updateSupporter, verifySupporter } from '../../lib/api';
 import { formatDateTime } from '../../lib/datetime';
 
 interface VillageOption {
@@ -29,6 +29,9 @@ interface SupporterDetail {
   motorcade_available: boolean;
   opt_in_email: boolean;
   opt_in_text: boolean;
+  verification_status: string;
+  verified_at: string | null;
+  verified_by_user_id: number | null;
   source: string;
   status: string;
   created_at: string;
@@ -104,7 +107,7 @@ export default function SupporterDetailPage() {
   const returnTo = searchParams.get('return_to') || '/admin/supporters';
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, refetch } = useQuery({
     queryKey: ['supporter', supporterId],
     queryFn: () => getSupporter(supporterId),
     enabled: Number.isFinite(supporterId),
@@ -234,6 +237,16 @@ export default function SupporterDetailPage() {
           <p className="text-blue-200 text-sm">
             Signed up {formatDateTime(supporter.created_at)} · {supporter.source === 'qr_signup' ? 'Public Signup' : 'Staff Entry'}
           </p>
+          <div className="flex items-center gap-2 mt-1">
+            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+              supporter.verification_status === 'verified' ? 'bg-green-500 text-white' :
+              supporter.verification_status === 'flagged' ? 'bg-red-500 text-white' :
+              'bg-yellow-400 text-yellow-900'
+            }`}>
+              {supporter.verification_status === 'verified' ? 'Verified' :
+               supporter.verification_status === 'flagged' ? 'Flagged' : 'Unverified'}
+            </span>
+          </div>
         </div>
       </header>
 
@@ -391,6 +404,58 @@ export default function SupporterDetailPage() {
               Email updates
             </label>
           </div>
+        </section>
+
+        <section className="app-card p-4">
+          <h2 className="font-semibold text-gray-900 mb-2">Verification</h2>
+          <div className="flex items-center gap-3">
+            <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
+              supporter.verification_status === 'verified' ? 'bg-green-100 text-green-700' :
+              supporter.verification_status === 'flagged' ? 'bg-red-100 text-red-700' :
+              'bg-yellow-100 text-yellow-700'
+            }`}>
+              {supporter.verification_status === 'verified' ? 'Verified' :
+               supporter.verification_status === 'flagged' ? 'Flagged' : 'Unverified'}
+            </span>
+            {supporter.verification_status !== 'verified' && (
+              <button
+                onClick={async () => {
+                  await verifySupporter(supporter.id, 'verified');
+                  refetch();
+                }}
+                className="px-3 py-1 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
+              >
+                Mark Verified
+              </button>
+            )}
+            {supporter.verification_status !== 'flagged' && (
+              <button
+                onClick={async () => {
+                  await verifySupporter(supporter.id, 'flagged');
+                  refetch();
+                }}
+                className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700"
+              >
+                Flag
+              </button>
+            )}
+            {supporter.verification_status !== 'unverified' && (
+              <button
+                onClick={async () => {
+                  await verifySupporter(supporter.id, 'unverified');
+                  refetch();
+                }}
+                className="px-3 py-1 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+          {supporter.verified_at && (
+            <p className="text-xs text-gray-400 mt-2">
+              Last updated: {formatDateTime(supporter.verified_at)}
+            </p>
+          )}
         </section>
 
         <section className="app-card p-4">

@@ -10,6 +10,9 @@ module Api
       def stats
         render json: {
           total_supporters: Supporter.active.count,
+          verified_supporters: Supporter.active.verified.count,
+          unverified_supporters: Supporter.active.unverified.count,
+          flagged_supporters: Supporter.active.flagged.count,
           total_villages: Village.count,
           campaign_name: Campaign.active.first&.name || "Josh & Tina 2026"
         }
@@ -67,6 +70,7 @@ module Api
             total_registered_voters: total_registered_voters,
             total_villages: total_villages,
             total_precincts: total_precincts,
+            verified_supporters: Supporter.active.verified.where(village_id: village_ids).count,
             today_signups: today_counts.values.sum,
             week_signups: week_counts.values.sum,
             status: total_percentage >= 75 ? "on_track" : total_percentage >= 50 ? "behind" : "critical"

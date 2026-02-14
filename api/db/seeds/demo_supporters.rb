@@ -126,6 +126,7 @@ VILLAGE_DISTRIBUTION.each do |village_name, count|
       motorcade_available: motorcade,
       opt_in_email: rand < 0.65,
       opt_in_text: rand < 0.75,
+      verification_status: rand < 0.6 ? "verified" : (rand < 0.9 ? "unverified" : "flagged"),
       source: source,
       status: "active",
       leader_code: source == "qr_signup" ? "DEMO#{rand(100..999)}" : nil,
