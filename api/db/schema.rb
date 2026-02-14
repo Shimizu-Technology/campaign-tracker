@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_14_045650) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_14_093252) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -49,6 +49,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_14_045650) do
     t.string "secondary_color"
     t.string "status"
     t.datetime "updated_at", null: false
+    t.text "welcome_sms_template"
     t.index ["status"], name: "index_campaigns_on_status"
   end
 

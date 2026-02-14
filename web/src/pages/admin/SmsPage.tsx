@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, MessageSquare, Send, Users, Zap, DollarSign, CheckCircle, AlertTriangle, Phone } from 'lucide-react';
+import { ArrowLeft, MessageSquare, Send, Users, Zap, DollarSign, CheckCircle, AlertTriangle, Phone, Settings } from 'lucide-react';
 import { getSmsStatus, sendTestSms, sendSmsBlast, getEvents, sendEventNotify } from '../../lib/api';
+import { useSession } from '../../hooks/useSession';
 import { DEFAULT_GUAM_PHONE_PREFIX } from '../../lib/phone';
 
 type Tab = 'blast' | 'event' | 'test';
@@ -40,6 +41,7 @@ interface SmsTestResult {
 }
 
 export default function SmsPage() {
+  const { data: sessionData } = useSession();
   const [activeTab, setActiveTab] = useState<Tab>('blast');
 
   const { data: smsStatus, isLoading: statusLoading } = useQuery({
@@ -67,12 +69,22 @@ export default function SmsPage() {
           <Link to="/admin" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-2">
             <ArrowLeft className="w-4 h-4" /> Dashboard
           </Link>
-          <div className="flex items-center gap-3">
-            <MessageSquare className="w-7 h-7 text-green-400" />
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">SMS Center</h1>
-              <p className="text-blue-200 text-sm">Send texts to supporters</p>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <MessageSquare className="w-7 h-7 text-green-400" />
+              <div>
+                <h1 className="text-2xl font-bold tracking-tight">SMS Center</h1>
+                <p className="text-blue-200 text-sm">Send texts to supporters</p>
+              </div>
             </div>
+            {sessionData?.permissions?.can_manage_configuration && (
+              <Link
+                to="/admin/sms/settings"
+                className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg text-sm"
+              >
+                <Settings className="w-4 h-4" /> Settings
+              </Link>
+            )}
           </div>
         </div>
       </header>

@@ -5,12 +5,26 @@
 class SmsService
   CAMPAIGN_NAME = "Josh & Tina 2026"
 
+  DEFAULT_WELCOME_TEMPLATE =
+    "Si Yu'os Ma'åse, {first_name}! " \
+    "Thank you for supporting #{CAMPAIGN_NAME}. " \
+    "Together we'll make Guam better for everyone. 🤙 #JoshAndTina2026"
+
+  WELCOME_TEMPLATE_VARIABLES = %w[first_name last_name village].freeze
+
   class << self
     # ── Supporter signup confirmation ──────────────────────────────
     def welcome_supporter_body(supporter)
-      "Si Yu'os Ma'åse, #{supporter.first_name || supporter.print_name}! " \
-      "Thank you for supporting #{CAMPAIGN_NAME}. " \
-      "Together we'll make Guam better for everyone. 🤙 #JoshAndTina2026"
+      template = Campaign.active.first&.welcome_sms_template.presence || DEFAULT_WELCOME_TEMPLATE
+      render_template(template, supporter)
+    end
+
+    def preview_welcome_template(template = nil)
+      template = template.presence || DEFAULT_WELCOME_TEMPLATE
+      template
+        .gsub("{first_name}", "Maria")
+        .gsub("{last_name}", "Cruz")
+        .gsub("{village}", "Tamuning")
     end
 
     def welcome_supporter(supporter)
@@ -71,6 +85,13 @@ class SmsService
     end
 
     private
+
+    def render_template(template, supporter)
+      template
+        .gsub("{first_name}", supporter.first_name.presence || supporter.print_name.to_s)
+        .gsub("{last_name}", supporter.last_name.to_s)
+        .gsub("{village}", supporter.village&.name.to_s)
+    end
 
     def send(to:, body:, category: "general")
       if to.blank?
