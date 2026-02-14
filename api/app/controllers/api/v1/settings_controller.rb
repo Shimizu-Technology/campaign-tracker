@@ -51,7 +51,7 @@ module Api
       private
 
       def require_admin!
-        unless current_user&.role == "campaign_admin"
+        unless current_user&.admin?
           render_api_error(message: "Admin access required", status: :forbidden, code: "forbidden")
         end
       end
