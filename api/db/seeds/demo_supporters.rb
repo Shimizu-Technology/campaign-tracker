@@ -92,9 +92,11 @@ VILLAGE_DISTRIBUTION.each do |village_name, count|
   created = 0
 
   count.times do
-    name = random_name
+    first = FIRST_NAMES.sample
+    last = LAST_NAMES.sample
+    name = "#{first} #{last}"
     # Skip if duplicate name in same village
-    next if Supporter.where(village: village).where("LOWER(print_name) = ?", name.downcase).exists?
+    next if Supporter.where(village: village).where("LOWER(first_name) = ? AND LOWER(last_name) = ?", first.downcase, last.downcase).exists?
 
     precinct = precincts.sample if precincts.any?
 
@@ -111,7 +113,8 @@ VILLAGE_DISTRIBUTION.each do |village_name, count|
     created_at = days_ago.days.ago + rand(0..86400).seconds
 
     supporter = Supporter.new(
-      print_name: name,
+      first_name: first,
+      last_name: last,
       contact_number: random_phone,
       email: has_email ? random_email(name) : nil,
       dob: has_dob ? Date.new(rand(1950..2005), rand(1..12), rand(1..28)) : nil,

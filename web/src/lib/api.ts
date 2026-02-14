@@ -48,8 +48,8 @@ export const getSupporters = (params?: QueryParams) => api.get('/supporters', { 
 export const getSupporter = (id: number) => api.get(`/supporters/${id}`).then(r => r.data);
 export const updateSupporter = (id: number, data: JsonRecord) =>
   api.patch(`/supporters/${id}`, { supporter: data }).then(r => r.data);
-export const checkDuplicate = (name: string, villageId: number) =>
-  api.get('/supporters/check_duplicate', { params: { name, village_id: villageId } }).then(r => r.data);
+export const checkDuplicate = (name: string, villageId: number, firstName?: string, lastName?: string) =>
+  api.get('/supporters/check_duplicate', { params: { name, village_id: villageId, first_name: firstName, last_name: lastName } }).then(r => r.data);
 export const exportSupportersCsv = (params?: QueryParams) =>
   api.get('/supporters/export', { params, responseType: 'blob' }).then(r => {
     const url = URL.createObjectURL(r.data);

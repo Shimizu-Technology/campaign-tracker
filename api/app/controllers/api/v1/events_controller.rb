@@ -80,7 +80,7 @@ module Api
         rsvps = event.event_rsvps.includes(:supporter).order(:rsvp_status)
         if params[:search].present?
           q = "%#{params[:search].downcase}%"
-          rsvps = rsvps.joins(:supporter).where("LOWER(supporters.print_name) LIKE ?", q)
+          rsvps = rsvps.joins(:supporter).where("LOWER(supporters.print_name) LIKE ? OR LOWER(supporters.first_name) LIKE ? OR LOWER(supporters.last_name) LIKE ?", q, q, q)
         end
 
         render json: {
@@ -88,6 +88,8 @@ module Api
             {
               rsvp_id: r.id,
               supporter_id: r.supporter_id,
+              first_name: r.supporter.first_name,
+              last_name: r.supporter.last_name,
               print_name: r.supporter.print_name,
               contact_number: r.supporter.contact_number,
               village: r.supporter.village&.name,

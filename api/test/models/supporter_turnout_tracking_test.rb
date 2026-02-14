@@ -10,7 +10,7 @@ class SupporterTurnoutTrackingTest < ActiveSupport::TestCase
       role: "poll_watcher"
     )
     @supporter = Supporter.create!(
-      print_name: "Turnout Supporter",
+      first_name: "Turnout", last_name: "Supporter", print_name: "Turnout Supporter",
       contact_number: "6715559999",
       village: @village,
       source: "staff_entry",

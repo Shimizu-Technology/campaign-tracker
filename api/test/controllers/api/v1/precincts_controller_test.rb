@@ -76,7 +76,7 @@ class Api::V1::PrecinctsControllerTest < ActionDispatch::IntegrationTest
 
   test "cannot deactivate precinct with assigned supporters" do
     Supporter.create!(
-      print_name: "Assigned Person",
+      first_name: "Assigned", last_name: "Person", print_name: "Assigned Person",
       contact_number: "671-555-0101",
       village: @village,
       precinct: @precinct,

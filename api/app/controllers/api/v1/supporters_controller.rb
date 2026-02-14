@@ -7,7 +7,7 @@ module Api
     class SupportersController < ApplicationController
       MAX_PER_PAGE = 200
       MAX_EXPORT_ROWS = 10_000
-      ALLOWED_SORT_FIELDS = %w[created_at print_name village_name precinct_number source registered_voter].freeze
+      ALLOWED_SORT_FIELDS = %w[created_at print_name last_name first_name village_name precinct_number source registered_voter].freeze
 
       include Authenticatable
       before_action :authenticate_request, only: [ :index, :check_duplicate, :export, :show, :update ]
@@ -34,7 +34,7 @@ module Api
         supporter.motorcade_available = false if supporter.motorcade_available.nil?
 
         # Check for duplicates
-        dupes = Supporter.potential_duplicates(supporter.print_name, supporter.village_id)
+        dupes = Supporter.potential_duplicates(supporter.print_name, supporter.village_id, first_name: supporter.first_name, last_name: supporter.last_name)
         if dupes.exists?
           supporter.status = "unverified" # Flag for review
         end
@@ -114,12 +114,15 @@ module Api
           if phone_digits.present?
             phone_query = "%#{phone_digits}%"
             supporters = supporters.where(
-              "LOWER(print_name) LIKE :name_query OR regexp_replace(contact_number, '\\D', '', 'g') LIKE :phone_query",
+              "LOWER(print_name) LIKE :name_query OR LOWER(first_name) LIKE :name_query OR LOWER(last_name) LIKE :name_query OR regexp_replace(contact_number, '\\D', '', 'g') LIKE :phone_query",
               name_query: name_query,
               phone_query: phone_query
             )
           else
-            supporters = supporters.where("LOWER(print_name) LIKE ?", name_query)
+            supporters = supporters.where(
+              "LOWER(print_name) LIKE :q OR LOWER(first_name) LIKE :q OR LOWER(last_name) LIKE :q",
+              q: name_query
+            )
           end
         end
         supporters = apply_index_sort(supporters)
@@ -180,11 +183,11 @@ module Api
         end
 
         csv_data = CSV.generate(headers: true) do |csv|
-          csv << [ "Name", "Phone", "Village", "Precinct", "Street Address", "Email", "DOB",
+          csv << [ "First Name", "Last Name", "Phone", "Village", "Precinct", "Street Address", "Email", "DOB",
                   "Registered Voter", "Yard Sign", "Motorcade Available", "Source", "Date Signed Up" ]
           supporters.find_each do |s|
             csv << [
-              s.print_name, s.contact_number, s.village&.name, s.precinct&.number,
+              s.first_name, s.last_name, s.contact_number, s.village&.name, s.precinct&.number,
               s.street_address, s.email, s.dob&.strftime("%m/%d/%Y"),
               s.registered_voter ? "Yes" : "No",
               s.yard_sign ? "Yes" : "No",
@@ -205,7 +208,7 @@ module Api
       def check_duplicate
         name = params[:name]
         village_id = params[:village_id]
-        dupes = Supporter.potential_duplicates(name, village_id)
+        dupes = Supporter.potential_duplicates(name, village_id, first_name: params[:first_name], last_name: params[:last_name])
         render json: { duplicates: dupes.map { |s| supporter_json(s) } }
       end
 
@@ -213,7 +216,7 @@ module Api
 
       def public_supporter_params
         params.require(:supporter).permit(
-          :print_name, :contact_number, :dob, :email, :street_address,
+          :first_name, :last_name, :print_name, :contact_number, :dob, :email, :street_address,
           :village_id, :precinct_id, :registered_voter,
           :yard_sign, :motorcade_available
         )
@@ -221,7 +224,7 @@ module Api
 
       def supporter_update_params
         params.require(:supporter).permit(
-          :print_name, :contact_number, :email, :dob, :street_address,
+          :first_name, :last_name, :print_name, :contact_number, :email, :dob, :street_address,
           :village_id, :precinct_id, :registered_voter, :yard_sign, :motorcade_available
         )
       end
@@ -248,6 +251,8 @@ module Api
       def supporter_json(supporter)
         {
           id: supporter.id,
+          first_name: supporter.first_name,
+          last_name: supporter.last_name,
           print_name: supporter.print_name,
           contact_number: supporter.contact_number,
           dob: supporter.dob,

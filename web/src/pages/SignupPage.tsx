@@ -13,7 +13,8 @@ interface Village {
 }
 
 type SignupForm = {
-  print_name: string;
+  first_name: string;
+  last_name: string;
   contact_number: string;
   email: string;
   dob: string;
@@ -30,7 +31,8 @@ export default function SignupPage() {
   const { leaderCode } = useParams();
 
   const [form, setForm] = useState({
-    print_name: '',
+    first_name: '',
+    last_name: '',
     contact_number: DEFAULT_GUAM_PHONE_PREFIX,
     email: '',
     dob: '',
@@ -101,16 +103,29 @@ export default function SignupPage() {
             <p className="text-sm text-gray-500">Please fill out the form below to join the campaign effort.</p>
           </div>
         {/* Name */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
-          <input
-            type="text"
-            required
-            value={form.print_name}
-            onChange={e => updateField('print_name', e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
-            placeholder="Juan dela Cruz"
-          />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+            <input
+              type="text"
+              required
+              value={form.first_name}
+              onChange={e => updateField('first_name', e.target.value)}
+              className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+              placeholder="Juan"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+            <input
+              type="text"
+              required
+              value={form.last_name}
+              onChange={e => updateField('last_name', e.target.value)}
+              className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+              placeholder="dela Cruz"
+            />
+          </div>
         </div>
 
         {/* Phone */}

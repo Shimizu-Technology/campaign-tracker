@@ -20,14 +20,14 @@ class Api::V1::DashboardControllerTest < ActionDispatch::IntegrationTest
     Quota.create!(village: @village, campaign: @campaign, period: "quarterly", target_count: 100, target_date: Date.current)
 
     Supporter.create!(
-      print_name: "Supporter One",
+      first_name: "Supporter", last_name: "One", print_name: "Supporter One",
       contact_number: "6715551000",
       village: @village,
       source: "staff_entry",
       status: "active"
     )
     Supporter.create!(
-      print_name: "Supporter Two",
+      first_name: "Supporter", last_name: "Two", print_name: "Supporter Two",
       contact_number: "6715551001",
       village: @village,
       source: "staff_entry",

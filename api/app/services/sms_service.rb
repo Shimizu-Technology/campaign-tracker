@@ -8,7 +8,7 @@ class SmsService
   class << self
     # ── Supporter signup confirmation ──────────────────────────────
     def welcome_supporter_body(supporter)
-      "Si Yu'os Ma'åse, #{supporter.print_name}! " \
+      "Si Yu'os Ma'åse, #{supporter.first_name || supporter.print_name}! " \
       "Thank you for supporting #{CAMPAIGN_NAME}. " \
       "Together we'll make Guam better for everyone. 🤙 #JoshAndTina2026"
     end
