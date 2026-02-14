@@ -19,6 +19,29 @@ interface VillageData {
   status: 'on_track' | 'behind' | 'critical';
 }
 
+interface DashboardSummary {
+  total_supporters: number;
+  total_target: number;
+  total_percentage: number;
+  total_registered_voters: number;
+  total_villages: number;
+  total_precincts: number;
+  today_signups: number;
+  week_signups: number;
+  status: 'on_track' | 'behind' | 'critical';
+}
+
+interface DashboardPayload {
+  campaign?: {
+    id?: number;
+    name?: string;
+    candidate_names?: string;
+  };
+  summary?: Partial<DashboardSummary>;
+  stats?: Partial<DashboardSummary>;
+  villages?: VillageData[];
+}
+
 function statusColor(status: string) {
   if (status === 'on_track') return 'bg-green-500';
   if (status === 'behind') return 'bg-yellow-500';
@@ -35,7 +58,7 @@ export default function DashboardPage() {
   useCampaignUpdates(); // Auto-invalidates dashboard queries on real-time events
   const { data: sessionData } = useSession();
 
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError } = useQuery<DashboardPayload>({
     queryKey: ['dashboard'],
     queryFn: getDashboard,
   });
@@ -63,7 +86,20 @@ export default function DashboardPage() {
     );
   }
 
-  const { campaign, summary, villages } = data;
+  const campaign = data.campaign;
+  const summarySource = data.summary || data.stats || {};
+  const summary: DashboardSummary = {
+    total_supporters: Number(summarySource.total_supporters || 0),
+    total_target: Number(summarySource.total_target || 0),
+    total_percentage: Number(summarySource.total_percentage || 0),
+    total_registered_voters: Number(summarySource.total_registered_voters || 0),
+    total_villages: Number(summarySource.total_villages || 0),
+    total_precincts: Number(summarySource.total_precincts || 0),
+    today_signups: Number(summarySource.today_signups || 0),
+    week_signups: Number(summarySource.week_signups || 0),
+    status: (summarySource.status as DashboardSummary['status']) || 'critical',
+  };
+  const villages = Array.isArray(data.villages) ? data.villages : [];
   const primaryActions = [
     ...(sessionData?.permissions?.can_create_staff_supporters
       ? [ { to: '/admin/supporters/new', label: 'New Entry', icon: ClipboardPlus, className: 'bg-[#C41E3A] hover:bg-[#a01830]' } ]
