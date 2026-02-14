@@ -10,7 +10,7 @@ function hasSufficientTokenLifetime(authHeader: string, minimumSecondsRemaining 
 
   try {
     const payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const decodedPayload = atob(payloadBase64.padEnd(Math.ceil(payloadBase64.length / 4) * 4, '='));
+    const decodedPayload = atob(payloadBase64.padEnd(payloadBase64.length + ((4 - (payloadBase64.length % 4)) % 4), '='));
     const payload = JSON.parse(decodedPayload) as { exp?: number };
     if (typeof payload.exp !== 'number') return false;
 
