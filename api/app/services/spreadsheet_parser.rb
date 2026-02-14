@@ -113,7 +113,7 @@ class SpreadsheetParser
       best_mapping = {}
 
       (1..[ spreadsheet.last_row, 10 ].min).each do |row_num|
-        cols = (1..spreadsheet.last_column).map { |c| spreadsheet.cell(row_num, c)&.to_s&.strip }
+        cols = (1..(spreadsheet.last_column || 0)).map { |c| spreadsheet.cell(row_num, c)&.to_s&.strip }
         mapping = auto_map_columns(cols)
         score = mapping.values.compact.size
 
@@ -131,7 +131,7 @@ class SpreadsheetParser
       {
         header_row: best_row,
         columns: best_mapping,
-        raw_headers: (1..spreadsheet.last_column).map { |c| spreadsheet.cell(best_row, c)&.to_s&.strip }
+        raw_headers: (1..(spreadsheet.last_column || 0)).map { |c| spreadsheet.cell(best_row, c)&.to_s&.strip }
       }
     end
 
@@ -170,7 +170,7 @@ class SpreadsheetParser
 
       count = 0
       ((header_row + 1)..spreadsheet.last_row).each do |row_num|
-        has_data = (1..spreadsheet.last_column).any? do |col|
+        has_data = (1..(spreadsheet.last_column || 0)).any? do |col|
           val = spreadsheet.cell(row_num, col)&.to_s&.strip
           val.present? && !val.match?(/\A\d{1,3}\z/) # Skip row-number-only rows
         end
