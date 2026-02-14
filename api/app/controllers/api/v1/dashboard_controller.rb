@@ -13,6 +13,7 @@ module Api
           verified_supporters: Supporter.active.verified.count,
           unverified_supporters: Supporter.active.unverified.count,
           flagged_supporters: Supporter.active.flagged.count,
+          potential_duplicates: Supporter.active.potential_duplicates_only.count,
           total_villages: Village.count,
           campaign_name: Campaign.active.first&.name || "Josh & Tina 2026"
         }
