@@ -229,6 +229,23 @@ module Authenticatable
     can_access_war_room?
   end
 
+  # Returns the village IDs this user is scoped to, or nil for full access
+  def scoped_village_ids
+    return nil if current_user&.admin? || current_user&.coordinator? && current_user.assigned_district_id.blank?
+
+    if current_user&.coordinator? && current_user.assigned_district_id.present?
+      Village.where(district_id: current_user.assigned_district_id).pluck(:id)
+    elsif current_user&.assigned_village_id.present?
+      [ current_user.assigned_village_id ]
+    end
+  end
+
+  # Apply area scoping to a supporters query
+  def scope_supporters(supporters)
+    ids = scoped_village_ids
+    ids ? supporters.where(village_id: ids) : supporters
+  end
+
   def manageable_roles_for_current_user
     return User::ROLES if current_user&.admin?
     return [ "village_chief", "block_leader", "poll_watcher" ] if current_user&.coordinator?

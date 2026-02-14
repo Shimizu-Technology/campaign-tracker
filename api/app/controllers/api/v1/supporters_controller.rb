@@ -167,7 +167,7 @@ module Api
 
       # GET /api/v1/supporters (authenticated)
       def index
-        supporters = Supporter.includes(:village, :precinct, :block)
+        supporters = scope_supporters(Supporter.includes(:village, :precinct, :block))
 
         # Filters
         supporters = supporters.where(village_id: params[:village_id]) if params[:village_id].present?
@@ -245,7 +245,7 @@ module Api
 
       # GET /api/v1/supporters/export
       def export
-        supporters = apply_export_filters(Supporter.includes(:village, :precinct).order(created_at: :desc))
+        supporters = apply_export_filters(scope_supporters(Supporter.includes(:village, :precinct).order(created_at: :desc)))
         total = supporters.count
 
         if total > MAX_EXPORT_ROWS
@@ -318,7 +318,7 @@ module Api
 
       # GET /api/v1/supporters/duplicates
       def duplicates
-        scope = Supporter.potential_duplicates_only.active
+        scope = scope_supporters(Supporter.potential_duplicates_only.active)
 
         # Optional village filter
         scope = scope.where(village_id: params[:village_id]) if params[:village_id].present?
