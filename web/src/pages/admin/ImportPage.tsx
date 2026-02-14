@@ -103,7 +103,7 @@ export default function ImportPage() {
 
   const handleFile = useCallback((file: File) => {
     const ext = file.name.split('.').pop()?.toLowerCase();
-    if (!['xlsx', 'xls', 'csv'].includes(ext || '')) {
+    if (!['xlsx', 'csv'].includes(ext || '')) {
       setFileError('Please upload an .xlsx or .csv file');
       return;
     }

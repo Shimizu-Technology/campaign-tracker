@@ -51,7 +51,7 @@ module Api
         # Store the file temporarily for the confirm step
         import_key = SecureRandom.hex(16)
         safe_ext = File.extname(file.original_filename).downcase
-        safe_ext = ".xlsx" unless %w[.xlsx .xls .csv].include?(safe_ext) # already validated above
+        safe_ext = ".xlsx" unless %w[.xlsx .csv].include?(safe_ext) # already validated above
         tmp_path = Rails.root.join("tmp", "imports", "#{import_key}#{safe_ext}")
         FileUtils.mkdir_p(tmp_path.dirname)
         FileUtils.cp(file.tempfile.path, tmp_path)
@@ -206,7 +206,7 @@ module Api
 
       def valid_file_type?(file)
         ext = File.extname(file.original_filename).downcase
-        %w[.xlsx .xls .csv].include?(ext)
+        %w[.xlsx .csv].include?(ext)
       end
 
       def find_import_file(key)
