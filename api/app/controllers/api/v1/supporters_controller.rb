@@ -347,7 +347,7 @@ module Api
 
         merge_into = nil
         if action == "merge"
-          merge_into = Supporter.find_by(id: params[:merge_into_id])
+          merge_into = scope_supporters(Supporter).find_by(id: params[:merge_into_id])
           unless merge_into
             return render_api_error(
               message: "merge_into_id supporter not found",

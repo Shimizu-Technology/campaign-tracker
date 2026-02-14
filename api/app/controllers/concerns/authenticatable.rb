@@ -231,6 +231,10 @@ module Authenticatable
 
   # Returns the village IDs this user is scoped to, or nil for full access
   def scoped_village_ids
+    @scoped_village_ids ||= compute_scoped_village_ids
+  end
+
+  def compute_scoped_village_ids
     return nil if current_user&.admin? || (current_user&.coordinator? && current_user.assigned_district_id.blank?)
 
     if current_user&.coordinator? && current_user.assigned_district_id.present?
