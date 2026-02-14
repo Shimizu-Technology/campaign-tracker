@@ -241,6 +241,8 @@ module Authenticatable
       Village.where(district_id: current_user.assigned_district_id).pluck(:id)
     elsif current_user&.assigned_village_id.present?
       [ current_user.assigned_village_id ]
+    else
+      [] # No assignment = no access (chiefs/leaders must have assigned village)
     end
   end
 
