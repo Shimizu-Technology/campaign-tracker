@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useParams, Link } from 'react-router-dom';
 import { getVillage } from '../../lib/api';
-import { ArrowLeft, MapPin } from 'lucide-react';
+import { ArrowLeft, MapPin, Info } from 'lucide-react';
 
 interface PrecinctDetail {
   id: number;
@@ -58,7 +58,7 @@ export default function VillageDetailPage() {
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
             <MapPin className="w-6 h-6" /> {v.name}
           </h1>
-          <p className="text-blue-200 text-sm">{v.region} · {v.registered_voters.toLocaleString()} registered voters</p>
+          <p className="text-blue-200 text-sm">{v.region} · {v.registered_voters.toLocaleString()} registered voters (GEC Jan 2026)</p>
         </div>
       </header>
 
@@ -74,6 +74,14 @@ export default function VillageDetailPage() {
               className={`h-4 rounded-full ${Number(pct) >= 75 ? 'bg-green-500' : Number(pct) >= 50 ? 'bg-yellow-500' : 'bg-red-500'}`}
               style={{ width: `${Math.min(Number(pct), 100)}%` }}
             />
+          </div>
+          <div className="flex items-start gap-2 mt-3 text-xs text-gray-500">
+            <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+            <p>
+              <strong>Supporters</strong> are people who signed up through our campaign.{' '}
+              <strong>Registered voters</strong> ({v.registered_voters.toLocaleString()}) is the total voter count from the Guam Election Commission (Jan 2026).{' '}
+              The quota target ({v.quota_target.toLocaleString()}) is the number of supporters we aim to reach in this village.
+            </p>
           </div>
         </div>
 
@@ -106,7 +114,7 @@ export default function VillageDetailPage() {
                 </div>
                 <span className="text-sm text-gray-600">{supporterLabel(p.supporter_count)}</span>
               </div>
-              <p className="text-xs text-gray-400 mt-1">{p.polling_site} · {p.registered_voters} voters</p>
+              <p className="text-xs text-gray-400 mt-1">{p.polling_site} · {p.registered_voters} registered voters (GEC)</p>
             </Link>
           ))}
         </div>
