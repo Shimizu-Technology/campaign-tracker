@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_14_024040) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_14_035500) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -370,6 +370,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_14_024040) do
     t.string "last_name"
     t.string "leader_code"
     t.boolean "motorcade_available"
+    t.boolean "opt_in_email", default: false, null: false
+    t.boolean "opt_in_text", default: false, null: false
     t.bigint "precinct_id"
     t.string "print_name"
     t.integer "referred_from_village_id"

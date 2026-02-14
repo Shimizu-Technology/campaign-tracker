@@ -37,7 +37,8 @@ module Api
         params.require(:supporter).permit(
           :first_name, :last_name, :print_name, :contact_number, :dob, :email, :street_address,
           :village_id, :precinct_id, :block_id,
-          :registered_voter, :yard_sign, :motorcade_available
+          :registered_voter, :yard_sign, :motorcade_available,
+          :opt_in_email, :opt_in_text
         )
       end
 
@@ -49,6 +50,8 @@ module Api
           print_name: supporter.print_name,
           contact_number: supporter.contact_number,
           village_name: supporter.village&.name,
+          opt_in_email: supporter.opt_in_email,
+          opt_in_text: supporter.opt_in_text,
           source: supporter.source,
           status: supporter.status,
           created_at: supporter.created_at&.iso8601

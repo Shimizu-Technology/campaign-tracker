@@ -31,6 +31,8 @@ interface SupporterItem {
   registered_voter: boolean;
   yard_sign: boolean;
   motorcade_available: boolean;
+  opt_in_email: boolean;
+  opt_in_text: boolean;
   source: string;
   created_at: string;
 }
@@ -72,6 +74,7 @@ export default function SupportersPage() {
   const [villageFilter, setVillageFilter] = useState(searchParams.get('village_id') || '');
   const [precinctFilter, setPrecinctFilter] = useState(searchParams.get('precinct_id') || '');
   const [sourceFilter, setSourceFilter] = useState(searchParams.get('source') || '');
+  const [optInFilter, setOptInFilter] = useState(searchParams.get('opt_in') || '');
   const [unassignedPrecinct, setUnassignedPrecinct] = useState(searchParams.get('unassigned_precinct') === 'true');
   const [sortBy, setSortBy] = useState<SortField>(parseSortField(searchParams.get('sort_by')));
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>((searchParams.get('sort_dir') as 'asc' | 'desc') || 'desc');
@@ -99,21 +102,24 @@ export default function SupportersPage() {
     if (villageFilter) params.set('village_id', villageFilter);
     if (precinctFilter) params.set('precinct_id', precinctFilter);
     if (sourceFilter) params.set('source', sourceFilter);
+    if (optInFilter) params.set('opt_in', optInFilter);
     if (unassignedPrecinct) params.set('unassigned_precinct', 'true');
     params.set('sort_by', sortBy);
     params.set('sort_dir', sortDir);
     params.set('per_page', String(perPage));
     if (returnTo) params.set('return_to', returnTo);
     setSearchParams(params, { replace: true });
-  }, [debouncedSearch, villageFilter, precinctFilter, sourceFilter, unassignedPrecinct, sortBy, sortDir, perPage, returnTo, setSearchParams]);
+  }, [debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, unassignedPrecinct, sortBy, sortDir, perPage, returnTo, setSearchParams]);
 
   const { data, isFetching } = useQuery<SupportersResponse>({
-    queryKey: ['supporters', debouncedSearch, villageFilter, precinctFilter, sourceFilter, unassignedPrecinct, sortBy, sortDir, page, perPage],
+    queryKey: ['supporters', debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, unassignedPrecinct, sortBy, sortDir, page, perPage],
     queryFn: () => getSupporters({
       search: debouncedSearch,
       village_id: villageFilter || undefined,
       precinct_id: precinctFilter || undefined,
       source: sourceFilter || undefined,
+      opt_in_email: optInFilter === 'email' || optInFilter === 'both' ? 'true' : undefined,
+      opt_in_text: optInFilter === 'text' || optInFilter === 'both' ? 'true' : undefined,
       unassigned_precinct: unassignedPrecinct ? 'true' : undefined,
       sort_by: sortBy,
       sort_dir: sortDir,
@@ -134,7 +140,7 @@ export default function SupportersPage() {
   useEffect(() => {
     const timer = window.setTimeout(() => setVisibleRows(80), 0);
     return () => window.clearTimeout(timer);
-  }, [progressiveRenderingEnabled, page, debouncedSearch, villageFilter, precinctFilter, sourceFilter, unassignedPrecinct, sortBy, sortDir, perPage]);
+  }, [progressiveRenderingEnabled, page, debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, unassignedPrecinct, sortBy, sortDir, perPage]);
 
   useEffect(() => {
     if (!progressiveRenderingEnabled) return;
@@ -151,12 +157,14 @@ export default function SupportersPage() {
     const totalPages = data.pagination.pages;
     if (page < totalPages) {
       void queryClient.prefetchQuery({
-        queryKey: ['supporters', debouncedSearch, villageFilter, precinctFilter, sourceFilter, unassignedPrecinct, sortBy, sortDir, page + 1, perPage],
+        queryKey: ['supporters', debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, unassignedPrecinct, sortBy, sortDir, page + 1, perPage],
         queryFn: () => getSupporters({
           search: debouncedSearch,
           village_id: villageFilter || undefined,
           precinct_id: precinctFilter || undefined,
           source: sourceFilter || undefined,
+          opt_in_email: optInFilter === 'email' || optInFilter === 'both' ? 'true' : undefined,
+          opt_in_text: optInFilter === 'text' || optInFilter === 'both' ? 'true' : undefined,
           unassigned_precinct: unassignedPrecinct ? 'true' : undefined,
           sort_by: sortBy,
           sort_dir: sortDir,
@@ -165,7 +173,7 @@ export default function SupportersPage() {
         }),
       });
     }
-  }, [data, page, perPage, debouncedSearch, villageFilter, precinctFilter, sourceFilter, unassignedPrecinct, sortBy, sortDir, queryClient]);
+  }, [data, page, perPage, debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, unassignedPrecinct, sortBy, sortDir, queryClient]);
 
   const assignPrecinctMutation = useMutation({
     mutationFn: ({ supporterId, precinctId }: { supporterId: number; precinctId: number }) =>
@@ -316,6 +324,19 @@ export default function SupportersPage() {
             <option value="">All sources</option>
             <option value="qr_signup">Public signup</option>
             <option value="staff_entry">Staff entry</option>
+          </select>
+          <select
+            value={optInFilter}
+            onChange={(e) => {
+              setOptInFilter(e.target.value);
+              setPage(1);
+            }}
+            className="md:col-span-2 px-3 py-3 border border-gray-300 rounded-xl bg-white text-gray-700 focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent min-w-0"
+          >
+            <option value="">All opt-in</option>
+            <option value="text">Opted in: Text</option>
+            <option value="email">Opted in: Email</option>
+            <option value="both">Opted in: Both</option>
           </select>
           {villageFilter && (
             <select

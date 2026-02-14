@@ -24,6 +24,8 @@ type SignupForm = {
   registered_voter: boolean;
   yard_sign: boolean;
   motorcade_available: boolean;
+  opt_in_email: boolean;
+  opt_in_text: boolean;
 };
 
 export default function SignupPage() {
@@ -41,6 +43,8 @@ export default function SignupPage() {
     precinct_id: '',
     registered_voter: true,
     yard_sign: false,
+    opt_in_email: false,
+    opt_in_text: false,
     motorcade_available: false,
   });
 
@@ -247,6 +251,34 @@ export default function SignupPage() {
           />
           <span className="text-gray-700">I'll join motorcades</span>
         </label>
+
+        {/* Communication Opt-In */}
+        <div className="border-t border-gray-200 pt-3 mt-1">
+          <p className="text-sm font-medium text-gray-700 mb-2">Stay updated on the campaign:</p>
+          <label htmlFor="opt_in_text" className="flex items-center gap-3 py-2 min-h-[44px] cursor-pointer">
+            <input
+              type="checkbox"
+              id="opt_in_text"
+              checked={form.opt_in_text}
+              onChange={e => updateField('opt_in_text', e.target.checked)}
+              className="w-5 h-5 text-[#1B3A6B] rounded shrink-0"
+            />
+            <span className="text-gray-700">Send me text updates</span>
+          </label>
+          <label htmlFor="opt_in_email" className="flex items-center gap-3 py-2 min-h-[44px] cursor-pointer">
+            <input
+              type="checkbox"
+              id="opt_in_email"
+              checked={form.opt_in_email}
+              onChange={e => updateField('opt_in_email', e.target.checked)}
+              className="w-5 h-5 text-[#1B3A6B] rounded shrink-0"
+            />
+            <span className="text-gray-700">Send me email updates</span>
+          </label>
+          <p className="text-xs text-gray-400 mt-1">
+            By checking the above, you agree to receive campaign communications from Josh &amp; Tina 2026. You can opt out at any time.
+          </p>
+        </div>
 
         {/* Error */}
         {signup.isError && (
