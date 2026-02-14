@@ -1,11 +1,12 @@
 import { SignedIn, SignedOut, SignInButton, UserButton, useAuth } from '@clerk/clerk-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../lib/api';
 
 // Set auth token on API client whenever it changes
 function AuthTokenSync({ onReady }: { onReady: () => void }) {
   const { getToken, isLoaded, isSignedIn } = useAuth();
+  const syncInFlightRef = useRef(false);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -13,28 +14,62 @@ function AuthTokenSync({ onReady }: { onReady: () => void }) {
     let mounted = true;
 
     const syncToken = async () => {
+      if (syncInFlightRef.current) return;
+      syncInFlightRef.current = true;
+
       if (!isSignedIn) {
         delete api.defaults.headers.common['Authorization'];
         if (mounted) onReady();
+        syncInFlightRef.current = false;
         return;
       }
 
-      const token = await getToken();
-      if (token) {
-        api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-      } else {
-        delete api.defaults.headers.common['Authorization'];
+      try {
+        const token = await getToken();
+        if (token) {
+          api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+        }
+        // Guard against transient Clerk token null/refresh windows:
+        // keep existing Authorization header rather than clearing it.
+      } catch (error) {
+        // Keep previous Authorization header on transient token-sync failures.
+        console.warn('[AuthTokenSync] token refresh failed', error);
       }
+
       if (mounted) onReady();
+      syncInFlightRef.current = false;
     };
 
     syncToken();
 
-    // Re-sync every 50 seconds (tokens expire after 60s)
-    const interval = setInterval(syncToken, 50_000);
+    // Keep token warm on a short interval.
+    const interval = setInterval(syncToken, 20_000);
+    const onFocus = () => {
+      void syncToken();
+    };
+    window.addEventListener('focus', onFocus);
+    document.addEventListener('visibilitychange', onFocus);
+
+    const interceptorId = api.interceptors.request.use(async (config) => {
+      if (!isSignedIn) return config;
+      try {
+        const token = await getToken();
+        if (token) {
+          config.headers = config.headers || {};
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+      } catch (error) {
+        console.warn('[AuthTokenSync] request token attach failed', error);
+      }
+      return config;
+    });
+
     return () => {
       mounted = false;
       clearInterval(interval);
+      window.removeEventListener('focus', onFocus);
+      document.removeEventListener('visibilitychange', onFocus);
+      api.interceptors.request.eject(interceptorId);
     };
   }, [getToken, isLoaded, isSignedIn, onReady]);
 
