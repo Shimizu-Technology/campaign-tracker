@@ -7,6 +7,10 @@
     {
       "fingerprint": "8636a8cad12c8330c4b5e883d7b2c03ce72a4fffc336d707a24be1484f8087c5",
       "note": "Role assignment in user_update_params is intentional — endpoint is restricted to campaign_admin/district_coordinator only via RBAC checks in the controller"
+    },
+    {
+      "fingerprint": "6d7188bba7423fe298cb2512a42db11523e6bd43f58ead66bdb3eee11ac860ec",
+      "note": "File extension is validated against allowlist (.xlsx/.xls/.csv) before use — no path traversal risk"
     }
   ],
   "updated": "2026-02-14",

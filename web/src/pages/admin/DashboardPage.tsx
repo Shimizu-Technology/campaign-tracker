@@ -122,7 +122,7 @@ export default function DashboardPage() {
     ...(sessionData?.permissions?.can_manage_users ? [ { to: '/admin/users', label: 'Users', icon: Shield } ] : []),
     ...(sessionData?.permissions?.can_manage_configuration ? [ { to: '/admin/quotas', label: 'Quotas', icon: Target } ] : []),
     ...(sessionData?.permissions?.can_manage_configuration ? [ { to: '/admin/precincts', label: 'Precincts', icon: MapPin } ] : []),
-    ...(sessionData?.permissions?.can_view_supporters ? [ { to: '/admin/import', label: 'Import', icon: Upload } ] : []),
+    ...(sessionData?.permissions?.can_edit_supporters ? [ { to: '/admin/import', label: 'Import', icon: Upload } ] : []),
     ...(sessionData?.permissions?.can_view_supporters ? [ { to: '/admin/duplicates', label: 'Duplicates', icon: Copy } ] : []),
   ] as const;
 

@@ -142,6 +142,9 @@ export default function ImportPage() {
       setRows(data.rows);
       setStep('review');
     },
+    onError: (error: Error) => {
+      setFileError(error.message || 'Failed to parse the spreadsheet. Please check the file and try again.');
+    },
   });
 
   // Step 4: Confirm import
@@ -154,6 +157,9 @@ export default function ImportPage() {
     onSuccess: (data) => {
       setImportResult(data);
       setStep('complete');
+    },
+    onError: (error: Error) => {
+      setFileError(error.message || 'Import failed. Please try again.');
     },
   });
 
@@ -334,6 +340,11 @@ export default function ImportPage() {
                 )}
               </button>
             </div>
+            {parseMutation.isError && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">
+                {(parseMutation.error as Error)?.message || 'Failed to parse the spreadsheet. Please check the file and try again.'}
+              </div>
+            )}
           </div>
         )}
 
@@ -474,6 +485,11 @@ export default function ImportPage() {
                   )}
                 </button>
               </div>
+              {confirmMutation.isError && (
+                <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">
+                  {(confirmMutation.error as Error)?.message || 'Import failed. Please try again.'}
+                </div>
+              )}
             </div>
           </div>
         )}

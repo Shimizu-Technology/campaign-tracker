@@ -42,7 +42,9 @@ module Api
 
         # Store the file temporarily for the confirm step
         import_key = SecureRandom.hex(16)
-        tmp_path = Rails.root.join("tmp", "imports", "#{import_key}#{File.extname(file.original_filename)}")
+        safe_ext = File.extname(file.original_filename).downcase
+        safe_ext = ".xlsx" unless %w[.xlsx .xls .csv].include?(safe_ext) # already validated above
+        tmp_path = Rails.root.join("tmp", "imports", "#{import_key}#{safe_ext}")
         FileUtils.mkdir_p(tmp_path.dirname)
         FileUtils.cp(file.tempfile.path, tmp_path)
 
@@ -253,11 +255,10 @@ module Api
         AuditLog.create!(
           auditable: record || current_user,
           auditable_type: record ? record.class.name : "User",
-          user: current_user,
+          actor_user: current_user,
           action: action,
           changed_data: changed_data,
-          ip_address: request.remote_ip,
-          user_agent: request.user_agent
+          metadata: { ip_address: request.remote_ip, user_agent: request.user_agent }
         )
       end
     end
