@@ -10,9 +10,9 @@ module Api
       ALLOWED_SORT_FIELDS = %w[created_at print_name last_name first_name village_name precinct_number source registered_voter].freeze
 
       include Authenticatable
-      before_action :authenticate_request, only: [ :index, :check_duplicate, :export, :show, :update, :verify, :bulk_verify ]
+      before_action :authenticate_request, only: [ :index, :check_duplicate, :export, :show, :update, :verify, :bulk_verify, :duplicates, :resolve_duplicate, :scan_duplicates ]
       before_action :require_supporter_access!, only: [ :index, :check_duplicate, :export, :show ]
-      before_action :require_coordinator_or_above!, only: [ :verify, :bulk_verify ]
+      before_action :require_coordinator_or_above!, only: [ :verify, :bulk_verify, :duplicates, :resolve_duplicate, :scan_duplicates ]
 
       # POST /api/v1/supporters (public signup — no auth required)
       def create
@@ -293,6 +293,63 @@ module Api
         render json: { duplicates: dupes.map { |s| supporter_json(s) } }
       end
 
+      # GET /api/v1/supporters/duplicates
+      def duplicates
+        scope = Supporter.potential_duplicates_only.active
+
+        # Optional village filter
+        scope = scope.where(village_id: params[:village_id]) if params[:village_id].present?
+
+        scope = scope.includes(:village, :precinct, :duplicate_of).order(created_at: :desc)
+
+        supporters = scope.limit(MAX_PER_PAGE)
+        render json: {
+          supporters: supporters.map { |s| supporter_json(s).merge(duplicate_info(s)) },
+          total_count: scope.count
+        }
+      end
+
+      # PATCH /api/v1/supporters/:id/resolve_duplicate
+      def resolve_duplicate
+        supporter = Supporter.find(params[:id])
+        action = params[:resolution] # "dismiss" or "merge"
+
+        unless %w[dismiss merge].include?(action)
+          return render_api_error(
+            message: "resolution must be 'dismiss' or 'merge'",
+            status: :unprocessable_entity,
+            code: "invalid_resolution"
+          )
+        end
+
+        merge_into = nil
+        if action == "merge"
+          merge_into = Supporter.find_by(id: params[:merge_into_id])
+          unless merge_into
+            return render_api_error(
+              message: "merge_into_id supporter not found",
+              status: :not_found,
+              code: "merge_target_not_found"
+            )
+          end
+        end
+
+        DuplicateDetector.resolve!(supporter, action: action, merge_into: merge_into, resolved_by: current_user)
+
+        log_audit!(supporter, action: "duplicate_resolved", changed_data: {
+          "resolution" => action,
+          "merge_into_id" => merge_into&.id
+        })
+
+        render json: { message: "Duplicate #{action == 'merge' ? 'merged' : 'dismissed'}", supporter: supporter_json(supporter.reload) }
+      end
+
+      # POST /api/v1/supporters/scan_duplicates
+      def scan_duplicates
+        count = DuplicateDetector.scan_all!
+        render json: { message: "Scan complete", flagged_count: count }
+      end
+
       private
 
       def public_supporter_params
@@ -358,6 +415,9 @@ module Api
           status: supporter.status,
           leader_code: supporter.leader_code,
           reliability_score: supporter.reliability_score,
+          potential_duplicate: supporter.potential_duplicate,
+          duplicate_of_id: supporter.duplicate_of_id,
+          duplicate_notes: supporter.duplicate_notes,
           created_at: supporter.created_at&.iso8601
         }
       end
@@ -378,6 +438,15 @@ module Api
             }
           end
         )
+      end
+
+      def duplicate_info(supporter)
+        info = {}
+        if supporter.duplicate_of_id.present? && supporter.association(:duplicate_of).loaded?
+          orig = supporter.duplicate_of
+          info[:duplicate_of] = orig ? { id: orig.id, name: orig.display_name, contact_number: orig.contact_number } : nil
+        end
+        info
       end
 
       def log_audit!(supporter, action:, changed_data:)

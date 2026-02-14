@@ -12,11 +12,14 @@ Rails.application.routes.draw do
       resources :supporters, only: [ :create, :index, :show, :update ] do
         member do
           patch :verify
+          patch :resolve_duplicate
         end
         collection do
           get :check_duplicate
           get :export
+          get :duplicates
           post :bulk_verify
+          post :scan_duplicates
         end
       end
       resources :users, only: [ :index, :create, :update ] do

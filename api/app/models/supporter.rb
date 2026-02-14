@@ -9,6 +9,8 @@ class Supporter < ApplicationRecord
   belongs_to :entered_by, class_name: "User", foreign_key: :entered_by_user_id, optional: true
   belongs_to :turnout_updated_by_user, class_name: "User", optional: true
   belongs_to :verified_by, class_name: "User", foreign_key: :verified_by_user_id, optional: true
+  belongs_to :duplicate_of, class_name: "Supporter", foreign_key: :duplicate_of_id, optional: true
+  has_many :duplicates, class_name: "Supporter", foreign_key: :duplicate_of_id, dependent: :nullify
 
   has_many :event_rsvps, dependent: :destroy
   has_many :events, through: :event_rsvps
@@ -21,6 +23,7 @@ class Supporter < ApplicationRecord
 
   # Keep print_name in sync as "Last, First" for display and backward compatibility
   before_validation :sync_print_name
+  after_create :check_for_duplicates
 
   def display_name
     [ first_name, last_name ].compact_blank.join(" ")
@@ -40,6 +43,7 @@ class Supporter < ApplicationRecord
   scope :registered_voters, -> { where(registered_voter: true) }
   scope :motorcade_available, -> { where(motorcade_available: true) }
   scope :yard_sign, -> { where(yard_sign: true) }
+  scope :potential_duplicates_only, -> { where(potential_duplicate: true) }
   scope :today, -> { where("supporters.created_at >= ?", Time.current.beginning_of_day) }
   scope :this_week, -> { where("supporters.created_at >= ?", Time.current.beginning_of_week) }
 
@@ -112,5 +116,11 @@ class Supporter < ApplicationRecord
     return if block.village_id == village_id
 
     errors.add(:block_id, "must belong to the selected village")
+  end
+
+  def check_for_duplicates
+    DuplicateDetector.flag_if_duplicate!(self)
+  rescue StandardError => e
+    Rails.logger.warn("Duplicate detection failed for supporter #{id}: #{e.message}")
   end
 end

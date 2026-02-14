@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_14_042528) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_14_045650) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -364,6 +364,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_14_042528) do
     t.string "contact_number"
     t.datetime "created_at", null: false
     t.date "dob"
+    t.datetime "duplicate_checked_at"
+    t.text "duplicate_notes"
+    t.bigint "duplicate_of_id"
     t.string "email"
     t.integer "entered_by_user_id"
     t.string "first_name"
@@ -372,6 +375,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_14_042528) do
     t.boolean "motorcade_available"
     t.boolean "opt_in_email", default: false, null: false
     t.boolean "opt_in_text", default: false, null: false
+    t.boolean "potential_duplicate", default: false, null: false
     t.bigint "precinct_id"
     t.string "print_name"
     t.integer "referred_from_village_id"
@@ -394,10 +398,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_14_042528) do
     t.index ["block_id"], name: "index_supporters_on_block_id"
     t.index ["contact_number"], name: "index_supporters_on_contact_number_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["created_at"], name: "index_supporters_on_created_at"
+    t.index ["duplicate_of_id"], name: "index_supporters_on_duplicate_of_id"
     t.index ["entered_by_user_id"], name: "index_supporters_on_entered_by_user_id"
     t.index ["last_name", "first_name"], name: "index_supporters_on_last_name_and_first_name"
     t.index ["last_name"], name: "index_supporters_on_last_name"
     t.index ["leader_code"], name: "index_supporters_on_leader_code"
+    t.index ["potential_duplicate"], name: "index_supporters_on_potential_duplicate"
     t.index ["precinct_id", "created_at"], name: "index_supporters_on_precinct_id_and_created_at"
     t.index ["precinct_id", "turnout_status"], name: "index_supporters_on_precinct_id_and_turnout_status"
     t.index ["precinct_id"], name: "index_supporters_on_precinct_id"
@@ -488,6 +494,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_14_042528) do
   add_foreign_key "supporter_contact_attempts", "users", column: "recorded_by_user_id"
   add_foreign_key "supporters", "blocks"
   add_foreign_key "supporters", "precincts"
+  add_foreign_key "supporters", "supporters", column: "duplicate_of_id"
   add_foreign_key "supporters", "users", column: "turnout_updated_by_user_id"
   add_foreign_key "supporters", "villages"
   add_foreign_key "villages", "districts"

@@ -34,6 +34,7 @@ interface SupporterItem {
   opt_in_email: boolean;
   opt_in_text: boolean;
   verification_status: string;
+  potential_duplicate: boolean;
   source: string;
   created_at: string;
 }
@@ -440,9 +441,14 @@ export default function SupportersPage() {
           {visibleSupporters.map((s) => (
             <div key={s.id} className="app-card p-4">
               <div className="flex items-center justify-between mb-1">
-                <Link to={supporterDetailLink(s.id)} className="font-semibold text-gray-900 hover:underline">
-                  {s.last_name}, {s.first_name}
-                </Link>
+                <div className="flex items-center gap-1.5">
+                  <Link to={supporterDetailLink(s.id)} className="font-semibold text-gray-900 hover:underline">
+                    {s.last_name}, {s.first_name}
+                  </Link>
+                  {s.potential_duplicate && (
+                    <span className="flex-shrink-0 w-2 h-2 rounded-full bg-amber-400" title="Potential duplicate" />
+                  )}
+                </div>
                 <span className={`app-chip ${
                   s.source === 'qr_signup' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
                 }`}>
@@ -536,9 +542,14 @@ export default function SupportersPage() {
                   className="border-b hover:bg-gray-50"
                 >
                   <td className="px-4 py-3 font-medium text-gray-900 max-w-[240px]">
-                    <Link to={supporterDetailLink(s.id)} className="hover:underline block truncate" title={`${s.last_name}, ${s.first_name}`}>
-                      {s.last_name}, {s.first_name}
-                    </Link>
+                    <div className="flex items-center gap-1.5">
+                      <Link to={supporterDetailLink(s.id)} className="hover:underline block truncate" title={`${s.last_name}, ${s.first_name}`}>
+                        {s.last_name}, {s.first_name}
+                      </Link>
+                      {s.potential_duplicate && (
+                        <span className="flex-shrink-0 w-2 h-2 rounded-full bg-amber-400" title="Potential duplicate" />
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{s.contact_number}</td>
                   <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{s.village_name}</td>
