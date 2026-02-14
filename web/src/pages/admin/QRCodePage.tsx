@@ -1,8 +1,8 @@
-import { useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import { useState, useMemo } from 'react';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, QrCode, Copy, Check, Download } from 'lucide-react';
-import api from '../../lib/api';
+import api, { getVillages } from '../../lib/api';
 
 interface QRResult {
   code: string;
@@ -10,15 +10,27 @@ interface QRResult {
   qr_svg_url: string;
 }
 
+interface Village {
+  id: number;
+  name: string;
+}
+
 export default function QRCodePage() {
   const apiOrigin = import.meta.env.VITE_API_URL?.replace(/\/$/, '');
   const [name, setName] = useState('');
-  const [village, setVillage] = useState('');
+  const [villageId, setVillageId] = useState('');
   const [generated, setGenerated] = useState<QRResult | null>(null);
   const [copied, setCopied] = useState(false);
 
+  const { data: villageData } = useQuery({ queryKey: ['villages'], queryFn: getVillages });
+  const villages: Village[] = useMemo(() => villageData?.villages || [], [villageData]);
+  const selectedVillage = useMemo(
+    () => villages.find(v => v.id === Number(villageId)),
+    [villages, villageId]
+  );
+
   const generate = useMutation({
-    mutationFn: () => api.post('/qr_codes/generate', { name, village }).then(r => r.data),
+    mutationFn: () => api.post('/qr_codes/generate', { name, village: selectedVillage?.name || '' }).then(r => r.data),
     onSuccess: (data) => setGenerated(data),
   });
 
@@ -73,19 +85,22 @@ export default function QRCodePage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Village</label>
-              <input
-                type="text"
+              <select
                 required
-                value={village}
-                onChange={e => setVillage(e.target.value)}
-                placeholder="Tamuning"
-                className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
-              />
+                value={villageId}
+                onChange={e => setVillageId(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent bg-white"
+              >
+                <option value="">Select a village...</option>
+                {villages.map((v) => (
+                  <option key={v.id} value={v.id}>{v.name}</option>
+                ))}
+              </select>
             </div>
             <button
               type="submit"
-              disabled={generate.isPending}
-              className="w-full bg-[#1B3A6B] hover:bg-[#152e55] text-white font-bold py-3 rounded-xl"
+              disabled={generate.isPending || !name || !villageId}
+              className="w-full bg-[#1B3A6B] hover:bg-[#152e55] text-white font-bold py-3 rounded-xl disabled:opacity-50"
             >
               {generate.isPending ? 'Generating...' : 'Generate QR Code'}
             </button>
@@ -96,7 +111,7 @@ export default function QRCodePage() {
         {generated && (
           <div className="app-card p-6 text-center">
             <h2 className="font-semibold text-gray-800 mb-2">QR Code for {name}</h2>
-            <p className="text-sm text-gray-500 mb-4">Village: {village} · Code: {generated.code}</p>
+            <p className="text-sm text-gray-500 mb-4">Village: {selectedVillage?.name} · Code: {generated.code}</p>
 
             {/* QR Image */}
             <div className="flex justify-center mb-6">
