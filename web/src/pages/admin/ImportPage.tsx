@@ -142,9 +142,6 @@ export default function ImportPage() {
       setRows(data.rows);
       setStep('review');
     },
-    onError: (error: Error) => {
-      setFileError(error.message || 'Failed to parse the spreadsheet. Please check the file and try again.');
-    },
   });
 
   // Step 4: Confirm import
@@ -157,9 +154,6 @@ export default function ImportPage() {
     onSuccess: (data) => {
       setImportResult(data);
       setStep('complete');
-    },
-    onError: (error: Error) => {
-      setFileError(error.message || 'Import failed. Please try again.');
     },
   });
 
