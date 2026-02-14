@@ -47,16 +47,32 @@ function AuthTokenSync({ onReady }: { onReady: () => void }) {
     const onFocus = () => {
       void syncToken();
     };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void syncToken();
+      }
+    };
     window.addEventListener('focus', onFocus);
-    document.addEventListener('visibilitychange', onFocus);
+    document.addEventListener('visibilitychange', onVisibilityChange);
 
     const interceptorId = api.interceptors.request.use(async (config) => {
       if (!isSignedIn) return config;
+
+      const headers = config.headers as { Authorization?: string; authorization?: string } | undefined;
+      const existingAuthHeader =
+        headers?.Authorization ||
+        headers?.authorization ||
+        (api.defaults.headers.common['Authorization'] as string | undefined);
+
+      if (typeof existingAuthHeader === 'string' && existingAuthHeader.startsWith('Bearer ')) {
+        return config;
+      }
+
       try {
         const token = await getToken();
         if (token) {
           config.headers = config.headers || {};
-          config.headers.Authorization = `Bearer ${token}`;
+          (config.headers as { Authorization?: string }).Authorization = `Bearer ${token}`;
         }
       } catch (error) {
         console.warn('[AuthTokenSync] request token attach failed', error);
@@ -68,7 +84,7 @@ function AuthTokenSync({ onReady }: { onReady: () => void }) {
       mounted = false;
       clearInterval(interval);
       window.removeEventListener('focus', onFocus);
-      document.removeEventListener('visibilitychange', onFocus);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
       api.interceptors.request.eject(interceptorId);
     };
   }, [getToken, isLoaded, isSignedIn, onReady]);
