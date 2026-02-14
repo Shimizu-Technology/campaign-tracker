@@ -12,7 +12,7 @@ module Api
       include Authenticatable
       before_action :authenticate_request, only: [ :index, :check_duplicate, :export, :show, :update, :verify, :bulk_verify ]
       before_action :require_supporter_access!, only: [ :index, :check_duplicate, :export, :show ]
-      before_action :require_editor_access!, only: [ :verify, :bulk_verify ]
+      before_action :require_coordinator_or_above!, only: [ :verify, :bulk_verify ]
 
       # POST /api/v1/supporters (public signup — no auth required)
       def create
@@ -125,6 +125,14 @@ module Api
         ids = params[:supporter_ids]
         new_status = params[:verification_status] || "verified"
 
+        unless ids.is_a?(Array) && ids.any?
+          return render_api_error(
+            message: "supporter_ids must be a non-empty array",
+            status: :unprocessable_entity,
+            code: "invalid_supporter_ids"
+          )
+        end
+
         unless Supporter::VERIFICATION_STATUSES.include?(new_status)
           return render_api_error(
             message: "Invalid verification status",
@@ -136,16 +144,20 @@ module Api
         supporters = Supporter.where(id: ids)
         count = supporters.count
 
+        # Capture old statuses before bulk update
+        old_statuses = supporters.pluck(:id, :verification_status).to_h
+
         supporters.update_all(
           verification_status: new_status,
           verified_by_user_id: current_user.id,
           verified_at: Time.current
         )
 
-        # Audit log for each
+        # Audit log for each with accurate old status
         supporters.find_each do |s|
+          old_status = old_statuses[s.id] || "unknown"
           log_audit!(s, action: "verification_changed", changed_data: {
-            "verification_status" => [ "bulk", new_status ],
+            "verification_status" => [ old_status, new_status ],
             "verified_by" => current_user.name || current_user.email
           })
         end

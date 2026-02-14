@@ -408,7 +408,7 @@ export default function SupporterDetailPage() {
 
         <section className="app-card p-4">
           <h2 className="font-semibold text-gray-900 mb-2">Verification</h2>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
               supporter.verification_status === 'verified' ? 'bg-green-100 text-green-700' :
               supporter.verification_status === 'flagged' ? 'bg-red-100 text-red-700' :
@@ -417,33 +417,45 @@ export default function SupporterDetailPage() {
               {supporter.verification_status === 'verified' ? 'Verified' :
                supporter.verification_status === 'flagged' ? 'Flagged' : 'Unverified'}
             </span>
-            {supporter.verification_status !== 'verified' && (
+            {canEdit && supporter.verification_status !== 'verified' && (
               <button
                 onClick={async () => {
-                  await verifySupporter(supporter.id, 'verified');
-                  refetch();
+                  try {
+                    await verifySupporter(supporter.id, 'verified');
+                    refetch();
+                  } catch {
+                    alert('Failed to verify supporter. You may not have permission.');
+                  }
                 }}
                 className="px-3 py-1 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
               >
                 Mark Verified
               </button>
             )}
-            {supporter.verification_status !== 'flagged' && (
+            {canEdit && supporter.verification_status !== 'flagged' && (
               <button
                 onClick={async () => {
-                  await verifySupporter(supporter.id, 'flagged');
-                  refetch();
+                  try {
+                    await verifySupporter(supporter.id, 'flagged');
+                    refetch();
+                  } catch {
+                    alert('Failed to flag supporter. You may not have permission.');
+                  }
                 }}
                 className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700"
               >
                 Flag
               </button>
             )}
-            {supporter.verification_status !== 'unverified' && (
+            {canEdit && supporter.verification_status !== 'unverified' && (
               <button
                 onClick={async () => {
-                  await verifySupporter(supporter.id, 'unverified');
-                  refetch();
+                  try {
+                    await verifySupporter(supporter.id, 'unverified');
+                    refetch();
+                  } catch {
+                    alert('Failed to reset verification. You may not have permission.');
+                  }
                 }}
                 className="px-3 py-1 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50"
               >

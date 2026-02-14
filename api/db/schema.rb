@@ -387,7 +387,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_14_042528) do
     t.datetime "updated_at", null: false
     t.string "verification_status", default: "unverified", null: false
     t.datetime "verified_at"
-    t.integer "verified_by_user_id"
+    t.bigint "verified_by_user_id"
     t.bigint "village_id", null: false
     t.boolean "yard_sign"
     t.index "lower((print_name)::text) gin_trgm_ops", name: "index_supporters_on_lower_print_name_trgm", using: :gin
