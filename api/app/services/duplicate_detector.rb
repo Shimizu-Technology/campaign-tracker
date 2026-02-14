@@ -13,14 +13,15 @@ class DuplicateDetector
     if supporter.contact_number.present?
       normalized = normalize_phone(supporter.contact_number)
       Supporter.where.not(id: supporter.id)
-               .where(contact_number: [supporter.contact_number, normalized].uniq)
+               .where(contact_number: [ supporter.contact_number, normalized ].uniq)
                .find_each { |s| matches << s.id }
 
       # Also check normalized versions in DB
       Supporter.where.not(id: supporter.id)
                .where.not(contact_number: nil)
-               .find_each do |s|
-        matches << s.id if normalize_phone(s.contact_number) == normalized
+               .pluck(:id, :contact_number)
+               .each do |(id, phone)|
+        matches << id if normalize_phone(phone) == normalized
       end
     end
 

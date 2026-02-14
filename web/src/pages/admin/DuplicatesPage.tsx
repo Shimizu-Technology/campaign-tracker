@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getDuplicates, resolveDuplicate, scanDuplicates, getVillages } from '../../lib/api';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, CheckCircle, Search, Users, Merge, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle, Search, Merge, X } from 'lucide-react';
 
 interface Supporter {
   id: number;
