@@ -279,6 +279,14 @@ class SpreadsheetParser
             uncertain: true,
             couple_note: "Couple entry — only importing \"#{second_part[0..-2].join(' ')} #{second_part[-1]}\". \"#{first_person}\" may need separate entry."
           }
+        else
+          # "Mel & Theresa" — no shared last name, just use second person's first name
+          return {
+            first: second_part[0] || first_person,
+            last: "",
+            uncertain: true,
+            couple_note: "Couple entry — \"#{first_person} & #{second_part[0]}\". Last name missing. \"#{first_person}\" may need separate entry."
+          }
         end
       end
 
