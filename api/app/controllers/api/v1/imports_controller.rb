@@ -152,6 +152,10 @@ module Api
           return render_api_error(message: "No rows to import", status: :bad_request, code: "empty_rows")
         end
 
+        if rows.size > 5000
+          return render_api_error(message: "Too many rows (#{rows.size}). Maximum is 5,000.", status: :unprocessable_entity, code: "too_many_rows")
+        end
+
         created = 0
         skipped = 0
         errors = []

@@ -183,7 +183,10 @@ class SpreadsheetParser
       return [] unless headers[:header_row]
 
       rows = []
-      ((headers[:header_row] + 1)..spreadsheet.last_row).each do |row_num|
+      last_row = spreadsheet.last_row || 0
+      return [] if last_row < headers[:header_row] + 1
+
+      ((headers[:header_row] + 1)..last_row).each do |row_num|
         break if rows.size >= limit
 
         raw = {}
@@ -296,7 +299,7 @@ class SpreadsheetParser
       when 0
         { first: "", last: "", uncertain: true }
       when 1
-        { first: words[0], last: words[0], uncertain: true }
+        { first: words[0], last: "", uncertain: true }
       when 2
         { first: words[0], last: words[1], uncertain: false }
       else

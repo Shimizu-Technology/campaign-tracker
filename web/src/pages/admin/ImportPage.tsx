@@ -290,7 +290,7 @@ export default function ImportPage() {
                       <option value="">— Skip —</option>
                       {rawHeaders.map((h, i) => (
                         <option key={i} value={i + 1}>
-                          Column {String.fromCharCode(65 + i)}: {h || `(column ${i + 1})`}
+                          Column {i < 26 ? String.fromCharCode(65 + i) : `${String.fromCharCode(64 + Math.floor(i / 26))}${String.fromCharCode(65 + (i % 26))}`}: {h || `(column ${i + 1})`}
                         </option>
                       ))}
                     </select>
