@@ -1,0 +1,252 @@
+# frozen_string_literal: true
+
+module Api
+  module V1
+    class ImportsController < ApplicationController
+      include Authenticatable
+      before_action :authenticate_request
+      before_action :require_coordinator_or_above!
+
+      # POST /api/v1/imports/preview
+      # Upload a file, parse it, return sheet metadata + sample rows for review.
+      def preview
+        file = params[:file]
+        unless file.respond_to?(:tempfile)
+          return render_api_error(
+            message: "No file uploaded",
+            status: :unprocessable_entity,
+            code: "missing_file"
+          )
+        end
+
+        unless valid_file_type?(file)
+          return render_api_error(
+            message: "Unsupported file type. Please upload .xlsx, .xls, or .csv",
+            status: :unprocessable_entity,
+            code: "invalid_file_type"
+          )
+        end
+
+        result = SpreadsheetParser.parse_metadata(
+          file.tempfile.path,
+          original_filename: file.original_filename
+        )
+
+        if result.errors.any?
+          return render_api_error(
+            message: result.errors.join("; "),
+            status: :unprocessable_entity,
+            code: "parse_error"
+          )
+        end
+
+        # Store the file temporarily for the confirm step
+        import_key = SecureRandom.hex(16)
+        tmp_path = Rails.root.join("tmp", "imports", "#{import_key}#{File.extname(file.original_filename)}")
+        FileUtils.mkdir_p(tmp_path.dirname)
+        FileUtils.cp(file.tempfile.path, tmp_path)
+
+        render json: {
+          import_key: import_key,
+          filename: file.original_filename,
+          sheets: result.sheets.map do |sheet|
+            {
+              name: sheet.name,
+              index: sheet.index,
+              row_count: sheet.row_count,
+              headers: sheet.headers,
+              sample_rows: sheet.sample_rows
+            }
+          end
+        }
+      end
+
+      # POST /api/v1/imports/parse
+      # Parse all rows from a specific sheet with column mapping. Returns full preview.
+      def parse
+        import_key = params[:import_key]
+        sheet_index = params[:sheet_index].to_i
+        column_mapping = params[:column_mapping]
+
+        unless import_key.present? && import_key.match?(/\A[a-f0-9]{32}\z/)
+          return render_api_error(message: "Invalid import key", status: :bad_request, code: "invalid_key")
+        end
+
+        file_path = find_import_file(import_key)
+        unless file_path
+          return render_api_error(message: "Import session expired. Please re-upload.", status: :gone, code: "expired")
+        end
+
+        unless column_mapping.is_a?(ActionController::Parameters) || column_mapping.is_a?(Hash)
+          return render_api_error(message: "column_mapping is required", status: :bad_request, code: "missing_mapping")
+        end
+
+        mapping = {
+          header_row: column_mapping[:header_row].to_i,
+          columns: (column_mapping[:columns] || {}).transform_values { |v| v.to_i }
+        }
+
+        result = SpreadsheetParser.parse_rows(
+          file_path,
+          sheet_index: sheet_index,
+          column_mapping: mapping,
+          original_filename: file_path
+        )
+
+        # Check for duplicates against existing supporters
+        result[:rows].each do |row|
+          next if row["_skip"]
+          next if row["first_name"].blank?
+
+          dupes = check_duplicates(row)
+          if dupes.any?
+            row["_duplicate_matches"] = dupes.map { |d| { id: d.id, name: d.display_name, phone: d.contact_number } }
+            row["_issues"] << "Possible duplicate: #{dupes.map(&:display_name).join(', ')}"
+          end
+        end
+
+        render json: {
+          rows: result[:rows],
+          issues: result[:issues],
+          total: result[:total],
+          valid_count: result[:rows].count { |r| !r["_skip"] && r["_issues"].empty? },
+          issue_count: result[:rows].count { |r| r["_issues"].any? },
+          skip_count: result[:rows].count { |r| r["_skip"] }
+        }
+      end
+
+      # POST /api/v1/imports/confirm
+      # Actually create supporter records from reviewed data.
+      def confirm
+        import_key = params[:import_key]
+        village_id = params[:village_id]
+        rows = params[:rows]
+
+        unless village_id.present?
+          return render_api_error(message: "village_id is required", status: :bad_request, code: "missing_village")
+        end
+
+        village = Village.find_by(id: village_id)
+        unless village
+          return render_api_error(message: "Village not found", status: :not_found, code: "village_not_found")
+        end
+
+        unless rows.is_a?(Array) && rows.any?
+          return render_api_error(message: "No rows to import", status: :bad_request, code: "empty_rows")
+        end
+
+        created = 0
+        skipped = 0
+        errors = []
+
+        ActiveRecord::Base.transaction do
+          rows.each_with_index do |row, idx|
+            next if row["_skip"]
+
+            supporter = Supporter.new(
+              first_name: row["first_name"],
+              last_name: row["last_name"],
+              contact_number: row["contact_number"],
+              dob: parse_date(row["dob"]),
+              email: row["email"],
+              street_address: row["street_address"],
+              registered_voter: row["registered_voter"],
+              village: village,
+              source: "bulk_import",
+              status: "active",
+              verification_status: "unverified",
+              entered_by: current_user
+            )
+
+            if supporter.save
+              created += 1
+            else
+              skipped += 1
+              errors << { row: row["_row"] || (idx + 1), errors: supporter.errors.full_messages }
+            end
+          end
+        end
+
+        # Clean up temp file
+        cleanup_import_file(import_key) if import_key.present?
+
+        log_audit!(nil, action: "bulk_import", changed_data: {
+          "village" => village.name,
+          "created" => created,
+          "skipped" => skipped,
+          "total_rows" => rows.size
+        })
+
+        render json: {
+          message: "Import complete",
+          created: created,
+          skipped: skipped,
+          errors: errors,
+          village: village.name
+        }
+      end
+
+      private
+
+      def valid_file_type?(file)
+        ext = File.extname(file.original_filename).downcase
+        %w[.xlsx .xls .csv].include?(ext)
+      end
+
+      def find_import_file(key)
+        dir = Rails.root.join("tmp", "imports")
+        return nil unless Dir.exist?(dir)
+
+        Dir.glob(dir.join("#{key}.*")).first
+      end
+
+      def cleanup_import_file(key)
+        file = find_import_file(key)
+        File.delete(file) if file && File.exist?(file)
+      end
+
+      def check_duplicates(row)
+        scope = Supporter.active
+
+        matches = []
+
+        # Phone match
+        if row["contact_number"].present?
+          phone_matches = scope.where(contact_number: row["contact_number"])
+          matches.concat(phone_matches.to_a)
+        end
+
+        # Name + village match (can't check village yet since it's assigned at confirm time)
+        if row["first_name"].present? && row["last_name"].present?
+          name_matches = scope.where(
+            "LOWER(first_name) = ? AND LOWER(last_name) = ?",
+            row["first_name"].downcase.strip,
+            row["last_name"].downcase.strip
+          )
+          matches.concat(name_matches.to_a)
+        end
+
+        matches.uniq(&:id).first(3) # Limit to 3 matches
+      end
+
+      def parse_date(str)
+        return nil if str.blank?
+        Date.parse(str)
+      rescue Date::Error, ArgumentError
+        nil
+      end
+
+      def log_audit!(record, action:, changed_data:)
+        AuditLog.create!(
+          auditable: record || current_user,
+          auditable_type: record ? record.class.name : "User",
+          user: current_user,
+          action: action,
+          changed_data: changed_data,
+          ip_address: request.remote_ip,
+          user_agent: request.user_agent
+        )
+      end
+    end
+  end
+end

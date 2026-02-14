@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getDashboard } from '../../lib/api';
 import { Link } from 'react-router-dom';
-import { Users, MapPin, TrendingUp, CalendarPlus, ClipboardPlus, BarChart3, QrCode, Trophy, MessageSquare, Shield, ChevronDown, Target, Copy } from 'lucide-react';
+import { Users, MapPin, TrendingUp, CalendarPlus, ClipboardPlus, BarChart3, QrCode, Trophy, MessageSquare, Shield, ChevronDown, Target, Copy, Upload } from 'lucide-react';
 import { UserButton } from '@clerk/clerk-react';
 import { useCampaignUpdates } from '../../hooks/useCampaignUpdates';
 import { useSession } from '../../hooks/useSession';
@@ -122,6 +122,7 @@ export default function DashboardPage() {
     ...(sessionData?.permissions?.can_manage_users ? [ { to: '/admin/users', label: 'Users', icon: Shield } ] : []),
     ...(sessionData?.permissions?.can_manage_configuration ? [ { to: '/admin/quotas', label: 'Quotas', icon: Target } ] : []),
     ...(sessionData?.permissions?.can_manage_configuration ? [ { to: '/admin/precincts', label: 'Precincts', icon: MapPin } ] : []),
+    ...(sessionData?.permissions?.can_view_supporters ? [ { to: '/admin/import', label: 'Import', icon: Upload } ] : []),
     ...(sessionData?.permissions?.can_view_supporters ? [ { to: '/admin/duplicates', label: 'Duplicates', icon: Copy } ] : []),
   ] as const;
 

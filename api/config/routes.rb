@@ -59,6 +59,11 @@ Rails.application.routes.draw do
         end
       end
 
+      # Bulk Import
+      post "imports/preview", to: "imports#preview"
+      post "imports/parse", to: "imports#parse"
+      post "imports/confirm", to: "imports#confirm"
+
       # Form Scanner (OCR)
       post "scan", to: "scan#create"
 
