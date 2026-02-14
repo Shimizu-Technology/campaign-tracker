@@ -231,7 +231,7 @@ module Authenticatable
 
   # Returns the village IDs this user is scoped to, or nil for full access
   def scoped_village_ids
-    return nil if current_user&.admin? || current_user&.coordinator? && current_user.assigned_district_id.blank?
+    return nil if current_user&.admin? || (current_user&.coordinator? && current_user.assigned_district_id.blank?)
 
     if current_user&.coordinator? && current_user.assigned_district_id.present?
       Village.where(district_id: current_user.assigned_district_id).pluck(:id)
