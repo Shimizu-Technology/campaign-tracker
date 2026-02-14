@@ -58,6 +58,17 @@ export const resolveDuplicate = (id: number, resolution: string, mergeIntoId?: n
   api.patch(`/supporters/${id}/resolve_duplicate`, { resolution, merge_into_id: mergeIntoId }).then(r => r.data);
 export const scanDuplicates = () =>
   api.post('/supporters/scan_duplicates').then(r => r.data);
+// Import
+export const uploadImportPreview = (file: File) => {
+  const form = new FormData();
+  form.append('file', file);
+  return api.post('/imports/preview', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
+};
+export const parseImportRows = (data: { import_key: string; sheet_index: number; column_mapping: Record<string, unknown> }) =>
+  api.post('/imports/parse', data).then(r => r.data);
+export const confirmImport = (data: { import_key: string; village_id: number; rows: Record<string, unknown>[] }) =>
+  api.post('/imports/confirm', data).then(r => r.data);
+
 export const checkDuplicate = (name: string, villageId: number, firstName?: string, lastName?: string) =>
   api.get('/supporters/check_duplicate', { params: { name, village_id: villageId, first_name: firstName, last_name: lastName } }).then(r => r.data);
 export const exportSupportersCsv = (params?: QueryParams) =>

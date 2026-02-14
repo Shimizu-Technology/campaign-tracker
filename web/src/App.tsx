@@ -27,6 +27,7 @@ const UsersPage = lazy(() => import('./pages/admin/UsersPage'));
 const QuotaSettingsPage = lazy(() => import('./pages/admin/QuotaSettingsPage'));
 const PrecinctSettingsPage = lazy(() => import('./pages/admin/PrecinctSettingsPage'));
 const DuplicatesPage = lazy(() => import('./pages/admin/DuplicatesPage'));
+const ImportPage = lazy(() => import('./pages/admin/ImportPage'));
 
 function LazyFallback() {
   return (
@@ -130,6 +131,16 @@ export default function App() {
               <AdminRoute>
                 <PermissionRoute permission="can_create_staff_supporters">
                   <StaffEntryPage />
+                </PermissionRoute>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/import"
+            element={
+              <AdminRoute>
+                <PermissionRoute permission="can_edit_supporters">
+                  <ImportPage />
                 </PermissionRoute>
               </AdminRoute>
             }
