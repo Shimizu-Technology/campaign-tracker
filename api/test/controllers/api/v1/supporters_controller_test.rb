@@ -13,7 +13,8 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
       clerk_id: "clerk-readonly",
       email: "readonly@example.com",
       name: "Read Only User",
-      role: "block_leader"
+      role: "block_leader",
+      assigned_village_id: @village.id
     )
     @poll_watcher = User.create!(
       clerk_id: "clerk-poll-watcher",

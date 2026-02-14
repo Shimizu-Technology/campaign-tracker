@@ -75,7 +75,7 @@ module Api
           )
         end
 
-        supporter = Supporter.find(params[:id])
+        supporter = scope_supporters(Supporter).find(params[:id])
         updates = supporter_update_params.to_h
         updates[:precinct_id] = nil if updates.key?(:precinct_id) && updates[:precinct_id].blank?
 
@@ -94,7 +94,7 @@ module Api
 
       # PATCH /api/v1/supporters/:id/verify
       def verify
-        supporter = Supporter.find(params[:id])
+        supporter = scope_supporters(Supporter).find(params[:id])
         new_status = params[:verification_status]
 
         unless Supporter::VERIFICATION_STATUSES.include?(new_status)
@@ -141,7 +141,7 @@ module Api
           )
         end
 
-        supporters = Supporter.where(id: ids)
+        supporters = scope_supporters(Supporter).where(id: ids)
         count = supporters.count
 
         # Capture old statuses before bulk update
@@ -167,7 +167,7 @@ module Api
 
       # GET /api/v1/supporters (authenticated)
       def index
-        supporters = Supporter.includes(:village, :precinct, :block)
+        supporters = scope_supporters(Supporter.includes(:village, :precinct, :block))
 
         # Filters
         supporters = supporters.where(village_id: params[:village_id]) if params[:village_id].present?
@@ -219,7 +219,7 @@ module Api
 
       # GET /api/v1/supporters/:id
       def show
-        supporter = Supporter.includes(:village, :precinct, :block, event_rsvps: :event).find(params[:id])
+        supporter = scope_supporters(Supporter.includes(:village, :precinct, :block, event_rsvps: :event)).find(params[:id])
         audit_logs = supporter.audit_logs.includes(:actor_user).recent.limit(50)
 
         render json: {
@@ -245,7 +245,7 @@ module Api
 
       # GET /api/v1/supporters/export
       def export
-        supporters = apply_export_filters(Supporter.includes(:village, :precinct).order(created_at: :desc))
+        supporters = apply_export_filters(scope_supporters(Supporter.includes(:village, :precinct).order(created_at: :desc)))
         total = supporters.count
 
         if total > MAX_EXPORT_ROWS
@@ -318,7 +318,7 @@ module Api
 
       # GET /api/v1/supporters/duplicates
       def duplicates
-        scope = Supporter.potential_duplicates_only.active
+        scope = scope_supporters(Supporter.potential_duplicates_only.active)
 
         # Optional village filter
         scope = scope.where(village_id: params[:village_id]) if params[:village_id].present?
@@ -334,7 +334,7 @@ module Api
 
       # PATCH /api/v1/supporters/:id/resolve_duplicate
       def resolve_duplicate
-        supporter = Supporter.find(params[:id])
+        supporter = scope_supporters(Supporter).find(params[:id])
         action = params[:resolution] # "dismiss" or "merge"
 
         unless %w[dismiss merge].include?(action)
@@ -347,7 +347,7 @@ module Api
 
         merge_into = nil
         if action == "merge"
-          merge_into = Supporter.find_by(id: params[:merge_into_id])
+          merge_into = scope_supporters(Supporter).find_by(id: params[:merge_into_id])
           unless merge_into
             return render_api_error(
               message: "merge_into_id supporter not found",

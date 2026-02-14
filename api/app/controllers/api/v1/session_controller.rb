@@ -13,7 +13,11 @@ module Api
             id: current_user.id,
             email: current_user.email,
             name: current_user.name,
-            role: current_user.role
+            role: current_user.role,
+            assigned_village_id: current_user.assigned_village_id,
+            assigned_district_id: current_user.assigned_district_id,
+            assigned_block_id: current_user.assigned_block_id,
+            scoped_village_ids: scoped_village_ids
           },
           permissions: {
             can_manage_users: can_manage_users?,

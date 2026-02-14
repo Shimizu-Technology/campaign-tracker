@@ -7,6 +7,10 @@ export interface SessionResponse {
     email: string;
     name: string | null;
     role: string;
+    assigned_village_id: number | null;
+    assigned_district_id: number | null;
+    assigned_block_id: number | null;
+    scoped_village_ids: number[] | null;
   };
   permissions: {
     can_manage_users: boolean;
