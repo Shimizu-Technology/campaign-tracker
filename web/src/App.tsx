@@ -23,6 +23,7 @@ const LeaderboardPage = lazy(() => import('./pages/admin/LeaderboardPage'));
 const PollWatcherPage = lazy(() => import('./pages/admin/PollWatcherPage'));
 const WarRoomPage = lazy(() => import('./pages/admin/WarRoomPage'));
 const SmsPage = lazy(() => import('./pages/admin/SmsPage'));
+const SmsSettingsPage = lazy(() => import('./pages/admin/SmsSettingsPage'));
 const UsersPage = lazy(() => import('./pages/admin/UsersPage'));
 const QuotaSettingsPage = lazy(() => import('./pages/admin/QuotaSettingsPage'));
 const PrecinctSettingsPage = lazy(() => import('./pages/admin/PrecinctSettingsPage'));
@@ -241,6 +242,16 @@ export default function App() {
               <AdminRoute>
                 <PermissionRoute permission="can_send_sms">
                   <SmsPage />
+                </PermissionRoute>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/sms/settings"
+            element={
+              <AdminRoute>
+                <PermissionRoute permission="can_manage_configuration">
+                  <SmsSettingsPage />
                 </PermissionRoute>
               </AdminRoute>
             }

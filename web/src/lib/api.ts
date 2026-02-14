@@ -129,4 +129,8 @@ export const updateUser = (id: number, data: JsonRecord) =>
   api.patch(`/users/${id}`, { user: data }).then(r => r.data);
 export const resendUserInvite = (id: number) => api.post(`/users/${id}/resend_invite`).then(r => r.data);
 
+// Settings
+export const getSettings = () => api.get('/settings').then(r => r.data);
+export const updateSettings = (data: JsonRecord) => api.patch('/settings', data).then(r => r.data);
+
 export default api;
