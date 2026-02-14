@@ -12,7 +12,8 @@ interface Village {
 }
 
 type StaffForm = {
-  print_name: string;
+  first_name: string;
+  last_name: string;
   contact_number: string;
   email: string;
   dob: string;
@@ -25,6 +26,8 @@ type StaffForm = {
 };
 
 type ExtractedScanData = Partial<{
+  first_name: string;
+  last_name: string;
   print_name: string;
   contact_number: string;
   email: string;
@@ -37,7 +40,8 @@ type ExtractedScanData = Partial<{
 }>;
 
 const emptyForm = {
-  print_name: '',
+  first_name: '',
+  last_name: '',
   contact_number: DEFAULT_GUAM_PHONE_PREFIX,
   email: '',
   dob: '',
@@ -66,12 +70,12 @@ export default function StaffEntryPage() {
   const [duplicateWarning, setDuplicateWarning] = useState('');
   const dupeTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
 
-  const checkForDuplicate = useCallback((name: string, villageId: string) => {
+  const checkForDuplicate = useCallback((name: string, villageId: string, firstName?: string, lastName?: string) => {
     if (dupeTimerRef.current) clearTimeout(dupeTimerRef.current);
     if (!name.trim() || !villageId) return;
     dupeTimerRef.current = setTimeout(async () => {
       try {
-        const result = await checkDuplicate(name.trim(), Number(villageId));
+        const result = await checkDuplicate(name.trim(), Number(villageId), firstName, lastName);
         if (result.duplicates && result.duplicates.length > 0) {
           const villageName = villages.find(v => v.id === Number(villageId))?.name || 'this village';
           setDuplicateWarning(`A supporter with this name already exists in ${villageName}`);
@@ -111,7 +115,22 @@ export default function StaffEntryPage() {
 
         // Auto-fill form with extracted data
         const updates: StaffForm = { ...emptyForm };
-        if (data.print_name) { updates.print_name = data.print_name; filled.add('print_name'); }
+        if (data.first_name) { updates.first_name = data.first_name; filled.add('first_name'); }
+        if (data.last_name) { updates.last_name = data.last_name; filled.add('last_name'); }
+        // Legacy: if OCR returns print_name but not first/last, try to split
+        if (data.print_name && !data.first_name && !data.last_name) {
+          const parts = data.print_name.includes(',')
+            ? data.print_name.split(',').map(s => s.trim()).reverse()
+            : data.print_name.trim().split(/\s+/);
+          if (parts.length >= 2) {
+            updates.first_name = parts[0];
+            updates.last_name = parts.slice(1).join(' ');
+          } else {
+            updates.last_name = parts[0];
+          }
+          filled.add('first_name');
+          filled.add('last_name');
+        }
         if (data.contact_number) { updates.contact_number = data.contact_number; filled.add('contact_number'); }
         if (data.email) { updates.email = data.email; filled.add('email'); }
         if (data.dob) { updates.dob = data.dob; filled.add('dob'); }
@@ -153,7 +172,7 @@ export default function StaffEntryPage() {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       setTimeout(() => setShowSuccess(false), 2000);
       // Focus name field for next entry
-      document.getElementById('print_name')?.focus();
+      document.getElementById('first_name')?.focus();
     },
   });
 
@@ -284,19 +303,33 @@ export default function StaffEntryPage() {
         </div>
 
         {/* Name */}
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
-          <input
-            id="print_name"
-            type="text"
-            required
-            autoFocus
-            value={form.print_name}
-            onChange={e => updateField('print_name', e.target.value)}
-            onBlur={() => checkForDuplicate(form.print_name, form.village_id)}
-            className={inputClass("print_name")}
-            placeholder="Print Name"
-          />
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+            <input
+              id="first_name"
+              type="text"
+              required
+              autoFocus
+              value={form.first_name}
+              onChange={e => updateField('first_name', e.target.value)}
+              className={inputClass("first_name")}
+              placeholder="First Name"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+            <input
+              id="last_name"
+              type="text"
+              required
+              value={form.last_name}
+              onChange={e => updateField('last_name', e.target.value)}
+              onBlur={() => checkForDuplicate(`${form.first_name} ${form.last_name}`, form.village_id, form.first_name, form.last_name)}
+              className={inputClass("last_name")}
+              placeholder="Last Name"
+            />
+          </div>
         </div>
 
         {/* Phone */}

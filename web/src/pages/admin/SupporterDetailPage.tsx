@@ -13,6 +13,8 @@ interface VillageOption {
 
 interface SupporterDetail {
   id: number;
+  first_name: string;
+  last_name: string;
   print_name: string;
   contact_number: string;
   email: string | null;
@@ -49,6 +51,8 @@ interface SupporterPermissions {
 
 const AUDIT_FIELD_LABELS: Record<string, string> = {
   id: 'Record ID',
+  first_name: 'First Name',
+  last_name: 'Last Name',
   print_name: 'Name',
   contact_number: 'Phone',
   email: 'Email',
@@ -118,7 +122,8 @@ export default function SupporterDetailPage() {
   const baseForm = useMemo(() => {
     if (!supporter) return null;
     return {
-      print_name: supporter.print_name,
+      first_name: supporter.first_name,
+      last_name: supporter.last_name,
       contact_number: supporter.contact_number,
       email: supporter.email || '',
       dob: supporter.dob || '',
@@ -218,7 +223,7 @@ export default function SupporterDetailPage() {
             </button>
           </div>
           <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <UserRound className="w-5 h-5" /> {supporter.print_name}
+            <UserRound className="w-5 h-5" /> {supporter.first_name} {supporter.last_name}
           </h1>
           <p className="text-blue-200 text-sm">
             Signed up {formatDateTime(supporter.created_at)} · {supporter.source === 'qr_signup' ? 'Public Signup' : 'Staff Entry'}
@@ -267,11 +272,18 @@ export default function SupporterDetailPage() {
           )}
           <div className="grid md:grid-cols-2 gap-3">
             <input
-              value={String(currentForm.print_name || '')}
-              onChange={(e) => updateDraft({ print_name: e.target.value })}
+              value={String(currentForm.first_name || '')}
+              onChange={(e) => updateDraft({ first_name: e.target.value })}
               className="border border-gray-300 rounded-xl px-3 py-2 disabled:bg-gray-50 disabled:text-gray-700"
               disabled={!isEditing}
-              placeholder="Full Name"
+              placeholder="First Name"
+            />
+            <input
+              value={String(currentForm.last_name || '')}
+              onChange={(e) => updateDraft({ last_name: e.target.value })}
+              className="border border-gray-300 rounded-xl px-3 py-2 disabled:bg-gray-50 disabled:text-gray-700"
+              disabled={!isEditing}
+              placeholder="Last Name"
             />
             <input
               value={String(currentForm.contact_number || '')}

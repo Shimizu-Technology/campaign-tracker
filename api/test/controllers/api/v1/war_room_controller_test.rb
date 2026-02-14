@@ -18,7 +18,7 @@ class Api::V1::WarRoomControllerTest < ActionDispatch::IntegrationTest
     PollReport.create!(precinct: @precinct_b, voter_count: 30, report_type: "turnout_update", reported_at: Time.current)
 
     @supporter_a1 = Supporter.create!(
-      print_name: "Supporter A1",
+      first_name: "Supporter", last_name: "A1", print_name: "Supporter A1",
       contact_number: "6715552101",
       village: @village_a,
       precinct: @precinct_a,
@@ -27,7 +27,7 @@ class Api::V1::WarRoomControllerTest < ActionDispatch::IntegrationTest
       turnout_status: "not_yet_voted"
     )
     @supporter_a2 = Supporter.create!(
-      print_name: "Supporter A2",
+      first_name: "Supporter", last_name: "A2", print_name: "Supporter A2",
       contact_number: "6715552102",
       village: @village_a,
       precinct: @precinct_a,
@@ -36,7 +36,7 @@ class Api::V1::WarRoomControllerTest < ActionDispatch::IntegrationTest
       turnout_status: "voted"
     )
     @supporter_b1 = Supporter.create!(
-      print_name: "Supporter B1",
+      first_name: "Supporter", last_name: "B1", print_name: "Supporter B1",
       contact_number: "6715552201",
       village: @village_b,
       precinct: @precinct_b,

@@ -143,7 +143,7 @@ module Api
         if params[:search].present?
           query = "%#{params[:search].to_s.downcase.strip}%"
           supporters = supporters.where(
-            "LOWER(print_name) LIKE :q OR regexp_replace(contact_number, '\\D', '', 'g') LIKE :q",
+            "LOWER(print_name) LIKE :q OR LOWER(first_name) LIKE :q OR LOWER(last_name) LIKE :q OR regexp_replace(contact_number, '\\D', '', 'g') LIKE :q",
             q: query
           )
         end
@@ -352,6 +352,8 @@ module Api
         latest_attempt = supporter.supporter_contact_attempts.max_by(&:recorded_at)
         {
           id: supporter.id,
+          first_name: supporter.first_name,
+          last_name: supporter.last_name,
           print_name: supporter.print_name,
           contact_number: supporter.contact_number,
           precinct_id: supporter.precinct_id,

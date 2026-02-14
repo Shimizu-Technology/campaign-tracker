@@ -17,7 +17,9 @@ class FormScanner
     Fields may be handwritten or printed. Extract what you can read.
 
     Extract these fields (return null for any field you cannot read):
-    - print_name: Full printed name
+    - first_name: First/given name
+    - last_name: Last/family name
+    - print_name: Full printed name (if first/last not clearly separable)
     - contact_number: Phone number (Guam numbers are typically 671-XXX-XXXX)
     - email: Email address
     - street_address: Street/home address
@@ -38,7 +40,7 @@ class FormScanner
     If you see multiple forms, extract only the first/most prominent one.
 
     Example response:
-    {"print_name":"Juan Cruz","contact_number":"671-555-1234","email":null,"street_address":"123 Marine Corps Dr","dob":"1985-03-15","village":"Tamuning","precinct_number":"17","registered_voter":true,"yard_sign":false,"motorcade_available":true}
+    {"first_name":"Juan","last_name":"Cruz","contact_number":"671-555-1234","email":null,"street_address":"123 Marine Corps Dr","dob":"1985-03-15","village":"Tamuning","precinct_number":"17","registered_voter":true,"yard_sign":false,"motorcade_available":true}
   PROMPT
 
   class << self

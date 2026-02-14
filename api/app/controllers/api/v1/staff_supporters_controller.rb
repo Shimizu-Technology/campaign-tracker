@@ -15,12 +15,12 @@ module Api
         supporter.entered_by_user_id = current_user.id
 
         # Check for duplicates
-        dupes = Supporter.potential_duplicates(supporter.print_name, supporter.village_id)
+        dupes = Supporter.potential_duplicates(supporter.print_name, supporter.village_id, first_name: supporter.first_name, last_name: supporter.last_name)
         if dupes.exists? && params[:force] != "true"
           return render json: {
             duplicate_warning: true,
             message: "Possible duplicate found. Submit with force=true to override.",
-            duplicates: dupes.map { |s| { id: s.id, print_name: s.print_name, contact_number: s.contact_number, village: s.village&.name } }
+            duplicates: dupes.map { |s| { id: s.id, first_name: s.first_name, last_name: s.last_name, print_name: s.print_name, contact_number: s.contact_number, village: s.village&.name } }
           }, status: :conflict
         end
 
@@ -35,7 +35,7 @@ module Api
 
       def staff_supporter_params
         params.require(:supporter).permit(
-          :print_name, :contact_number, :dob, :email, :street_address,
+          :first_name, :last_name, :print_name, :contact_number, :dob, :email, :street_address,
           :village_id, :precinct_id, :block_id,
           :registered_voter, :yard_sign, :motorcade_available
         )
@@ -44,6 +44,8 @@ module Api
       def supporter_json(supporter)
         {
           id: supporter.id,
+          first_name: supporter.first_name,
+          last_name: supporter.last_name,
           print_name: supporter.print_name,
           contact_number: supporter.contact_number,
           village_name: supporter.village&.name,

@@ -14,7 +14,7 @@ class SupporterTest < ActiveSupport::TestCase
 
   test "is valid when precinct and village match" do
     supporter = Supporter.new(
-      print_name: "Valid Supporter",
+      first_name: "Valid", last_name: "Supporter", print_name: "Valid Supporter",
       contact_number: "6715551000",
       village: @village_one,
       precinct: @precinct_one,
@@ -27,7 +27,7 @@ class SupporterTest < ActiveSupport::TestCase
 
   test "is invalid when precinct belongs to different village" do
     supporter = Supporter.new(
-      print_name: "Invalid Precinct Supporter",
+      first_name: "Invalid", last_name: "Precinct Supporter", print_name: "Invalid Precinct Supporter",
       contact_number: "6715551001",
       village: @village_one,
       precinct: @precinct_two,
@@ -41,7 +41,7 @@ class SupporterTest < ActiveSupport::TestCase
 
   test "is invalid when block belongs to different village" do
     supporter = Supporter.new(
-      print_name: "Invalid Block Supporter",
+      first_name: "Invalid", last_name: "Block Supporter", print_name: "Invalid Block Supporter",
       contact_number: "6715551002",
       village: @village_one,
       block: @block_two,
@@ -55,7 +55,7 @@ class SupporterTest < ActiveSupport::TestCase
 
   test "is valid when block and village match" do
     supporter = Supporter.new(
-      print_name: "Valid Block Supporter",
+      first_name: "Valid", last_name: "Block Supporter", print_name: "Valid Block Supporter",
       contact_number: "6715551003",
       village: @village_one,
       block: @block_one,

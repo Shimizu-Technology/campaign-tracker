@@ -13,8 +13,16 @@ class Supporter < ApplicationRecord
   has_many :audit_logs, as: :auditable, dependent: :destroy
   has_many :supporter_contact_attempts, dependent: :destroy
 
-  validates :print_name, presence: true
+  validates :first_name, presence: true
+  validates :last_name, presence: true
   validates :contact_number, presence: true
+
+  # Keep print_name in sync as "Last, First" for display and backward compatibility
+  before_validation :sync_print_name
+
+  def display_name
+    [ first_name, last_name ].compact_blank.join(" ")
+  end
   validates :status, inclusion: { in: %w[active inactive duplicate unverified] }
   validates :source, inclusion: { in: %w[staff_entry qr_signup referral bulk_import] }, allow_nil: true
   validates :turnout_status, inclusion: { in: TURNOUT_STATUSES }
@@ -29,12 +37,18 @@ class Supporter < ApplicationRecord
   scope :today, -> { where("supporters.created_at >= ?", Time.current.beginning_of_day) }
   scope :this_week, -> { where("supporters.created_at >= ?", Time.current.beginning_of_week) }
 
-  def self.potential_duplicates(name, village_id)
-    return none if name.blank? || village_id.blank?
+  def self.potential_duplicates(name, village_id, first_name: nil, last_name: nil)
+    return none if village_id.blank?
 
-    where(village_id: village_id)
-      .where("LOWER(print_name) = ?", name.downcase.strip)
-      .active
+    scope = where(village_id: village_id).active
+
+    if first_name.present? && last_name.present?
+      scope.where("LOWER(first_name) = ? AND LOWER(last_name) = ?", first_name.downcase.strip, last_name.downcase.strip)
+    elsif name.present?
+      scope.where("LOWER(print_name) = ?", name.downcase.strip)
+    else
+      none
+    end
   end
 
   # Engagement metrics
@@ -53,6 +67,32 @@ class Supporter < ApplicationRecord
   end
 
   private
+
+  def sync_print_name
+    # If first/last are blank but print_name was provided, auto-split for backward compatibility
+    if first_name.blank? && last_name.blank? && print_name.present?
+      if print_name.include?(",")
+        # "Last, First" format
+        parts = print_name.split(",", 2).map(&:strip)
+        self.last_name = parts[0]
+        self.first_name = parts[1]
+      else
+        # "First Last" format
+        parts = print_name.strip.split(/\s+/, 2)
+        self.first_name = parts[0]
+        self.last_name = parts[1] || parts[0]
+      end
+    end
+
+    # Keep print_name in sync from first/last
+    if first_name.present? && last_name.present?
+      self.print_name = "#{last_name}, #{first_name}"
+    elsif last_name.present?
+      self.print_name = last_name
+    elsif first_name.present?
+      self.print_name = first_name
+    end
+  end
 
   def precinct_matches_village
     return if precinct.blank? || village_id.blank?

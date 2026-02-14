@@ -9,6 +9,8 @@ class CampaignBroadcast
     def new_supporter(supporter)
       broadcast(:new_supporter, {
         supporter_id: supporter.id,
+        first_name: supporter.first_name,
+        last_name: supporter.last_name,
         print_name: supporter.print_name,
         village_id: supporter.village_id,
         village_name: supporter.village&.name,

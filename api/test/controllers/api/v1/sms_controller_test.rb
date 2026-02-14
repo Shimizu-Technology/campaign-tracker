@@ -46,7 +46,7 @@ class Api::V1::SmsControllerTest < ActionDispatch::IntegrationTest
 
   test "coordinator can queue blast" do
     Supporter.create!(
-      print_name: "Blast Target",
+      first_name: "Blast", last_name: "Target", print_name: "Blast Target",
       contact_number: "6715552000",
       village: Village.create!(name: "Blast Village"),
       source: "staff_entry",

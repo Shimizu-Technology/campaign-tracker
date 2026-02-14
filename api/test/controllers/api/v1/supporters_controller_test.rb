@@ -24,7 +24,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
 
     250.times do |idx|
       Supporter.create!(
-        print_name: "Supporter #{idx}",
+        first_name: "Supporter", last_name: "#{idx}", print_name: "Supporter #{idx}",
         contact_number: "671555#{format('%04d', idx)}",
         village: @village,
         source: "staff_entry",
@@ -69,7 +69,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     post "/api/v1/supporters",
       params: {
         supporter: {
-          print_name: "Single Precinct Supporter",
+          first_name: "Single", last_name: "Precinct Supporter", print_name: "Single Precinct Supporter",
           contact_number: "6715557000",
           village_id: single_village.id,
           precinct_id: nil,
@@ -85,7 +85,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
   test "authenticated user can assign supporter precinct" do
     target_precinct = Precinct.create!(number: "SP-2", village: @village, registered_voters: 100)
     supporter = Supporter.create!(
-      print_name: "Needs Assignment",
+      first_name: "Needs", last_name: "Assignment", print_name: "Needs Assignment",
       contact_number: "6715557001",
       village: @village,
       precinct: nil,
@@ -106,7 +106,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     post "/api/v1/supporters",
       params: {
         supporter: {
-          print_name: "Public Signup",
+          first_name: "Public", last_name: "Signup", print_name: "Public Signup",
           contact_number: "6715558000",
           village_id: @village.id,
           registered_voter: true
@@ -129,7 +129,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     post "/api/v1/supporters?entry_mode=staff",
       params: {
         supporter: {
-          print_name: "Staff Signup",
+          first_name: "Staff", last_name: "Signup", print_name: "Staff Signup",
           contact_number: "6715558001",
           village_id: @village.id,
           registered_voter: true
@@ -146,7 +146,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
   test "index can filter by precinct and unassigned precinct" do
     precinct = Precinct.create!(number: "SP-3", village: @village, registered_voters: 100)
     assigned = Supporter.create!(
-      print_name: "Assigned Supporter",
+      first_name: "Assigned", last_name: "Supporter", print_name: "Assigned Supporter",
       contact_number: "6715557002",
       village: @village,
       precinct: precinct,
@@ -154,7 +154,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
       status: "active"
     )
     unassigned = Supporter.create!(
-      print_name: "Unassigned Supporter",
+      first_name: "Unassigned", last_name: "Supporter", print_name: "Unassigned Supporter",
       contact_number: "6715557003",
       village: @village,
       precinct: nil,
@@ -183,14 +183,14 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
 
   test "index supports sorting by print_name ascending" do
     Supporter.create!(
-      print_name: "Sort Test Zulu",
+      first_name: "Sort", last_name: "Test Zulu", print_name: "Sort Test Zulu",
       contact_number: "6715559100",
       village: @village,
       source: "staff_entry",
       status: "active"
     )
     Supporter.create!(
-      print_name: "Sort Test Alpha",
+      first_name: "Sort", last_name: "Test Alpha", print_name: "Sort Test Alpha",
       contact_number: "6715559101",
       village: @village,
       source: "staff_entry",
@@ -198,19 +198,23 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     )
 
     get "/api/v1/supporters",
-      params: { search: "Sort Test", sort_by: "print_name", sort_dir: "asc" },
+      params: { search: "Sort", sort_by: "print_name", sort_dir: "asc" },
       headers: auth_headers(@user)
 
     assert_response :success
     payload = JSON.parse(response.body)
-    names = payload.fetch("supporters").map { |s| s.fetch("print_name") }
-    assert_equal "Sort Test Alpha", names.first
-    assert_equal "Sort Test Zulu", names.last
+    # Filter to just our test supporters (search "Sort" may match others)
+    test_names = payload.fetch("supporters")
+      .map { |s| s.fetch("print_name") }
+      .select { |n| n.include?("Sort") }
+    # print_name is "Last, First" format from sync_print_name
+    assert_equal "Test Alpha, Sort", test_names.first
+    assert_equal "Test Zulu, Sort", test_names.last
   end
 
   test "show returns supporter details and audit logs" do
     supporter = Supporter.create!(
-      print_name: "Show Supporter",
+      first_name: "Show", last_name: "Supporter", print_name: "Show Supporter",
       contact_number: "6715559000",
       village: @village,
       source: "staff_entry",
@@ -238,7 +242,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
   test "update creates audit log entry" do
     precinct = Precinct.create!(number: "SP-4", village: @village, registered_voters: 100)
     supporter = Supporter.create!(
-      print_name: "Audit Supporter",
+      first_name: "Audit", last_name: "Supporter", print_name: "Audit Supporter",
       contact_number: "6715559001",
       village: @village,
       source: "staff_entry",
@@ -261,7 +265,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
   test "update is forbidden for non editor roles" do
     precinct = Precinct.create!(number: "SP-5", village: @village, registered_voters: 100)
     supporter = Supporter.create!(
-      print_name: "Read Only Supporter",
+      first_name: "Read", last_name: "Only Supporter", print_name: "Read Only Supporter",
       contact_number: "6715559002",
       village: @village,
       source: "staff_entry",
@@ -279,7 +283,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
 
   test "show returns edit permissions false for non editor roles" do
     supporter = Supporter.create!(
-      print_name: "Show Read Only",
+      first_name: "Show", last_name: "Read Only", print_name: "Show Read Only",
       contact_number: "6715559003",
       village: @village,
       source: "staff_entry",

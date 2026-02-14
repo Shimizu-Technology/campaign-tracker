@@ -20,6 +20,8 @@ interface VillageOption {
 
 interface SupporterItem {
   id: number;
+  first_name: string;
+  last_name: string;
   print_name: string;
   contact_number: string;
   village_id: number;
@@ -400,7 +402,7 @@ export default function SupportersPage() {
             <div key={s.id} className="app-card p-4">
               <div className="flex items-center justify-between mb-1">
                 <Link to={supporterDetailLink(s.id)} className="font-semibold text-gray-900 hover:underline">
-                  {s.print_name}
+                  {s.last_name}, {s.first_name}
                 </Link>
                 <span className={`app-chip ${
                   s.source === 'qr_signup' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
@@ -486,8 +488,8 @@ export default function SupportersPage() {
                   className="border-b hover:bg-gray-50"
                 >
                   <td className="px-4 py-3 font-medium text-gray-900 max-w-[240px]">
-                    <Link to={supporterDetailLink(s.id)} className="hover:underline block truncate" title={s.print_name}>
-                      {s.print_name}
+                    <Link to={supporterDetailLink(s.id)} className="hover:underline block truncate" title={`${s.last_name}, ${s.first_name}`}>
+                      {s.last_name}, {s.first_name}
                     </Link>
                   </td>
                   <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{s.contact_number}</td>

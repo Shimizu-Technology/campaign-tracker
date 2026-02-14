@@ -44,7 +44,7 @@ class Api::V1::PollWatcherControllerTest < ActionDispatch::IntegrationTest
     )
 
     @supporter_assigned = Supporter.create!(
-      print_name: "Assigned Supporter",
+      first_name: "Assigned", last_name: "Supporter", print_name: "Assigned Supporter",
       contact_number: "6715551111",
       village: @village_one,
       precinct: @precinct_one,
@@ -52,7 +52,7 @@ class Api::V1::PollWatcherControllerTest < ActionDispatch::IntegrationTest
       status: "active"
     )
     @supporter_unassigned = Supporter.create!(
-      print_name: "Unassigned Supporter",
+      first_name: "Unassigned", last_name: "Supporter", print_name: "Unassigned Supporter",
       contact_number: "6715552222",
       village: @village_two,
       precinct: @precinct_two,
