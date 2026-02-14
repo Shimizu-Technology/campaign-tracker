@@ -50,6 +50,8 @@ module Api
           print_name: supporter.print_name,
           contact_number: supporter.contact_number,
           village_name: supporter.village&.name,
+          opt_in_email: supporter.opt_in_email,
+          opt_in_text: supporter.opt_in_text,
           source: supporter.source,
           status: supporter.status,
           created_at: supporter.created_at&.iso8601
