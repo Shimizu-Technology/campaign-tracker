@@ -57,7 +57,7 @@ module Api
         FileUtils.cp(file.tempfile.path, tmp_path)
 
         # Clean up any stale temp files older than 1 hour
-        cleanup_stale_imports!
+        cleanup_stale_imports!(exclude_key: import_key)
 
         render json: {
           import_key: import_key,
@@ -171,6 +171,7 @@ module Api
             village: village,
             source: "bulk_import",
             status: "active",
+            turnout_status: "unknown",
             verification_status: "unverified",
             entered_by: current_user
           )
@@ -221,11 +222,12 @@ module Api
         File.delete(file) if file && File.exist?(file)
       end
 
-      def cleanup_stale_imports!
+      def cleanup_stale_imports!(exclude_key: nil)
         dir = Rails.root.join("tmp", "imports")
         return unless Dir.exist?(dir)
 
         Dir.glob(dir.join("*")).each do |f|
+          next if exclude_key && File.basename(f).start_with?(exclude_key)
           File.delete(f) if File.mtime(f) < 1.hour.ago
         end
       rescue StandardError => e
