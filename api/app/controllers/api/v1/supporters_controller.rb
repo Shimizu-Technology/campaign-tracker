@@ -75,7 +75,7 @@ module Api
           )
         end
 
-        supporter = Supporter.find(params[:id])
+        supporter = scope_supporters(Supporter).find(params[:id])
         updates = supporter_update_params.to_h
         updates[:precinct_id] = nil if updates.key?(:precinct_id) && updates[:precinct_id].blank?
 
@@ -94,7 +94,7 @@ module Api
 
       # PATCH /api/v1/supporters/:id/verify
       def verify
-        supporter = Supporter.find(params[:id])
+        supporter = scope_supporters(Supporter).find(params[:id])
         new_status = params[:verification_status]
 
         unless Supporter::VERIFICATION_STATUSES.include?(new_status)
@@ -219,7 +219,7 @@ module Api
 
       # GET /api/v1/supporters/:id
       def show
-        supporter = Supporter.includes(:village, :precinct, :block, event_rsvps: :event).find(params[:id])
+        supporter = scope_supporters(Supporter.includes(:village, :precinct, :block, event_rsvps: :event)).find(params[:id])
         audit_logs = supporter.audit_logs.includes(:actor_user).recent.limit(50)
 
         render json: {
@@ -334,7 +334,7 @@ module Api
 
       # PATCH /api/v1/supporters/:id/resolve_duplicate
       def resolve_duplicate
-        supporter = Supporter.find(params[:id])
+        supporter = scope_supporters(Supporter).find(params[:id])
         action = params[:resolution] # "dismiss" or "merge"
 
         unless %w[dismiss merge].include?(action)
