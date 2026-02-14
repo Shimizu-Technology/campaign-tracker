@@ -21,7 +21,7 @@ class Supporter < ApplicationRecord
   before_validation :sync_print_name
 
   def display_name
-    [first_name, last_name].compact_blank.join(" ")
+    [ first_name, last_name ].compact_blank.join(" ")
   end
   validates :status, inclusion: { in: %w[active inactive duplicate unverified] }
   validates :source, inclusion: { in: %w[staff_entry qr_signup referral bulk_import] }, allow_nil: true
