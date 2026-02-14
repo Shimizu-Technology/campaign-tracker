@@ -44,7 +44,7 @@ module Api
           log_audit!(supporter, action: "created", changed_data: supporter.saved_changes.except("updated_at"))
 
           # Queue welcome SMS so signup response is not blocked by external API latency.
-          if supporter.contact_number.present?
+          if supporter.contact_number.present? && supporter.opt_in_text
             SendSmsJob.perform_later(
               to: supporter.contact_number,
               body: SmsService.welcome_supporter_body(supporter)
