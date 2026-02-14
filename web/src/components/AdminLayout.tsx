@@ -3,6 +3,24 @@ import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../lib/api';
 
+function hasSufficientTokenLifetime(authHeader: string, minimumSecondsRemaining = 5): boolean {
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  const parts = token.split('.');
+  if (parts.length !== 3) return false;
+
+  try {
+    const payloadBase64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+    const decodedPayload = atob(payloadBase64.padEnd(Math.ceil(payloadBase64.length / 4) * 4, '='));
+    const payload = JSON.parse(decodedPayload) as { exp?: number };
+    if (typeof payload.exp !== 'number') return false;
+
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    return payload.exp - nowSeconds > minimumSecondsRemaining;
+  } catch {
+    return false;
+  }
+}
+
 // Set auth token on API client whenever it changes
 function AuthTokenSync({ onReady }: { onReady: () => void }) {
   const { getToken, isLoaded, isSignedIn } = useAuth();
@@ -64,7 +82,11 @@ function AuthTokenSync({ onReady }: { onReady: () => void }) {
         headers?.authorization ||
         (api.defaults.headers.common['Authorization'] as string | undefined);
 
-      if (typeof existingAuthHeader === 'string' && existingAuthHeader.startsWith('Bearer ')) {
+      if (
+        typeof existingAuthHeader === 'string' &&
+        existingAuthHeader.startsWith('Bearer ') &&
+        hasSufficientTokenLifetime(existingAuthHeader)
+      ) {
         return config;
       }
 
