@@ -69,6 +69,22 @@ class Supporter < ApplicationRecord
   private
 
   def sync_print_name
+    # If first/last are blank but print_name was provided, auto-split for backward compatibility
+    if first_name.blank? && last_name.blank? && print_name.present?
+      if print_name.include?(",")
+        # "Last, First" format
+        parts = print_name.split(",", 2).map(&:strip)
+        self.last_name = parts[0]
+        self.first_name = parts[1]
+      else
+        # "First Last" format
+        parts = print_name.strip.split(/\s+/, 2)
+        self.first_name = parts[0]
+        self.last_name = parts[1] || parts[0]
+      end
+    end
+
+    # Keep print_name in sync from first/last
     if first_name.present? && last_name.present?
       self.print_name = "#{last_name}, #{first_name}"
     elsif last_name.present?
