@@ -104,7 +104,7 @@ export default function ImportPage() {
   const handleFile = useCallback((file: File) => {
     const ext = file.name.split('.').pop()?.toLowerCase();
     if (!['xlsx', 'xls', 'csv'].includes(ext || '')) {
-      setFileError('Please upload an .xlsx, .xls, or .csv file');
+      setFileError('Please upload an .xlsx or .csv file');
       return;
     }
     setFileError('');
@@ -216,13 +216,13 @@ export default function ImportPage() {
                 <>
                   <FileSpreadsheet className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-lg font-medium text-gray-700 mb-2">Drop your spreadsheet here</p>
-                  <p className="text-sm text-gray-500 mb-4">Supports .xlsx, .xls, and .csv files</p>
+                  <p className="text-sm text-gray-500 mb-4">Supports .xlsx and .csv files</p>
                   <label className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#1B3A6B] text-white rounded-lg hover:bg-[#15305a] cursor-pointer">
                     <Upload className="w-4 h-4" />
                     Choose File
                     <input
                       type="file"
-                      accept=".xlsx,.xls,.csv"
+                      accept=".xlsx,.csv"
                       className="hidden"
                       onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
                     />
@@ -460,6 +460,11 @@ export default function ImportPage() {
               </table>
             </div>
 
+            {confirmMutation.isError && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">
+                {(confirmMutation.error as Error)?.message || 'Import failed. Please try again.'}
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <button onClick={() => setStep('map-columns')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
                 <ArrowLeft className="w-4 h-4" /> Back to mapping
@@ -485,11 +490,6 @@ export default function ImportPage() {
                   )}
                 </button>
               </div>
-              {confirmMutation.isError && (
-                <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">
-                  {(confirmMutation.error as Error)?.message || 'Import failed. Please try again.'}
-                </div>
-              )}
             </div>
           </div>
         )}

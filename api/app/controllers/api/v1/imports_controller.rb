@@ -21,7 +21,7 @@ module Api
 
         unless valid_file_type?(file)
           return render_api_error(
-            message: "Unsupported file type. Please upload .xlsx, .xls, or .csv",
+            message: "Unsupported file type. Please upload .xlsx or .csv",
             status: :unprocessable_entity,
             code: "invalid_file_type"
           )
@@ -134,6 +134,10 @@ module Api
         import_key = params[:import_key]
         village_id = params[:village_id]
         rows = params[:rows]
+
+        unless import_key.present? && import_key.match?(/\A[a-f0-9]{32}\z/)
+          return render_api_error(message: "Invalid import key", status: :bad_request, code: "invalid_key")
+        end
 
         unless village_id.present?
           return render_api_error(message: "village_id is required", status: :bad_request, code: "missing_village")

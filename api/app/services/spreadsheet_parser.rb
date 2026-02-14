@@ -60,12 +60,15 @@ class SpreadsheetParser
     issues = []
 
     max_rows = 5000
-    total_data_rows = spreadsheet.last_row - header_row
+    last_row = spreadsheet.last_row || 0
+    total_data_rows = [ last_row - header_row, 0 ].max
     if total_data_rows > max_rows
       return { rows: [], issues: [ "Spreadsheet has #{total_data_rows} rows, exceeding the #{max_rows} row limit. Please split into smaller files." ], total: 0 }
     end
 
-    ((header_row + 1)..spreadsheet.last_row).each do |row_num|
+    return { rows: [], issues: [], total: 0 } if last_row < header_row + 1
+
+    ((header_row + 1)..last_row).each do |row_num|
       raw = {}
       column_mapping[:columns].each do |field, col_index|
         next if col_index.nil? || col_index < 1
@@ -92,7 +95,7 @@ class SpreadsheetParser
       when ".xlsx"
         Roo::Excelx.new(file_path)
       when ".xls"
-        Roo::Excel.new(file_path)
+        raise ArgumentError, "Legacy .xls format is not supported. Please save as .xlsx and re-upload."
       when ".csv"
         Roo::CSV.new(file_path)
       else
