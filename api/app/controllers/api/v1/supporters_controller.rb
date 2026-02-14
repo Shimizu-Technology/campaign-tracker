@@ -141,7 +141,7 @@ module Api
           )
         end
 
-        supporters = Supporter.where(id: ids)
+        supporters = scope_supporters(Supporter).where(id: ids)
         count = supporters.count
 
         # Capture old statuses before bulk update
