@@ -585,7 +585,7 @@ export default function SupportersPage() {
               ))}
               {supportersRows.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
+                  <td colSpan={9} className="px-4 py-8 text-center text-gray-400">
                     No supporters found
                   </td>
                 </tr>
