@@ -46,6 +46,9 @@ module Api
         FileUtils.mkdir_p(tmp_path.dirname)
         FileUtils.cp(file.tempfile.path, tmp_path)
 
+        # Clean up any stale temp files older than 1 hour
+        cleanup_stale_imports!
+
         render json: {
           import_key: import_key,
           filename: file.original_filename,
@@ -139,31 +142,30 @@ module Api
         skipped = 0
         errors = []
 
-        ActiveRecord::Base.transaction do
-          rows.each_with_index do |row, idx|
-            next if row["_skip"]
+        # Partial import: each row saved independently so valid rows aren't blocked by bad ones
+        rows.each_with_index do |row, idx|
+          next if row["_skip"]
 
-            supporter = Supporter.new(
-              first_name: row["first_name"],
-              last_name: row["last_name"],
-              contact_number: row["contact_number"],
-              dob: parse_date(row["dob"]),
-              email: row["email"],
-              street_address: row["street_address"],
-              registered_voter: row["registered_voter"],
-              village: village,
-              source: "bulk_import",
-              status: "active",
-              verification_status: "unverified",
-              entered_by: current_user
-            )
+          supporter = Supporter.new(
+            first_name: row["first_name"],
+            last_name: row["last_name"],
+            contact_number: row["contact_number"],
+            dob: parse_date(row["dob"]),
+            email: row["email"],
+            street_address: row["street_address"],
+            registered_voter: row["registered_voter"],
+            village: village,
+            source: "bulk_import",
+            status: "active",
+            verification_status: "unverified",
+            entered_by: current_user
+          )
 
-            if supporter.save
-              created += 1
-            else
-              skipped += 1
-              errors << { row: row["_row"] || (idx + 1), errors: supporter.errors.full_messages }
-            end
+          if supporter.save
+            created += 1
+          else
+            skipped += 1
+            errors << { row: row["_row"] || (idx + 1), errors: supporter.errors.full_messages }
           end
         end
 
@@ -203,6 +205,17 @@ module Api
       def cleanup_import_file(key)
         file = find_import_file(key)
         File.delete(file) if file && File.exist?(file)
+      end
+
+      def cleanup_stale_imports!
+        dir = Rails.root.join("tmp", "imports")
+        return unless Dir.exist?(dir)
+
+        Dir.glob(dir.join("*")).each do |f|
+          File.delete(f) if File.mtime(f) < 1.hour.ago
+        end
+      rescue StandardError => e
+        Rails.logger.warn("Import cleanup failed: #{e.message}")
       end
 
       def check_duplicates(row)

@@ -77,6 +77,9 @@ export default function ImportPage() {
   const [villageId, setVillageId] = useState<string>('');
   const [importResult, setImportResult] = useState<{ created: number; skipped: number; errors: { row: number; errors: string[] }[] } | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [fileError, setFileError] = useState<string>('');
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [reviewError, setReviewError] = useState<string>('');
 
   const { data: villagesData } = useQuery({
     queryKey: ['villages'],
@@ -101,9 +104,10 @@ export default function ImportPage() {
   const handleFile = useCallback((file: File) => {
     const ext = file.name.split('.').pop()?.toLowerCase();
     if (!['xlsx', 'xls', 'csv'].includes(ext || '')) {
-      alert('Please upload an .xlsx, .xls, or .csv file');
+      setFileError('Please upload an .xlsx, .xls, or .csv file');
       return;
     }
+    setFileError('');
     uploadMutation.mutate(file);
   }, [uploadMutation]);
 
@@ -220,9 +224,9 @@ export default function ImportPage() {
                 </>
               )}
             </div>
-            {uploadMutation.isError && (
+            {(uploadMutation.isError || fileError) && (
               <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">
-                {(uploadMutation.error as Error)?.message || 'Failed to parse file. Please check the format.'}
+                {fileError || (uploadMutation.error as Error)?.message || 'Failed to parse file. Please check the format.'}
               </div>
             )}
           </div>
@@ -449,25 +453,27 @@ export default function ImportPage() {
               <button onClick={() => setStep('map-columns')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700">
                 <ArrowLeft className="w-4 h-4" /> Back to mapping
               </button>
-              <button
-                onClick={() => {
-                  if (activeRows.length === 0) {
-                    alert('No rows to import. Un-skip some rows first.');
-                    return;
-                  }
-                  if (confirm(`Import ${activeRows.length} supporters into ${villages.find(v => v.id === Number(villageId))?.name}? All will be marked as unverified.`)) {
-                    confirmMutation.mutate();
-                  }
-                }}
-                disabled={confirmMutation.isPending || activeRows.length === 0}
-                className="inline-flex items-center gap-2 px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-              >
-                {confirmMutation.isPending ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Importing...</>
-                ) : (
-                  <><Check className="w-4 h-4" /> Import {activeRows.length} Supporters</>
-                )}
-              </button>
+              <div className="flex items-center gap-3">
+                {reviewError && <p className="text-sm text-red-600">{reviewError}</p>}
+                <button
+                  onClick={() => {
+                    if (activeRows.length === 0) {
+                      setReviewError('No rows to import. Un-skip some rows first.');
+                      return;
+                    }
+                    setReviewError('');
+                    setShowConfirm(true);
+                  }}
+                  disabled={confirmMutation.isPending || activeRows.length === 0}
+                  className="inline-flex items-center gap-2 px-6 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+                >
+                  {confirmMutation.isPending ? (
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Importing...</>
+                  ) : (
+                    <><Check className="w-4 h-4" /> Import {activeRows.length} Supporters</>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -514,6 +520,36 @@ export default function ImportPage() {
           </div>
         )}
       </div>
+
+      {/* Confirmation Modal */}
+      {showConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-bold text-gray-900 mb-2">Confirm Import</h3>
+            <p className="text-gray-600 mb-4">
+              Import <strong>{activeRows.length}</strong> supporters into{' '}
+              <strong>{villages.find(v => v.id === Number(villageId))?.name}</strong>?
+            </p>
+            <p className="text-sm text-gray-500 mb-6">
+              All records will be marked as <strong>unverified</strong> until staff reviews them.
+            </p>
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setShowConfirm(false)}
+                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700 text-sm"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => { setShowConfirm(false); confirmMutation.mutate(); }}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm"
+              >
+                Yes, Import
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

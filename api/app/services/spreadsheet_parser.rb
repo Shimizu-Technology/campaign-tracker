@@ -200,7 +200,8 @@ class SpreadsheetParser
         parts = split_name(raw["name"])
         data["first_name"] = parts[:first]
         data["last_name"] = parts[:last]
-        data["_issues"] << "Name auto-split: \"#{raw['name']}\" → \"#{parts[:first]}\" + \"#{parts[:last]}\"" if parts[:uncertain]
+        data["_issues"] << parts[:couple_note] if parts[:couple_note]
+        data["_issues"] << "Name auto-split: \"#{raw['name']}\" → \"#{parts[:first]}\" + \"#{parts[:last]}\"" if parts[:uncertain] && !parts[:couple_note]
       else
         data["_skip"] = true
         data["_issues"] << "No name found"
@@ -257,14 +258,18 @@ class SpreadsheetParser
         name = name.sub(/\s*\([^)]+\)/, "").strip
       end
 
-      # Handle couples: "Mel & Theresa Obispo" → use first name only
+      # Handle couples: "Mel & Theresa Obispo" → imports second person, flags for review
       if name =~ /\s*&\s*/
-        # Take the second person's first name + shared last name
-        # "Mel & Theresa Obispo" → Theresa Obispo
         parts = name.split(/\s*&\s*/, 2)
+        first_person = parts[0].strip
         second_part = parts[1].strip.split(/\s+/)
         if second_part.size >= 2
-          return { first: second_part[0..-2].join(" "), last: second_part[-1], uncertain: true }
+          return {
+            first: second_part[0..-2].join(" "),
+            last: second_part[-1],
+            uncertain: true,
+            couple_note: "Couple entry — only importing \"#{second_part[0..-2].join(' ')} #{second_part[-1]}\". \"#{first_person}\" may need separate entry."
+          }
         end
       end
 
