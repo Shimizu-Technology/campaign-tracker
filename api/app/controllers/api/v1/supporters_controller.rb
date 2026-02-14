@@ -10,8 +10,9 @@ module Api
       ALLOWED_SORT_FIELDS = %w[created_at print_name last_name first_name village_name precinct_number source registered_voter].freeze
 
       include Authenticatable
-      before_action :authenticate_request, only: [ :index, :check_duplicate, :export, :show, :update ]
+      before_action :authenticate_request, only: [ :index, :check_duplicate, :export, :show, :update, :verify, :bulk_verify ]
       before_action :require_supporter_access!, only: [ :index, :check_duplicate, :export, :show ]
+      before_action :require_coordinator_or_above!, only: [ :verify, :bulk_verify ]
 
       # POST /api/v1/supporters (public signup — no auth required)
       def create
@@ -91,6 +92,79 @@ module Api
         end
       end
 
+      # PATCH /api/v1/supporters/:id/verify
+      def verify
+        supporter = Supporter.find(params[:id])
+        new_status = params[:verification_status]
+
+        unless Supporter::VERIFICATION_STATUSES.include?(new_status)
+          return render_api_error(
+            message: "Invalid verification status. Must be: #{Supporter::VERIFICATION_STATUSES.join(', ')}",
+            status: :unprocessable_entity,
+            code: "invalid_verification_status"
+          )
+        end
+
+        old_status = supporter.verification_status
+        supporter.update!(
+          verification_status: new_status,
+          verified_by_user_id: current_user.id,
+          verified_at: Time.current
+        )
+
+        log_audit!(supporter, action: "verification_changed", changed_data: {
+          "verification_status" => [ old_status, new_status ],
+          "verified_by" => current_user.name || current_user.email
+        })
+
+        render json: { supporter: supporter_json(supporter) }
+      end
+
+      # POST /api/v1/supporters/bulk_verify
+      def bulk_verify
+        ids = params[:supporter_ids]
+        new_status = params[:verification_status] || "verified"
+
+        unless ids.is_a?(Array) && ids.any?
+          return render_api_error(
+            message: "supporter_ids must be a non-empty array",
+            status: :unprocessable_entity,
+            code: "invalid_supporter_ids"
+          )
+        end
+
+        unless Supporter::VERIFICATION_STATUSES.include?(new_status)
+          return render_api_error(
+            message: "Invalid verification status",
+            status: :unprocessable_entity,
+            code: "invalid_verification_status"
+          )
+        end
+
+        supporters = Supporter.where(id: ids)
+        count = supporters.count
+
+        # Capture old statuses before bulk update
+        old_statuses = supporters.pluck(:id, :verification_status).to_h
+
+        supporters.update_all(
+          verification_status: new_status,
+          verified_by_user_id: current_user.id,
+          verified_at: Time.current
+        )
+
+        # Audit log for each with accurate old status
+        supporters.find_each do |s|
+          old_status = old_statuses[s.id] || "unknown"
+          log_audit!(s, action: "verification_changed", changed_data: {
+            "verification_status" => [ old_status, new_status ],
+            "verified_by" => current_user.name || current_user.email
+          })
+        end
+
+        render json: { updated: count, verification_status: new_status }
+      end
+
       # GET /api/v1/supporters (authenticated)
       def index
         supporters = Supporter.includes(:village, :precinct, :block)
@@ -108,6 +182,7 @@ module Api
         supporters = supporters.where(motorcade_available: true) if params[:motorcade_available] == "true"
         supporters = supporters.where(opt_in_email: true) if params[:opt_in_email] == "true"
         supporters = supporters.where(opt_in_text: true) if params[:opt_in_text] == "true"
+        supporters = supporters.where(verification_status: params[:verification_status]) if params[:verification_status].present?
 
         if params[:search].present?
           raw = params[:search].to_s.strip
@@ -186,7 +261,8 @@ module Api
 
         csv_data = CSV.generate(headers: true) do |csv|
           csv << [ "First Name", "Last Name", "Phone", "Village", "Precinct", "Street Address", "Email", "DOB",
-                  "Registered Voter", "Yard Sign", "Motorcade Available", "Opt-In Email", "Opt-In Text", "Source", "Date Signed Up" ]
+                  "Registered Voter", "Yard Sign", "Motorcade Available", "Opt-In Email", "Opt-In Text",
+                  "Verification Status", "Source", "Date Signed Up" ]
           supporters.find_each do |s|
             csv << [
               s.first_name, s.last_name, s.contact_number, s.village&.name, s.precinct&.number,
@@ -196,6 +272,7 @@ module Api
               s.motorcade_available ? "Yes" : "No",
               s.opt_in_email ? "Yes" : "No",
               s.opt_in_text ? "Yes" : "No",
+              s.verification_status&.humanize,
               s.source&.humanize,
               s.created_at&.strftime("%m/%d/%Y")
             ]
@@ -274,6 +351,9 @@ module Api
           motorcade_available: supporter.motorcade_available,
           opt_in_email: supporter.opt_in_email,
           opt_in_text: supporter.opt_in_text,
+          verification_status: supporter.verification_status,
+          verified_at: supporter.verified_at&.iso8601,
+          verified_by_user_id: supporter.verified_by_user_id,
           source: supporter.source,
           status: supporter.status,
           leader_code: supporter.leader_code,

@@ -33,6 +33,7 @@ interface SupporterItem {
   motorcade_available: boolean;
   opt_in_email: boolean;
   opt_in_text: boolean;
+  verification_status: string;
   source: string;
   created_at: string;
 }
@@ -75,6 +76,7 @@ export default function SupportersPage() {
   const [precinctFilter, setPrecinctFilter] = useState(searchParams.get('precinct_id') || '');
   const [sourceFilter, setSourceFilter] = useState(searchParams.get('source') || '');
   const [optInFilter, setOptInFilter] = useState(searchParams.get('opt_in') || '');
+  const [verificationFilter, setVerificationFilter] = useState(searchParams.get('verification_status') || '');
   const [unassignedPrecinct, setUnassignedPrecinct] = useState(searchParams.get('unassigned_precinct') === 'true');
   const [sortBy, setSortBy] = useState<SortField>(parseSortField(searchParams.get('sort_by')));
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>((searchParams.get('sort_dir') as 'asc' | 'desc') || 'desc');
@@ -103,16 +105,17 @@ export default function SupportersPage() {
     if (precinctFilter) params.set('precinct_id', precinctFilter);
     if (sourceFilter) params.set('source', sourceFilter);
     if (optInFilter) params.set('opt_in', optInFilter);
+    if (verificationFilter) params.set('verification_status', verificationFilter);
     if (unassignedPrecinct) params.set('unassigned_precinct', 'true');
     params.set('sort_by', sortBy);
     params.set('sort_dir', sortDir);
     params.set('per_page', String(perPage));
     if (returnTo) params.set('return_to', returnTo);
     setSearchParams(params, { replace: true });
-  }, [debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, unassignedPrecinct, sortBy, sortDir, perPage, returnTo, setSearchParams]);
+  }, [debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, unassignedPrecinct, sortBy, sortDir, perPage, returnTo, setSearchParams]);
 
   const { data, isFetching } = useQuery<SupportersResponse>({
-    queryKey: ['supporters', debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, unassignedPrecinct, sortBy, sortDir, page, perPage],
+    queryKey: ['supporters', debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, unassignedPrecinct, sortBy, sortDir, page, perPage],
     queryFn: () => getSupporters({
       search: debouncedSearch,
       village_id: villageFilter || undefined,
@@ -120,6 +123,7 @@ export default function SupportersPage() {
       source: sourceFilter || undefined,
       opt_in_email: optInFilter === 'email' || optInFilter === 'both' ? 'true' : undefined,
       opt_in_text: optInFilter === 'text' || optInFilter === 'both' ? 'true' : undefined,
+      verification_status: verificationFilter || undefined,
       unassigned_precinct: unassignedPrecinct ? 'true' : undefined,
       sort_by: sortBy,
       sort_dir: sortDir,
@@ -140,7 +144,7 @@ export default function SupportersPage() {
   useEffect(() => {
     const timer = window.setTimeout(() => setVisibleRows(80), 0);
     return () => window.clearTimeout(timer);
-  }, [progressiveRenderingEnabled, page, debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, unassignedPrecinct, sortBy, sortDir, perPage]);
+  }, [progressiveRenderingEnabled, page, debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, unassignedPrecinct, sortBy, sortDir, perPage]);
 
   useEffect(() => {
     if (!progressiveRenderingEnabled) return;
@@ -157,7 +161,7 @@ export default function SupportersPage() {
     const totalPages = data.pagination.pages;
     if (page < totalPages) {
       void queryClient.prefetchQuery({
-        queryKey: ['supporters', debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, unassignedPrecinct, sortBy, sortDir, page + 1, perPage],
+        queryKey: ['supporters', debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, unassignedPrecinct, sortBy, sortDir, page + 1, perPage],
         queryFn: () => getSupporters({
           search: debouncedSearch,
           village_id: villageFilter || undefined,
@@ -165,6 +169,7 @@ export default function SupportersPage() {
           source: sourceFilter || undefined,
           opt_in_email: optInFilter === 'email' || optInFilter === 'both' ? 'true' : undefined,
           opt_in_text: optInFilter === 'text' || optInFilter === 'both' ? 'true' : undefined,
+          verification_status: verificationFilter || undefined,
           unassigned_precinct: unassignedPrecinct ? 'true' : undefined,
           sort_by: sortBy,
           sort_dir: sortDir,
@@ -173,7 +178,7 @@ export default function SupportersPage() {
         }),
       });
     }
-  }, [data, page, perPage, debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, unassignedPrecinct, sortBy, sortDir, queryClient]);
+  }, [data, page, perPage, debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, unassignedPrecinct, sortBy, sortDir, queryClient]);
 
   const assignPrecinctMutation = useMutation({
     mutationFn: ({ supporterId, precinctId }: { supporterId: number; precinctId: number }) =>
@@ -338,6 +343,19 @@ export default function SupportersPage() {
             <option value="email">Opted in: Email</option>
             <option value="both">Opted in: Both</option>
           </select>
+          <select
+            value={verificationFilter}
+            onChange={(e) => {
+              setVerificationFilter(e.target.value);
+              setPage(1);
+            }}
+            className="md:col-span-2 px-3 py-3 border border-gray-300 rounded-xl bg-white text-gray-700 focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent min-w-0"
+          >
+            <option value="">All verification</option>
+            <option value="unverified">Unverified</option>
+            <option value="verified">Verified</option>
+            <option value="flagged">Flagged</option>
+          </select>
           {villageFilter && (
             <select
               value={precinctFilter}
@@ -430,6 +448,14 @@ export default function SupportersPage() {
                 }`}>
                   {s.source === 'qr_signup' ? 'QR' : 'Staff'}
                 </span>
+                <span className={`app-chip ${
+                  s.verification_status === 'verified' ? 'bg-green-100 text-green-700' :
+                  s.verification_status === 'flagged' ? 'bg-red-100 text-red-700' :
+                  'bg-yellow-100 text-yellow-700'
+                }`}>
+                  {s.verification_status === 'verified' ? 'Verified' :
+                   s.verification_status === 'flagged' ? 'Flagged' : 'Unverified'}
+                </span>
               </div>
               <div className="text-sm text-gray-500 space-y-0.5">
                 <div className="flex justify-between">
@@ -493,6 +519,7 @@ export default function SupportersPage() {
                     Source <ArrowUpDown className="w-3.5 h-3.5" /> {sortLabel('source')}
                   </button>
                 </th>
+                <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
                 <th className="text-left px-4 py-3 font-medium text-gray-600">
                   <button type="button" onClick={() => handleSort('created_at')} className="inline-flex items-center gap-1 hover:text-gray-900">
                     Date <ArrowUpDown className="w-3.5 h-3.5" /> {sortLabel('created_at')}
@@ -543,12 +570,22 @@ export default function SupportersPage() {
                       {s.source === 'qr_signup' ? 'Public Signup' : 'Staff Entry'}
                     </span>
                   </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <span className={`app-chip ${
+                      s.verification_status === 'verified' ? 'bg-green-100 text-green-700' :
+                      s.verification_status === 'flagged' ? 'bg-red-100 text-red-700' :
+                      'bg-yellow-100 text-yellow-700'
+                    }`}>
+                      {s.verification_status === 'verified' ? 'Verified' :
+                       s.verification_status === 'flagged' ? 'Flagged' : 'Unverified'}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{formatDateTime(s.created_at)}</td>
                 </motion.tr>
               ))}
               {supportersRows.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-gray-400">
+                  <td colSpan={9} className="px-4 py-8 text-center text-gray-400">
                     No supporters found
                   </td>
                 </tr>

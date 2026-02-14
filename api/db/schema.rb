@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_14_035500) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_14_042528) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -385,6 +385,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_14_035500) do
     t.datetime "turnout_updated_at"
     t.bigint "turnout_updated_by_user_id"
     t.datetime "updated_at", null: false
+    t.string "verification_status", default: "unverified", null: false
+    t.datetime "verified_at"
+    t.bigint "verified_by_user_id"
     t.bigint "village_id", null: false
     t.boolean "yard_sign"
     t.index "lower((print_name)::text) gin_trgm_ops", name: "index_supporters_on_lower_print_name_trgm", using: :gin
@@ -405,6 +408,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_14_035500) do
     t.index ["status"], name: "index_supporters_on_status"
     t.index ["turnout_status"], name: "index_supporters_on_turnout_status"
     t.index ["turnout_updated_by_user_id"], name: "index_supporters_on_turnout_updated_by_user_id"
+    t.index ["verification_status"], name: "index_supporters_on_verification_status"
+    t.index ["verified_by_user_id"], name: "index_supporters_on_verified_by_user_id"
     t.index ["village_id", "created_at"], name: "index_supporters_on_village_id_and_created_at"
     t.index ["village_id"], name: "index_supporters_on_village_id"
   end
