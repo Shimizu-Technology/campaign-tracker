@@ -12,8 +12,7 @@ interface SettingsData {
 
 export default function SmsSettingsPage() {
   const queryClient = useQueryClient();
-  const [template, setTemplate] = useState('');
-  const [initialized, setInitialized] = useState(false);
+  const [template, setTemplate] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
   const { data: settings, isLoading } = useQuery<SettingsData>({
@@ -21,17 +20,14 @@ export default function SmsSettingsPage() {
     queryFn: getSettings,
   });
 
-  // Initialize template from server data once
-  if (settings && !initialized) {
-    setTemplate(settings.welcome_sms_template);
-    setInitialized(true);
-  }
+  // Use server value until user starts editing
+  const displayTemplate = template ?? settings?.welcome_sms_template ?? '';
 
   const saveMutation = useMutation({
     mutationFn: (newTemplate: string) => updateSettings({ welcome_sms_template: newTemplate }),
     onSuccess: (data: SettingsData) => {
       queryClient.setQueryData(['settings'], data);
-      setTemplate(data.welcome_sms_template);
+      setTemplate(null);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     },
@@ -41,18 +37,18 @@ export default function SmsSettingsPage() {
     mutationFn: () => updateSettings({ welcome_sms_template: '' }),
     onSuccess: (data: SettingsData) => {
       queryClient.setQueryData(['settings'], data);
-      setTemplate(data.welcome_sms_template);
+      setTemplate(null);
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     },
   });
 
-  const charCount = template.length;
+  const charCount = displayTemplate.length;
   const smsSegments = charCount <= 160 ? 1 : Math.ceil(charCount / 153);
-  const hasChanges = settings && template !== settings.welcome_sms_template;
+  const hasChanges = template !== null && settings && template !== settings.welcome_sms_template;
 
   // Live preview with sample data
-  const previewText = template
+  const previewText = displayTemplate
     .replace(/\{first_name\}/g, 'Maria')
     .replace(/\{last_name\}/g, 'Cruz')
     .replace(/\{village\}/g, 'Tamuning');
@@ -103,7 +99,7 @@ export default function SmsSettingsPage() {
                   Click to insert: {settings?.available_variables.map((v) => (
                     <button
                       key={v}
-                      onClick={() => setTemplate((prev) => prev + `{${v}}`)}
+                      onClick={() => setTemplate((prev) => (prev ?? settings?.welcome_sms_template ?? '') + `{${v}}`)}
                       className="inline-block bg-blue-100 hover:bg-blue-200 text-blue-800 px-2 py-0.5 rounded text-xs font-mono mr-1.5 mb-1"
                     >
                       {`{${v}}`}
@@ -117,7 +113,7 @@ export default function SmsSettingsPage() {
           {/* Editor */}
           <div>
             <textarea
-              value={template}
+              value={displayTemplate}
               onChange={(e) => setTemplate(e.target.value)}
               rows={4}
               maxLength={320}
@@ -148,7 +144,7 @@ export default function SmsSettingsPage() {
           {/* Actions */}
           <div className="flex items-center gap-3 pt-2">
             <button
-              onClick={() => saveMutation.mutate(template)}
+              onClick={() => saveMutation.mutate(displayTemplate)}
               disabled={saveMutation.isPending || !hasChanges}
               className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1B3A6B] text-white rounded-lg hover:bg-[#15305a] disabled:opacity-50 text-sm font-medium"
             >
