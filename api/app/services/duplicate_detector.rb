@@ -14,7 +14,8 @@ class DuplicateDetector
       normalized = normalize_phone(supporter.contact_number)
       Supporter.where.not(id: supporter.id)
                .where(contact_number: [ supporter.contact_number, normalized ].uniq)
-               .find_each { |s| matches << s.id }
+               .pluck(:id)
+               .each { |id| matches << id }
 
       # Also check normalized versions in DB
       Supporter.where.not(id: supporter.id)
@@ -70,11 +71,12 @@ class DuplicateDetector
       duplicate_notes: build_notes(supporter, duplicates)
     )
 
-    # Also flag the original if not already flagged
+    # Also flag the original if not already flagged, with back-reference
     unless original.potential_duplicate?
       original.update_columns(
         potential_duplicate: true,
-        duplicate_notes: "Has #{duplicates.count} potential duplicate(s)"
+        duplicate_of_id: supporter.id,
+        duplicate_notes: "Has #{duplicates.count} potential duplicate(s) — newest: ##{supporter.id}"
       )
     end
   end
@@ -113,7 +115,7 @@ class DuplicateDetector
         original = duplicates.order(:created_at).first
         supporter.update_columns(
           potential_duplicate: true,
-          duplicate_of_id: original.id == supporter.id ? duplicates.where.not(id: supporter.id).order(:created_at).first&.id : original.id,
+          duplicate_of_id: original&.id,
           duplicate_notes: build_notes(supporter, duplicates)
         )
         count += 1
@@ -145,9 +147,12 @@ class DuplicateDetector
   end
 
   private_class_method def self.merge_supporters!(source, into:)
-    # Transfer event RSVPs
+    # Transfer event RSVPs — preserve attended=true if either record attended
     source.event_rsvps.each do |rsvp|
-      unless into.event_rsvps.exists?(event_id: rsvp.event_id)
+      existing = into.event_rsvps.find_by(event_id: rsvp.event_id)
+      if existing
+        existing.update!(attended: true) if rsvp.attended && !existing.attended
+      else
         rsvp.update!(supporter_id: into.id)
       end
     end
@@ -155,11 +160,14 @@ class DuplicateDetector
     # Transfer contact attempts
     source.supporter_contact_attempts.update_all(supporter_id: into.id)
 
-    # Merge fields: keep into's values, fill blanks from source
+    # Merge fields: keep into's values, fill unset (nil) from source
+    # Use nil? instead of blank? so false booleans aren't overwritten
     mergeable = %w[email registered_voter motorcade_available yard_sign opt_in_email opt_in_text]
     mergeable.each do |field|
-      if into.send(field).blank? && source.send(field).present?
-        into.send("#{field}=", source.send(field))
+      into_val = into.send(field)
+      source_val = source.send(field)
+      if into_val.nil? && !source_val.nil?
+        into.send("#{field}=", source_val)
       end
     end
     into.save! if into.changed?
