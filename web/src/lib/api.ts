@@ -71,12 +71,13 @@ export const confirmImport = (data: { import_key: string; village_id: number; ro
 
 export const checkDuplicate = (name: string, villageId: number, firstName?: string, lastName?: string) =>
   api.get('/supporters/check_duplicate', { params: { name, village_id: villageId, first_name: firstName, last_name: lastName } }).then(r => r.data);
-export const exportSupportersCsv = (params?: QueryParams) =>
-  api.get('/supporters/export', { params, responseType: 'blob' }).then(r => {
+export const exportSupporters = (params?: QueryParams) =>
+  api.get('/supporters/export', { params: { ...params, format_type: 'xlsx' }, responseType: 'blob' }).then(r => {
+    const ext = (params as Record<string, string>)?.format_type === 'csv' ? 'csv' : 'xlsx';
     const url = URL.createObjectURL(r.data);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `supporters-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `supporters-${new Date().toISOString().slice(0, 10)}.${ext}`;
     a.click();
     URL.revokeObjectURL(url);
     return { downloaded: true };

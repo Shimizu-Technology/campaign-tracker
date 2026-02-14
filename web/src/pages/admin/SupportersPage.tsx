@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getSupporters, exportSupportersCsv, getVillages, updateSupporter } from '../../lib/api';
+import { getSupporters, exportSupporters, getVillages, updateSupporter } from '../../lib/api';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Search, ClipboardPlus, Download, Home, ArrowUpDown } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
@@ -276,10 +276,20 @@ export default function SupportersPage() {
             <h1 className="text-2xl font-bold tracking-tight">All Supporters</h1>
             <div className="flex flex-wrap gap-2">
               <button
-                onClick={() => exportSupportersCsv({ village_id: villageFilter || undefined })}
+                onClick={() => exportSupporters({
+                  village_id: villageFilter || undefined,
+                  precinct_id: precinctFilter || undefined,
+                  source: sourceFilter || undefined,
+                  opt_in: optInFilter || undefined,
+                  verification_status: verificationFilter || undefined,
+                  unassigned_precinct: unassignedPrecinct ? 'true' : undefined,
+                  search: debouncedSearch || undefined,
+                  sort_by: sortBy || undefined,
+                  sort_dir: sortDir || undefined,
+                })}
                 className="bg-white/10 hover:bg-white/20 px-3 py-2 min-h-[44px] rounded-xl text-sm font-medium flex items-center gap-1"
               >
-                <Download className="w-4 h-4" /> CSV
+                <Download className="w-4 h-4" /> Excel
               </button>
               {sessionData?.permissions?.can_create_staff_supporters && (
                 <Link to="/admin/supporters/new" className="bg-[#C41E3A] hover:bg-[#a01830] px-3 py-2 min-h-[44px] rounded-xl text-sm font-medium flex items-center gap-1">

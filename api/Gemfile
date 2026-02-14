@@ -60,3 +60,5 @@ gem "resend", "~> 1.0"
 
 # Excel/spreadsheet parsing for bulk import
 gem "roo", "~> 2.10"
+
+gem "caxlsx", "~> 4.1"

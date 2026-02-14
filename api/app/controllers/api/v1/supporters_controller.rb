@@ -245,9 +245,7 @@ module Api
 
       # GET /api/v1/supporters/export
       def export
-        supporters = Supporter.includes(:village, :precinct).order(created_at: :desc)
-        supporters = supporters.where(village_id: params[:village_id]) if params[:village_id].present?
-        supporters = supporters.where(status: params[:status]) if params[:status].present?
+        supporters = apply_export_filters(Supporter.includes(:village, :precinct).order(created_at: :desc))
         total = supporters.count
 
         if total > MAX_EXPORT_ROWS
@@ -259,30 +257,55 @@ module Api
           )
         end
 
-        csv_data = CSV.generate(headers: true) do |csv|
-          csv << [ "First Name", "Last Name", "Phone", "Village", "Precinct", "Street Address", "Email", "DOB",
-                  "Registered Voter", "Yard Sign", "Motorcade Available", "Opt-In Email", "Opt-In Text",
-                  "Verification Status", "Source", "Date Signed Up" ]
-          supporters.find_each do |s|
-            csv << [
-              s.first_name, s.last_name, s.contact_number, s.village&.name, s.precinct&.number,
-              s.street_address, s.email, s.dob&.strftime("%m/%d/%Y"),
-              s.registered_voter ? "Yes" : "No",
-              s.yard_sign ? "Yes" : "No",
-              s.motorcade_available ? "Yes" : "No",
-              s.opt_in_email ? "Yes" : "No",
-              s.opt_in_text ? "Yes" : "No",
-              s.verification_status&.humanize,
-              s.source&.humanize,
-              s.created_at&.strftime("%m/%d/%Y")
-            ]
-          end
+        headers = [ "First Name", "Last Name", "Phone", "Village", "Precinct", "Street Address", "Email", "DOB",
+                    "Registered Voter", "Yard Sign", "Motorcade Available", "Opt-In Email", "Opt-In Text",
+                    "Verification Status", "Turnout Status", "Source", "Date Signed Up" ]
+
+        rows = []
+        supporters.find_each do |s|
+          rows << [
+            s.first_name, s.last_name, s.contact_number, s.village&.name, s.precinct&.number,
+            s.street_address, s.email, s.dob&.strftime("%m/%d/%Y"),
+            s.registered_voter ? "Yes" : "No",
+            s.yard_sign ? "Yes" : "No",
+            s.motorcade_available ? "Yes" : "No",
+            s.opt_in_email ? "Yes" : "No",
+            s.opt_in_text ? "Yes" : "No",
+            s.verification_status&.humanize,
+            s.turnout_status&.humanize,
+            s.source&.humanize,
+            s.created_at&.strftime("%m/%d/%Y")
+          ]
         end
 
-        send_data csv_data,
-          filename: "supporters-#{Date.current.iso8601}.csv",
-          type: "text/csv",
-          disposition: "attachment"
+        format = params[:format_type] || "xlsx"
+        if format == "csv"
+          csv_data = CSV.generate(headers: true) do |csv|
+            csv << headers
+            rows.each { |r| csv << r }
+          end
+
+          send_data csv_data,
+            filename: "supporters-#{Date.current.iso8601}.csv",
+            type: "text/csv",
+            disposition: "attachment"
+        else
+          package = Axlsx::Package.new
+          wb = package.workbook
+          wb.add_worksheet(name: "Supporters") do |sheet|
+            header_style = wb.styles.add_style(b: true, bg_color: "1B3A6B", fg_color: "FFFFFF", alignment: { horizontal: :center })
+            sheet.add_row headers, style: header_style
+            rows.each { |r| sheet.add_row r }
+
+            # Auto-width columns
+            sheet.column_widths(*headers.map { |h| [ h.length + 4, 15 ].max })
+          end
+
+          send_data package.to_stream.read,
+            filename: "supporters-#{Date.current.iso8601}.xlsx",
+            type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            disposition: "attachment"
+        end
       end
 
       # GET /api/v1/supporters/check_duplicate
@@ -351,6 +374,46 @@ module Api
       end
 
       private
+
+      def apply_export_filters(supporters)
+        supporters = supporters.where(village_id: params[:village_id]) if params[:village_id].present?
+        if params[:unassigned_precinct] == "true"
+          supporters = supporters.where(precinct_id: nil)
+        elsif params[:precinct_id].present?
+          supporters = supporters.where(precinct_id: params[:precinct_id])
+        end
+        supporters = supporters.where(status: params[:status]) if params[:status].present?
+        supporters = supporters.where(source: params[:source]) if params[:source].present?
+        supporters = supporters.where(registered_voter: true) if params[:registered_voter] == "true"
+        supporters = supporters.where(motorcade_available: true) if params[:motorcade_available] == "true"
+        supporters = supporters.where(opt_in_email: true) if params[:opt_in_email] == "true"
+        supporters = supporters.where(opt_in_text: true) if params[:opt_in_text] == "true"
+        supporters = supporters.where(verification_status: params[:verification_status]) if params[:verification_status].present?
+
+        if params[:search].present?
+          term = "%#{params[:search].to_s.strip.downcase}%"
+          supporters = supporters.where(
+            "LOWER(first_name) LIKE :t OR LOWER(last_name) LIKE :t OR LOWER(print_name) LIKE :t OR contact_number LIKE :t OR LOWER(email) LIKE :t",
+            t: term
+          )
+        end
+
+        # Apply sort
+        sort_field = params[:sort_by].presence
+        sort_dir = params[:sort_dir] == "asc" ? :asc : :desc
+        if sort_field.present? && ALLOWED_SORT_FIELDS.include?(sort_field)
+          case sort_field
+          when "village_name"
+            supporters = supporters.joins(:village).reorder("villages.name #{sort_dir}")
+          when "precinct_number"
+            supporters = supporters.joins(:precinct).reorder("precincts.number #{sort_dir}")
+          else
+            supporters = supporters.reorder(sort_field => sort_dir)
+          end
+        end
+
+        supporters
+      end
 
       def public_supporter_params
         params.require(:supporter).permit(
