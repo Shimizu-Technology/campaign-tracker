@@ -59,6 +59,12 @@ class SpreadsheetParser
     rows = []
     issues = []
 
+    max_rows = 5000
+    total_data_rows = spreadsheet.last_row - header_row
+    if total_data_rows > max_rows
+      return { rows: [], issues: [ "Spreadsheet has #{total_data_rows} rows, exceeding the #{max_rows} row limit. Please split into smaller files." ], total: 0 }
+    end
+
     ((header_row + 1)..spreadsheet.last_row).each do |row_num|
       raw = {}
       column_mapping[:columns].each do |field, col_index|

@@ -27,6 +27,14 @@ module Api
           )
         end
 
+        if file.size > 10.megabytes
+          return render_api_error(
+            message: "File too large. Maximum size is 10 MB.",
+            status: :unprocessable_entity,
+            code: "file_too_large"
+          )
+        end
+
         result = SpreadsheetParser.parse_metadata(
           file.tempfile.path,
           original_filename: file.original_filename

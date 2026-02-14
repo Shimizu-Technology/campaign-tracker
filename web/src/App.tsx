@@ -139,7 +139,7 @@ export default function App() {
             path="/admin/import"
             element={
               <AdminRoute>
-                <PermissionRoute permission="can_view_supporters">
+                <PermissionRoute permission="can_edit_supporters">
                   <ImportPage />
                 </PermissionRoute>
               </AdminRoute>
