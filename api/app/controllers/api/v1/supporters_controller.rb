@@ -391,28 +391,25 @@ module Api
         supporters = supporters.where(verification_status: params[:verification_status]) if params[:verification_status].present?
 
         if params[:search].present?
-          term = "%#{params[:search].to_s.strip.downcase}%"
-          supporters = supporters.where(
-            "LOWER(first_name) LIKE :t OR LOWER(last_name) LIKE :t OR LOWER(print_name) LIKE :t OR contact_number LIKE :t OR LOWER(email) LIKE :t",
-            t: term
-          )
-        end
-
-        # Apply sort
-        sort_field = params[:sort_by].presence
-        sort_dir = params[:sort_dir] == "asc" ? :asc : :desc
-        if sort_field.present? && ALLOWED_SORT_FIELDS.include?(sort_field)
-          case sort_field
-          when "village_name"
-            supporters = supporters.joins(:village).reorder("villages.name #{sort_dir}")
-          when "precinct_number"
-            supporters = supporters.joins(:precinct).reorder("precincts.number #{sort_dir}")
+          raw = params[:search].to_s.strip
+          name_query = "%#{raw.downcase}%"
+          phone_digits = raw.gsub(/\D/, "")
+          if phone_digits.present?
+            phone_query = "%#{phone_digits}%"
+            supporters = supporters.where(
+              "LOWER(print_name) LIKE :name_query OR LOWER(first_name) LIKE :name_query OR LOWER(last_name) LIKE :name_query OR regexp_replace(contact_number, '\\D', '', 'g') LIKE :phone_query",
+              name_query: name_query,
+              phone_query: phone_query
+            )
           else
-            supporters = supporters.reorder(sort_field => sort_dir)
+            supporters = supporters.where(
+              "LOWER(print_name) LIKE :q OR LOWER(first_name) LIKE :q OR LOWER(last_name) LIKE :q",
+              q: name_query
+            )
           end
         end
 
-        supporters
+        apply_index_sort(supporters)
       end
 
       def public_supporter_params
