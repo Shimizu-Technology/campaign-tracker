@@ -27,6 +27,8 @@ interface SupporterDetail {
   registered_voter: boolean;
   yard_sign: boolean;
   motorcade_available: boolean;
+  opt_in_email: boolean;
+  opt_in_text: boolean;
   source: string;
   status: string;
   created_at: string;
@@ -65,6 +67,8 @@ const AUDIT_FIELD_LABELS: Record<string, string> = {
   registered_voter: 'Registered voter',
   yard_sign: 'Yard sign',
   motorcade_available: 'Motorcade available',
+  opt_in_email: 'Opt-in email',
+  opt_in_text: 'Opt-in text',
   created_at: 'Created at',
 };
 
@@ -133,6 +137,8 @@ export default function SupporterDetailPage() {
       registered_voter: supporter.registered_voter,
       yard_sign: supporter.yard_sign,
       motorcade_available: supporter.motorcade_available,
+      opt_in_email: supporter.opt_in_email,
+      opt_in_text: supporter.opt_in_text,
     };
   }, [supporter]);
 
@@ -363,6 +369,26 @@ export default function SupporterDetailPage() {
                 disabled={!isEditing}
               />
               Motorcade
+            </label>
+          </div>
+          <div className="flex flex-wrap gap-4 mt-3 pt-3 border-t border-gray-200">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={Boolean(currentForm.opt_in_text)}
+                onChange={(e) => updateDraft({ opt_in_text: e.target.checked })}
+                disabled={!isEditing}
+              />
+              Text updates
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={Boolean(currentForm.opt_in_email)}
+                onChange={(e) => updateDraft({ opt_in_email: e.target.checked })}
+                disabled={!isEditing}
+              />
+              Email updates
             </label>
           </div>
         </section>

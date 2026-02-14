@@ -23,6 +23,8 @@ type StaffForm = {
   registered_voter: boolean;
   yard_sign: boolean;
   motorcade_available: boolean;
+  opt_in_email: boolean;
+  opt_in_text: boolean;
 };
 
 type ExtractedScanData = Partial<{
@@ -51,6 +53,8 @@ const emptyForm = {
   registered_voter: true,
   yard_sign: false,
   motorcade_available: false,
+  opt_in_email: false,
+  opt_in_text: false,
 };
 
 export default function StaffEntryPage() {
@@ -411,6 +415,20 @@ export default function StaffEntryPage() {
             <input type="checkbox" checked={form.motorcade_available} onChange={e => updateField('motorcade_available', e.target.checked)} className="w-5 h-5 rounded text-[#1B3A6B]" />
             <span className="text-gray-700">Available for Motorcade</span>
           </label>
+        </div>
+
+        {/* Communication Opt-In */}
+        <div className="border-t border-gray-200 pt-3 space-y-2">
+          <p className="text-sm font-medium text-gray-700">Communication Opt-In</p>
+          <label className="flex items-center gap-3">
+            <input type="checkbox" checked={form.opt_in_text} onChange={e => updateField('opt_in_text', e.target.checked)} className="w-5 h-5 rounded text-[#1B3A6B]" />
+            <span className="text-gray-700">Text Updates</span>
+          </label>
+          <label className="flex items-center gap-3">
+            <input type="checkbox" checked={form.opt_in_email} onChange={e => updateField('opt_in_email', e.target.checked)} className="w-5 h-5 rounded text-[#1B3A6B]" />
+            <span className="text-gray-700">Email Updates</span>
+          </label>
+          <p className="text-xs text-gray-400">Supporter consents to receive campaign communications.</p>
         </div>
 
         {/* Submit */}

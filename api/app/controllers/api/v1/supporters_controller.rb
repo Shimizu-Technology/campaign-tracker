@@ -106,6 +106,8 @@ module Api
         supporters = supporters.where(source: params[:source]) if params[:source].present?
         supporters = supporters.where(registered_voter: true) if params[:registered_voter] == "true"
         supporters = supporters.where(motorcade_available: true) if params[:motorcade_available] == "true"
+        supporters = supporters.where(opt_in_email: true) if params[:opt_in_email] == "true"
+        supporters = supporters.where(opt_in_text: true) if params[:opt_in_text] == "true"
 
         if params[:search].present?
           raw = params[:search].to_s.strip
@@ -184,7 +186,7 @@ module Api
 
         csv_data = CSV.generate(headers: true) do |csv|
           csv << [ "First Name", "Last Name", "Phone", "Village", "Precinct", "Street Address", "Email", "DOB",
-                  "Registered Voter", "Yard Sign", "Motorcade Available", "Source", "Date Signed Up" ]
+                  "Registered Voter", "Yard Sign", "Motorcade Available", "Opt-In Email", "Opt-In Text", "Source", "Date Signed Up" ]
           supporters.find_each do |s|
             csv << [
               s.first_name, s.last_name, s.contact_number, s.village&.name, s.precinct&.number,
@@ -192,6 +194,8 @@ module Api
               s.registered_voter ? "Yes" : "No",
               s.yard_sign ? "Yes" : "No",
               s.motorcade_available ? "Yes" : "No",
+              s.opt_in_email ? "Yes" : "No",
+              s.opt_in_text ? "Yes" : "No",
               s.source&.humanize,
               s.created_at&.strftime("%m/%d/%Y")
             ]
@@ -218,14 +222,16 @@ module Api
         params.require(:supporter).permit(
           :first_name, :last_name, :print_name, :contact_number, :dob, :email, :street_address,
           :village_id, :precinct_id, :registered_voter,
-          :yard_sign, :motorcade_available
+          :yard_sign, :motorcade_available,
+          :opt_in_email, :opt_in_text
         )
       end
 
       def supporter_update_params
         params.require(:supporter).permit(
           :first_name, :last_name, :print_name, :contact_number, :email, :dob, :street_address,
-          :village_id, :precinct_id, :registered_voter, :yard_sign, :motorcade_available
+          :village_id, :precinct_id, :registered_voter, :yard_sign, :motorcade_available,
+          :opt_in_email, :opt_in_text
         )
       end
 
@@ -266,6 +272,8 @@ module Api
           registered_voter: supporter.registered_voter,
           yard_sign: supporter.yard_sign,
           motorcade_available: supporter.motorcade_available,
+          opt_in_email: supporter.opt_in_email,
+          opt_in_text: supporter.opt_in_text,
           source: supporter.source,
           status: supporter.status,
           leader_code: supporter.leader_code,
