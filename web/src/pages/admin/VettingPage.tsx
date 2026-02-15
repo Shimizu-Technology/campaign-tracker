@@ -343,3 +343,4 @@ export default function VettingPage() {
     </div>
   );
 }
+// CT-50 vetting queue
