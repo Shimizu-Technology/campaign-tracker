@@ -142,9 +142,9 @@ class DuplicateDetector
       GROUP BY s1.id
     SQL
 
-    # Phase 4: Also check swapped names
+    # Phase 4: Also check swapped names (First entered as Last, etc.)
     swapped_dupes = ActiveRecord::Base.connection.execute(<<-SQL)
-      SELECT s1.id AS supporter_id, MIN(s2.id) AS match_id, 'name+village' AS match_type
+      SELECT s1.id AS supporter_id, MIN(s2.id) AS match_id, 'name+village (swapped)' AS match_type
       FROM supporters s1
       JOIN supporters s2
         ON s1.village_id = s2.village_id
@@ -173,7 +173,10 @@ class DuplicateDetector
       end
     end
 
-    # Bulk update all flagged supporters
+    # Collect all target IDs that need reverse-flagging
+    reverse_flags = {} # match_id -> [supporter_ids that reference it]
+
+    # Update all flagged supporters
     all_dupes.each do |supporter_id, matches|
       # Build accurate notes: each match_id gets its own match types
       reasons = matches.map do |mid, types|
@@ -193,16 +196,24 @@ class DuplicateDetector
                          )
       count += updated
 
-      # Also flag the match target(s)
+      # Track reverse flags (batch them to avoid redundant updates)
       matches.each_key do |match_id|
-        Supporter.where(id: match_id)
-                 .where(potential_duplicate: false)
-                 .update_all(
-                   potential_duplicate: true,
-                   duplicate_of_id: supporter_id,
-                   duplicate_notes: "Has potential duplicate(s) — see ##{supporter_id}"
-                 )
+        reverse_flags[match_id] ||= []
+        reverse_flags[match_id] << supporter_id
       end
+    end
+
+    # Batch reverse-flag match targets (skip any already in all_dupes — they were handled above)
+    reverse_flags.each do |match_id, referencing_ids|
+      next if all_dupes.key?(match_id) # Already flagged above
+
+      Supporter.where(id: match_id)
+               .where(potential_duplicate: false)
+               .update_all(
+                 potential_duplicate: true,
+                 duplicate_of_id: referencing_ids.min,
+                 duplicate_notes: "Has #{referencing_ids.size} potential duplicate(s) — see ##{referencing_ids.join(', #')}"
+               )
     end
 
     count

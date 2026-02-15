@@ -56,4 +56,30 @@ class DuplicateDetectorTest < ActiveSupport::TestCase
     s = Supporter.create!(**@base_attrs, first_name: "Norm", last_name: "Phone", contact_number: "+1-671-555-9876", village: @village1)
     assert_equal "6715559876", s.normalized_phone
   end
+
+  test "find_duplicates detects swapped name matches" do
+    s1 = Supporter.create!(**@base_attrs, first_name: "Cruz", last_name: "Maria", contact_number: "671-555-0001", village: @village1)
+    s2 = Supporter.create!(**@base_attrs, first_name: "Maria", last_name: "Cruz", contact_number: "671-555-0002", village: @village1)
+
+    assert_includes DuplicateDetector.find_duplicates(s2).pluck(:id), s1.id
+  end
+
+  test "bidirectional flagging works for both supporters" do
+    s1 = Supporter.create!(**@base_attrs, first_name: "Bi", last_name: "Dir1", contact_number: "671-666-0001", village: @village1)
+    s2 = Supporter.create!(**@base_attrs, first_name: "Bi", last_name: "Dir2", contact_number: "+16716660001", village: @village2)
+
+    # after_create triggers flag_if_duplicate!, so both should be flagged
+    s1.reload
+    s2.reload
+    assert s2.potential_duplicate?, "Newer duplicate should be flagged"
+    assert s1.potential_duplicate?, "Original should also be flagged"
+  end
+
+  test "normalized_phone handles empty and nil gracefully" do
+    assert_nil Supporter.normalize_phone(nil)
+    assert_nil Supporter.normalize_phone("")
+    assert_equal "6715551234", Supporter.normalize_phone("671-555-1234")
+    assert_equal "6715551234", Supporter.normalize_phone("+16715551234")
+    assert_equal "6715551234", Supporter.normalize_phone("1-671-555-1234")
+  end
 end
