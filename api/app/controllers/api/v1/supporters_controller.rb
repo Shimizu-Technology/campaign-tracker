@@ -52,6 +52,11 @@ module Api
             )
           end
 
+          # Queue welcome email if supporter opted in
+          if supporter.email.present? && supporter.opt_in_email
+            SendWelcomeEmailJob.perform_later(supporter_id: supporter.id)
+          end
+
           # Broadcast to connected clients
           CampaignBroadcast.new_supporter(supporter)
 

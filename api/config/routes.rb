@@ -74,6 +74,10 @@ Rails.application.routes.draw do
       post "sms/blast", to: "sms#blast"
       post "sms/event_notify", to: "sms#event_notify"
 
+      # Email
+      get "email/status", to: "email#status"
+      post "email/blast", to: "email#blast"
+
       # Events
       resources :events, only: [ :index, :show, :create ] do
         member do
