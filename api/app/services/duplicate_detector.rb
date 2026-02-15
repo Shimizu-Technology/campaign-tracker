@@ -225,9 +225,12 @@ class DuplicateDetector
       matching = []
       matching << "phone" if dup.normalized_phone.present? && dup.normalized_phone == supporter.normalized_phone
       matching << "email" if dup.email.present? && supporter.email.present? && dup.email.downcase == supporter.email.downcase
-      matching << "name+village" if dup.first_name&.downcase == supporter.first_name&.downcase &&
-                                     dup.last_name&.downcase == supporter.last_name&.downcase &&
-                                     dup.village_id == supporter.village_id
+      matching << "name+village" if dup.village_id == supporter.village_id &&
+                                     dup.first_name&.downcase == supporter.first_name&.downcase &&
+                                     dup.last_name&.downcase == supporter.last_name&.downcase
+      matching << "name+village (swapped)" if dup.village_id == supporter.village_id &&
+                                               dup.first_name&.downcase == supporter.last_name&.downcase &&
+                                               dup.last_name&.downcase == supporter.first_name&.downcase
       reasons << "##{dup.id} (#{matching.join(', ')})"
     end
     "Matches: #{reasons.join('; ')}"
