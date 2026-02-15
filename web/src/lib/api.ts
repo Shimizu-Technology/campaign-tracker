@@ -122,6 +122,11 @@ export const sendSmsBlast = (data: { message: string; village_id?: number; motor
 export const sendEventNotify = (eventId: number, type: string) =>
   api.post('/sms/event_notify', { event_id: eventId, type }).then(r => r.data);
 
+// Email
+export const getEmailStatus = () => api.get('/email/status').then(r => r.data);
+export const sendEmailBlast = (data: { subject: string; body: string; village_id?: number; motorcade_available?: string; registered_voter?: string; yard_sign?: string; dry_run?: string }) =>
+  api.post('/email/blast', data).then(r => r.data);
+
 // Users (admin)
 export const getUsers = () => api.get('/users').then(r => r.data);
 export const createUser = (data: JsonRecord) => api.post('/users', { user: data }).then(r => r.data);

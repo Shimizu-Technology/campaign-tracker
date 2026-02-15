@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getDashboard } from '../../lib/api';
 import { Link } from 'react-router-dom';
-import { Users, MapPin, TrendingUp, CalendarPlus, ClipboardPlus, BarChart3, QrCode, Trophy, MessageSquare, Shield, ChevronDown, Target, Copy, Upload } from 'lucide-react';
+import { Users, MapPin, TrendingUp, CalendarPlus, ClipboardPlus, BarChart3, QrCode, Trophy, MessageSquare, Shield, ChevronDown, Target, Copy, Upload, Mail, ShieldCheck } from 'lucide-react';
 import { UserButton } from '@clerk/clerk-react';
 import { useCampaignUpdates } from '../../hooks/useCampaignUpdates';
 import { useSession } from '../../hooks/useSession';
@@ -119,10 +119,12 @@ export default function DashboardPage() {
     ...(sessionData?.permissions?.can_access_poll_watcher ? [ { to: '/admin/poll-watcher', label: 'Poll Watcher', icon: MapPin } ] : []),
     ...(sessionData?.permissions?.can_access_leaderboard ? [ { to: '/admin/leaderboard', label: 'Top', icon: Trophy } ] : []),
     ...(sessionData?.permissions?.can_send_sms ? [ { to: '/admin/sms', label: 'SMS', icon: MessageSquare } ] : []),
+    ...(sessionData?.permissions?.can_send_email ? [ { to: '/admin/email', label: 'Email', icon: Mail } ] : []),
     ...(sessionData?.permissions?.can_manage_users ? [ { to: '/admin/users', label: 'Users', icon: Shield } ] : []),
     ...(sessionData?.permissions?.can_manage_configuration ? [ { to: '/admin/quotas', label: 'Quotas', icon: Target } ] : []),
     ...(sessionData?.permissions?.can_manage_configuration ? [ { to: '/admin/precincts', label: 'Precincts', icon: MapPin } ] : []),
     ...(sessionData?.permissions?.can_edit_supporters ? [ { to: '/admin/import', label: 'Import', icon: Upload } ] : []),
+    ...(sessionData?.permissions?.can_view_supporters ? [ { to: '/admin/vetting', label: 'Vetting', icon: ShieldCheck, badge: sessionData?.counts?.pending_vetting || 0 } ] : []),
     ...(sessionData?.permissions?.can_view_supporters ? [ { to: '/admin/duplicates', label: 'Duplicates', icon: Copy } ] : []),
   ] as const;
 
@@ -157,6 +159,7 @@ export default function DashboardPage() {
             <div className="hidden md:flex flex-wrap gap-2">
               {secondaryActions.map((action) => {
                 const Icon = action.icon;
+                const badge = 'badge' in action ? (action as { badge: number }).badge : 0;
                 return (
                   <Link
                     key={action.to}
@@ -164,6 +167,11 @@ export default function DashboardPage() {
                     className="bg-white/10 hover:bg-white/20 px-3 py-2 min-h-[44px] rounded-xl text-xs font-medium flex items-center gap-1.5"
                   >
                     <Icon className="w-3.5 h-3.5" /> {action.label}
+                    {badge > 0 && (
+                      <span className="bg-[#C41E3A] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                        {badge}
+                      </span>
+                    )}
                   </Link>
                 );
               })}
@@ -177,6 +185,7 @@ export default function DashboardPage() {
               <div className="grid grid-cols-2 gap-2 px-2 pb-2">
                 {secondaryActions.map((action) => {
                   const Icon = action.icon;
+                  const badge = 'badge' in action ? (action as { badge: number }).badge : 0;
                   return (
                     <Link
                       key={action.to}
@@ -184,6 +193,11 @@ export default function DashboardPage() {
                       className="bg-white/10 hover:bg-white/20 px-2.5 py-2 min-h-[44px] rounded-xl text-xs font-medium flex items-center justify-center gap-1.5"
                     >
                       <Icon className="w-3.5 h-3.5" /> {action.label}
+                      {badge > 0 && (
+                        <span className="bg-[#C41E3A] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                          {badge}
+                        </span>
+                      )}
                     </Link>
                   );
                 })}

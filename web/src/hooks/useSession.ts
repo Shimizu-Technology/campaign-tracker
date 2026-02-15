@@ -12,10 +12,14 @@ export interface SessionResponse {
     assigned_block_id: number | null;
     scoped_village_ids: number[] | null;
   };
+  counts: {
+    pending_vetting: number;
+  };
   permissions: {
     can_manage_users: boolean;
     can_manage_configuration: boolean;
     can_send_sms: boolean;
+    can_send_email: boolean;
     can_edit_supporters: boolean;
     can_view_supporters: boolean;
     can_create_staff_supporters: boolean;
