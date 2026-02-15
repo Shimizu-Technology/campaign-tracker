@@ -44,8 +44,11 @@ Rails.application.configure do
   config.cache_store = :solid_cache_store
 
   # Replace the default in-process and non-durable queuing backend for Active Job.
-  config.active_job.queue_adapter = :solid_queue
-  config.solid_queue.connects_to = { database: { writing: :queue } }
+  # Use async adapter in production until Solid Queue DB is provisioned.
+  # This runs jobs in-process (fine for current scale).
+  config.active_job.queue_adapter = :async
+  # config.active_job.queue_adapter = :solid_queue
+  # config.solid_queue.connects_to = { database: { writing: :queue } }
   config.action_cable.allowed_request_origins = [
     ENV.fetch("FRONTEND_URL", "https://yourapp.netlify.app"),
     /https:\/\/.*\.netlify\.app/
