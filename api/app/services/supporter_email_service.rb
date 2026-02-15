@@ -87,9 +87,16 @@ class SupporterEmailService
           .gsub("{village}", ERB::Util.html_escape(supporter.village&.name.to_s))
     end
 
-    # Public preview method so controllers don't need .send for private methods
+    # Public preview methods so controllers don't need .send for private methods
     def preview_html(body, supporter)
       blast_wrapper_html(personalize(body, supporter))
+    end
+
+    def preview_subject(subject, supporter)
+      # Subject is plain text, so use raw values (no HTML escaping)
+      subject.gsub("{first_name}", supporter.first_name.to_s)
+             .gsub("{last_name}", supporter.last_name.to_s)
+             .gsub("{village}", supporter.village&.name.to_s)
     end
 
     def welcome_html(supporter)

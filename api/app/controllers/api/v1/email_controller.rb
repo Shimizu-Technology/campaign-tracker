@@ -42,6 +42,7 @@ module Api
             dry_run: true,
             recipient_count: count,
             subject: subject,
+            preview_subject: SupporterEmailService.preview_subject(subject, sample_supporter),
             preview_html: SupporterEmailService.preview_html(body, sample_supporter)
           }
         end
