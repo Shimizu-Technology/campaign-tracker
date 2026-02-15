@@ -108,5 +108,4 @@ class SupporterEmailServiceTest < ActiveSupport::TestCase
     assert_includes html, "<!doctype html>"
     assert_includes html, "Josh &amp; Tina 2026"
   end
-
 end

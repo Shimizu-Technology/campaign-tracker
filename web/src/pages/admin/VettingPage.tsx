@@ -18,7 +18,7 @@ interface Supporter {
   verification_status: string;
   potential_duplicate: boolean;
   duplicate_notes?: string;
-  duplicate_of?: { id: number; name: string; contact_number: string };
+  duplicate_of_id?: number;
   registered_voter: boolean;
   opt_in_email: boolean;
   opt_in_text: boolean;
@@ -255,11 +255,11 @@ export default function VettingPage() {
                     {s.potential_duplicate && s.duplicate_notes && (
                       <div className="mt-1.5 text-xs text-amber-600 bg-amber-50 rounded px-2 py-1">
                         {s.duplicate_notes}
-                        {s.duplicate_of && (
+                        {s.duplicate_of_id && (
                           <span>
                             {' — '}
-                            <Link to={`/admin/supporters/${s.duplicate_of.id}`} className="text-[#1B3A6B] hover:underline">
-                              View match: {s.duplicate_of.name}
+                            <Link to={`/admin/supporters/${s.duplicate_of_id}`} className="text-[#1B3A6B] hover:underline">
+                              View match #{s.duplicate_of_id}
                             </Link>
                           </span>
                         )}
