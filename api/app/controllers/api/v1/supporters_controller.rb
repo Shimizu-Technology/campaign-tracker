@@ -12,7 +12,8 @@ module Api
       include Authenticatable
       before_action :authenticate_request, only: [ :index, :check_duplicate, :export, :show, :update, :verify, :bulk_verify, :duplicates, :resolve_duplicate, :scan_duplicates ]
       before_action :require_supporter_access!, only: [ :index, :check_duplicate, :export, :show ]
-      before_action :require_coordinator_or_above!, only: [ :verify, :bulk_verify, :duplicates, :resolve_duplicate, :scan_duplicates ]
+      before_action :require_coordinator_or_above!, only: [ :duplicates, :resolve_duplicate, :scan_duplicates ]
+      before_action :require_chief_or_above!, only: [ :verify, :bulk_verify ]
 
       # POST /api/v1/supporters (public signup — no auth required)
       def create

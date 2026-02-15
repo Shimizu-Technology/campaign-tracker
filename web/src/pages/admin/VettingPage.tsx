@@ -110,8 +110,6 @@ export default function VettingPage() {
     }
   };
 
-  const pendingCount = supporters.filter(s => s.verification_status === 'unverified').length;
-
   return (
     <div className="space-y-6">
       {/* Header */}
