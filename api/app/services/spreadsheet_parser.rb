@@ -13,7 +13,8 @@ class SpreadsheetParser
     "email" => /\b(email|e-mail)\b/i,
     "street_address" => /\b(address|street|residence|location)\b/i,
     "registered_voter" => /\b(registered|voter|reg)\b/i,
-    "comments" => /\b(comment|note|remark)\b/i
+    "comments" => /\b(comment|note|remark)\b/i,
+    "village" => /\b(village|barangay|municipality)\b/i
   }.freeze
 
   ParseResult = Data.define(:sheets, :errors)
@@ -140,7 +141,7 @@ class SpreadsheetParser
       used_columns = Set.new
 
       # First pass: exact/priority matches (email before address to avoid "Email Address" → address)
-      priority_order = %w[first_name last_name name contact_number dob email street_address registered_voter comments]
+      priority_order = %w[first_name last_name name contact_number dob email street_address registered_voter village comments]
 
       priority_order.each do |field|
         pattern = COLUMN_PATTERNS[field]
@@ -249,6 +250,9 @@ class SpreadsheetParser
 
       # Comments
       data["comments"] = raw["comments"] if raw["comments"].present?
+
+      # Village (passed through for per-row village assignment)
+      data["village"] = raw["village"]&.strip if raw["village"].present?
 
       issues = data["_issues"]
       { data: data, issues: issues.map { |i| { row: row_num, message: i } } }

@@ -2,6 +2,7 @@ import { useState, useCallback } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { uploadImportPreview, parseImportRows, confirmImport, getVillages } from '../../lib/api';
 import { Upload, FileSpreadsheet, ArrowRight, ArrowLeft, Check, AlertTriangle, Loader2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 // Types
 interface SheetInfo {
@@ -62,9 +63,10 @@ const FIELD_LABELS: Record<string, string> = {
   street_address: 'Address',
   registered_voter: 'Registered Voter',
   comments: 'Comments',
+  village: 'Village',
 };
 
-const IMPORTABLE_FIELDS = ['name', 'first_name', 'last_name', 'contact_number', 'dob', 'email', 'street_address', 'registered_voter', 'comments'];
+const IMPORTABLE_FIELDS = ['name', 'first_name', 'last_name', 'contact_number', 'dob', 'email', 'street_address', 'registered_voter', 'village', 'comments'];
 
 export default function ImportPage() {
   const [step, setStep] = useState<Step>('upload');
@@ -148,7 +150,7 @@ export default function ImportPage() {
   const confirmMutation = useMutation({
     mutationFn: () => confirmImport({
       import_key: preview!.import_key,
-      village_id: Number(villageId),
+      village_id: villageId ? Number(villageId) : undefined,
       rows: rows.filter(r => !r._skip),
     }),
     onSuccess: (data) => {
@@ -174,6 +176,9 @@ export default function ImportPage() {
       {/* Header */}
       <header className="bg-[#1B3A6B] text-white py-4 px-4">
         <div className="max-w-5xl mx-auto">
+          <Link to="/admin" className="flex items-center gap-1 text-blue-200 hover:text-white text-sm mb-1">
+            <ArrowLeft className="w-3.5 h-3.5" /> Dashboard
+          </Link>
           <h1 className="text-xl font-bold">Import Supporters</h1>
           <div className="flex items-center gap-2 mt-2 text-sm text-blue-200">
             {(['upload', 'select-sheet', 'map-columns', 'review', 'complete'] as Step[]).map((s, i) => (
@@ -299,23 +304,60 @@ export default function ImportPage() {
               </div>
             </div>
 
-            {/* Village Selection */}
-            <div className="app-card p-4">
-              <h2 className="font-semibold text-gray-900 mb-1">Assign Village</h2>
-              <p className="text-sm text-gray-500 mb-3">
-                All imported supporters will be assigned to this village.
-              </p>
-              <select
-                value={villageId}
-                onChange={(e) => setVillageId(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
-              >
-                <option value="">Select a village...</option>
-                {villages.map((v: Village) => (
-                  <option key={v.id} value={v.id}>{v.name}</option>
-                ))}
-              </select>
-            </div>
+            {/* Sample Preview */}
+            {currentSheet && currentSheet.sample_rows.length > 0 && (
+              <div className="app-card p-4">
+                <h2 className="font-semibold text-gray-900 mb-1">Preview (first {currentSheet.sample_rows.length} rows)</h2>
+                <p className="text-sm text-gray-500 mb-3">Verify your column mappings look correct before parsing all rows.</p>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="border-b text-left text-gray-500 uppercase">
+                        {IMPORTABLE_FIELDS.filter(f => columnMapping[f]).map(f => (
+                          <th key={f} className="px-2 py-1">{FIELD_LABELS[f]}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {currentSheet.sample_rows.map((row, i) => (
+                        <tr key={i} className="border-b border-gray-100">
+                          {IMPORTABLE_FIELDS.filter(f => columnMapping[f]).map(f => (
+                            <td key={f} className="px-2 py-1.5 text-gray-700 max-w-[150px] truncate">
+                              {row[f] || '—'}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* Village Selection — only when no village column is mapped */}
+            {!columnMapping.village ? (
+              <div className="app-card p-4">
+                <h2 className="font-semibold text-gray-900 mb-1">Assign Village</h2>
+                <p className="text-sm text-gray-500 mb-3">
+                  All imported supporters will be assigned to this village. Or map a "Village" column above to assign per-row.
+                </p>
+                <select
+                  value={villageId}
+                  onChange={(e) => setVillageId(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                >
+                  <option value="">Select a village...</option>
+                  {villages.map((v: Village) => (
+                    <option key={v.id} value={v.id}>{v.name}</option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-700">
+                Village will be assigned per-row from the <strong>Village</strong> column in your spreadsheet.
+                Rows with unrecognized village names will be flagged as errors.
+              </div>
+            )}
 
             <div className="flex items-center justify-between">
               <button onClick={() => preview!.sheets.length > 1 ? setStep('select-sheet') : setStep('upload')}
@@ -324,7 +366,7 @@ export default function ImportPage() {
               </button>
               <button
                 onClick={() => parseMutation.mutate()}
-                disabled={parseMutation.isPending || !villageId || (!columnMapping.name && !columnMapping.first_name)}
+                disabled={parseMutation.isPending || (!villageId && !columnMapping.village) || (!columnMapping.name && !columnMapping.first_name)}
                 className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#1B3A6B] text-white rounded-lg hover:bg-[#15305a] disabled:opacity-50"
               >
                 {parseMutation.isPending ? (
@@ -370,7 +412,10 @@ export default function ImportPage() {
 
             {/* Village reminder */}
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-700">
-              Importing into <strong>{villages.find(v => v.id === Number(villageId))?.name}</strong> · All records will be <strong>unverified</strong> until staff reviews them.
+              {columnMapping.village
+                ? <>Village assigned <strong>per-row</strong> from spreadsheet column</>
+                : <>Importing into <strong>{villages.find(v => v.id === Number(villageId))?.name}</strong></>
+              } · All records will be <strong>unverified</strong> until staff reviews them.
             </div>
 
             {/* Row table */}
@@ -384,6 +429,7 @@ export default function ImportPage() {
                     <th className="px-3 py-2">DOB</th>
                     <th className="px-3 py-2">Address</th>
                     <th className="px-3 py-2">Reg?</th>
+                    {columnMapping.village && <th className="px-3 py-2">Village</th>}
                     <th className="px-3 py-2">Status</th>
                     <th className="px-3 py-2 w-16">Action</th>
                   </tr>
@@ -422,6 +468,9 @@ export default function ImportPage() {
                           <span className="text-gray-300">—</span>
                         )}
                       </td>
+                      {columnMapping.village && (
+                        <td className="px-3 py-2 text-gray-600 text-xs">{(row as Record<string, unknown>).village as string || '—'}</td>
+                      )}
                       <td className="px-3 py-2">
                         {row._skip ? (
                           <span className="text-xs text-gray-400">Skipped</span>
@@ -537,8 +586,11 @@ export default function ImportPage() {
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full p-6">
             <h3 className="text-lg font-bold text-gray-900 mb-2">Confirm Import</h3>
             <p className="text-gray-600 mb-4">
-              Import <strong>{activeRows.length}</strong> supporters into{' '}
-              <strong>{villages.find(v => v.id === Number(villageId))?.name}</strong>?
+              Import <strong>{activeRows.length}</strong> supporters
+              {columnMapping.village
+                ? <> across <strong>multiple villages</strong> (from spreadsheet)?</>
+                : <> into <strong>{villages.find(v => v.id === Number(villageId))?.name}</strong>?</>
+              }
             </p>
             <p className="text-sm text-gray-500 mb-6">
               All records will be marked as <strong>unverified</strong> until staff reviews them.

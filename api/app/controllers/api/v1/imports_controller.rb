@@ -139,14 +139,16 @@ module Api
           return render_api_error(message: "Invalid import key", status: :bad_request, code: "invalid_key")
         end
 
-        unless village_id.present?
-          return render_api_error(message: "village_id is required", status: :bad_request, code: "missing_village")
+        # Village can come from: 1) village_id param (all rows), or 2) per-row village name
+        default_village = village_id.present? ? Village.find_by(id: village_id) : nil
+        has_per_row_village = rows.any? { |r| r["village"].present? }
+
+        unless default_village || has_per_row_village
+          return render_api_error(message: "village_id is required (or rows must include village names)", status: :bad_request, code: "missing_village")
         end
 
-        village = Village.find_by(id: village_id)
-        unless village
-          return render_api_error(message: "Village not found", status: :not_found, code: "village_not_found")
-        end
+        # Pre-load village name → record lookup for per-row matching
+        village_lookup = Village.all.index_by { |v| v.name.downcase.strip } if has_per_row_village
 
         unless rows.is_a?(Array) && rows.any?
           return render_api_error(message: "No rows to import", status: :bad_request, code: "empty_rows")
@@ -164,6 +166,25 @@ module Api
         rows.each_with_index do |row, idx|
           next if row["_skip"]
 
+          # Resolve village: per-row name takes priority over default
+          row_village = default_village
+          if row["village"].present? && village_lookup
+            matched = village_lookup[row["village"].downcase.strip]
+            if matched
+              row_village = matched
+            else
+              skipped += 1
+              errors << { row: row["_row"] || (idx + 1), errors: ["Unknown village: \"#{row['village']}\""] }
+              next
+            end
+          end
+
+          unless row_village
+            skipped += 1
+            errors << { row: row["_row"] || (idx + 1), errors: ["No village assigned"] }
+            next
+          end
+
           supporter = Supporter.new(
             first_name: row["first_name"],
             last_name: row["last_name"],
@@ -172,7 +193,7 @@ module Api
             email: row["email"],
             street_address: row["street_address"],
             registered_voter: row["registered_voter"],
-            village: village,
+            village: row_village,
             source: "bulk_import",
             status: "active",
             turnout_status: "unknown",
@@ -192,7 +213,7 @@ module Api
         cleanup_import_file(import_key) if import_key.present?
 
         log_audit!(nil, action: "bulk_import", changed_data: {
-          "village" => village.name,
+          "village" => default_village&.name || "per-row",
           "created" => created,
           "skipped" => skipped,
           "total_rows" => rows.size
@@ -203,7 +224,7 @@ module Api
           created: created,
           skipped: skipped,
           errors: errors,
-          village: village.name
+          village: default_village&.name || "multiple villages"
         }
       end
 
