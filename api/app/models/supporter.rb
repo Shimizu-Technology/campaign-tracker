@@ -133,8 +133,11 @@ class Supporter < ApplicationRecord
   def self.normalize_phone(phone)
     return nil if phone.blank?
     digits = phone.gsub(/\D/, "")
-    # Normalize Guam numbers: strip leading country code
-    digits = digits.sub(/\A1?671/, "671") if digits.length >= 10
+    # Normalize Guam numbers: strip leading country code (1 or +1)
+    # Only strip if the result is a valid 10-digit Guam number (671 + 7 digits)
+    if digits.length >= 11 && digits.start_with?("1671")
+      digits = digits[1..] # Strip leading "1"
+    end
     digits
   end
 end

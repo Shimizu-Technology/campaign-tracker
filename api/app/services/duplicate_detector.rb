@@ -96,9 +96,6 @@ class DuplicateDetector
   # Scan all supporters for duplicates using bulk SQL queries.
   # Returns the number of newly flagged duplicates.
   def self.scan_all!
-    # Reset previous flags before re-scanning
-    # (keeps dismissed ones — only resets auto-flagged)
-
     count = 0
 
     # Phase 1: Find phone duplicates in bulk via SQL
@@ -161,42 +158,51 @@ class DuplicateDetector
       GROUP BY s1.id
     SQL
 
-    # Merge all results: supporter_id -> { match_id, match_types }
+    # Merge all results: supporter_id -> { matches: { match_id => [types] } }
+    # Track each match_id separately so notes accurately reflect which record
+    # matched on which criteria.
     all_dupes = {}
     [phone_dupes, email_dupes, name_dupes, swapped_dupes].each do |result_set|
       result_set.each do |row|
         sid = row["supporter_id"]
         mid = row["match_id"]
         mtype = row["match_type"]
-        all_dupes[sid] ||= { match_id: mid, match_types: [] }
-        all_dupes[sid][:match_types] << mtype
-        # Keep the oldest match
-        all_dupes[sid][:match_id] = [all_dupes[sid][:match_id], mid].min
+        all_dupes[sid] ||= {}
+        all_dupes[sid][mid] ||= []
+        all_dupes[sid][mid] << mtype
       end
     end
 
     # Bulk update all flagged supporters
-    all_dupes.each do |supporter_id, info|
-      match_types = info[:match_types].uniq.join(", ")
-      notes = "Matches: ##{info[:match_id]} (#{match_types})"
+    all_dupes.each do |supporter_id, matches|
+      # Build accurate notes: each match_id gets its own match types
+      reasons = matches.map do |mid, types|
+        "##{mid} (#{types.uniq.join(', ')})"
+      end
+      notes = "Matches: #{reasons.join('; ')}"
 
-      Supporter.where(id: supporter_id)
-               .where(potential_duplicate: false)
-               .update_all(
-                 potential_duplicate: true,
-                 duplicate_of_id: info[:match_id],
-                 duplicate_notes: notes
-               )
-      count += 1
+      # Link to the oldest matching supporter
+      oldest_match_id = matches.keys.min
 
-      # Also flag the match target
-      Supporter.where(id: info[:match_id])
-               .where(potential_duplicate: false)
-               .update_all(
-                 potential_duplicate: true,
-                 duplicate_of_id: supporter_id,
-                 duplicate_notes: "Has potential duplicate(s) — see ##{supporter_id}"
-               )
+      updated = Supporter.where(id: supporter_id)
+                         .where(potential_duplicate: false)
+                         .update_all(
+                           potential_duplicate: true,
+                           duplicate_of_id: oldest_match_id,
+                           duplicate_notes: notes
+                         )
+      count += updated
+
+      # Also flag the match target(s)
+      matches.each_key do |match_id|
+        Supporter.where(id: match_id)
+                 .where(potential_duplicate: false)
+                 .update_all(
+                   potential_duplicate: true,
+                   duplicate_of_id: supporter_id,
+                   duplicate_notes: "Has potential duplicate(s) — see ##{supporter_id}"
+                 )
+      end
     end
 
     count

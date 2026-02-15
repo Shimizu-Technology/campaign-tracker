@@ -38,10 +38,11 @@ class DuplicateDetectorTest < ActiveSupport::TestCase
   end
 
   test "scan_all! finds duplicates in bulk using SQL" do
-    Supporter.update_all(potential_duplicate: false, duplicate_of_id: nil, duplicate_notes: nil)
-
     s1 = Supporter.create!(**@base_attrs, first_name: "Scan", last_name: "Test1", contact_number: "671-444-0001", village: @village1)
     s2 = Supporter.create!(**@base_attrs, first_name: "Scan", last_name: "Test2", contact_number: "+16714440001", village: @village2)
+
+    # Reset flags so scan_all! can find them fresh
+    Supporter.where(id: [s1.id, s2.id]).update_all(potential_duplicate: false, duplicate_of_id: nil, duplicate_notes: nil)
 
     count = DuplicateDetector.scan_all!
     assert count > 0
