@@ -162,7 +162,7 @@ class DuplicateDetector
     # Track each match_id separately so notes accurately reflect which record
     # matched on which criteria.
     all_dupes = {}
-    [phone_dupes, email_dupes, name_dupes, swapped_dupes].each do |result_set|
+    [ phone_dupes, email_dupes, name_dupes, swapped_dupes ].each do |result_set|
       result_set.each do |row|
         sid = row["supporter_id"]
         mid = row["match_id"]

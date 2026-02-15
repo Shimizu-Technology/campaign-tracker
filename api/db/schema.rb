@@ -396,12 +396,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_15_103456) do
     t.bigint "verified_by_user_id"
     t.bigint "village_id", null: false
     t.boolean "yard_sign"
+    t.index "lower((email)::text)", name: "index_supporters_on_lower_email", where: "(email IS NOT NULL)"
     t.index "lower((print_name)::text) gin_trgm_ops", name: "index_supporters_on_lower_print_name_trgm", using: :gin
+    t.index "village_id, lower(TRIM(BOTH FROM first_name)), lower(TRIM(BOTH FROM last_name))", name: "index_supporters_on_village_lower_first_last_name"
     t.index ["block_id"], name: "index_supporters_on_block_id"
     t.index ["contact_number"], name: "index_supporters_on_contact_number_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["created_at"], name: "index_supporters_on_created_at"
     t.index ["duplicate_of_id"], name: "index_supporters_on_duplicate_of_id"
-    t.index ["email"], name: "index_supporters_on_email"
     t.index ["entered_by_user_id"], name: "index_supporters_on_entered_by_user_id"
     t.index ["last_name", "first_name"], name: "index_supporters_on_last_name_and_first_name"
     t.index ["last_name"], name: "index_supporters_on_last_name"
@@ -421,7 +422,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_15_103456) do
     t.index ["verification_status"], name: "index_supporters_on_verification_status"
     t.index ["verified_by_user_id"], name: "index_supporters_on_verified_by_user_id"
     t.index ["village_id", "created_at"], name: "index_supporters_on_village_id_and_created_at"
-    t.index ["village_id", "first_name", "last_name"], name: "index_supporters_on_village_first_last_name"
     t.index ["village_id"], name: "index_supporters_on_village_id"
   end
 

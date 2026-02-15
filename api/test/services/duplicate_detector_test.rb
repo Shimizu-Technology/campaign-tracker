@@ -42,7 +42,7 @@ class DuplicateDetectorTest < ActiveSupport::TestCase
     s2 = Supporter.create!(**@base_attrs, first_name: "Scan", last_name: "Test2", contact_number: "+16714440001", village: @village2)
 
     # Reset flags so scan_all! can find them fresh
-    Supporter.where(id: [s1.id, s2.id]).update_all(potential_duplicate: false, duplicate_of_id: nil, duplicate_notes: nil)
+    Supporter.where(id: [ s1.id, s2.id ]).update_all(potential_duplicate: false, duplicate_of_id: nil, duplicate_notes: nil)
 
     count = DuplicateDetector.scan_all!
     assert count > 0
