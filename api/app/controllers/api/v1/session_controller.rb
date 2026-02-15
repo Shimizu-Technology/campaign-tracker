@@ -19,6 +19,9 @@ module Api
             assigned_block_id: current_user.assigned_block_id,
             scoped_village_ids: scoped_village_ids
           },
+          counts: {
+            pending_vetting: scope_supporters(Supporter.unverified).count
+          },
           permissions: {
             can_manage_users: can_manage_users?,
             can_manage_configuration: can_manage_configuration?,

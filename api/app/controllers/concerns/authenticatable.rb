@@ -115,6 +115,16 @@ module Authenticatable
     end
   end
 
+  def require_chief_or_above!
+    unless current_user&.admin? || current_user&.coordinator? || current_user&.chief?
+      render_api_error(
+        message: "Village chief access required",
+        status: :forbidden,
+        code: "chief_access_required"
+      )
+    end
+  end
+
   def require_supporter_access!
     return if can_view_supporters?
 

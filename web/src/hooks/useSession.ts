@@ -12,6 +12,9 @@ export interface SessionResponse {
     assigned_block_id: number | null;
     scoped_village_ids: number[] | null;
   };
+  counts: {
+    pending_vetting: number;
+  };
   permissions: {
     can_manage_users: boolean;
     can_manage_configuration: boolean;
