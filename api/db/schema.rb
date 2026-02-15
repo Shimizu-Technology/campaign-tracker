@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_14_093252) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_15_103456) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -374,6 +374,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_14_093252) do
     t.string "last_name"
     t.string "leader_code"
     t.boolean "motorcade_available"
+    t.string "normalized_phone"
     t.boolean "opt_in_email", default: false, null: false
     t.boolean "opt_in_text", default: false, null: false
     t.boolean "potential_duplicate", default: false, null: false
@@ -400,10 +401,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_14_093252) do
     t.index ["contact_number"], name: "index_supporters_on_contact_number_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["created_at"], name: "index_supporters_on_created_at"
     t.index ["duplicate_of_id"], name: "index_supporters_on_duplicate_of_id"
+    t.index ["email"], name: "index_supporters_on_email"
     t.index ["entered_by_user_id"], name: "index_supporters_on_entered_by_user_id"
     t.index ["last_name", "first_name"], name: "index_supporters_on_last_name_and_first_name"
     t.index ["last_name"], name: "index_supporters_on_last_name"
     t.index ["leader_code"], name: "index_supporters_on_leader_code"
+    t.index ["normalized_phone"], name: "index_supporters_on_normalized_phone"
     t.index ["potential_duplicate"], name: "index_supporters_on_potential_duplicate"
     t.index ["precinct_id", "created_at"], name: "index_supporters_on_precinct_id_and_created_at"
     t.index ["precinct_id", "turnout_status"], name: "index_supporters_on_precinct_id_and_turnout_status"
@@ -418,6 +421,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_14_093252) do
     t.index ["verification_status"], name: "index_supporters_on_verification_status"
     t.index ["verified_by_user_id"], name: "index_supporters_on_verified_by_user_id"
     t.index ["village_id", "created_at"], name: "index_supporters_on_village_id_and_created_at"
+    t.index ["village_id", "first_name", "last_name"], name: "index_supporters_on_village_first_last_name"
     t.index ["village_id"], name: "index_supporters_on_village_id"
   end
 

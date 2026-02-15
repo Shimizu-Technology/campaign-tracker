@@ -23,6 +23,7 @@ class Supporter < ApplicationRecord
 
   # Keep print_name in sync as "Last, First" for display and backward compatibility
   before_validation :sync_print_name
+  before_save :set_normalized_phone
   after_create :check_for_duplicates
 
   def display_name
@@ -118,9 +119,22 @@ class Supporter < ApplicationRecord
     errors.add(:block_id, "must belong to the selected village")
   end
 
+  def set_normalized_phone
+    self.normalized_phone = self.class.normalize_phone(contact_number)
+  end
+
   def check_for_duplicates
     DuplicateDetector.flag_if_duplicate!(self)
   rescue StandardError => e
     Rails.logger.warn("Duplicate detection failed for supporter #{id}: #{e.message}")
+  end
+
+  # Class method so DuplicateDetector can also use it
+  def self.normalize_phone(phone)
+    return nil if phone.blank?
+    digits = phone.gsub(/\D/, "")
+    # Normalize Guam numbers: strip leading country code
+    digits = digits.sub(/\A1?671/, "671") if digits.length >= 10
+    digits
   end
 end
