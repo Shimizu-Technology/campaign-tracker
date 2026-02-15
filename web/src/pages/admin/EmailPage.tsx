@@ -46,7 +46,7 @@ export default function EmailPage() {
       sendEmailBlast({
         subject,
         body,
-        village_id: villageId || undefined,
+        village_id: villageId ? Number(villageId) : undefined,
         motorcade_available: motorcadeAvailable ? 'true' : undefined,
         registered_voter: registeredVoter ? 'true' : undefined,
         yard_sign: yardSign ? 'true' : undefined,
@@ -63,7 +63,7 @@ export default function EmailPage() {
       sendEmailBlast({
         subject,
         body,
-        village_id: villageId || undefined,
+        village_id: villageId ? Number(villageId) : undefined,
         motorcade_available: motorcadeAvailable ? 'true' : undefined,
         registered_voter: registeredVoter ? 'true' : undefined,
         yard_sign: yardSign ? 'true' : undefined,

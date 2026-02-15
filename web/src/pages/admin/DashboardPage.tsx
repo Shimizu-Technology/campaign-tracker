@@ -119,7 +119,7 @@ export default function DashboardPage() {
     ...(sessionData?.permissions?.can_access_poll_watcher ? [ { to: '/admin/poll-watcher', label: 'Poll Watcher', icon: MapPin } ] : []),
     ...(sessionData?.permissions?.can_access_leaderboard ? [ { to: '/admin/leaderboard', label: 'Top', icon: Trophy } ] : []),
     ...(sessionData?.permissions?.can_send_sms ? [ { to: '/admin/sms', label: 'SMS', icon: MessageSquare } ] : []),
-    ...(sessionData?.permissions?.can_send_sms ? [ { to: '/admin/email', label: 'Email', icon: Mail } ] : []),
+    ...(sessionData?.permissions?.can_send_email ? [ { to: '/admin/email', label: 'Email', icon: Mail } ] : []),
     ...(sessionData?.permissions?.can_manage_users ? [ { to: '/admin/users', label: 'Users', icon: Shield } ] : []),
     ...(sessionData?.permissions?.can_manage_configuration ? [ { to: '/admin/quotas', label: 'Quotas', icon: Target } ] : []),
     ...(sessionData?.permissions?.can_manage_configuration ? [ { to: '/admin/precincts', label: 'Precincts', icon: MapPin } ] : []),

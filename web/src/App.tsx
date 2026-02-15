@@ -272,7 +272,7 @@ export default function App() {
             path="/admin/email"
             element={
               <AdminRoute>
-                <PermissionRoute permission="can_send_sms">
+                <PermissionRoute permission="can_send_email">
                   <EmailPage />
                 </PermissionRoute>
               </AdminRoute>
