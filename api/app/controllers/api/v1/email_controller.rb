@@ -5,7 +5,7 @@ module Api
     class EmailController < ApplicationController
       include Authenticatable
       before_action :authenticate_request
-      before_action :require_coordinator_or_above!
+      before_action :require_coordinator_or_above!, only: [ :blast ]
 
       # POST /api/v1/email/blast
       # Send email to filtered supporters who opted in
@@ -34,14 +34,15 @@ module Api
         count = supporters.count
 
         if params[:dry_run] == "true"
+          sample_supporter = Supporter.new(
+            first_name: "Maria", last_name: "Cruz",
+            village: Village.find_by(name: "Tamuning") || Village.first
+          )
           return render json: {
             dry_run: true,
             recipient_count: count,
             subject: subject,
-            preview_html: SupporterEmailService.send(:blast_wrapper_html,
-              SupporterEmailService.send(:personalize, body, Supporter.new(
-                first_name: "Maria", last_name: "Cruz", village: Village.find_by(name: "Tamuning")
-              )))
+            preview_html: SupporterEmailService.preview_html(body, sample_supporter)
           }
         end
 
