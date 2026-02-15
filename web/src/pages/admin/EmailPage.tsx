@@ -1,9 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Mail, Send, Users, Zap, CheckCircle, AlertTriangle, Settings, Eye } from 'lucide-react';
+import { ArrowLeft, Mail, Send, Users, Zap, CheckCircle, AlertTriangle, Eye } from 'lucide-react';
 import { getEmailStatus, sendEmailBlast, getVillages } from '../../lib/api';
-import { useSession } from '../../hooks/useSession';
 
 interface EmailBlastResult {
   dry_run?: boolean;
@@ -21,7 +20,6 @@ interface Village {
 }
 
 export default function EmailPage() {
-  const { data: sessionData } = useSession();
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [villageId, setVillageId] = useState('');
@@ -102,14 +100,7 @@ export default function EmailPage() {
                 <p className="text-blue-200 text-sm">Send emails to supporters</p>
               </div>
             </div>
-            {sessionData?.permissions?.can_manage_configuration && (
-              <Link
-                to="/admin/sms/settings"
-                className="flex items-center gap-2 bg-white/10 hover:bg-white/20 text-white px-3 py-2 rounded-lg text-sm transition-colors"
-              >
-                <Settings className="w-4 h-4" /> Settings
-              </Link>
-            )}
+            {/* Email settings page — future enhancement */}
           </div>
         </div>
       </header>
