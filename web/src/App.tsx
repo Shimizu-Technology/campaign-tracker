@@ -24,11 +24,13 @@ const PollWatcherPage = lazy(() => import('./pages/admin/PollWatcherPage'));
 const WarRoomPage = lazy(() => import('./pages/admin/WarRoomPage'));
 const SmsPage = lazy(() => import('./pages/admin/SmsPage'));
 const SmsSettingsPage = lazy(() => import('./pages/admin/SmsSettingsPage'));
+const EmailPage = lazy(() => import('./pages/admin/EmailPage'));
 const UsersPage = lazy(() => import('./pages/admin/UsersPage'));
 const QuotaSettingsPage = lazy(() => import('./pages/admin/QuotaSettingsPage'));
 const PrecinctSettingsPage = lazy(() => import('./pages/admin/PrecinctSettingsPage'));
 const DuplicatesPage = lazy(() => import('./pages/admin/DuplicatesPage'));
 const ImportPage = lazy(() => import('./pages/admin/ImportPage'));
+const VettingPage = lazy(() => import('./pages/admin/VettingPage'));
 
 function LazyFallback() {
   return (
@@ -157,6 +159,16 @@ export default function App() {
             }
           />
           <Route
+            path="/admin/vetting"
+            element={
+              <AdminRoute>
+                <PermissionRoute permission="can_view_supporters">
+                  <VettingPage />
+                </PermissionRoute>
+              </AdminRoute>
+            }
+          />
+          <Route
             path="/admin/villages/:id"
             element={
               <AdminRoute>
@@ -252,6 +264,16 @@ export default function App() {
               <AdminRoute>
                 <PermissionRoute permission="can_manage_configuration">
                   <SmsSettingsPage />
+                </PermissionRoute>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/email"
+            element={
+              <AdminRoute>
+                <PermissionRoute permission="can_send_sms">
+                  <EmailPage />
                 </PermissionRoute>
               </AdminRoute>
             }
