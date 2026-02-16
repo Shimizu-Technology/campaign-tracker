@@ -128,7 +128,7 @@ class ClicksendClient
         response = http.request(request)
       rescue StandardError => e
         Rails.logger.error("[ClicksendClient] Batch HTTP error: #{e.message}")
-        return { results: [], sent: 0, failed: messages.size }
+        return { results: messages.map { |m| { to: m[:to], success: false, message_id: nil, error: e.message } }, sent: 0, failed: messages.size }
       end
 
       sent = 0
@@ -156,6 +156,7 @@ class ClicksendClient
       else
         Rails.logger.error("[ClicksendClient] Batch HTTP #{response.code}: #{response.body}")
         failed = messages.size
+        results = messages.map { |m| { to: m[:to], success: false, message_id: nil, error: "http_#{response.code}" } }
       end
 
       Rails.logger.info("[ClicksendClient] Batch complete: #{sent} sent, #{failed} failed")

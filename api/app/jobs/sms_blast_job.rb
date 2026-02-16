@@ -2,6 +2,7 @@
 
 class SmsBlastJob < ApplicationJob
   queue_as :default
+  discard_on StandardError # Override parent retry — re-running would duplicate SMS sends
 
   BATCH_SIZE = 500 # ClickSend supports up to 1000, use 500 for safety
   BATCH_DELAY = 1.0 # seconds between batches to respect rate limits
