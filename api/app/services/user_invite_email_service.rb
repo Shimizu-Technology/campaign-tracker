@@ -86,7 +86,7 @@ class UserInviteEmailService
                         <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0 0 18px 0;">
                           <tr>
                             <td style="border-radius: 10px; background: #1B3A6B;">
-                              <a href="#{frontend_url}" target="_blank" style="display: inline-block; padding: 12px 18px; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 600;">
+                              <a href="#{frontend_url}/admin" target="_blank" style="display: inline-block; padding: 12px 18px; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 600;">
                                 Create Account
                               </a>
                             </td>
@@ -97,7 +97,7 @@ class UserInviteEmailService
                           Or copy this URL into your browser:
                         </p>
                         <p style="margin: 0 0 20px 0; font-size: 13px; color: #1B3A6B; word-break: break-all;">
-                          #{frontend_url}
+                          #{frontend_url}/admin
                         </p>
 
                         <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 0 0 14px 0;">

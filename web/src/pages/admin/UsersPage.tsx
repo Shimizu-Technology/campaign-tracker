@@ -28,9 +28,21 @@ interface RoleGuideRow {
 }
 
 interface UserDraft {
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string;
   role: string;
+}
+
+function splitName(fullName: string | null): { firstName: string; lastName: string } {
+  if (!fullName) return { firstName: '', lastName: '' };
+  const parts = fullName.trim().split(/\s+/);
+  if (parts.length === 1) return { firstName: parts[0], lastName: '' };
+  return { firstName: parts[0], lastName: parts.slice(1).join(' ') };
+}
+
+function joinName(first: string, last: string): string {
+  return [first.trim(), last.trim()].filter(Boolean).join(' ');
 }
 
 const ROLE_GUIDE: RoleGuideRow[] = [
@@ -155,7 +167,7 @@ export default function UsersPage() {
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: UserDraft }) =>
       updateUser(id, {
-        name: payload.name.trim() || null,
+        name: joinName(payload.firstName, payload.lastName) || null,
         email: payload.email.trim(),
         role: payload.role,
       }),
@@ -179,21 +191,16 @@ export default function UsersPage() {
   });
 
   const getDraft = (user: UserItem): UserDraft => {
-    return draftByUser[user.id] || {
-      name: user.name || '',
-      email: user.email,
-      role: user.role,
-    };
+    if (draftByUser[user.id]) return draftByUser[user.id];
+    const { firstName, lastName } = splitName(user.name);
+    return { firstName, lastName, email: user.email, role: user.role };
   };
 
   const startEdit = (user: UserItem) => {
+    const { firstName, lastName } = splitName(user.name);
     setDraftByUser((prev) => ({
       ...prev,
-      [user.id]: {
-        name: user.name || '',
-        email: user.email,
-        role: user.role,
-      },
+      [user.id]: { firstName, lastName, email: user.email, role: user.role },
     }));
   };
 
@@ -210,7 +217,7 @@ export default function UsersPage() {
       const user = users.find((u) => u.id === Number(id));
       if (!user) return false;
       return (
-        (user.name || '') !== draft.name ||
+        (user.name || '') !== joinName(draft.firstName, draft.lastName) ||
         user.email !== draft.email.trim().toLowerCase() ||
         user.role !== draft.role
       );
@@ -408,7 +415,7 @@ export default function UsersPage() {
                   const isEditing = Boolean(draftByUser[user.id]);
                   const draft = getDraft(user);
                   const changed = (
-                    (user.name || '') !== draft.name ||
+                    (user.name || '') !== joinName(draft.firstName, draft.lastName) ||
                     user.email !== draft.email.trim().toLowerCase() ||
                     user.role !== draft.role
                   );
@@ -417,13 +424,22 @@ export default function UsersPage() {
                     <div key={user.id} className="p-4 space-y-3">
                       {isEditing ? (
                         <div className="grid grid-cols-1 gap-2">
-                          <input
-                            type="text"
-                            value={draft.name}
-                            onChange={(e) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, name: e.target.value } }))}
-                            placeholder="Name"
-                            className="border border-gray-300 rounded-xl px-3 py-2 min-h-[44px]"
-                          />
+                          <div className="grid grid-cols-2 gap-2">
+                            <input
+                              type="text"
+                              value={draft.firstName}
+                              onChange={(e) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, firstName: e.target.value } }))}
+                              placeholder="First Name"
+                              className="border border-gray-300 rounded-xl px-3 py-2 min-h-[44px]"
+                            />
+                            <input
+                              type="text"
+                              value={draft.lastName}
+                              onChange={(e) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, lastName: e.target.value } }))}
+                              placeholder="Last Name"
+                              className="border border-gray-300 rounded-xl px-3 py-2 min-h-[44px]"
+                            />
+                          </div>
                           <input
                             type="email"
                             value={draft.email}
@@ -521,7 +537,7 @@ export default function UsersPage() {
                       const isEditing = Boolean(draftByUser[user.id]);
                       const draft = getDraft(user);
                       const changed = (
-                        (user.name || '') !== draft.name ||
+                        (user.name || '') !== joinName(draft.firstName, draft.lastName) ||
                         user.email !== draft.email.trim().toLowerCase() ||
                         user.role !== draft.role
                       );
@@ -530,12 +546,22 @@ export default function UsersPage() {
                         <tr key={user.id} className="border-b">
                           <td className="px-4 py-3 text-gray-800">
                             {isEditing ? (
-                              <input
-                                type="text"
-                                value={draft.name}
-                                onChange={(e) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, name: e.target.value } }))}
-                                className="border border-gray-300 rounded-xl px-3 py-2 bg-white min-h-[44px] w-full"
-                              />
+                              <div className="flex gap-2">
+                                <input
+                                  type="text"
+                                  value={draft.firstName}
+                                  onChange={(e) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, firstName: e.target.value } }))}
+                                  placeholder="First"
+                                  className="border border-gray-300 rounded-xl px-3 py-2 bg-white min-h-[44px] w-full"
+                                />
+                                <input
+                                  type="text"
+                                  value={draft.lastName}
+                                  onChange={(e) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, lastName: e.target.value } }))}
+                                  placeholder="Last"
+                                  className="border border-gray-300 rounded-xl px-3 py-2 bg-white min-h-[44px] w-full"
+                                />
+                              </div>
                             ) : (
                               user.name || '—'
                             )}
