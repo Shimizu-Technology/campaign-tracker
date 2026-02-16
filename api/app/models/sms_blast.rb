@@ -12,7 +12,7 @@ class SmsBlast < ApplicationRecord
 
   def progress_pct
     return 0 if total_recipients.nil? || total_recipients.zero?
-    ((sent_count.to_i + failed_count.to_i) * 100.0 / total_recipients).round(1)
+    [ ((sent_count.to_i + failed_count.to_i) * 100.0 / total_recipients).round(1), 100.0 ].min
   end
 
   def finished?
