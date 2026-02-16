@@ -264,7 +264,7 @@ function BlastTab() {
       <div className="flex gap-3">
         <button
           onClick={() => dryRunMutation.mutate()}
-          disabled={!message.trim() || dryRunMutation.isPending}
+          disabled={!message.trim() || dryRunMutation.isPending || (activeBlastId !== null && !blastProgress?.finished)}
           className="flex-1 bg-white border border-[#1B3A6B] text-[#1B3A6B] py-3 rounded-xl font-semibold text-sm hover:bg-blue-50 disabled:opacity-50 transition-all"
         >
           {dryRunMutation.isPending ? 'Counting...' : 'Preview (Dry Run)'}
@@ -275,7 +275,7 @@ function BlastTab() {
               sendMutation.mutate();
             }
           }}
-          disabled={!message.trim() || sendMutation.isPending}
+          disabled={!message.trim() || sendMutation.isPending || (activeBlastId !== null && !blastProgress?.finished)}
           className="flex-1 bg-[#C41E3A] text-white py-3 rounded-xl font-semibold text-sm hover:bg-red-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
         >
           <Send className="w-4 h-4" />

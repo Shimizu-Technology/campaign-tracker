@@ -136,22 +136,33 @@ class ClicksendClient
       results = []
 
       if response.code.to_i == 200
-        json = JSON.parse(response.body) rescue {}
-        api_messages = json.dig("data", "messages") || []
+        json = begin
+          JSON.parse(response.body)
+        rescue JSON::ParserError => e
+          Rails.logger.error("[ClicksendClient] JSON parse error: #{e.message}")
+          nil
+        end
 
-        api_messages.each do |msg|
-          success = msg["status"] == "SUCCESS"
-          if success
-            sent += 1
-          else
-            failed += 1
+        if json.nil?
+          failed = messages.size
+          results = messages.map { |m| { to: m[:to], success: false, message_id: nil, error: "json_parse_error" } }
+        else
+          api_messages = json.dig("data", "messages") || []
+
+          api_messages.each do |msg|
+            success = msg["status"] == "SUCCESS"
+            if success
+              sent += 1
+            else
+              failed += 1
+            end
+            results << {
+              to: msg["to"],
+              success: success,
+              message_id: msg["message_id"],
+              error: success ? nil : msg["status"]
+            }
           end
-          results << {
-            to: msg["to"],
-            success: success,
-            message_id: msg["message_id"],
-            error: success ? nil : msg["status"]
-          }
         end
       else
         Rails.logger.error("[ClicksendClient] Batch HTTP #{response.code}: #{response.body}")
