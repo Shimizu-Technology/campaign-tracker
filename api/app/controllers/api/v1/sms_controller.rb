@@ -48,7 +48,7 @@ module Api
           )
         end
 
-        supporters = Supporter.active.where.not(contact_number: [ nil, "" ]).where(opt_in_text: true)
+        supporters = Supporter.active.where.not(contact_number: [ nil, "" ]).where("TRIM(contact_number) != ''").where(opt_in_text: true)
 
         # Optional filters
         supporters = supporters.where(village_id: params[:village_id]) if params[:village_id].present?
