@@ -5,6 +5,16 @@ import { useQueryClient } from '@tanstack/react-query';
 import api, { getSession } from '../lib/api';
 import AdminShell from './AdminShell';
 
+function getHttpStatus(error: unknown): number | undefined {
+  const maybeAxiosError = error as { response?: { status?: number } };
+  return maybeAxiosError.response?.status;
+}
+
+function isAuthError(error: unknown): boolean {
+  const status = getHttpStatus(error);
+  return status === 401 || status === 403;
+}
+
 function hasSufficientTokenLifetime(authHeader: string, minimumSecondsRemaining = 5): boolean {
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
   const parts = token.split('.');
@@ -27,6 +37,7 @@ function hasSufficientTokenLifetime(authHeader: string, minimumSecondsRemaining 
 function AuthTokenSync({ onReady }: { onReady: () => void }) {
   const { getToken, isLoaded, isSignedIn } = useAuth();
   const syncInFlightRef = useRef(false);
+  const syncPromiseRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -34,36 +45,48 @@ function AuthTokenSync({ onReady }: { onReady: () => void }) {
     let mounted = true;
 
     const syncToken = async () => {
-      if (syncInFlightRef.current) return;
-      syncInFlightRef.current = true;
-
-      if (!isSignedIn) {
-        delete api.defaults.headers.common['Authorization'];
+      if (syncInFlightRef.current) {
+        if (syncPromiseRef.current) {
+          await syncPromiseRef.current;
+        }
         if (mounted) onReady();
-        syncInFlightRef.current = false;
         return;
       }
 
-      try {
-        const token = await getToken();
-        if (token) {
-          api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      syncInFlightRef.current = true;
+      const run = async () => {
+        if (!isSignedIn) {
+          delete api.defaults.headers.common['Authorization'];
+          return;
         }
-        // Guard against transient Clerk token null/refresh windows:
-        // keep existing Authorization header rather than clearing it.
-      } catch (error) {
-        // Keep previous Authorization header on transient token-sync failures.
-        console.warn('[AuthTokenSync] token refresh failed', error);
-      }
+
+        try {
+          const token = await getToken();
+          if (token) {
+            api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          }
+          // Guard against transient Clerk token null/refresh windows:
+          // keep existing Authorization header rather than clearing it.
+        } catch (error) {
+          // Keep previous Authorization header on transient token-sync failures.
+          console.warn('[AuthTokenSync] token refresh failed', error);
+        }
+      };
+
+      syncPromiseRef.current = run();
+      await syncPromiseRef.current;
+      syncPromiseRef.current = null;
+      syncInFlightRef.current = false;
 
       if (mounted) onReady();
-      syncInFlightRef.current = false;
     };
 
-    syncToken();
+    void syncToken();
 
     // Keep token warm on a short interval.
-    const interval = setInterval(syncToken, 20_000);
+    const interval = setInterval(() => {
+      void syncToken();
+    }, 20_000);
     const onFocus = () => {
       void syncToken();
     };
@@ -133,11 +156,13 @@ function AuthorizedContent({ children }: { children: React.ReactNode }) {
           queryKey: ['session'],
           queryFn: getSession,
           staleTime: 60_000,
+          // Keep this gate snappy. Long retry backoff here is perceived as
+          // "admin page is frozen" while showing Verifying access.
+          retry: (failureCount, error) => !isAuthError(error) && failureCount < 1,
         });
         setSessionState('authorized');
       } catch (error) {
-        const axiosError = error as { response?: { status?: number } };
-        if (axiosError.response?.status === 403 || axiosError.response?.status === 401) {
+        if (isAuthError(error)) {
           setSessionState('unauthorized');
         } else {
           // Network error or server error — retry
