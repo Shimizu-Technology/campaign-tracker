@@ -174,14 +174,14 @@ module Api
               row_village = matched
             else
               skipped += 1
-              errors << { row: row["_row"] || (idx + 1), errors: ["Unknown village: \"#{row['village']}\""] }
+              errors << { row: row["_row"] || (idx + 1), errors: [ "Unknown village: \"#{row['village']}\"" ] }
               next
             end
           end
 
           unless row_village
             skipped += 1
-            errors << { row: row["_row"] || (idx + 1), errors: ["No village assigned"] }
+            errors << { row: row["_row"] || (idx + 1), errors: [ "No village assigned" ] }
             next
           end
 
