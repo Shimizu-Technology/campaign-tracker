@@ -21,6 +21,7 @@ import {
   TrendingUp,
   Menu,
   X,
+  ExternalLink,
 } from 'lucide-react';
 
 interface NavItem {
@@ -150,6 +151,18 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Home link */}
+      <div className="px-3 pb-2">
+        <Link
+          to="/"
+          onClick={() => setSidebarOpen(false)}
+          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all duration-150"
+        >
+          <ExternalLink className="w-4 h-4 flex-shrink-0 text-gray-400" />
+          <span className="truncate">Public Site</span>
+        </Link>
       </div>
 
       {/* User */}
