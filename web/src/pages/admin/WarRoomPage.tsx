@@ -176,7 +176,7 @@ export default function WarRoomPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+      <div className="min-h-[200px] flex items-center justify-center">
         <div className="text-gray-400 text-lg flex items-center gap-3">
           <Radio className="w-5 h-5 animate-pulse" /> Loading War Room...
         </div>
@@ -186,7 +186,7 @@ export default function WarRoomPage() {
 
   if (isError || !data) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-900">
+      <div className="min-h-[200px] flex items-center justify-center">
         <div className="text-center p-8">
           <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4 opacity-70" />
           <h2 className="text-xl font-bold text-white mb-2">Can't connect to server</h2>
@@ -230,9 +230,6 @@ export default function WarRoomPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Link to="/admin" className="text-gray-400 hover:text-gray-600 min-h-[44px] min-w-[44px] flex items-center justify-center">
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
           <Radio className="w-5 h-5 text-red-500 animate-pulse" />
           <div>
             <h1 className="text-lg font-bold text-gray-900 tracking-tight">WAR ROOM</h1>
@@ -337,13 +334,13 @@ export default function WarRoomPage() {
                   value={villageSearch}
                   onChange={(e) => setVillageSearch(e.target.value)}
                   placeholder="Search village..."
-                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-gray-900 border border-gray-200 text-sm min-h-[44px]"
+                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-white border border-gray-300 text-sm min-h-[44px]"
                 />
               </div>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 rounded-xl bg-gray-900 border border-gray-200 text-sm min-h-[44px]"
+                className="px-3 py-2 rounded-xl bg-white border border-gray-300 text-sm min-h-[44px]"
               >
                 <option value="">All statuses</option>
                 <option value="strong">Strong</option>
@@ -358,7 +355,7 @@ export default function WarRoomPage() {
                   setSortBy(field);
                   setSortDir(dir);
                 }}
-                className="px-3 py-2 rounded-xl bg-gray-900 border border-gray-200 text-sm min-h-[44px]"
+                className="px-3 py-2 rounded-xl bg-white border border-gray-300 text-sm min-h-[44px]"
               >
                 <option value="turnout_pct:desc">Highest turnout</option>
                 <option value="turnout_pct:asc">Lowest turnout</option>
@@ -391,7 +388,7 @@ export default function WarRoomPage() {
                       {v.turnout_pct}%
                     </span>
                   </div>
-                  <div className="w-full bg-gray-700 rounded-full h-1.5">
+                  <div className="w-full bg-gray-200 rounded-full h-1.5">
                     <div
                       className={`h-1.5 rounded-full transition-all ${turnoutBg(v.turnout_pct)}`}
                       style={{ width: `${Math.min(v.turnout_pct, 100)}%` }}

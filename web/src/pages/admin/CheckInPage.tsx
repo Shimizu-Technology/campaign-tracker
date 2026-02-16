@@ -51,7 +51,7 @@ export default function CheckInPage() {
   if (!event) return <div className="min-h-screen flex items-center justify-center text-[var(--text-muted)]">Loading...</div>;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-lg mx-auto space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto space-y-6">
       {/* Header */}
       <div className="app-card p-4 sticky top-0 z-10">
         <div>

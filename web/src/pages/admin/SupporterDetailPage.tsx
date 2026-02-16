@@ -219,20 +219,8 @@ export default function SupporterDetailPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       <div>
-        <div className="flex items-center justify-between mb-3">
-          <button
-            type="button"
-            onClick={goBack}
-            className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm"
-          >
-            <ArrowLeft className="w-4 h-4" /> Back
-          </button>
-          <button type="button" onClick={goHome} className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm">
-            <Home className="w-4 h-4" /> Home
-          </button>
-        </div>
         <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
           <UserRound className="w-5 h-5 text-[#1B3A6B]" /> {supporter.first_name} {supporter.last_name}
         </h1>

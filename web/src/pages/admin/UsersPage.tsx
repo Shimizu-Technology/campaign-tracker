@@ -237,14 +237,6 @@ export default function UsersPage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
       <div>
-        <div className="flex items-center justify-between mb-3">
-          <Link to="/admin" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm">
-            <ArrowLeft className="w-4 h-4" /> Back
-          </Link>
-          <Link to="/admin" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm">
-            <Home className="w-4 h-4" /> Home
-          </Link>
-        </div>
         <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
           <Users className="w-5 h-5 text-[#1B3A6B]" /> User Management
         </h1>

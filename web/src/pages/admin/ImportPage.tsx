@@ -172,12 +172,9 @@ export default function ImportPage() {
   const rawHeaders = currentSheet?.headers.raw_headers || [];
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div>
-        <Link to="/admin" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm mb-3">
-          <ArrowLeft className="w-4 h-4" /> Dashboard
-        </Link>
         <h1 className="text-2xl font-bold text-gray-900">Import Supporters</h1>
         <div className="flex items-center gap-2 mt-3 text-sm text-gray-500">
           {(['upload', 'select-sheet', 'map-columns', 'review', 'complete'] as Step[]).map((s, i) => (

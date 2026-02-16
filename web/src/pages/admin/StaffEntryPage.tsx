@@ -201,7 +201,7 @@ export default function StaffEntryPage() {
     }`;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-lg mx-auto space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto space-y-6">
       {/* Header */}
       <div>
         <Link to="/admin" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm mb-3">
@@ -252,7 +252,7 @@ export default function StaffEntryPage() {
         </div>
       )}
       {scanError && (
-        <div className="max-w-lg mx-auto px-4 mt-4">
+        <div className="max-w-3xl mx-auto px-4 mt-4">
           <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg flex items-center gap-2">
             <AlertTriangle className="w-5 h-5" /> {scanError}
           </div>
@@ -261,7 +261,7 @@ export default function StaffEntryPage() {
 
       {/* Success Toast */}
       {showSuccess && (
-        <div className="max-w-lg mx-auto px-4 mt-4">
+        <div className="max-w-3xl mx-auto px-4 mt-4">
           <div className="bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-lg flex items-center gap-2">
             <Check className="w-5 h-5" /> Supporter added! Ready for next entry.
           </div>
@@ -270,7 +270,7 @@ export default function StaffEntryPage() {
 
       {/* Duplicate Warning */}
       {duplicateWarning && (
-        <div className="max-w-lg mx-auto px-4 mt-4">
+        <div className="max-w-3xl mx-auto px-4 mt-4">
           <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-700 px-4 py-3 rounded-lg flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 shrink-0" /> {duplicateWarning}
           </div>
@@ -279,7 +279,7 @@ export default function StaffEntryPage() {
 
       {/* Submit Error */}
       {submit.isError && (
-        <div className="max-w-lg mx-auto px-4 mt-4">
+        <div className="max-w-3xl mx-auto px-4 mt-4">
           <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-700 px-4 py-3 rounded-lg flex items-center gap-2">
             <AlertTriangle className="w-5 h-5" /> Error saving. Check all fields and try again.
           </div>
@@ -287,7 +287,7 @@ export default function StaffEntryPage() {
       )}
 
       {/* Form */}
-      <form onSubmit={handleSubmit} className="max-w-lg mx-auto px-4 py-6 space-y-4">
+      <form onSubmit={handleSubmit} className="max-w-3xl mx-auto px-4 py-6 space-y-4">
         {/* Village (sticky for bulk entry) */}
         <div>
           <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Village *</label>

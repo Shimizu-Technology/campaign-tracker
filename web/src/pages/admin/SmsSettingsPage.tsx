@@ -63,16 +63,8 @@ export default function SmsSettingsPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link to="/admin/sms" className="flex items-center gap-1 text-gray-500 hover:text-gray-700 text-sm">
-            <ArrowLeft className="w-4 h-4" />
-          </Link>
-          <h1 className="text-lg font-bold text-gray-900">SMS Settings</h1>
-        </div>
-        <Link to="/admin" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm">
-          <Home className="w-4 h-4" /> Home
-        </Link>
+      <div>
+        <h1 className="text-lg font-bold text-gray-900">SMS Settings</h1>
       </div>
 
       <div className="space-y-6">
