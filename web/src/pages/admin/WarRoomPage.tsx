@@ -284,7 +284,7 @@ export default function WarRoomPage() {
             <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
               <Clock className="w-3.5 h-3.5" /> LAST HOUR
             </div>
-            <div className="text-3xl font-bold text-cyan-400">
+            <div className="text-3xl font-bold text-cyan-600">
               {stats.last_hour_reports}
             </div>
             <div className="text-xs text-gray-400">reports received</div>
@@ -295,7 +295,7 @@ export default function WarRoomPage() {
             <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
               <Users className="w-3.5 h-3.5" /> NOT YET VOTED
             </div>
-            <div className="text-2xl font-bold text-amber-400">
+            <div className="text-2xl font-bold text-amber-600">
               {stats.total_not_yet_voted.toLocaleString()}
             </div>
             <div className="text-xs text-gray-400">remaining outreach queue</div>
@@ -313,7 +313,7 @@ export default function WarRoomPage() {
             <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
               <CheckCircle className="w-3.5 h-3.5" /> REACHED
             </div>
-            <div className="text-2xl font-bold text-green-400">
+            <div className="text-2xl font-bold text-green-600">
               {stats.total_outreach_reached.toLocaleString()}
             </div>
             <div className="text-xs text-gray-400">supporters reached</div>
@@ -413,12 +413,12 @@ export default function WarRoomPage() {
             {/* Not-yet-voted Queue */}
             <div>
               <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <Users className="w-4 h-4 text-amber-400" /> Not Yet Voted Queue
+                <Users className="w-4 h-4 text-amber-500" /> Not Yet Voted Queue
               </h2>
               {not_yet_voted_queue.length > 0 ? (
                 <div className="space-y-2">
                   {not_yet_voted_queue.map((v) => (
-                    <div key={v.id} className="bg-amber-900/20 border border-amber-700/50 rounded-xl p-3">
+                    <div key={v.id} className="bg-amber-50 border border-amber-200 rounded-xl p-3">
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-sm">{v.name}</span>
                         <span className="text-amber-600 font-bold text-sm">{v.not_yet_voted_count} pending</span>
@@ -439,15 +439,15 @@ export default function WarRoomPage() {
             {/* Call Bank Priorities */}
             <div>
               <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <Phone className="w-4 h-4 text-red-400" /> Call Priorities
+                <Phone className="w-4 h-4 text-red-500" /> Call Priorities
               </h2>
               {call_priorities.length > 0 ? (
                 <div className="space-y-2">
                   {call_priorities.map((v) => (
-                    <div key={v.id} className="bg-red-900/30 border border-red-800/50 rounded-xl p-3">
+                    <div key={v.id} className="bg-red-50 border border-red-200 rounded-xl p-3">
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-sm">{v.name}</span>
-                        <span className="text-red-400 font-bold text-sm">{v.turnout_pct}%</span>
+                        <span className="text-red-600 font-bold text-sm">{v.turnout_pct}%</span>
                       </div>
                       <div className="text-xs text-gray-400">
                         {supporterLabel(v.supporter_count)} to call · {v.motorcade_count} motorcade ready
@@ -469,7 +469,7 @@ export default function WarRoomPage() {
             {/* Activity Feed */}
             <div>
               <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <Radio className="w-4 h-4 text-green-400" /> Live Activity
+                <Radio className="w-4 h-4 text-green-500" /> Live Activity
               </h2>
               {activity.length > 0 ? (
                 <div className="space-y-2 max-h-96 overflow-y-auto">
@@ -485,7 +485,7 @@ export default function WarRoomPage() {
                         {a.village_name} · {a.voter_count.toLocaleString()} voters
                       </div>
                       {a.notes && (
-                        <div className="text-xs text-yellow-400 mt-1 flex items-center gap-1">
+                        <div className="text-xs text-yellow-600 mt-1 flex items-center gap-1">
                           <AlertTriangle className="w-3 h-3" /> {a.notes}
                         </div>
                       )}
