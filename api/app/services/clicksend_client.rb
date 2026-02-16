@@ -90,7 +90,11 @@ class ClicksendClient
 
       if username.blank? || api_key.blank?
         Rails.logger.error("[ClicksendClient] Missing credentials — batch not sent")
-        return { results: [], sent: 0, failed: phones_and_bodies.size }
+        return {
+          results: phones_and_bodies.map { |m| { to: m[:to], success: false, message_id: nil, error: "missing_credentials" } },
+          sent: 0,
+          failed: phones_and_bodies.size
+        }
       end
 
       from = from[0...11] if from.length > 11
