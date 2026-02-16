@@ -47,9 +47,12 @@ module Authenticatable
         @current_user.update(name: token_name)
       end
 
-      # Auto-create user on first login if they have a Clerk account
+      # Block unauthorized users — only pre-created users can access the app
       unless @current_user
         auto_provision = ActiveModel::Type::Boolean.new.cast(ENV.fetch("AUTO_PROVISION_USERS", "false"))
+
+        Rails.logger.info("[Auth] User not found: clerk_id=#{clerk_id} email=#{token_email} auto_provision=#{auto_provision}")
+
         unless auto_provision
           render_api_error(
             message: "User is not authorized for this application",
@@ -65,6 +68,7 @@ module Authenticatable
           name: token_name || "New User",
           role: "block_leader"
         )
+        Rails.logger.info("[Auth] Auto-provisioned user: #{@current_user.email} as #{@current_user.role}")
       end
     rescue JWT::DecodeError => e
       render_api_error(
