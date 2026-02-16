@@ -106,7 +106,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
   const isActive = (to: string) => {
     if (to === '/admin') return location.pathname === '/admin';
-    return location.pathname.startsWith(to);
+    return location.pathname === to || location.pathname.startsWith(to + '/');
   };
 
   const campaignName = sessionData?.user ? 'Josh & Tina 2026' : 'Campaign Tracker';

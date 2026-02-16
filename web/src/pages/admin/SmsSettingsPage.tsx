@@ -56,7 +56,7 @@ export default function SmsSettingsPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="animate-pulse text-gray-400">Loading settings...</div>
+        <div className="animate-pulse text-blue-300/60 text-sm font-medium">Loading settings...</div>
       </div>
     );
   }
