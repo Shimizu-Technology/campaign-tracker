@@ -55,14 +55,14 @@ export default function SmsSettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="flex items-center justify-center py-20">
         <div className="animate-pulse text-gray-400">Loading settings...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen">
       {/* Header */}
       <header className="bg-[#1B3A6B] text-white px-4 py-4 sticky top-0 z-30">
         <div className="max-w-3xl mx-auto flex items-center justify-between">

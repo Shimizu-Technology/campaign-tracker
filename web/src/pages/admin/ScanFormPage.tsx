@@ -242,7 +242,7 @@ export default function ScanFormPage() {
   const medConfidenceCount = Object.values(confidence).filter(c => c === 'medium').length;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen">
       {/* Header */}
       <header className="bg-[#1B3A6B] text-white py-4 px-4">
         <div className="max-w-lg mx-auto">

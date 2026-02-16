@@ -35,8 +35,11 @@ const ScanFormPage = lazy(() => import('./pages/admin/ScanFormPage'));
 
 function LazyFallback() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f5f7fb]">
-      <div className="text-gray-400 text-lg">Loading...</div>
+    <div className="min-h-screen flex items-center justify-center bg-[#0f1729]">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
+        <div className="text-blue-300/60 text-sm font-medium">Loading...</div>
+      </div>
     </div>
   );
 }
@@ -72,19 +75,22 @@ function PermissionRoute({
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-400 text-lg">Loading permissions...</div>
+      <div className="flex items-center justify-center py-20">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
+          <div className="text-blue-300/60 text-sm font-medium">Loading...</div>
+        </div>
       </div>
     );
   }
 
   if (!data?.permissions?.[permission]) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f5f7fb] px-4">
-        <div className="app-card p-6 max-w-md w-full text-center">
-          <h1 className="text-xl font-bold text-gray-900 mb-2">Not Authorized</h1>
-          <p className="text-sm text-gray-600 mb-4">Your role does not have access to this tool.</p>
-          <Link to="/admin" className="inline-flex items-center justify-center bg-[#1B3A6B] text-white px-4 py-2 rounded-xl min-h-[44px]">
+      <div className="flex items-center justify-center py-20 px-4">
+        <div className="bg-white/5 border border-white/10 rounded-xl p-6 max-w-md w-full text-center">
+          <h1 className="text-xl font-bold text-white mb-2">Not Authorized</h1>
+          <p className="text-sm text-blue-200/50 mb-4">Your role does not have access to this tool.</p>
+          <Link to="/admin" className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-medium transition-colors min-h-[44px]">
             Back to Dashboard
           </Link>
         </div>

@@ -96,15 +96,15 @@ export default function PrecinctSettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-400 text-lg">Loading precincts...</div>
+      <div className="flex items-center justify-center py-20">
+        <div className="text-blue-300/60 text-sm font-medium">Loading precincts...</div>
       </div>
     );
   }
 
   if (isError) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="flex items-center justify-center py-20">
         <div className="app-card p-6 text-center max-w-md">
           <h1 className="text-xl font-bold text-gray-900 mb-2">Could not load precincts</h1>
           <p className="text-sm text-gray-600 mb-4">Please refresh and try again.</p>
@@ -121,7 +121,7 @@ export default function PrecinctSettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb]">
+    <div className="min-h-screen">
       <header className="bg-[#1B3A6B] text-white py-4 px-4">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between mb-2">

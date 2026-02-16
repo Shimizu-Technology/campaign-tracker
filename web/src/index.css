@@ -62,3 +62,5 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .animate-slide-in {
   animation: slide-in 0.3s ease-out;
 }
+
+/* Tailwind provides animate-spin */

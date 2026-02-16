@@ -103,15 +103,15 @@ export default function QuotaSettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-400 text-lg">Loading quotas...</div>
+      <div className="flex items-center justify-center py-20">
+        <div className="text-blue-300/60 text-sm font-medium">Loading quotas...</div>
       </div>
     );
   }
 
   if (isError) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="flex items-center justify-center py-20">
         <div className="app-card p-6 text-center max-w-md">
           <h1 className="text-xl font-bold text-gray-900 mb-2">Could not load quotas</h1>
           <p className="text-sm text-gray-600 mb-4">Please refresh and try again.</p>
@@ -128,7 +128,7 @@ export default function QuotaSettingsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb]">
+    <div className="min-h-screen">
       <header className="bg-[#1B3A6B] text-white py-4 px-4">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between mb-2">

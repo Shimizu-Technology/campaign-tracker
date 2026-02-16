@@ -235,7 +235,7 @@ export default function UsersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb]">
+    <div className="min-h-screen">
       <header className="bg-[#1B3A6B] text-white py-4 px-4">
         <div className="max-w-5xl mx-auto">
           <div className="flex items-center justify-between mb-2">

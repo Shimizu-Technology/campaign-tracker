@@ -51,7 +51,7 @@ export default function CheckInPage() {
   if (!event) return <div className="min-h-screen flex items-center justify-center text-gray-400">Loading...</div>;
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb]">
+    <div className="min-h-screen">
       {/* Sticky Header */}
       <header className="bg-[#1B3A6B] text-white py-4 px-4 sticky top-0 z-10">
         <div className="max-w-lg mx-auto">

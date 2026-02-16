@@ -49,7 +49,7 @@ export default function VillageDetailPage() {
   const pct = v.quota_target > 0 ? ((v.supporter_count / v.quota_target) * 100).toFixed(1) : '0';
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb]">
+    <div className="min-h-screen">
       <header className="bg-[#1B3A6B] text-white py-4 px-4">
         <div className="max-w-4xl mx-auto">
           <Link to="/admin" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-2">

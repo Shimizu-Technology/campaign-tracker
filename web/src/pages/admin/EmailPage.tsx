@@ -76,8 +76,8 @@ export default function EmailPage() {
 
   if (statusLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-400 text-lg">Loading email status...</div>
+      <div className="flex items-center justify-center py-20">
+        <div className="text-blue-300/60 text-sm font-medium">Loading email status...</div>
       </div>
     );
   }
@@ -86,7 +86,7 @@ export default function EmailPage() {
   const fromEmail = emailStatus?.from_email || '(not set)';
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb]">
+    <div className="min-h-screen">
       <header className="bg-[#1B3A6B] text-white py-4 px-4">
         <div className="max-w-3xl mx-auto">
           <Link to="/admin" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-2">

@@ -93,14 +93,14 @@ export default function LeaderboardPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-400 text-lg">Loading leaderboard...</div>
+      <div className="flex items-center justify-center py-20">
+        <div className="text-blue-300/60 text-sm font-medium">Loading leaderboard...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb]">
+    <div className="min-h-screen">
       <header className="bg-[#1B3A6B] text-white py-4 px-4">
         <div className="max-w-2xl mx-auto">
           <Link to="/admin" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-2">

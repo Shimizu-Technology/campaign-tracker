@@ -203,15 +203,15 @@ export default function PollWatcherPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-400 text-lg">Loading precincts...</div>
+      <div className="flex items-center justify-center py-20">
+        <div className="text-blue-300/60 text-sm font-medium">Loading precincts...</div>
       </div>
     );
   }
 
   if (isError || !data) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="flex items-center justify-center py-20">
         <div className="text-center p-8">
           <AlertTriangle className="w-12 h-12 text-[#1B3A6B] mx-auto mb-4 opacity-50" />
           <h2 className="text-xl font-bold text-gray-700 mb-2">Can't connect to server</h2>
@@ -259,7 +259,7 @@ export default function PollWatcherPage() {
   const visiblePrecinctCount = filteredVillages.reduce((sum, village) => sum + village.precincts.length, 0);
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb]">
+    <div className="min-h-screen">
       {/* Header */}
       <header className="bg-[#1B3A6B] text-white py-3 px-4">
         <div className="max-w-2xl mx-auto">

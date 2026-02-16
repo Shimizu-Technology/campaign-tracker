@@ -1,7 +1,8 @@
-import { SignedIn, SignedOut, SignInButton, UserButton, useAuth, useClerk } from '@clerk/clerk-react';
+import { SignedIn, SignedOut, SignInButton, useAuth, useClerk } from '@clerk/clerk-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../lib/api';
+import AdminShell from './AdminShell';
 
 function hasSufficientTokenLifetime(authHeader: string, minimumSecondsRemaining = 5): boolean {
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
@@ -142,8 +143,11 @@ function AuthorizedContent({ children }: { children: React.ReactNode }) {
 
   if (sessionState === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-400 text-lg">Verifying access...</div>
+      <div className="min-h-screen flex items-center justify-center bg-[#0f1729]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
+          <div className="text-blue-300/60 text-sm font-medium">Verifying access...</div>
+        </div>
       </div>
     );
   }
@@ -174,7 +178,7 @@ function AuthorizedContent({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return <AdminShell>{children}</AdminShell>;
 }
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -187,8 +191,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {authReady ? (
           <AuthorizedContent>{children}</AuthorizedContent>
         ) : (
-          <div className="min-h-screen flex items-center justify-center bg-gray-50">
-            <div className="text-gray-400 text-lg">Loading session...</div>
+          <div className="min-h-screen flex items-center justify-center bg-[#0f1729]">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-8 h-8 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
+              <div className="text-blue-300/60 text-sm font-medium">Loading session...</div>
+            </div>
           </div>
         )}
       </SignedIn>
@@ -218,5 +225,4 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   );
 }
 
-// Export UserButton for use in headers
-export { UserButton };
+// AdminShell handles the UserButton in the sidebar
