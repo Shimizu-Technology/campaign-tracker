@@ -1,4 +1,4 @@
-import { SignedIn, SignedOut, SignInButton, UserButton, useAuth } from '@clerk/clerk-react';
+import { SignedIn, SignedOut, SignInButton, UserButton, useAuth, useClerk } from '@clerk/clerk-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../lib/api';
@@ -116,6 +116,7 @@ function AuthTokenSync({ onReady }: { onReady: () => void }) {
 
 function AuthorizedContent({ children }: { children: React.ReactNode }) {
   const { isLoaded, isSignedIn } = useAuth();
+  const { signOut } = useClerk();
   const [sessionState, setSessionState] = useState<'loading' | 'authorized' | 'unauthorized'>('loading');
 
   useEffect(() => {
@@ -157,8 +158,14 @@ function AuthorizedContent({ children }: { children: React.ReactNode }) {
             Your account is not authorized to access this application. Please contact the campaign admin to request access.
           </p>
           <button
-            onClick={() => window.location.href = '/'}
+            onClick={() => signOut(() => window.location.href = '/')}
             className="w-full bg-[#1B3A6B] hover:bg-[#152e55] text-white font-bold py-3 rounded-xl text-lg transition-all"
+          >
+            Sign Out &amp; Switch Account
+          </button>
+          <button
+            onClick={() => window.location.href = '/'}
+            className="w-full mt-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 rounded-xl text-lg transition-all"
           >
             Back to Home
           </button>
