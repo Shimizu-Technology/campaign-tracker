@@ -3,6 +3,7 @@ import { BrowserRouter, Link, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AdminLayout from './components/AdminLayout';
 import { useSession } from './hooks/useSession';
+import { Shield } from 'lucide-react';
 
 // Eagerly loaded (public pages — fast initial load)
 import LandingPage from './pages/LandingPage';
@@ -35,10 +36,9 @@ const ScanFormPage = lazy(() => import('./pages/admin/ScanFormPage'));
 
 function LazyFallback() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0f1729]">
+    <div className="min-h-screen flex items-center justify-center bg-[var(--surface-bg)]">
       <div className="flex flex-col items-center gap-3">
-        <div className="w-8 h-8 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
-        <div className="text-blue-300/60 text-sm font-medium">Loading...</div>
+        <div className="w-8 h-8 border-[3px] border-neutral-200 border-t-[var(--campaign-blue)] rounded-full animate-spin" />
       </div>
     </div>
   );
@@ -75,10 +75,9 @@ function PermissionRoute({
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-20">
+      <div className="flex items-center justify-center py-32">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
-          <div className="text-blue-300/60 text-sm font-medium">Loading...</div>
+          <div className="w-8 h-8 border-[3px] border-neutral-200 border-t-[var(--campaign-blue)] rounded-full animate-spin" />
         </div>
       </div>
     );
@@ -86,11 +85,14 @@ function PermissionRoute({
 
   if (!data?.permissions?.[permission]) {
     return (
-      <div className="flex items-center justify-center py-20 px-4">
-        <div className="bg-white/5 border border-white/10 rounded-xl p-6 max-w-md w-full text-center">
-          <h1 className="text-xl font-bold text-white mb-2">Not Authorized</h1>
-          <p className="text-sm text-blue-200/50 mb-4">Your role does not have access to this tool.</p>
-          <Link to="/admin" className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-500 text-white px-4 py-2 rounded-lg font-medium transition-colors min-h-[44px]">
+      <div className="flex items-center justify-center py-32 px-4">
+        <div className="app-card p-8 max-w-sm w-full text-center">
+          <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-red-50 flex items-center justify-center">
+            <Shield className="w-7 h-7 text-red-500" />
+          </div>
+          <h1 className="text-xl font-bold text-neutral-900 mb-2">Not Authorized</h1>
+          <p className="text-sm text-neutral-500 mb-6 leading-relaxed">Your role does not have access to this tool.</p>
+          <Link to="/admin" className="inline-flex items-center justify-center bg-[var(--campaign-blue)] text-white px-5 py-2.5 rounded-xl font-medium hover:opacity-90 transition-all min-h-[44px]">
             Back to Dashboard
           </Link>
         </div>
