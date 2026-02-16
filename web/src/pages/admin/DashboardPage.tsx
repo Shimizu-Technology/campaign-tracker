@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getDashboard } from '../../lib/api';
 import { Link } from 'react-router-dom';
-import { Users, MapPin, TrendingUp, CalendarPlus, ClipboardPlus, BarChart3, QrCode, Trophy, MessageSquare, Shield, ChevronDown, Target, Copy, Upload, Mail, ShieldCheck } from 'lucide-react';
+import { Users, MapPin, TrendingUp, CalendarPlus, ClipboardPlus, BarChart3, QrCode, Trophy, MessageSquare, Shield, ChevronDown, Target, Copy, Upload, Mail, ShieldCheck, Camera } from 'lucide-react';
 import { UserButton } from '@clerk/clerk-react';
 import { useCampaignUpdates } from '../../hooks/useCampaignUpdates';
 import { useSession } from '../../hooks/useSession';
@@ -102,7 +102,10 @@ export default function DashboardPage() {
   const villages = Array.isArray(data.villages) ? data.villages : [];
   const primaryActions = [
     ...(sessionData?.permissions?.can_create_staff_supporters
-      ? [ { to: '/admin/supporters/new', label: 'New Entry', icon: ClipboardPlus, className: 'bg-[#C41E3A] hover:bg-[#a01830]' } ]
+      ? [
+          { to: '/admin/scan', label: 'Scan Form', icon: Camera, className: 'bg-[#C41E3A] hover:bg-[#a01830]' },
+          { to: '/admin/supporters/new', label: 'New Entry', icon: ClipboardPlus, className: 'bg-white/10 hover:bg-white/20' },
+        ]
       : []),
     ...(sessionData?.permissions?.can_view_supporters
       ? [ { to: '/admin/supporters', label: 'Supporters', icon: Users, className: 'bg-white/10 hover:bg-white/20' } ]
