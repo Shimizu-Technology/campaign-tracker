@@ -334,13 +334,13 @@ export default function WarRoomPage() {
                   value={villageSearch}
                   onChange={(e) => setVillageSearch(e.target.value)}
                   placeholder="Search village..."
-                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-white border border-gray-300 text-sm min-h-[44px]"
+                  className="w-full pl-9 pr-3 py-2 rounded-xl bg-white border border-gray-300 text-gray-900 text-sm min-h-[44px]"
                 />
               </div>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-3 py-2 rounded-xl bg-white border border-gray-300 text-sm min-h-[44px]"
+                className="px-3 py-2 rounded-xl bg-white border border-gray-300 text-gray-900 text-sm min-h-[44px]"
               >
                 <option value="">All statuses</option>
                 <option value="strong">Strong</option>
@@ -355,7 +355,7 @@ export default function WarRoomPage() {
                   setSortBy(field);
                   setSortDir(dir);
                 }}
-                className="px-3 py-2 rounded-xl bg-white border border-gray-300 text-sm min-h-[44px]"
+                className="px-3 py-2 rounded-xl bg-white border border-gray-300 text-gray-900 text-sm min-h-[44px]"
               >
                 <option value="turnout_pct:desc">Highest turnout</option>
                 <option value="turnout_pct:asc">Lowest turnout</option>
