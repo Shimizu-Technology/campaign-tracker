@@ -114,6 +114,62 @@ function AuthTokenSync({ onReady }: { onReady: () => void }) {
   return null;
 }
 
+function AuthorizedContent({ children }: { children: React.ReactNode }) {
+  const { isLoaded, isSignedIn } = useAuth();
+  const [sessionState, setSessionState] = useState<'loading' | 'authorized' | 'unauthorized'>('loading');
+
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+
+    const checkSession = async () => {
+      try {
+        await api.get('/session');
+        setSessionState('authorized');
+      } catch (error) {
+        const axiosError = error as { response?: { status?: number } };
+        if (axiosError.response?.status === 403 || axiosError.response?.status === 401) {
+          setSessionState('unauthorized');
+        } else {
+          // Network error or server error — retry
+          setSessionState('authorized'); // Allow through, backend will handle
+        }
+      }
+    };
+
+    checkSession();
+  }, [isLoaded, isSignedIn]);
+
+  if (sessionState === 'loading') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-gray-400 text-lg">Verifying access...</div>
+      </div>
+    );
+  }
+
+  if (sessionState === 'unauthorized') {
+    return (
+      <div className="min-h-screen bg-linear-to-br from-[#1B3A6B] to-[#0f2340] flex items-center justify-center">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full mx-4 text-center">
+          <div className="text-5xl mb-4">🚫</div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
+          <p className="text-gray-500 mb-6">
+            Your account is not authorized to access this application. Please contact the campaign admin to request access.
+          </p>
+          <button
+            onClick={() => window.location.href = '/'}
+            className="w-full bg-[#1B3A6B] hover:bg-[#152e55] text-white font-bold py-3 rounded-xl text-lg transition-all"
+          >
+            Back to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return <>{children}</>;
+}
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [authReady, setAuthReady] = useState(false);
 
@@ -122,7 +178,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <SignedIn>
         <AuthTokenSync onReady={() => setAuthReady(true)} />
         {authReady ? (
-          children
+          <AuthorizedContent>{children}</AuthorizedContent>
         ) : (
           <div className="min-h-screen flex items-center justify-center bg-gray-50">
             <div className="text-gray-400 text-lg">Loading session...</div>
