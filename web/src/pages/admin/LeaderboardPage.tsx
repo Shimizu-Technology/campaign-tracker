@@ -28,16 +28,16 @@ function parseSortField(value: string | null): LeaderboardSortField {
 
 function rankIcon(rank: number) {
   if (rank === 1) return <Trophy className="w-6 h-6 text-yellow-500" />;
-  if (rank === 2) return <Medal className="w-6 h-6 text-gray-400" />;
+  if (rank === 2) return <Medal className="w-6 h-6 text-[var(--text-muted)]" />;
   if (rank === 3) return <Award className="w-6 h-6 text-amber-600" />;
-  return <span className="w-6 h-6 flex items-center justify-center text-sm font-bold text-gray-400">{rank}</span>;
+  return <span className="w-6 h-6 flex items-center justify-center text-sm font-bold text-[var(--text-muted)]">{rank}</span>;
 }
 
 function rankBg(rank: number) {
-  if (rank === 1) return 'bg-yellow-50 border-yellow-300';
-  if (rank === 2) return 'bg-gray-50 border-gray-300';
-  if (rank === 3) return 'bg-amber-50 border-amber-300';
-  return 'bg-white border-gray-200';
+  if (rank === 1) return 'bg-yellow-500/10 border-yellow-500/30';
+  if (rank === 2) return 'bg-[var(--surface-bg)] border-[var(--border-soft)]';
+  if (rank === 3) return 'bg-amber-500/10 border-amber-500/30';
+  return 'bg-[var(--surface-raised)] border-[var(--border-soft)]';
 }
 
 export default function LeaderboardPage() {
@@ -120,37 +120,37 @@ export default function LeaderboardPage() {
         {/* Stats */}
         <div className="grid grid-cols-3 gap-3 mb-6">
           <div className="app-card p-3 text-center">
-            <Users className="w-5 h-5 mx-auto text-gray-400 mb-1" />
-            <div className="text-2xl font-bold text-gray-900">{stats.total_qr_signups}</div>
-            <div className="text-xs text-gray-500">QR Signups</div>
+            <Users className="w-5 h-5 mx-auto text-[var(--text-muted)] mb-1" />
+            <div className="text-2xl font-bold text-[var(--text-primary)]">{stats.total_qr_signups}</div>
+            <div className="text-xs text-[var(--text-secondary)]">QR Signups</div>
           </div>
           <div className="app-card p-3 text-center">
-            <Target className="w-5 h-5 mx-auto text-gray-400 mb-1" />
-            <div className="text-2xl font-bold text-gray-900">{stats.active_leaders}</div>
-            <div className="text-xs text-gray-500">Active Leaders</div>
+            <Target className="w-5 h-5 mx-auto text-[var(--text-muted)] mb-1" />
+            <div className="text-2xl font-bold text-[var(--text-primary)]">{stats.active_leaders}</div>
+            <div className="text-xs text-[var(--text-secondary)]">Active Leaders</div>
           </div>
           <div className="app-card p-3 text-center">
-            <TrendingUp className="w-5 h-5 mx-auto text-gray-400 mb-1" />
-            <div className="text-2xl font-bold text-gray-900">{stats.avg_signups_per_leader}</div>
-            <div className="text-xs text-gray-500">Avg per Leader</div>
+            <TrendingUp className="w-5 h-5 mx-auto text-[var(--text-muted)] mb-1" />
+            <div className="text-2xl font-bold text-[var(--text-primary)]">{stats.avg_signups_per_leader}</div>
+            <div className="text-xs text-[var(--text-secondary)]">Avg per Leader</div>
           </div>
         </div>
 
         <div className="app-card p-4 mb-4 grid grid-cols-1 md:grid-cols-4 gap-3">
           <div className="relative md:col-span-2">
-            <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+            <Search className="w-4 h-4 absolute left-3 top-3 text-[var(--text-muted)]" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search leader code or village..."
-              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl min-h-[44px]"
+              className="w-full pl-9 pr-3 py-2 border border-[var(--border-soft)] rounded-xl min-h-[44px]"
             />
           </div>
           <select
             value={villageFilter}
             onChange={(e) => setVillageFilter(e.target.value)}
-            className="border border-gray-300 rounded-xl px-3 py-2 bg-white min-h-[44px]"
+            className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px]"
           >
             <option value="">All villages</option>
             {villageOptions.map((village) => (
@@ -164,7 +164,7 @@ export default function LeaderboardPage() {
               setSortBy(field);
               setSortDir(dir);
             }}
-            className="border border-gray-300 rounded-xl px-3 py-2 bg-white min-h-[44px]"
+            className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px]"
           >
             <option value="signup_count:desc">Most signups</option>
             <option value="signup_count:asc">Least signups</option>
@@ -177,7 +177,7 @@ export default function LeaderboardPage() {
           </select>
         </div>
 
-        <p className="text-xs text-gray-500 mb-3">
+        <p className="text-xs text-[var(--text-secondary)] mb-3">
           Showing {filteredLeaderboard.length} of {leaderboard.length} leaders
         </p>
 
@@ -192,14 +192,14 @@ export default function LeaderboardPage() {
                 <div className="shrink-0">{rankIcon(leader.rank)}</div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-gray-900 truncate">
+                    <span className="font-semibold text-[var(--text-primary)] truncate">
                       {leader.leader_code}
                     </span>
                     <span className="text-lg font-bold text-[#1B3A6B] ml-2">
                       {leader.signup_count}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between text-sm text-gray-500">
+                  <div className="flex items-center justify-between text-sm text-[var(--text-secondary)]">
                     <span>{leader.village_name}</span>
                     <span>signups</span>
                   </div>
@@ -207,7 +207,7 @@ export default function LeaderboardPage() {
               </div>
               {/* Progress bar relative to top leader */}
               {stats.top_leader_signups > 0 && (
-                <div className="mt-2 w-full bg-gray-200 rounded-full h-1.5">
+                <div className="mt-2 w-full bg-[var(--surface-overlay)] rounded-full h-1.5">
                   <div
                     className="h-1.5 rounded-full bg-[#1B3A6B] transition-all"
                     style={{ width: `${(leader.signup_count / stats.top_leader_signups) * 100}%` }}
@@ -218,7 +218,7 @@ export default function LeaderboardPage() {
           ))}
 
           {filteredLeaderboard.length === 0 && (
-            <div className="text-center text-gray-400 py-12">
+            <div className="text-center text-[var(--text-muted)] py-12">
               No leaderboard entries match current filters.
             </div>
           )}

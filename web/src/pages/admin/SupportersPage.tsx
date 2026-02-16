@@ -198,16 +198,16 @@ export default function SupportersPage() {
 
   const renderPrecinctAssignControl = (supporter: SupporterItem) => {
     if (supporter.precinct_number) {
-      return <span className="text-gray-700">Precinct {supporter.precinct_number}</span>;
+      return <span className="text-[var(--text-primary)]">Precinct {supporter.precinct_number}</span>;
     }
     if (!sessionData?.permissions?.can_edit_supporters) {
-      return <span className="text-gray-400">Unassigned</span>;
+      return <span className="text-[var(--text-muted)]">Unassigned</span>;
     }
 
     const village = villagesById.get(supporter.village_id);
     const precincts = village?.precincts || [];
     if (precincts.length === 0) {
-      return <span className="text-gray-400">No precinct data</span>;
+      return <span className="text-[var(--text-muted)]">No precinct data</span>;
     }
 
     const pendingValue = pendingPrecinctBySupporter[supporter.id] || '';
@@ -218,7 +218,7 @@ export default function SupportersPage() {
         <select
           value={pendingValue}
           onChange={(e) => setPendingPrecinctBySupporter((prev) => ({ ...prev, [supporter.id]: e.target.value }))}
-          className="border border-gray-300 rounded-xl px-3 py-2 min-h-[44px] text-sm bg-white"
+          className="border border-[var(--border-soft)] rounded-xl px-3 py-2 min-h-[44px] text-sm bg-[var(--surface-raised)]"
           disabled={isSaving}
         >
           <option value="">Assign precinct</option>
@@ -305,13 +305,13 @@ export default function SupportersPage() {
         {/* Filters */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mb-6">
           <div className="relative md:col-span-5 min-w-0">
-            <Search className="w-5 h-5 absolute left-3 top-3 text-gray-400" />
+            <Search className="w-5 h-5 absolute left-3 top-3 text-[var(--text-muted)]" />
             <input
               type="text"
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
               placeholder="Search by name or phone..."
-              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+              className="w-full pl-10 pr-4 py-3 border border-[var(--border-soft)] rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
             />
           </div>
           <select
@@ -322,7 +322,7 @@ export default function SupportersPage() {
               setUnassignedPrecinct(false);
               setPage(1);
             }}
-            className="md:col-span-3 px-3 py-3 border border-gray-300 rounded-xl bg-white text-gray-700 focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent min-w-0"
+            className="md:col-span-3 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent min-w-0"
           >
             <option value="">All Villages</option>
             {villages.map((v) => (
@@ -335,7 +335,7 @@ export default function SupportersPage() {
               setSourceFilter(e.target.value);
               setPage(1);
             }}
-            className="md:col-span-2 px-3 py-3 border border-gray-300 rounded-xl bg-white text-gray-700 focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent min-w-0"
+            className="md:col-span-2 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent min-w-0"
           >
             <option value="">All sources</option>
             <option value="qr_signup">Public signup</option>
@@ -347,7 +347,7 @@ export default function SupportersPage() {
               setOptInFilter(e.target.value);
               setPage(1);
             }}
-            className="md:col-span-2 px-3 py-3 border border-gray-300 rounded-xl bg-white text-gray-700 focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent min-w-0"
+            className="md:col-span-2 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent min-w-0"
           >
             <option value="">All opt-in</option>
             <option value="text">Opted in: Text</option>
@@ -360,7 +360,7 @@ export default function SupportersPage() {
               setVerificationFilter(e.target.value);
               setPage(1);
             }}
-            className="md:col-span-2 px-3 py-3 border border-gray-300 rounded-xl bg-white text-gray-700 focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent min-w-0"
+            className="md:col-span-2 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent min-w-0"
           >
             <option value="">All verification</option>
             <option value="unverified">Unverified</option>
@@ -375,7 +375,7 @@ export default function SupportersPage() {
                 if (e.target.value) setUnassignedPrecinct(false);
                 setPage(1);
               }}
-              className="md:col-span-2 px-3 py-3 border border-gray-300 rounded-xl bg-white text-gray-700 focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent min-w-0"
+              className="md:col-span-2 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent min-w-0"
             >
               <option value="">All precincts</option>
               {selectedVillagePrecincts.map((p) => (
@@ -391,7 +391,7 @@ export default function SupportersPage() {
               setSortDir(dir);
               setPage(1);
             }}
-            className="md:col-span-2 px-3 py-3 border border-gray-300 rounded-xl bg-white text-gray-700 focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent min-w-0"
+            className="md:col-span-2 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent min-w-0"
           >
             <option value="created_at:desc">Newest first</option>
             <option value="created_at:asc">Oldest first</option>
@@ -400,7 +400,7 @@ export default function SupportersPage() {
             <option value="village_name:asc">Village A-Z</option>
             <option value="village_name:desc">Village Z-A</option>
           </select>
-          <label className="md:col-span-2 flex items-center gap-2 text-sm text-gray-700 whitespace-nowrap min-h-[44px]">
+          <label className="md:col-span-2 flex items-center gap-2 text-sm text-[var(--text-primary)] whitespace-nowrap min-h-[44px]">
             <input
               type="checkbox"
               checked={unassignedPrecinct}
@@ -410,7 +410,7 @@ export default function SupportersPage() {
                 if (checked) setPrecinctFilter('');
                 setPage(1);
               }}
-              className="rounded border-gray-300 text-[#1B3A6B] focus:ring-[#1B3A6B]"
+              className="rounded border-[var(--border-soft)] text-[#1B3A6B] focus:ring-[#1B3A6B]"
             />
             Unassigned precinct
           </label>
@@ -419,7 +419,7 @@ export default function SupportersPage() {
         {/* Count */}
         {data && (
           <div className="mb-4 flex items-center justify-between gap-2">
-            <p className="text-sm text-gray-500">
+            <p className="text-sm text-[var(--text-secondary)]">
               {supporterLabel(data.pagination.total)} total (page {data.pagination.page} of {data.pagination.pages})
             </p>
             <div className="flex items-center gap-3">
@@ -429,7 +429,7 @@ export default function SupportersPage() {
                   setPerPage(Number(e.target.value) as PerPage);
                   setPage(1);
                 }}
-                className="border border-gray-300 rounded-xl px-2 py-1.5 bg-white text-xs text-gray-700"
+                className="border border-[var(--border-soft)] rounded-xl px-2 py-1.5 bg-[var(--surface-raised)] text-xs text-[var(--text-primary)]"
                 aria-label="Rows per page"
               >
                 {PER_PAGE_OPTIONS.map((size) => (
@@ -438,7 +438,7 @@ export default function SupportersPage() {
               </select>
               <p
                 aria-live="polite"
-                className={`text-xs text-gray-400 transition-opacity duration-200 ${isFetching ? 'opacity-100' : 'opacity-0'}`}
+                className={`text-xs text-[var(--text-muted)] transition-opacity duration-200 ${isFetching ? 'opacity-100' : 'opacity-0'}`}
               >
                 {search !== debouncedSearch ? 'Searching...' : 'Updating...'}
               </p>
@@ -452,7 +452,7 @@ export default function SupportersPage() {
             <div key={s.id} className="app-card p-4">
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-1.5">
-                  <Link to={supporterDetailLink(s.id)} className="font-semibold text-gray-900 hover:underline">
+                  <Link to={supporterDetailLink(s.id)} className="font-semibold text-[var(--text-primary)] hover:underline">
                     {s.last_name}, {s.first_name}
                   </Link>
                   {s.potential_duplicate && (
@@ -473,7 +473,7 @@ export default function SupportersPage() {
                    s.verification_status === 'flagged' ? 'Flagged' : 'Unverified'}
                 </span>
               </div>
-              <div className="text-sm text-gray-500 space-y-0.5">
+              <div className="text-sm text-[var(--text-secondary)] space-y-0.5">
                 <div className="flex justify-between">
                   <span>{s.village_name}</span>
                   <span>{s.contact_number}</span>
@@ -487,21 +487,21 @@ export default function SupportersPage() {
                     <span className="app-chip bg-cyan-100 text-cyan-700">Motorcade</span>
                   )}
                   {!s.yard_sign && !s.motorcade_available && (
-                    <span className="text-xs text-gray-400">No extra flags</span>
+                    <span className="text-xs text-[var(--text-muted)]">No extra flags</span>
                   )}
                 </div>
                 <div className="flex justify-between">
-                  <span className={s.registered_voter ? 'text-green-600 font-medium' : 'text-gray-400'}>{s.registered_voter ? 'Registered' : 'Not registered'}</span>
+                  <span className={s.registered_voter ? 'text-green-600 font-medium' : 'text-[var(--text-muted)]'}>{s.registered_voter ? 'Registered' : 'Not registered'}</span>
                   <span>{formatDateTime(s.created_at)}</span>
                 </div>
               </div>
             </div>
           ))}
           {supportersRows.length === 0 && (
-            <div className="text-center text-gray-400 py-8">No supporters found</div>
+            <div className="text-center text-[var(--text-muted)] py-8">No supporters found</div>
           )}
           {progressiveRenderingEnabled && effectiveVisibleRows < supportersRows.length && (
-            <div className="text-center text-xs text-gray-400 py-2">
+            <div className="text-center text-xs text-[var(--text-muted)] py-2">
               Rendering {effectiveVisibleRows} / {supportersRows.length} rows...
             </div>
           )}
@@ -511,33 +511,33 @@ export default function SupportersPage() {
         <div className={`hidden md:block app-card overflow-x-auto transition-opacity duration-200 ${isFetching ? 'opacity-80' : 'opacity-100'}`}>
           <table className="w-full min-w-[1120px] text-sm">
             <thead>
-              <tr className="border-b bg-gray-50">
-                <th className="text-left px-4 py-3 font-medium text-gray-600">
-                  <button type="button" onClick={() => handleSort('print_name')} className="inline-flex items-center gap-1 hover:text-gray-900">
+              <tr className="border-b bg-[var(--surface-bg)]">
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">
+                  <button type="button" onClick={() => handleSort('print_name')} className="inline-flex items-center gap-1 hover:text-[var(--text-primary)]">
                     Name <ArrowUpDown className="w-3.5 h-3.5" /> {sortLabel('print_name')}
                   </button>
                 </th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Phone</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">
-                  <button type="button" onClick={() => handleSort('village_name')} className="inline-flex items-center gap-1 hover:text-gray-900">
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Phone</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">
+                  <button type="button" onClick={() => handleSort('village_name')} className="inline-flex items-center gap-1 hover:text-[var(--text-primary)]">
                     Village <ArrowUpDown className="w-3.5 h-3.5" /> {sortLabel('village_name')}
                   </button>
                 </th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Precinct</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Flags</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">
-                  <button type="button" onClick={() => handleSort('registered_voter')} className="inline-flex items-center gap-1 hover:text-gray-900">
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Precinct</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Flags</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">
+                  <button type="button" onClick={() => handleSort('registered_voter')} className="inline-flex items-center gap-1 hover:text-[var(--text-primary)]">
                     Registered <ArrowUpDown className="w-3.5 h-3.5" /> {sortLabel('registered_voter')}
                   </button>
                 </th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">
-                  <button type="button" onClick={() => handleSort('source')} className="inline-flex items-center gap-1 hover:text-gray-900">
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">
+                  <button type="button" onClick={() => handleSort('source')} className="inline-flex items-center gap-1 hover:text-[var(--text-primary)]">
                     Source <ArrowUpDown className="w-3.5 h-3.5" /> {sortLabel('source')}
                   </button>
                 </th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">
-                  <button type="button" onClick={() => handleSort('created_at')} className="inline-flex items-center gap-1 hover:text-gray-900">
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Status</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">
+                  <button type="button" onClick={() => handleSort('created_at')} className="inline-flex items-center gap-1 hover:text-[var(--text-primary)]">
                     Date <ArrowUpDown className="w-3.5 h-3.5" /> {sortLabel('created_at')}
                   </button>
                 </th>
@@ -549,9 +549,9 @@ export default function SupportersPage() {
                   key={s.id}
                   layout={shouldAnimateRows}
                   transition={shouldAnimateRows ? { type: 'spring', stiffness: 380, damping: 34 } : { duration: 0 }}
-                  className="border-b hover:bg-gray-50"
+                  className="border-b hover:bg-[var(--surface-bg)]"
                 >
-                  <td className="px-4 py-3 font-medium text-gray-900 max-w-[240px]">
+                  <td className="px-4 py-3 font-medium text-[var(--text-primary)] max-w-[240px]">
                     <div className="flex items-center gap-1.5">
                       <Link to={supporterDetailLink(s.id)} className="hover:underline block truncate" title={`${s.last_name}, ${s.first_name}`}>
                         {s.last_name}, {s.first_name}
@@ -561,10 +561,10 @@ export default function SupportersPage() {
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{s.contact_number}</td>
-                  <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{s.village_name}</td>
-                  <td className="px-4 py-3 text-gray-600 whitespace-nowrap">{renderPrecinctAssignControl(s)}</td>
-                  <td className="px-4 py-3 text-gray-600 whitespace-nowrap">
+                  <td className="px-4 py-3 text-[var(--text-secondary)] whitespace-nowrap">{s.contact_number}</td>
+                  <td className="px-4 py-3 text-[var(--text-secondary)] whitespace-nowrap">{s.village_name}</td>
+                  <td className="px-4 py-3 text-[var(--text-secondary)] whitespace-nowrap">{renderPrecinctAssignControl(s)}</td>
+                  <td className="px-4 py-3 text-[var(--text-secondary)] whitespace-nowrap">
                     <div className="flex items-center gap-1.5 whitespace-nowrap">
                       {s.yard_sign && (
                         <span className="app-chip bg-amber-100 text-amber-700">Yard</span>
@@ -573,7 +573,7 @@ export default function SupportersPage() {
                         <span className="app-chip bg-cyan-100 text-cyan-700">Motorcade</span>
                       )}
                       {!s.yard_sign && !s.motorcade_available && (
-                        <span className="text-xs text-gray-400">—</span>
+                        <span className="text-xs text-[var(--text-muted)]">—</span>
                       )}
                     </div>
                   </td>
@@ -581,7 +581,7 @@ export default function SupportersPage() {
                     {s.registered_voter ? (
                       <span className="text-green-600 font-medium">Yes</span>
                     ) : (
-                      <span className="text-gray-400">No</span>
+                      <span className="text-[var(--text-muted)]">No</span>
                     )}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
@@ -601,12 +601,12 @@ export default function SupportersPage() {
                        s.verification_status === 'flagged' ? 'Flagged' : 'Unverified'}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-500 whitespace-nowrap">{formatDateTime(s.created_at)}</td>
+                  <td className="px-4 py-3 text-[var(--text-secondary)] whitespace-nowrap">{formatDateTime(s.created_at)}</td>
                 </motion.tr>
               ))}
               {supportersRows.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-gray-400">
+                  <td colSpan={9} className="px-4 py-8 text-center text-[var(--text-muted)]">
                     No supporters found
                   </td>
                 </tr>
@@ -614,7 +614,7 @@ export default function SupportersPage() {
             </motion.tbody>
           </table>
           {progressiveRenderingEnabled && effectiveVisibleRows < supportersRows.length && (
-            <div className="px-4 py-2 text-xs text-gray-400">
+            <div className="px-4 py-2 text-xs text-[var(--text-muted)]">
               Rendering {effectiveVisibleRows} / {supportersRows.length} rows...
             </div>
           )}
@@ -626,15 +626,15 @@ export default function SupportersPage() {
             <button
               disabled={page <= 1}
               onClick={() => setPage(p => p - 1)}
-              className="px-4 py-2 min-h-[44px] border rounded-xl disabled:opacity-30 hover:bg-gray-100"
+              className="px-4 py-2 min-h-[44px] border rounded-xl disabled:opacity-30 hover:bg-[var(--surface-overlay)]"
             >
               Previous
             </button>
-            <span className="px-4 py-2 text-gray-600">Page {page} of {data.pagination.pages}</span>
+            <span className="px-4 py-2 text-[var(--text-secondary)]">Page {page} of {data.pagination.pages}</span>
             <button
               disabled={page >= data.pagination.pages}
               onClick={() => setPage(p => p + 1)}
-              className="px-4 py-2 min-h-[44px] border rounded-xl disabled:opacity-30 hover:bg-gray-100"
+              className="px-4 py-2 min-h-[44px] border rounded-xl disabled:opacity-30 hover:bg-[var(--surface-overlay)]"
             >
               Next
             </button>

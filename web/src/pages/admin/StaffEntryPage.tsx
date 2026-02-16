@@ -197,7 +197,7 @@ export default function StaffEntryPage() {
 
   const inputClass = (field: string) =>
     `w-full px-3 py-3 border rounded-lg text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent ${
-      scannedFields.has(field) ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-200' : 'border-gray-300'
+      scannedFields.has(field) ? 'border-blue-400 bg-blue-500/10 ring-2 ring-blue-200' : 'border-[var(--border-soft)]'
     }`;
 
   return (
@@ -247,7 +247,7 @@ export default function StaffEntryPage() {
       {/* Scan Results */}
       {scannedFields.size > 0 && (
         <div className="max-w-lg mx-auto px-4 mt-4">
-          <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg flex items-center gap-2">
+          <div className="bg-blue-500/10 border border-blue-500/30 text-blue-300 px-4 py-3 rounded-lg flex items-center gap-2">
             <ScanLine className="w-5 h-5" />
             <span>Scanned {scannedFields.size} fields — <strong>review and confirm</strong> before saving</span>
           </div>
@@ -255,7 +255,7 @@ export default function StaffEntryPage() {
       )}
       {scanError && (
         <div className="max-w-lg mx-auto px-4 mt-4">
-          <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg flex items-center gap-2">
+          <div className="bg-red-500/10 border border-red-500/30 text-red-300 px-4 py-3 rounded-lg flex items-center gap-2">
             <AlertTriangle className="w-5 h-5" /> {scanError}
           </div>
         </div>
@@ -264,7 +264,7 @@ export default function StaffEntryPage() {
       {/* Success Toast */}
       {showSuccess && (
         <div className="max-w-lg mx-auto px-4 mt-4">
-          <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg flex items-center gap-2">
+          <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 px-4 py-3 rounded-lg flex items-center gap-2">
             <Check className="w-5 h-5" /> Supporter added! Ready for next entry.
           </div>
         </div>
@@ -273,7 +273,7 @@ export default function StaffEntryPage() {
       {/* Duplicate Warning */}
       {duplicateWarning && (
         <div className="max-w-lg mx-auto px-4 mt-4">
-          <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-lg flex items-center gap-2">
+          <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-700 px-4 py-3 rounded-lg flex items-center gap-2">
             <AlertTriangle className="w-5 h-5 shrink-0" /> {duplicateWarning}
           </div>
         </div>
@@ -282,7 +282,7 @@ export default function StaffEntryPage() {
       {/* Submit Error */}
       {submit.isError && (
         <div className="max-w-lg mx-auto px-4 mt-4">
-          <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-lg flex items-center gap-2">
+          <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-700 px-4 py-3 rounded-lg flex items-center gap-2">
             <AlertTriangle className="w-5 h-5" /> Error saving. Check all fields and try again.
           </div>
         </div>
@@ -292,12 +292,12 @@ export default function StaffEntryPage() {
       <form onSubmit={handleSubmit} className="max-w-lg mx-auto px-4 py-6 space-y-4">
         {/* Village (sticky for bulk entry) */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Village *</label>
+          <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Village *</label>
           <select
             required
             value={form.village_id}
             onChange={e => updateField('village_id', e.target.value)}
-            className={`${inputClass('village_id')} bg-white`}
+            className={`${inputClass('village_id')} bg-[var(--surface-raised)]`}
           >
             <option value="">Select village</option>
             {villages.map(v => (
@@ -309,7 +309,7 @@ export default function StaffEntryPage() {
         {/* Name */}
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
+            <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">First Name *</label>
             <input
               id="first_name"
               type="text"
@@ -322,7 +322,7 @@ export default function StaffEntryPage() {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
+            <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Last Name *</label>
             <input
               id="last_name"
               type="text"
@@ -338,7 +338,7 @@ export default function StaffEntryPage() {
 
         {/* Phone */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Contact Number *</label>
+          <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Contact Number *</label>
           <input
             type="tel"
             required
@@ -351,7 +351,7 @@ export default function StaffEntryPage() {
 
         {/* DOB */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+          <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Date of Birth</label>
           <input
             type="date"
             value={form.dob}
@@ -362,7 +362,7 @@ export default function StaffEntryPage() {
 
         {/* Email */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+          <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Email</label>
           <input
             type="email"
             value={form.email}
@@ -374,7 +374,7 @@ export default function StaffEntryPage() {
 
         {/* Address */}
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Street Address</label>
+          <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Street Address</label>
           <input
             type="text"
             value={form.street_address}
@@ -387,11 +387,11 @@ export default function StaffEntryPage() {
         {/* Precinct */}
         {selectedVillage && selectedVillage.precincts.length > 1 && (
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Precinct</label>
+            <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Precinct</label>
             <select
               value={form.precinct_id}
               onChange={e => updateField('precinct_id', e.target.value)}
-              className="w-full px-3 py-3 border border-gray-300 rounded-lg text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent bg-white"
+              className="w-full px-3 py-3 border border-[var(--border-soft)] rounded-lg text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent bg-[var(--surface-raised)]"
             >
               <option value="">Not sure</option>
               {selectedVillage.precincts.map(p => (
@@ -405,30 +405,30 @@ export default function StaffEntryPage() {
         <div className="space-y-3 py-2">
           <label className="flex items-center gap-3">
             <input type="checkbox" checked={form.registered_voter} onChange={e => updateField('registered_voter', e.target.checked)} className="w-5 h-5 rounded text-[#1B3A6B]" />
-            <span className="text-gray-700">Registered Voter</span>
+            <span className="text-[var(--text-primary)]">Registered Voter</span>
           </label>
           <label className="flex items-center gap-3">
             <input type="checkbox" checked={form.yard_sign} onChange={e => updateField('yard_sign', e.target.checked)} className="w-5 h-5 rounded text-[#1B3A6B]" />
-            <span className="text-gray-700">Yard Sign</span>
+            <span className="text-[var(--text-primary)]">Yard Sign</span>
           </label>
           <label className="flex items-center gap-3">
             <input type="checkbox" checked={form.motorcade_available} onChange={e => updateField('motorcade_available', e.target.checked)} className="w-5 h-5 rounded text-[#1B3A6B]" />
-            <span className="text-gray-700">Available for Motorcade</span>
+            <span className="text-[var(--text-primary)]">Available for Motorcade</span>
           </label>
         </div>
 
         {/* Communication Opt-In */}
-        <div className="border-t border-gray-200 pt-3 space-y-2">
-          <p className="text-sm font-medium text-gray-700">Communication Opt-In</p>
+        <div className="border-t border-[var(--border-soft)] pt-3 space-y-2">
+          <p className="text-sm font-medium text-[var(--text-primary)]">Communication Opt-In</p>
           <label className="flex items-center gap-3">
             <input type="checkbox" checked={form.opt_in_text} onChange={e => updateField('opt_in_text', e.target.checked)} className="w-5 h-5 rounded text-[#1B3A6B]" />
-            <span className="text-gray-700">Text Updates</span>
+            <span className="text-[var(--text-primary)]">Text Updates</span>
           </label>
           <label className="flex items-center gap-3">
             <input type="checkbox" checked={form.opt_in_email} onChange={e => updateField('opt_in_email', e.target.checked)} className="w-5 h-5 rounded text-[#1B3A6B]" />
-            <span className="text-gray-700">Email Updates</span>
+            <span className="text-[var(--text-primary)]">Email Updates</span>
           </label>
-          <p className="text-xs text-gray-400">Supporter consents to receive campaign communications.</p>
+          <p className="text-xs text-[var(--text-muted)]">Supporter consents to receive campaign communications.</p>
         </div>
 
         {/* Submit */}

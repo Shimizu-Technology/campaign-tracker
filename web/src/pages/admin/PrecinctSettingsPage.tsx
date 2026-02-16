@@ -106,8 +106,8 @@ export default function PrecinctSettingsPage() {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="app-card p-6 text-center max-w-md">
-          <h1 className="text-xl font-bold text-gray-900 mb-2">Could not load precincts</h1>
-          <p className="text-sm text-gray-600 mb-4">Please refresh and try again.</p>
+          <h1 className="text-xl font-bold text-[var(--text-primary)] mb-2">Could not load precincts</h1>
+          <p className="text-sm text-[var(--text-secondary)] mb-4">Please refresh and try again.</p>
           <button
             type="button"
             onClick={() => window.location.reload()}
@@ -140,13 +140,13 @@ export default function PrecinctSettingsPage() {
       <div className="max-w-6xl mx-auto px-4 py-6 space-y-4">
         <div className="app-card p-4 grid grid-cols-1 md:grid-cols-4 gap-3">
           <div className="relative md:col-span-2">
-            <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+            <Search className="w-4 h-4 absolute left-3 top-3 text-[var(--text-muted)]" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search precinct, village, alpha range, polling site..."
-              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl min-h-[44px]"
+              className="w-full pl-9 pr-3 py-2 border border-[var(--border-soft)] rounded-xl min-h-[44px]"
             />
           </div>
           <input
@@ -154,12 +154,12 @@ export default function PrecinctSettingsPage() {
             value={changeNote}
             onChange={(e) => setChangeNote(e.target.value)}
             placeholder="Change note (optional)"
-            className="border border-gray-300 rounded-xl px-3 py-2 min-h-[44px]"
+            className="border border-[var(--border-soft)] rounded-xl px-3 py-2 min-h-[44px]"
           />
           <select
             value={villageFilter}
             onChange={(e) => setVillageFilter(e.target.value)}
-            className="border border-gray-300 rounded-xl px-3 py-2 bg-white min-h-[44px]"
+            className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px]"
           >
             <option value="">All villages</option>
             {villageOptions.map((name) => (
@@ -169,7 +169,7 @@ export default function PrecinctSettingsPage() {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="border border-gray-300 rounded-xl px-3 py-2 bg-white min-h-[44px]"
+            className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px]"
           >
             <option value="">All statuses</option>
             <option value="active">Active</option>
@@ -183,16 +183,16 @@ export default function PrecinctSettingsPage() {
         <div className="app-card overflow-x-auto">
           <table className="w-full min-w-[1120px] text-sm">
             <thead>
-              <tr className="border-b bg-gray-50">
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Village</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Precinct #</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Alpha Range</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Polling Site</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Registered Voters</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Status</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Linked Supporters</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Updated</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Action</th>
+              <tr className="border-b bg-[var(--surface-bg)]">
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Village</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Precinct #</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Alpha Range</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Polling Site</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Registered Voters</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Status</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Linked Supporters</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Updated</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -205,13 +205,13 @@ export default function PrecinctSettingsPage() {
                   const disableDeactivate = row.linked_supporters_count > 0 && row.active;
                   return (
                     <tr key={row.id} className="border-b">
-                      <td className="px-4 py-3 text-gray-900">{row.village_name}</td>
+                      <td className="px-4 py-3 text-[var(--text-primary)]">{row.village_name}</td>
                       <td className="px-4 py-3">
                         <input
                           type="text"
                           value={draft.number}
                           onChange={(e) => setDraftByPrecinct((prev) => ({ ...prev, [row.id]: { ...draft, number: e.target.value } }))}
-                          className="border border-gray-300 rounded-xl px-3 py-2 min-h-[44px] w-24"
+                          className="border border-[var(--border-soft)] rounded-xl px-3 py-2 min-h-[44px] w-24"
                         />
                       </td>
                       <td className="px-4 py-3">
@@ -219,7 +219,7 @@ export default function PrecinctSettingsPage() {
                           type="text"
                           value={draft.alpha_range}
                           onChange={(e) => setDraftByPrecinct((prev) => ({ ...prev, [row.id]: { ...draft, alpha_range: e.target.value } }))}
-                          className="border border-gray-300 rounded-xl px-3 py-2 min-h-[44px] w-28"
+                          className="border border-[var(--border-soft)] rounded-xl px-3 py-2 min-h-[44px] w-28"
                         />
                       </td>
                       <td className="px-4 py-3">
@@ -227,7 +227,7 @@ export default function PrecinctSettingsPage() {
                           type="text"
                           value={draft.polling_site}
                           onChange={(e) => setDraftByPrecinct((prev) => ({ ...prev, [row.id]: { ...draft, polling_site: e.target.value } }))}
-                          className="border border-gray-300 rounded-xl px-3 py-2 min-h-[44px] w-64"
+                          className="border border-[var(--border-soft)] rounded-xl px-3 py-2 min-h-[44px] w-64"
                         />
                       </td>
                       <td className="px-4 py-3">
@@ -236,17 +236,17 @@ export default function PrecinctSettingsPage() {
                           min={1}
                           value={draft.registered_voters}
                           onChange={(e) => setDraftByPrecinct((prev) => ({ ...prev, [row.id]: { ...draft, registered_voters: e.target.value } }))}
-                          className="border border-gray-300 rounded-xl px-3 py-2 min-h-[44px] w-32"
+                          className="border border-[var(--border-soft)] rounded-xl px-3 py-2 min-h-[44px] w-32"
                         />
                       </td>
                       <td className="px-4 py-3">
-                        <label className="inline-flex items-center gap-2 text-xs text-gray-700">
+                        <label className="inline-flex items-center gap-2 text-xs text-[var(--text-primary)]">
                           <input
                             type="checkbox"
                             checked={draft.active}
                             disabled={disableDeactivate}
                             onChange={(e) => setDraftByPrecinct((prev) => ({ ...prev, [row.id]: { ...draft, active: e.target.checked } }))}
-                            className="rounded border-gray-300 text-[#1B3A6B]"
+                            className="rounded border-[var(--border-soft)] text-[#1B3A6B]"
                           />
                           {draft.active ? 'Active' : 'Inactive'}
                         </label>
@@ -256,8 +256,8 @@ export default function PrecinctSettingsPage() {
                           </div>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-gray-600">{row.linked_supporters_count}</td>
-                      <td className="px-4 py-3 text-gray-500">{row.updated_at ? new Date(row.updated_at).toLocaleString() : '—'}</td>
+                      <td className="px-4 py-3 text-[var(--text-secondary)]">{row.linked_supporters_count}</td>
+                      <td className="px-4 py-3 text-[var(--text-secondary)]">{row.updated_at ? new Date(row.updated_at).toLocaleString() : '—'}</td>
                       <td className="px-4 py-3">
                         <button
                           type="button"
@@ -301,7 +301,7 @@ export default function PrecinctSettingsPage() {
                 })}
               {precincts.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-gray-400">No precincts match current filters.</td>
+                  <td colSpan={9} className="px-4 py-8 text-center text-[var(--text-muted)]">No precincts match current filters.</td>
                 </tr>
               )}
             </tbody>

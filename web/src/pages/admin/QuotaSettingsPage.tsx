@@ -113,8 +113,8 @@ export default function QuotaSettingsPage() {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="app-card p-6 text-center max-w-md">
-          <h1 className="text-xl font-bold text-gray-900 mb-2">Could not load quotas</h1>
-          <p className="text-sm text-gray-600 mb-4">Please refresh and try again.</p>
+          <h1 className="text-xl font-bold text-[var(--text-primary)] mb-2">Could not load quotas</h1>
+          <p className="text-sm text-[var(--text-secondary)] mb-4">Please refresh and try again.</p>
           <button
             type="button"
             onClick={() => window.location.reload()}
@@ -152,13 +152,13 @@ export default function QuotaSettingsPage() {
         <div className="app-card p-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
             <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+              <Search className="w-4 h-4 absolute left-3 top-3 text-[var(--text-muted)]" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search village or region..."
-                className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl min-h-[44px]"
+                className="w-full pl-9 pr-3 py-2 border border-[var(--border-soft)] rounded-xl min-h-[44px]"
               />
             </div>
             <input
@@ -166,11 +166,11 @@ export default function QuotaSettingsPage() {
               value={changeNote}
               onChange={(e) => setChangeNote(e.target.value)}
               placeholder="Change note (optional)"
-              className="w-full px-3 py-2 border border-gray-300 rounded-xl min-h-[44px]"
+              className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl min-h-[44px]"
             />
-            <div className="border border-gray-200 rounded-xl px-3 py-2 bg-gray-50 min-h-[44px] flex items-center justify-between text-sm">
-              <span className="text-gray-500">Visible total target</span>
-              <span className="font-semibold text-gray-900">{totalTarget.toLocaleString()}</span>
+            <div className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-bg)] min-h-[44px] flex items-center justify-between text-sm">
+              <span className="text-[var(--text-secondary)]">Visible total target</span>
+              <span className="font-semibold text-[var(--text-primary)]">{totalTarget.toLocaleString()}</span>
             </div>
           </div>
           {notice && <p className="text-sm text-green-700 mt-2">{notice}</p>}
@@ -179,13 +179,13 @@ export default function QuotaSettingsPage() {
         <div className="app-card overflow-x-auto">
           <table className="w-full text-sm min-w-[760px]">
             <thead>
-              <tr className="border-b bg-gray-50">
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Village</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Region</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Registered Voters</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Quota Target</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Updated</th>
-                <th className="text-left px-4 py-3 font-medium text-gray-600">Action</th>
+              <tr className="border-b bg-[var(--surface-bg)]">
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Village</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Region</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Registered Voters</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Quota Target</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Updated</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Action</th>
               </tr>
             </thead>
             <tbody>
@@ -196,15 +196,15 @@ export default function QuotaSettingsPage() {
                 const invalidVoters = !Number.isFinite(votersCandidate) || votersCandidate <= 0;
                 return (
                   <tr key={row.village_id} className="border-b">
-                    <td className="px-4 py-3 font-medium text-gray-900">{row.village_name}</td>
-                    <td className="px-4 py-3 text-gray-600">{row.region || '—'}</td>
+                    <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{row.village_name}</td>
+                    <td className="px-4 py-3 text-[var(--text-secondary)]">{row.region || '—'}</td>
                     <td className="px-4 py-3">
                       <input
                         type="number"
                         min={1}
                         value={effectiveVotersValue(row)}
                         onChange={(e) => setPendingVotersByVillage((prev) => ({ ...prev, [row.village_id]: e.target.value }))}
-                        className="border border-gray-300 rounded-xl px-3 py-2 min-h-[44px] w-32"
+                        className="border border-[var(--border-soft)] rounded-xl px-3 py-2 min-h-[44px] w-32"
                       />
                     </td>
                     <td className="px-4 py-3">
@@ -213,10 +213,10 @@ export default function QuotaSettingsPage() {
                         min={1}
                         value={effectiveValue(row)}
                         onChange={(e) => setPendingByVillage((prev) => ({ ...prev, [row.village_id]: e.target.value }))}
-                        className="border border-gray-300 rounded-xl px-3 py-2 min-h-[44px] w-32"
+                        className="border border-[var(--border-soft)] rounded-xl px-3 py-2 min-h-[44px] w-32"
                       />
                     </td>
-                    <td className="px-4 py-3 text-gray-500">{row.updated_at ? new Date(row.updated_at).toLocaleString() : '—'}</td>
+                    <td className="px-4 py-3 text-[var(--text-secondary)]">{row.updated_at ? new Date(row.updated_at).toLocaleString() : '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         <button
@@ -226,7 +226,7 @@ export default function QuotaSettingsPage() {
                             if (!window.confirm(`Update registered voters for ${row.village_name} to ${votersCandidate.toLocaleString()}?`)) return;
                             villageMutation.mutate({ villageId: row.village_id, registeredVoters: votersCandidate });
                           }}
-                          className="bg-white border border-[#1B3A6B] text-[#1B3A6B] px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1 disabled:opacity-50"
+                          className="bg-[var(--surface-raised)] border border-[#1B3A6B] text-[#1B3A6B] px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1 disabled:opacity-50"
                         >
                           <Save className="w-3.5 h-3.5" /> Save Voters
                         </button>
@@ -248,7 +248,7 @@ export default function QuotaSettingsPage() {
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-gray-400">
+                  <td colSpan={6} className="px-4 py-8 text-center text-[var(--text-muted)]">
                     No villages match current search.
                   </td>
                 </tr>
@@ -257,7 +257,7 @@ export default function QuotaSettingsPage() {
           </table>
         </div>
 
-        <p className="text-xs text-gray-500">
+        <p className="text-xs text-[var(--text-secondary)]">
           Editing guidance: set quotas to values greater than 0. Update one row at a time to avoid accidental bulk changes.
         </p>
       </div>

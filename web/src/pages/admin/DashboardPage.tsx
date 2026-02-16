@@ -48,21 +48,15 @@ function statusBarColor(status: string) {
 }
 
 function statusTextColor(status: string) {
-  if (status === 'on_track') return 'text-emerald-600';
-  if (status === 'behind') return 'text-amber-600';
-  return 'text-red-600';
+  if (status === 'on_track') return 'text-emerald-400';
+  if (status === 'behind') return 'text-amber-400';
+  return 'text-red-400';
 }
 
 function statusLabel(status: string) {
   if (status === 'on_track') return 'On Track';
   if (status === 'behind') return 'Behind';
   return 'Critical';
-}
-
-function statusCardBorder(status: string) {
-  if (status === 'on_track') return 'border-emerald-200 hover:border-emerald-300';
-  if (status === 'behind') return 'border-amber-200 hover:border-amber-300';
-  return 'border-red-200 hover:border-red-300';
 }
 
 export default function DashboardPage() {
@@ -81,15 +75,12 @@ export default function DashboardPage() {
     return (
       <div className="flex items-center justify-center py-32 px-4">
         <div className="text-center max-w-sm">
-          <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-neutral-100 flex items-center justify-center">
-            <Users className="w-8 h-8 text-neutral-400" />
+          <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-[var(--surface-overlay)] flex items-center justify-center">
+            <Users className="w-8 h-8 text-[var(--text-muted)]" />
           </div>
-          <h2 className="text-xl font-bold text-neutral-900 mb-2">Can&apos;t connect to server</h2>
-          <p className="text-neutral-500 mb-6 text-sm leading-relaxed">Check your connection and try again.</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="px-6 py-2.5 bg-[var(--campaign-blue)] text-white rounded-xl font-medium hover:opacity-90 transition-all duration-200 hover:shadow-lg hover:shadow-[var(--campaign-blue)]/20 hover:-translate-y-0.5 active:translate-y-0"
-          >
+          <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Can&apos;t connect to server</h2>
+          <p className="text-[var(--text-secondary)] mb-6 text-sm leading-relaxed">Check your connection and try again.</p>
+          <button onClick={() => window.location.reload()} className="app-btn-primary">
             Retry
           </button>
         </div>
@@ -117,8 +108,8 @@ export default function DashboardPage() {
       value: summary.total_supporters.toLocaleString(),
       sub: `of ${summary.total_target.toLocaleString()} goal`,
       icon: Users,
-      iconBg: 'bg-blue-50',
-      iconColor: 'text-[var(--campaign-blue)]',
+      iconBg: 'bg-blue-500/10',
+      iconColor: 'text-blue-400',
     },
     {
       label: 'Progress',
@@ -126,7 +117,7 @@ export default function DashboardPage() {
       sub: statusLabel(summary.status),
       subColor: statusTextColor(summary.status),
       icon: TrendingUp,
-      iconBg: summary.status === 'on_track' ? 'bg-emerald-50' : summary.status === 'behind' ? 'bg-amber-50' : 'bg-red-50',
+      iconBg: summary.status === 'on_track' ? 'bg-emerald-500/10' : summary.status === 'behind' ? 'bg-amber-500/10' : 'bg-red-500/10',
       iconColor: statusTextColor(summary.status),
     },
     {
@@ -134,16 +125,16 @@ export default function DashboardPage() {
       value: String(summary.today_signups),
       sub: `${summary.week_signups} this week`,
       icon: BarChart3,
-      iconBg: 'bg-violet-50',
-      iconColor: 'text-violet-600',
+      iconBg: 'bg-violet-500/10',
+      iconColor: 'text-violet-400',
     },
     {
       label: 'Coverage',
       value: String(summary.total_villages),
       sub: `${summary.total_precincts} precincts`,
       icon: MapPin,
-      iconBg: 'bg-teal-50',
-      iconColor: 'text-teal-600',
+      iconBg: 'bg-teal-500/10',
+      iconColor: 'text-teal-400',
     },
   ];
 
@@ -151,8 +142,8 @@ export default function DashboardPage() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto">
       {/* Page Header */}
       <div className="mb-8">
-        <h1 className="text-2xl font-bold text-neutral-900 tracking-tight">Dashboard</h1>
-        <p className="text-sm text-neutral-500 mt-1">Island-wide campaign progress overview</p>
+        <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">Dashboard</h1>
+        <p className="text-sm text-[var(--text-secondary)] mt-1">Island-wide campaign progress overview</p>
       </div>
 
       {/* Summary Cards */}
@@ -160,18 +151,15 @@ export default function DashboardPage() {
         {statCards.map((card) => {
           const Icon = card.icon;
           return (
-            <div
-              key={card.label}
-              className="app-card p-5 hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
-            >
+            <div key={card.label} className="app-card app-card-hover p-5">
               <div className="flex items-center gap-3 mb-3">
                 <div className={`w-9 h-9 rounded-xl ${card.iconBg} flex items-center justify-center`}>
-                  <Icon className={`w-4.5 h-4.5 ${card.iconColor}`} />
+                  <Icon className={`w-[18px] h-[18px] ${card.iconColor}`} />
                 </div>
-                <span className="text-xs font-medium text-neutral-500 uppercase tracking-wider">{card.label}</span>
+                <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">{card.label}</span>
               </div>
-              <div className="text-3xl font-bold text-neutral-900 tracking-tight">{card.value}</div>
-              <div className={`text-sm mt-1 font-medium ${card.subColor || 'text-neutral-400'}`}>
+              <div className="text-3xl font-bold text-[var(--text-primary)] tracking-tight tabular-nums">{card.value}</div>
+              <div className={`text-sm mt-1 font-medium ${card.subColor || 'text-[var(--text-secondary)]'}`}>
                 {card.sub}
               </div>
             </div>
@@ -182,12 +170,12 @@ export default function DashboardPage() {
       {/* Overall Progress Bar */}
       <div className="app-card p-5 mb-8">
         <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-semibold text-neutral-800">Island-Wide Progress</span>
-          <span className="text-sm text-neutral-500 font-medium tabular-nums">
+          <span className="text-sm font-semibold text-[var(--text-primary)]">Island-Wide Progress</span>
+          <span className="text-sm text-[var(--text-secondary)] font-medium tabular-nums">
             {summary.total_supporters.toLocaleString()} / {summary.total_target.toLocaleString()}
           </span>
         </div>
-        <div className="w-full bg-neutral-100 rounded-full h-3 overflow-hidden">
+        <div className="w-full bg-[var(--surface-overlay)] rounded-full h-3 overflow-hidden">
           <div
             className={`h-3 rounded-full transition-all duration-700 ease-out ${statusBarColor(summary.status)}`}
             style={{ width: `${Math.min(summary.total_percentage, 100)}%` }}
@@ -197,35 +185,35 @@ export default function DashboardPage() {
 
       {/* Village Grid */}
       <div className="mb-5">
-        <h2 className="text-lg font-bold text-neutral-900 tracking-tight">Village Progress</h2>
-        <p className="text-sm text-neutral-500 mt-0.5">{villages.length} villages across the island</p>
+        <h2 className="text-lg font-bold text-[var(--text-primary)] tracking-tight">Village Progress</h2>
+        <p className="text-sm text-[var(--text-secondary)] mt-0.5">{villages.length} villages across the island</p>
       </div>
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {villages.map((v: VillageData) => (
           <Link
             key={v.id}
             to={`/admin/villages/${v.id}`}
-            className={`group block app-card p-4 ${statusCardBorder(v.status)} hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300`}
+            className="group block app-card app-card-hover p-4"
           >
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-neutral-800 group-hover:text-[var(--campaign-blue)] transition-colors text-[15px]">
+              <h3 className="font-semibold text-[var(--text-primary)] group-hover:text-blue-400 transition-colors text-[15px]">
                 {v.name}
               </h3>
-              <span className="text-[11px] text-neutral-400 font-medium uppercase tracking-wider">{v.region}</span>
+              <span className="text-[11px] text-[var(--text-muted)] font-medium uppercase tracking-wider">{v.region}</span>
             </div>
             <div className="flex items-center justify-between text-sm mb-2.5">
-              <span className="text-neutral-500 font-medium tabular-nums">{v.supporter_count} / {v.quota_target}</span>
+              <span className="text-[var(--text-secondary)] font-medium tabular-nums">{v.supporter_count} / {v.quota_target}</span>
               <span className={`font-semibold tabular-nums ${statusTextColor(v.status)}`}>{v.quota_percentage}%</span>
             </div>
-            <div className="w-full bg-neutral-100 rounded-full h-2 overflow-hidden">
+            <div className="w-full bg-[var(--surface-overlay)] rounded-full h-2 overflow-hidden">
               <div
                 className={`h-2 rounded-full transition-all duration-500 ${statusBarColor(v.status)}`}
                 style={{ width: `${Math.min(v.quota_percentage, 100)}%` }}
               />
             </div>
-            <div className="mt-2.5 flex justify-between text-[11px] text-neutral-400">
+            <div className="mt-2.5 flex justify-between text-[11px] text-[var(--text-muted)]">
               <span>{v.registered_voters.toLocaleString()} registered voters</span>
-              {v.today_count > 0 && <span className="text-emerald-600 font-medium">+{v.today_count} today</span>}
+              {v.today_count > 0 && <span className="text-emerald-400 font-medium">+{v.today_count} today</span>}
             </div>
           </Link>
         ))}

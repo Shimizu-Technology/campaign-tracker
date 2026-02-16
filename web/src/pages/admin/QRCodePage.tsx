@@ -70,26 +70,26 @@ export default function QRCodePage() {
       <div className="max-w-lg mx-auto px-4 py-6">
         {/* Generator Form */}
         <form onSubmit={handleGenerate} className="app-card p-6 mb-6">
-          <h2 className="font-semibold text-gray-800 mb-4">Generate New QR Code</h2>
+          <h2 className="font-semibold text-[var(--text-primary)] mb-4">Generate New QR Code</h2>
           <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Block Leader Name</label>
+              <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Block Leader Name</label>
               <input
                 type="text"
                 required
                 value={name}
                 onChange={e => setName(e.target.value)}
                 placeholder="Pedro Reyes"
-                className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+                className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Village</label>
+              <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Village</label>
               <select
                 required
                 value={villageId}
                 onChange={e => setVillageId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent bg-white"
+                className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent bg-[var(--surface-raised)]"
               >
                 <option value="">Select a village...</option>
                 {villages.map((v) => (
@@ -110,8 +110,8 @@ export default function QRCodePage() {
         {/* Generated QR */}
         {generated && (
           <div className="app-card p-6 text-center">
-            <h2 className="font-semibold text-gray-800 mb-2">QR Code for {name}</h2>
-            <p className="text-sm text-gray-500 mb-4">Village: {selectedVillage?.name} · Code: {generated.code}</p>
+            <h2 className="font-semibold text-[var(--text-primary)] mb-2">QR Code for {name}</h2>
+            <p className="text-sm text-[var(--text-secondary)] mb-4">Village: {selectedVillage?.name} · Code: {generated.code}</p>
 
             {/* QR Image */}
             <div className="flex justify-center mb-6">
@@ -123,8 +123,8 @@ export default function QRCodePage() {
             </div>
 
             {/* Signup URL */}
-            <div className="bg-gray-50 rounded-xl p-3 mb-4">
-              <p className="text-xs text-gray-500 mb-1">Signup Link</p>
+            <div className="bg-[var(--surface-bg)] rounded-xl p-3 mb-4">
+              <p className="text-xs text-[var(--text-secondary)] mb-1">Signup Link</p>
               <p className="text-sm text-[#1B3A6B] font-mono break-all">{generated.signup_url}</p>
             </div>
 
@@ -132,7 +132,7 @@ export default function QRCodePage() {
             <div className="flex gap-3">
               <button
                 onClick={copyLink}
-                className="flex-1 flex items-center justify-center gap-2 border border-gray-300 rounded-xl py-2 px-4 hover:bg-gray-50 text-sm font-medium"
+                className="flex-1 flex items-center justify-center gap-2 border border-[var(--border-soft)] rounded-xl py-2 px-4 hover:bg-[var(--surface-bg)] text-sm font-medium"
               >
                 {copied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
                 {copied ? 'Copied!' : 'Copy Link'}
@@ -146,7 +146,7 @@ export default function QRCodePage() {
               </a>
             </div>
 
-            <p className="text-xs text-gray-400 mt-4">
+            <p className="text-xs text-[var(--text-muted)] mt-4">
               Print this QR code on flyers or display on your phone. When supporters scan it, their signup is attributed to {name}.
             </p>
           </div>

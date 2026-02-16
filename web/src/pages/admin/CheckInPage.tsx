@@ -45,10 +45,10 @@ export default function CheckInPage() {
   const attendees: Attendee[] = attendeeData?.attendees || [];
 
   if (!hasValidId) {
-    return <div className="min-h-screen flex items-center justify-center text-gray-400">Invalid event link.</div>;
+    return <div className="min-h-screen flex items-center justify-center text-[var(--text-muted)]">Invalid event link.</div>;
   }
 
-  if (!event) return <div className="min-h-screen flex items-center justify-center text-gray-400">Loading...</div>;
+  if (!event) return <div className="min-h-screen flex items-center justify-center text-[var(--text-muted)]">Loading...</div>;
 
   return (
     <div className="min-h-screen">
@@ -96,12 +96,12 @@ export default function CheckInPage() {
         {attendees.map((a) => (
           <div key={a.rsvp_id}
             className={`flex items-center justify-between p-4 mb-2 rounded-2xl border ${
-              a.attended ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'
+              a.attended ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-[var(--surface-raised)] border-[var(--border-soft)]'
             }`}
           >
             <div>
-              <div className="font-medium text-gray-800">{a.print_name}</div>
-              <div className="text-sm text-gray-500">{a.village} · {a.contact_number}</div>
+              <div className="font-medium text-[var(--text-primary)]">{a.print_name}</div>
+              <div className="text-sm text-[var(--text-secondary)]">{a.village} · {a.contact_number}</div>
             </div>
             {a.attended ? (
               <div className="flex items-center gap-1 text-green-600">
@@ -120,7 +120,7 @@ export default function CheckInPage() {
           </div>
         ))}
         {attendees.length === 0 && (
-          <div className="text-center text-gray-400 py-12">
+          <div className="text-center text-[var(--text-muted)] py-12">
             {search ? 'No matching supporters found' : 'No attendees for this event yet'}
           </div>
         )}

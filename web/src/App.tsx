@@ -37,9 +37,7 @@ const ScanFormPage = lazy(() => import('./pages/admin/ScanFormPage'));
 function LazyFallback() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--surface-bg)]">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-8 h-8 border-[3px] border-neutral-200 border-t-[var(--campaign-blue)] rounded-full animate-spin" />
-      </div>
+      <div className="w-8 h-8 border-[3px] border-[var(--border-soft)] border-t-blue-500 rounded-full animate-spin" />
     </div>
   );
 }
@@ -76,9 +74,7 @@ function PermissionRoute({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-32">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-[3px] border-neutral-200 border-t-[var(--campaign-blue)] rounded-full animate-spin" />
-        </div>
+        <div className="w-8 h-8 border-[3px] border-[var(--border-soft)] border-t-blue-500 rounded-full animate-spin" />
       </div>
     );
   }
@@ -87,12 +83,12 @@ function PermissionRoute({
     return (
       <div className="flex items-center justify-center py-32 px-4">
         <div className="app-card p-8 max-w-sm w-full text-center">
-          <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-red-50 flex items-center justify-center">
-            <Shield className="w-7 h-7 text-red-500" />
+          <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-red-500/10 flex items-center justify-center">
+            <Shield className="w-7 h-7 text-red-400" />
           </div>
-          <h1 className="text-xl font-bold text-neutral-900 mb-2">Not Authorized</h1>
-          <p className="text-sm text-neutral-500 mb-6 leading-relaxed">Your role does not have access to this tool.</p>
-          <Link to="/admin" className="inline-flex items-center justify-center bg-[var(--campaign-blue)] text-white px-5 py-2.5 rounded-xl font-medium hover:opacity-90 transition-all min-h-[44px]">
+          <h1 className="text-xl font-bold text-[var(--text-primary)] mb-2">Not Authorized</h1>
+          <p className="text-sm text-[var(--text-secondary)] mb-6 leading-relaxed">Your role does not have access to this tool.</p>
+          <Link to="/admin" className="app-btn-primary">
             Back to Dashboard
           </Link>
         </div>

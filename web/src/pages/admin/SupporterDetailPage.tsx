@@ -215,7 +215,7 @@ export default function SupporterDetailPage() {
   };
 
   if (isLoading || !supporter || !currentForm) {
-    return <div className="min-h-screen flex items-center justify-center text-gray-400">Loading supporter...</div>;
+    return <div className="min-h-screen flex items-center justify-center text-[var(--text-muted)]">Loading supporter...</div>;
   }
 
   return (
@@ -255,7 +255,7 @@ export default function SupporterDetailPage() {
 
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
         {supporter.potential_duplicate && (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
             <div>
               <p className="font-medium text-amber-800">Potential Duplicate</p>
@@ -276,13 +276,13 @@ export default function SupporterDetailPage() {
 
         <section className="app-card p-4">
           <div className="flex items-center justify-between gap-3 mb-3">
-            <h2 className="font-semibold text-gray-900">Supporter Details</h2>
+            <h2 className="font-semibold text-[var(--text-primary)]">Supporter Details</h2>
             {!isEditing ? (
               canEdit && (
                 <button
                   type="button"
                   onClick={startEdit}
-                  className="bg-white border border-gray-300 text-gray-700 px-3 py-2 min-h-[44px] rounded-xl text-sm font-medium flex items-center gap-2 hover:bg-gray-50"
+                  className="bg-[var(--surface-raised)] border border-[var(--border-soft)] text-[var(--text-primary)] px-3 py-2 min-h-[44px] rounded-xl text-sm font-medium flex items-center gap-2 hover:bg-[var(--surface-bg)]"
                 >
                   <Pencil className="w-4 h-4" /> Edit
                 </button>
@@ -292,7 +292,7 @@ export default function SupporterDetailPage() {
                 <button
                   type="button"
                   onClick={cancelEdit}
-                  className="bg-white border border-gray-300 text-gray-700 px-3 py-2 min-h-[44px] rounded-xl text-sm font-medium flex items-center gap-2 hover:bg-gray-50"
+                  className="bg-[var(--surface-raised)] border border-[var(--border-soft)] text-[var(--text-primary)] px-3 py-2 min-h-[44px] rounded-xl text-sm font-medium flex items-center gap-2 hover:bg-[var(--surface-bg)]"
                 >
                   <X className="w-4 h-4" /> Cancel
                 </button>
@@ -308,7 +308,7 @@ export default function SupporterDetailPage() {
             )}
           </div>
           {!canEdit && !isEditing && (
-            <p className="mb-3 text-xs text-gray-500 italic">
+            <p className="mb-3 text-xs text-[var(--text-secondary)] italic">
               View only — editing requires campaign admin or district coordinator role.
             </p>
           )}
@@ -316,28 +316,28 @@ export default function SupporterDetailPage() {
             <input
               value={String(currentForm.first_name || '')}
               onChange={(e) => updateDraft({ first_name: e.target.value })}
-              className="border border-gray-300 rounded-xl px-3 py-2 disabled:bg-gray-50 disabled:text-gray-700"
+              className="border border-[var(--border-soft)] rounded-xl px-3 py-2 disabled:bg-[var(--surface-bg)] disabled:text-[var(--text-primary)]"
               disabled={!isEditing}
               placeholder="First Name"
             />
             <input
               value={String(currentForm.last_name || '')}
               onChange={(e) => updateDraft({ last_name: e.target.value })}
-              className="border border-gray-300 rounded-xl px-3 py-2 disabled:bg-gray-50 disabled:text-gray-700"
+              className="border border-[var(--border-soft)] rounded-xl px-3 py-2 disabled:bg-[var(--surface-bg)] disabled:text-[var(--text-primary)]"
               disabled={!isEditing}
               placeholder="Last Name"
             />
             <input
               value={String(currentForm.contact_number || '')}
               onChange={(e) => updateDraft({ contact_number: e.target.value })}
-              className="border border-gray-300 rounded-xl px-3 py-2 disabled:bg-gray-50 disabled:text-gray-700"
+              className="border border-[var(--border-soft)] rounded-xl px-3 py-2 disabled:bg-[var(--surface-bg)] disabled:text-[var(--text-primary)]"
               disabled={!isEditing}
               placeholder="Phone Number"
             />
             <input
               value={String(currentForm.email || '')}
               onChange={(e) => updateDraft({ email: e.target.value })}
-              className="border border-gray-300 rounded-xl px-3 py-2 disabled:bg-gray-50 disabled:text-gray-700"
+              className="border border-[var(--border-soft)] rounded-xl px-3 py-2 disabled:bg-[var(--surface-bg)] disabled:text-[var(--text-primary)]"
               disabled={!isEditing}
               placeholder="Email"
             />
@@ -345,20 +345,20 @@ export default function SupporterDetailPage() {
               type="date"
               value={String(currentForm.dob || '')}
               onChange={(e) => updateDraft({ dob: e.target.value })}
-              className="border border-gray-300 rounded-xl px-3 py-2 disabled:bg-gray-50 disabled:text-gray-700"
+              className="border border-[var(--border-soft)] rounded-xl px-3 py-2 disabled:bg-[var(--surface-bg)] disabled:text-[var(--text-primary)]"
               disabled={!isEditing}
             />
             <input
               value={String(currentForm.street_address || '')}
               onChange={(e) => updateDraft({ street_address: e.target.value })}
-              className="border border-gray-300 rounded-xl px-3 py-2 md:col-span-2 disabled:bg-gray-50 disabled:text-gray-700"
+              className="border border-[var(--border-soft)] rounded-xl px-3 py-2 md:col-span-2 disabled:bg-[var(--surface-bg)] disabled:text-[var(--text-primary)]"
               disabled={!isEditing}
               placeholder="Street Address"
             />
             <select
               value={String(currentForm.village_id || '')}
               onChange={(e) => updateDraft({ village_id: Number(e.target.value), precinct_id: null })}
-              className="border border-gray-300 rounded-xl px-3 py-2 bg-white disabled:bg-gray-50 disabled:text-gray-700"
+              className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] disabled:bg-[var(--surface-bg)] disabled:text-[var(--text-primary)]"
               disabled={!isEditing}
             >
               {villages.map((v) => (
@@ -368,7 +368,7 @@ export default function SupporterDetailPage() {
             <select
               value={currentForm.precinct_id ? String(currentForm.precinct_id) : ''}
               onChange={(e) => updateDraft({ precinct_id: e.target.value ? Number(e.target.value) : null })}
-              className="border border-gray-300 rounded-xl px-3 py-2 bg-white disabled:bg-gray-50 disabled:text-gray-700"
+              className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] disabled:bg-[var(--surface-bg)] disabled:text-[var(--text-primary)]"
               disabled={!isEditing}
             >
               <option value="">Not assigned</option>
@@ -378,7 +378,7 @@ export default function SupporterDetailPage() {
             </select>
           </div>
 
-          <div className="flex flex-wrap gap-4 mt-3 text-sm text-gray-700">
+          <div className="flex flex-wrap gap-4 mt-3 text-sm text-[var(--text-primary)]">
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -407,7 +407,7 @@ export default function SupporterDetailPage() {
               Motorcade
             </label>
           </div>
-          <div className="flex flex-wrap gap-4 mt-3 pt-3 border-t border-gray-200">
+          <div className="flex flex-wrap gap-4 mt-3 pt-3 border-t border-[var(--border-soft)]">
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -430,11 +430,11 @@ export default function SupporterDetailPage() {
         </section>
 
         <section className="app-card p-4">
-          <h2 className="font-semibold text-gray-900 mb-2">Verification</h2>
+          <h2 className="font-semibold text-[var(--text-primary)] mb-2">Verification</h2>
           <div className="flex items-center gap-3 flex-wrap">
             <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-              supporter.verification_status === 'verified' ? 'bg-green-100 text-green-700' :
-              supporter.verification_status === 'flagged' ? 'bg-red-100 text-red-700' :
+              supporter.verification_status === 'verified' ? 'bg-green-100 text-emerald-300' :
+              supporter.verification_status === 'flagged' ? 'bg-red-100 text-red-300' :
               'bg-yellow-100 text-yellow-700'
             }`}>
               {supporter.verification_status === 'verified' ? 'Verified' :
@@ -480,45 +480,45 @@ export default function SupporterDetailPage() {
                     alert('Failed to reset verification. You may not have permission.');
                   }
                 }}
-                className="px-3 py-1 border border-gray-300 text-gray-700 text-sm rounded-lg hover:bg-gray-50"
+                className="px-3 py-1 border border-[var(--border-soft)] text-[var(--text-primary)] text-sm rounded-lg hover:bg-[var(--surface-bg)]"
               >
                 Reset
               </button>
             )}
           </div>
           {supporter.verified_at && (
-            <p className="text-xs text-gray-400 mt-2">
+            <p className="text-xs text-[var(--text-muted)] mt-2">
               Last updated: {formatDateTime(supporter.verified_at)}
             </p>
           )}
         </section>
 
         <section className="app-card p-4">
-          <h2 className="font-semibold text-gray-900 mb-2">Engagement Snapshot</h2>
+          <h2 className="font-semibold text-[var(--text-primary)] mb-2">Engagement Snapshot</h2>
           <div className="grid grid-cols-3 gap-3 text-center">
             <div className="border rounded-xl p-3">
               <div className="text-xl font-bold">{supporter.events_invited_count}</div>
-              <div className="text-xs text-gray-500">Invited</div>
+              <div className="text-xs text-[var(--text-secondary)]">Invited</div>
             </div>
             <div className="border rounded-xl p-3">
               <div className="text-xl font-bold">{supporter.events_attended_count}</div>
-              <div className="text-xs text-gray-500">Attended</div>
+              <div className="text-xs text-[var(--text-secondary)]">Attended</div>
             </div>
             <div className="border rounded-xl p-3">
               <div className="text-xl font-bold">{supporter.reliability_score ?? '—'}</div>
-              <div className="text-xs text-gray-500">Reliability</div>
+              <div className="text-xs text-[var(--text-secondary)]">Reliability</div>
             </div>
           </div>
         </section>
 
         <section className="app-card p-4">
           <details>
-            <summary className="cursor-pointer font-semibold text-gray-900">
+            <summary className="cursor-pointer font-semibold text-[var(--text-primary)]">
               Audit History ({auditLogs.length})
             </summary>
-            <p className="text-xs text-gray-500 mt-1">Shows what changed, who changed it, and when.</p>
+            <p className="text-xs text-[var(--text-secondary)] mt-1">Shows what changed, who changed it, and when.</p>
             {auditLogs.length === 0 ? (
-              <p className="text-sm text-gray-500 mt-3">No changes logged yet.</p>
+              <p className="text-sm text-[var(--text-secondary)] mt-3">No changes logged yet.</p>
             ) : (
               <div className="space-y-2 mt-3">
                 {auditLogs.map((log) => {
@@ -526,10 +526,10 @@ export default function SupporterDetailPage() {
                   return (
                     <details key={log.id} className="border rounded-xl p-3">
                       <summary className="cursor-pointer">
-                        <div className="text-sm font-medium text-gray-900 inline">
+                        <div className="text-sm font-medium text-[var(--text-primary)] inline">
                           {log.action_label || log.action} by {log.actor_name || 'System/Public'}
                         </div>
-                        <div className="text-xs text-gray-500">
+                        <div className="text-xs text-[var(--text-secondary)]">
                           {humanizeRole(log.actor_role)} · {formatDateTime(log.created_at)}
                           {changedFields.length > 0 ? ` · ${changedFields.length} field${changedFields.length === 1 ? '' : 's'} changed` : ''}
                         </div>
@@ -537,9 +537,9 @@ export default function SupporterDetailPage() {
                       {changedFields.length > 0 && (
                         <div className="mt-2 space-y-1">
                           {changedFields.map(([field, diff]) => (
-                            <div key={field} className="text-xs text-gray-700">
+                            <div key={field} className="text-xs text-[var(--text-primary)]">
                               <span className="font-medium">{AUDIT_FIELD_LABELS[field] || field.replaceAll('_', ' ')}:</span>{' '}
-                              <span className="text-gray-500">{humanizeAuditValue(diff.from)}</span>
+                              <span className="text-[var(--text-secondary)]">{humanizeAuditValue(diff.from)}</span>
                               {' -> '}
                               <span>{humanizeAuditValue(diff.to)}</span>
                             </div>

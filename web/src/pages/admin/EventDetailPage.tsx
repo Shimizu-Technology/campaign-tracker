@@ -19,7 +19,7 @@ export default function EventDetailPage() {
   const stats = attendeeData?.stats;
   const attendees: Attendee[] = attendeeData?.attendees || [];
 
-  if (!event) return <div className="min-h-screen flex items-center justify-center text-gray-400">Loading...</div>;
+  if (!event) return <div className="min-h-screen flex items-center justify-center text-[var(--text-muted)]">Loading...</div>;
 
   return (
     <div className="min-h-screen">
@@ -46,22 +46,22 @@ export default function EventDetailPage() {
         {stats && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <div className="app-card p-4 text-center">
-              <div className="text-2xl font-bold text-gray-900">{stats.total_invited}</div>
-              <div className="text-sm text-gray-500">Invited</div>
+              <div className="text-2xl font-bold text-[var(--text-primary)]">{stats.total_invited}</div>
+              <div className="text-sm text-[var(--text-secondary)]">Invited</div>
             </div>
             <div className="app-card p-4 text-center">
-              <div className="text-2xl font-bold text-gray-900">{stats.confirmed}</div>
-              <div className="text-sm text-gray-500">Confirmed</div>
+              <div className="text-2xl font-bold text-[var(--text-primary)]">{stats.confirmed}</div>
+              <div className="text-sm text-[var(--text-secondary)]">Confirmed</div>
             </div>
             <div className="app-card p-4 text-center">
               <div className="text-2xl font-bold text-green-600">{stats.attended}</div>
-              <div className="text-sm text-gray-500">Attended</div>
+              <div className="text-sm text-[var(--text-secondary)]">Attended</div>
             </div>
             <div className="app-card p-4 text-center">
               <div className={`text-2xl font-bold ${stats.show_up_rate >= 70 ? 'text-green-600' : stats.show_up_rate >= 50 ? 'text-yellow-600' : 'text-red-600'}`}>
                 {stats.show_up_rate}%
               </div>
-              <div className="text-sm text-gray-500">Show-up Rate</div>
+              <div className="text-sm text-[var(--text-secondary)]">Show-up Rate</div>
             </div>
           </div>
         )}
@@ -75,7 +75,7 @@ export default function EventDetailPage() {
                 {event.quota_met ? 'Met!' : `Need ${event.quota - stats.attended} more`}
               </span>
             </div>
-            <div className="w-full bg-gray-200 rounded-full h-3">
+            <div className="w-full bg-[var(--surface-overlay)] rounded-full h-3">
               <div
                 className={`h-3 rounded-full ${event.quota_met ? 'bg-green-500' : 'bg-yellow-500'}`}
                 style={{ width: `${Math.min((stats.attended / event.quota) * 100, 100)}%` }}
@@ -90,8 +90,8 @@ export default function EventDetailPage() {
           {attendees.map((a) => (
             <div key={a.rsvp_id} className="flex items-center justify-between px-4 py-3 border-b last:border-0">
               <div>
-                <span className="font-medium text-gray-800">{a.print_name}</span>
-                <span className="text-sm text-gray-500 ml-2">{a.village}</span>
+                <span className="font-medium text-[var(--text-primary)]">{a.print_name}</span>
+                <span className="text-sm text-[var(--text-secondary)] ml-2">{a.village}</span>
               </div>
               <div className="flex items-center gap-2">
                 {a.attended ? (
@@ -99,7 +99,7 @@ export default function EventDetailPage() {
                     <CheckCircle className="w-4 h-4" /> Checked in
                   </span>
                 ) : (
-                  <span className="flex items-center gap-1 text-gray-400 text-sm">
+                  <span className="flex items-center gap-1 text-[var(--text-muted)] text-sm">
                     <XCircle className="w-4 h-4" /> Not yet
                   </span>
                 )}
@@ -107,7 +107,7 @@ export default function EventDetailPage() {
             </div>
           ))}
           {attendees.length === 0 && (
-            <div className="px-4 py-8 text-center text-gray-400">No attendees yet</div>
+            <div className="px-4 py-8 text-center text-[var(--text-muted)]">No attendees yet</div>
           )}
         </div>
       </div>

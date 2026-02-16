@@ -115,11 +115,11 @@ export default function EmailPage() {
               <AlertTriangle className="w-6 h-6 text-amber-500 flex-shrink-0" />
             )}
             <div>
-              <p className="font-medium text-gray-900">
+              <p className="font-medium text-[var(--text-primary)]">
                 {isConfigured ? 'Email is configured' : 'Email not fully configured'}
               </p>
-              <p className="text-sm text-gray-600">
-                From: <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs">{fromEmail}</code>
+              <p className="text-sm text-[var(--text-secondary)]">
+                From: <code className="bg-[var(--surface-overlay)] px-1.5 py-0.5 rounded text-xs">{fromEmail}</code>
               </p>
             </div>
           </div>
@@ -127,13 +127,13 @@ export default function EmailPage() {
 
         {/* Compose Form */}
         <div className="app-card mb-4">
-          <h2 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
+          <h2 className="text-lg font-bold text-[var(--text-primary)] mb-4 flex items-center gap-2">
             <Send className="w-5 h-5 text-[#1B3A6B]" /> Compose Email Blast
           </h2>
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+              <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Subject</label>
               <input
                 type="text"
                 value={subject}
@@ -142,13 +142,13 @@ export default function EmailPage() {
                 className="app-input"
                 maxLength={200}
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-[var(--text-secondary)] mt-1">
                 Tip: Use {'{first_name}'}, {'{last_name}'}, or {'{village}'} to personalize
               </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Body (HTML supported)</label>
+              <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Body (HTML supported)</label>
               <textarea
                 value={body}
                 onChange={(e) => setBody(e.target.value)}
@@ -156,18 +156,18 @@ export default function EmailPage() {
                 className="app-input min-h-[200px] font-mono text-sm"
                 maxLength={10000}
               />
-              <p className="text-xs text-gray-500 mt-1">
+              <p className="text-xs text-[var(--text-secondary)] mt-1">
                 Tip: Use {'{first_name}'}, {'{last_name}'}, or {'{village}'} to personalize. Basic HTML allowed.
               </p>
             </div>
 
             <div className="border-t pt-4">
-              <h3 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+              <h3 className="text-sm font-medium text-[var(--text-primary)] mb-3 flex items-center gap-2">
                 <Users className="w-4 h-4" /> Recipient Filters
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm text-gray-600 mb-1">Village (optional)</label>
+                  <label className="block text-sm text-[var(--text-secondary)] mb-1">Village (optional)</label>
                   <select
                     value={villageId}
                     onChange={(e) => setVillageId(e.target.value)}
@@ -181,36 +181,36 @@ export default function EmailPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
                     <input
                       type="checkbox"
                       checked={motorcadeAvailable}
                       onChange={(e) => setMotorcadeAvailable(e.target.checked)}
-                      className="rounded border-gray-300"
+                      className="rounded border-[var(--border-soft)]"
                     />
                     Motorcade available only
                   </label>
-                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
                     <input
                       type="checkbox"
                       checked={registeredVoter}
                       onChange={(e) => setRegisteredVoter(e.target.checked)}
-                      className="rounded border-gray-300"
+                      className="rounded border-[var(--border-soft)]"
                     />
                     Registered voters only
                   </label>
-                  <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <label className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
                     <input
                       type="checkbox"
                       checked={yardSign}
                       onChange={(e) => setYardSign(e.target.checked)}
-                      className="rounded border-gray-300"
+                      className="rounded border-[var(--border-soft)]"
                     />
                     Yard sign requests only
                   </label>
                 </div>
               </div>
-              <p className="text-xs text-gray-500 mt-2">
+              <p className="text-xs text-[var(--text-secondary)] mt-2">
                 Only supporters who opted in to email will receive this message.
               </p>
             </div>
@@ -263,16 +263,16 @@ export default function EmailPage() {
         {/* Preview Result */}
         {previewResult && (
           <div className="app-card mb-4 border-l-4 border-l-blue-500">
-            <h3 className="font-medium text-gray-900 mb-3 flex items-center gap-2">
+            <h3 className="font-medium text-[var(--text-primary)] mb-3 flex items-center gap-2">
               <Eye className="w-5 h-5 text-blue-500" /> Preview Results
             </h3>
             <div className="space-y-3">
               <div className="flex items-center gap-4">
                 <div className="text-center">
                   <p className="text-3xl font-bold text-[#1B3A6B]">{previewResult.recipient_count || 0}</p>
-                  <p className="text-xs text-gray-500">recipients</p>
+                  <p className="text-xs text-[var(--text-secondary)]">recipients</p>
                 </div>
-                <div className="flex-1 text-sm text-gray-600">
+                <div className="flex-1 text-sm text-[var(--text-secondary)]">
                   <p>This email will be sent to supporters who:</p>
                   <ul className="list-disc list-inside mt-1 space-y-0.5">
                     <li>Have an email address on file</li>
@@ -286,17 +286,17 @@ export default function EmailPage() {
               </div>
 
               {previewResult.preview_subject && (
-                <div className="border rounded-lg p-3 bg-gray-50">
-                  <p className="text-xs text-gray-500 mb-1">Preview Subject (personalized)</p>
-                  <p className="font-medium text-gray-900">{previewResult.preview_subject}</p>
+                <div className="border rounded-lg p-3 bg-[var(--surface-bg)]">
+                  <p className="text-xs text-[var(--text-secondary)] mb-1">Preview Subject (personalized)</p>
+                  <p className="font-medium text-[var(--text-primary)]">{previewResult.preview_subject}</p>
                 </div>
               )}
 
               {previewResult.preview_html && (
                 <div>
-                  <p className="text-xs text-gray-500 mb-1">Preview Email Body</p>
+                  <p className="text-xs text-[var(--text-secondary)] mb-1">Preview Email Body</p>
                   <div
-                    className="border rounded-lg p-4 bg-white text-sm overflow-auto max-h-[300px]"
+                    className="border rounded-lg p-4 bg-[var(--surface-raised)] text-sm overflow-auto max-h-[300px]"
                     dangerouslySetInnerHTML={{ __html: previewResult.preview_html }}
                   />
                 </div>
@@ -311,8 +311,8 @@ export default function EmailPage() {
             <div className="flex items-center gap-3">
               <CheckCircle className="w-6 h-6 text-green-500 flex-shrink-0" />
               <div>
-                <p className="font-medium text-gray-900">Email blast queued!</p>
-                <p className="text-sm text-gray-600">
+                <p className="font-medium text-[var(--text-primary)]">Email blast queued!</p>
+                <p className="text-sm text-[var(--text-secondary)]">
                   {sentResult.total_targeted || 0} emails will be sent in the background.
                 </p>
               </div>
@@ -321,9 +321,9 @@ export default function EmailPage() {
         )}
 
         {/* Tips */}
-        <div className="app-card bg-blue-50 border-blue-200">
-          <h3 className="font-medium text-gray-900 mb-2">Tips for Better Email Delivery</h3>
-          <ul className="text-sm text-gray-700 space-y-1.5 list-disc list-inside">
+        <div className="app-card bg-blue-500/10 border-blue-500/30">
+          <h3 className="font-medium text-[var(--text-primary)] mb-2">Tips for Better Email Delivery</h3>
+          <ul className="text-sm text-[var(--text-primary)] space-y-1.5 list-disc list-inside">
             <li>Keep subject lines under 50 characters for mobile</li>
             <li>Personalize with {'{first_name}'} to increase engagement</li>
             <li>Always preview recipient count before sending</li>

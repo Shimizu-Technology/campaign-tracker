@@ -54,30 +54,30 @@ function ConfidenceBadge({ level }: { level: 'high' | 'medium' | 'low' | null | 
   if (!level) return null;
   if (level === 'high') {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-50 px-2 py-0.5 rounded-full">
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded-full">
         <ShieldCheck className="w-3 h-3" /> High
       </span>
     );
   }
   if (level === 'medium') {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-full">
         <ShieldQuestion className="w-3 h-3" /> Medium
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-50 px-2 py-0.5 rounded-full">
+    <span className="inline-flex items-center gap-1 text-xs font-medium text-red-300 bg-red-500/10 px-2 py-0.5 rounded-full">
       <ShieldAlert className="w-3 h-3" /> Low
     </span>
   );
 }
 
 function confidenceBorder(level: string | null | undefined): string {
-  if (level === 'high') return 'border-green-400 bg-green-50/50';
-  if (level === 'medium') return 'border-amber-400 bg-amber-50/50';
-  if (level === 'low') return 'border-red-400 bg-red-50/50';
-  return 'border-gray-300';
+  if (level === 'high') return 'border-green-400 bg-emerald-500/10';
+  if (level === 'medium') return 'border-amber-400 bg-amber-500/10';
+  if (level === 'low') return 'border-red-400 bg-red-500/10';
+  return 'border-[var(--border-soft)]';
 }
 
 export default function ScanFormPage() {
@@ -283,14 +283,14 @@ export default function ScanFormPage() {
             {/* Main camera button */}
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="w-full bg-white rounded-2xl border-2 border-dashed border-gray-300 hover:border-[#1B3A6B] hover:bg-blue-50/50 transition-all p-12 flex flex-col items-center gap-4"
+              className="w-full bg-[var(--surface-raised)] rounded-2xl border-2 border-dashed border-[var(--border-soft)] hover:border-[#1B3A6B] hover:bg-blue-500/10 transition-all p-12 flex flex-col items-center gap-4"
             >
               <div className="w-20 h-20 rounded-full bg-[#1B3A6B] flex items-center justify-center">
                 <Camera className="w-10 h-10 text-white" />
               </div>
               <div className="text-center">
-                <p className="text-lg font-semibold text-gray-900">Take a Photo</p>
-                <p className="text-sm text-gray-500 mt-1">Point your camera at the paper signup form</p>
+                <p className="text-lg font-semibold text-[var(--text-primary)]">Take a Photo</p>
+                <p className="text-sm text-[var(--text-secondary)] mt-1">Point your camera at the paper signup form</p>
               </div>
             </button>
 
@@ -307,22 +307,22 @@ export default function ScanFormPage() {
                 };
                 input.click();
               }}
-              className="w-full bg-white rounded-xl border border-gray-200 hover:border-gray-300 p-4 flex items-center justify-center gap-2 text-gray-600 hover:text-gray-900 transition-all"
+              className="w-full bg-[var(--surface-raised)] rounded-xl border border-[var(--border-soft)] hover:border-[var(--border-soft)] p-4 flex items-center justify-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all"
             >
               <ImagePlus className="w-5 h-5" />
               <span className="font-medium">Upload from Gallery</span>
             </button>
 
             {scanError && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center gap-2">
+              <div className="bg-red-500/10 border border-red-500/30 text-red-300 px-4 py-3 rounded-xl flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 shrink-0" /> {scanError}
               </div>
             )}
 
             {/* Tips */}
-            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+            <div className="bg-blue-500/10 border border-blue-100 rounded-xl p-4">
               <p className="font-medium text-blue-900 text-sm mb-2">Tips for best results:</p>
-              <ul className="text-sm text-blue-700 space-y-1">
+              <ul className="text-sm text-blue-300 space-y-1">
                 <li>• Place the form on a flat, well-lit surface</li>
                 <li>• Capture the entire form in the frame</li>
                 <li>• Avoid shadows and glare</li>
@@ -346,14 +346,14 @@ export default function ScanFormPage() {
         {phase === 'scanning' && (
           <div className="space-y-4">
             {previewUrl && (
-              <div className="rounded-2xl overflow-hidden border border-gray-200">
+              <div className="rounded-2xl overflow-hidden border border-[var(--border-soft)]">
                 <img src={previewUrl} alt="Scanned form" className="w-full" />
               </div>
             )}
             <div className="flex flex-col items-center gap-3 py-8">
               <Loader2 className="w-12 h-12 text-[#1B3A6B] animate-spin" />
-              <p className="text-lg font-medium text-gray-900">Extracting form data...</p>
-              <p className="text-sm text-gray-500">Reading handwriting with AI — this may take a few seconds</p>
+              <p className="text-lg font-medium text-[var(--text-primary)]">Extracting form data...</p>
+              <p className="text-sm text-[var(--text-secondary)]">Reading handwriting with AI — this may take a few seconds</p>
             </div>
           </div>
         )}
@@ -362,23 +362,23 @@ export default function ScanFormPage() {
         {phase === 'review' && (
           <div className="space-y-4">
             {/* Preview thumbnail + confidence summary */}
-            <div className="bg-white rounded-xl border border-gray-200 p-4 flex items-start gap-4">
+            <div className="bg-[var(--surface-raised)] rounded-xl border border-[var(--border-soft)] p-4 flex items-start gap-4">
               {previewUrl && (
                 <img src={previewUrl} alt="Scanned form" className="w-20 h-20 object-cover rounded-lg border" />
               )}
               <div className="flex-1 min-w-0">
-                <p className="font-semibold text-gray-900">Review Extracted Data</p>
-                <p className="text-sm text-gray-500 mt-1">
+                <p className="font-semibold text-[var(--text-primary)]">Review Extracted Data</p>
+                <p className="text-sm text-[var(--text-secondary)] mt-1">
                   Fields highlighted by confidence. Verify and correct any errors before saving.
                 </p>
                 <div className="flex flex-wrap gap-2 mt-2">
                   {lowConfidenceCount > 0 && (
-                    <span className="text-xs font-medium text-red-700 bg-red-50 px-2 py-1 rounded-full">
+                    <span className="text-xs font-medium text-red-300 bg-red-500/10 px-2 py-1 rounded-full">
                       {lowConfidenceCount} low confidence
                     </span>
                   )}
                   {medConfidenceCount > 0 && (
-                    <span className="text-xs font-medium text-amber-700 bg-amber-50 px-2 py-1 rounded-full">
+                    <span className="text-xs font-medium text-amber-300 bg-amber-500/10 px-2 py-1 rounded-full">
                       {medConfidenceCount} needs review
                     </span>
                   )}
@@ -387,13 +387,13 @@ export default function ScanFormPage() {
             </div>
 
             {duplicateWarning && (
-              <div className="bg-yellow-50 border border-yellow-200 text-yellow-700 px-4 py-3 rounded-xl flex items-center gap-2">
+              <div className="bg-yellow-500/10 border border-yellow-500/30 text-yellow-700 px-4 py-3 rounded-xl flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 shrink-0" /> {duplicateWarning}
               </div>
             )}
 
             {submitMutation.isError && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center gap-2">
+              <div className="bg-red-500/10 border border-red-500/30 text-red-300 px-4 py-3 rounded-xl flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 shrink-0" /> Error saving. Check required fields and try again.
               </div>
             )}
@@ -403,7 +403,7 @@ export default function ScanFormPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-sm font-medium text-gray-700">First Name *</label>
+                    <label className="text-sm font-medium text-[var(--text-primary)]">First Name *</label>
                     <ConfidenceBadge level={confidence.first_name} />
                   </div>
                   <input
@@ -417,7 +417,7 @@ export default function ScanFormPage() {
                 </div>
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="text-sm font-medium text-gray-700">Last Name *</label>
+                    <label className="text-sm font-medium text-[var(--text-primary)]">Last Name *</label>
                     <ConfidenceBadge level={confidence.last_name} />
                   </div>
                   <input
@@ -434,7 +434,7 @@ export default function ScanFormPage() {
               {/* Phone */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-sm font-medium text-gray-700">Phone *</label>
+                  <label className="text-sm font-medium text-[var(--text-primary)]">Phone *</label>
                   <ConfidenceBadge level={confidence.contact_number} />
                 </div>
                 <input
@@ -450,14 +450,14 @@ export default function ScanFormPage() {
               {/* Village */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-sm font-medium text-gray-700">Village *</label>
+                  <label className="text-sm font-medium text-[var(--text-primary)]">Village *</label>
                   <ConfidenceBadge level={confidence.village} />
                 </div>
                 <select
                   required
                   value={form.village_id}
                   onChange={e => { updateField('village_id', e.target.value); updateField('precinct_id', ''); }}
-                  className={`${inputClass('village')} bg-white`}
+                  className={`${inputClass('village')} bg-[var(--surface-raised)]`}
                 >
                   <option value="">Select village</option>
                   {villages.map(v => (
@@ -469,11 +469,11 @@ export default function ScanFormPage() {
               {/* Precinct */}
               {selectedVillage && selectedVillage.precincts.length > 1 && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Precinct</label>
+                  <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Precinct</label>
                   <select
                     value={form.precinct_id}
                     onChange={e => updateField('precinct_id', e.target.value)}
-                    className="w-full px-3 py-3 border-2 border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent bg-white"
+                    className="w-full px-3 py-3 border-2 border-[var(--border-soft)] rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent bg-[var(--surface-raised)]"
                   >
                     <option value="">Not sure</option>
                     {selectedVillage.precincts.map(p => (
@@ -486,7 +486,7 @@ export default function ScanFormPage() {
               {/* Address */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-sm font-medium text-gray-700">Street Address</label>
+                  <label className="text-sm font-medium text-[var(--text-primary)]">Street Address</label>
                   <ConfidenceBadge level={confidence.street_address} />
                 </div>
                 <input
@@ -501,7 +501,7 @@ export default function ScanFormPage() {
               {/* DOB */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-sm font-medium text-gray-700">Date of Birth</label>
+                  <label className="text-sm font-medium text-[var(--text-primary)]">Date of Birth</label>
                   <ConfidenceBadge level={confidence.dob} />
                 </div>
                 <input
@@ -515,7 +515,7 @@ export default function ScanFormPage() {
               {/* Email */}
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-sm font-medium text-gray-700">Email</label>
+                  <label className="text-sm font-medium text-[var(--text-primary)]">Email</label>
                   <ConfidenceBadge level={confidence.email} />
                 </div>
                 <input
@@ -531,31 +531,31 @@ export default function ScanFormPage() {
               <div className="space-y-3 py-2">
                 <label className="flex items-center gap-3 min-h-[44px]">
                   <input type="checkbox" checked={form.registered_voter} onChange={e => updateField('registered_voter', e.target.checked)} className="w-5 h-5 rounded text-[#1B3A6B]" />
-                  <span className="text-gray-700">Registered Voter</span>
+                  <span className="text-[var(--text-primary)]">Registered Voter</span>
                   <ConfidenceBadge level={confidence.registered_voter} />
                 </label>
                 <label className="flex items-center gap-3 min-h-[44px]">
                   <input type="checkbox" checked={form.yard_sign} onChange={e => updateField('yard_sign', e.target.checked)} className="w-5 h-5 rounded text-[#1B3A6B]" />
-                  <span className="text-gray-700">Yard Sign</span>
+                  <span className="text-[var(--text-primary)]">Yard Sign</span>
                   <ConfidenceBadge level={confidence.yard_sign} />
                 </label>
                 <label className="flex items-center gap-3 min-h-[44px]">
                   <input type="checkbox" checked={form.motorcade_available} onChange={e => updateField('motorcade_available', e.target.checked)} className="w-5 h-5 rounded text-[#1B3A6B]" />
-                  <span className="text-gray-700">Available for Motorcade</span>
+                  <span className="text-[var(--text-primary)]">Available for Motorcade</span>
                   <ConfidenceBadge level={confidence.motorcade_available} />
                 </label>
               </div>
 
               {/* Opt-in */}
-              <div className="border-t border-gray-200 pt-3 space-y-2">
-                <p className="text-sm font-medium text-gray-700">Communication Opt-In</p>
+              <div className="border-t border-[var(--border-soft)] pt-3 space-y-2">
+                <p className="text-sm font-medium text-[var(--text-primary)]">Communication Opt-In</p>
                 <label className="flex items-center gap-3 min-h-[44px]">
                   <input type="checkbox" checked={form.opt_in_text} onChange={e => updateField('opt_in_text', e.target.checked)} className="w-5 h-5 rounded text-[#1B3A6B]" />
-                  <span className="text-gray-700">Text Updates</span>
+                  <span className="text-[var(--text-primary)]">Text Updates</span>
                 </label>
                 <label className="flex items-center gap-3 min-h-[44px]">
                   <input type="checkbox" checked={form.opt_in_email} onChange={e => updateField('opt_in_email', e.target.checked)} className="w-5 h-5 rounded text-[#1B3A6B]" />
-                  <span className="text-gray-700">Email Updates</span>
+                  <span className="text-[var(--text-primary)]">Email Updates</span>
                 </label>
               </div>
 
@@ -575,7 +575,7 @@ export default function ScanFormPage() {
                 <button
                   type="button"
                   onClick={resetForNextScan}
-                  className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 rounded-xl text-lg transition-all flex items-center justify-center gap-2"
+                  className="w-full bg-[var(--surface-overlay)] hover:bg-[var(--surface-overlay)] text-[var(--text-primary)] font-semibold py-3 rounded-xl text-lg transition-all flex items-center justify-center gap-2"
                 >
                   <RotateCcw className="w-4 h-4" /> Re-scan
                 </button>
@@ -591,8 +591,8 @@ export default function ScanFormPage() {
               <Check className="w-10 h-10 text-green-600" />
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-gray-900">Supporter Added!</h2>
-              <p className="text-gray-500 mt-2">
+              <h2 className="text-2xl font-bold text-[var(--text-primary)]">Supporter Added!</h2>
+              <p className="text-[var(--text-secondary)] mt-2">
                 {form.first_name} {form.last_name} has been added as <strong>unverified</strong>.
                 An admin will review and verify.
               </p>
@@ -607,7 +607,7 @@ export default function ScanFormPage() {
               </button>
               <Link
                 to="/admin/vetting"
-                className="block w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 rounded-xl text-lg transition-all text-center"
+                className="block w-full bg-[var(--surface-overlay)] hover:bg-[var(--surface-overlay)] text-[var(--text-primary)] font-semibold py-3 rounded-xl text-lg transition-all text-center"
               >
                 Go to Vetting Queue
               </Link>

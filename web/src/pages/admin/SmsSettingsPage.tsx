@@ -83,19 +83,19 @@ export default function SmsSettingsPage() {
         <div className="app-card p-6 space-y-4">
           <div className="flex items-center gap-2">
             <MessageSquare className="w-5 h-5 text-[#1B3A6B]" />
-            <h2 className="text-lg font-semibold text-gray-900">Welcome SMS Template</h2>
+            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Welcome SMS Template</h2>
           </div>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-[var(--text-secondary)]">
             This message is sent automatically when a new supporter signs up (if they opt in to text messages).
           </p>
 
           {/* Variables */}
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
             <div className="flex items-start gap-2">
               <Info className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
               <div>
                 <p className="text-sm font-medium text-blue-900">Available variables</p>
-                <p className="text-sm text-blue-700 mt-1">
+                <p className="text-sm text-blue-300 mt-1">
                   Click to insert: {settings?.available_variables.map((v) => (
                     <button
                       key={v}
@@ -117,11 +117,11 @@ export default function SmsSettingsPage() {
               onChange={(e) => setTemplate(e.target.value)}
               rows={4}
               maxLength={320}
-              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent resize-none"
+              className="w-full border border-[var(--border-soft)] rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent resize-none"
               placeholder="Enter your welcome SMS template..."
             />
             <div className="flex justify-between mt-1">
-              <span className={`text-xs ${charCount > 160 ? 'text-amber-600' : 'text-gray-400'}`}>
+              <span className={`text-xs ${charCount > 160 ? 'text-amber-600' : 'text-[var(--text-muted)]'}`}>
                 {charCount}/320 chars · {smsSegments} SMS segment{smsSegments !== 1 ? 's' : ''}
               </span>
               {charCount > 160 && (
@@ -134,10 +134,10 @@ export default function SmsSettingsPage() {
 
           {/* Preview */}
           <div>
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Preview</p>
-            <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-              <p className="text-sm text-gray-800 whitespace-pre-wrap">{previewText || '(empty)'}</p>
-              <p className="text-xs text-gray-400 mt-2">Sample: Maria Cruz from Tamuning</p>
+            <p className="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wide mb-2">Preview</p>
+            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4">
+              <p className="text-sm text-[var(--text-primary)] whitespace-pre-wrap">{previewText || '(empty)'}</p>
+              <p className="text-xs text-[var(--text-muted)] mt-2">Sample: Maria Cruz from Tamuning</p>
             </div>
           </div>
 
@@ -154,7 +154,7 @@ export default function SmsSettingsPage() {
             <button
               onClick={() => resetMutation.mutate()}
               disabled={resetMutation.isPending}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 text-sm font-medium"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--surface-overlay)] text-[var(--text-primary)] rounded-lg hover:bg-[var(--surface-overlay)] disabled:opacity-50 text-sm font-medium"
             >
               <RotateCcw className="w-4 h-4" />
               Reset to Default
@@ -165,7 +165,7 @@ export default function SmsSettingsPage() {
           </div>
 
           {saveMutation.isError && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">
+            <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-300 text-sm">
               {(saveMutation.error as Error)?.message || 'Failed to save. Please try again.'}
             </div>
           )}
