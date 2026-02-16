@@ -49,9 +49,11 @@ module Authenticatable
 
       # Block unauthorized users — only pre-created users can access the app
       unless @current_user
-        auto_provision = ActiveModel::Type::Boolean.new.cast(ENV.fetch("AUTO_PROVISION_USERS", "false"))
+        # SECURITY: Never auto-provision users. Admins must create users via the Users page.
+        # The AUTO_PROVISION_USERS env var is kept for development only.
+        auto_provision = Rails.env.development? && ActiveModel::Type::Boolean.new.cast(ENV.fetch("AUTO_PROVISION_USERS", "false"))
 
-        Rails.logger.info("[Auth] User not found: clerk_id=#{clerk_id} email=#{token_email} auto_provision=#{auto_provision}")
+        Rails.logger.warn("[Auth] BLOCKED: Unauthorized user attempted access — clerk_id=#{clerk_id} email=#{token_email} env=#{Rails.env}")
 
         unless auto_provision
           render_api_error(
@@ -68,7 +70,6 @@ module Authenticatable
           name: token_name || "New User",
           role: "block_leader"
         )
-        Rails.logger.info("[Auth] Auto-provisioned user: #{@current_user.email} as #{@current_user.role}")
       end
     rescue JWT::DecodeError => e
       render_api_error(
