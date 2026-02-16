@@ -40,8 +40,6 @@ module Api
         if dupes.exists?
           supporter.status = "unverified" # Flag for review
         end
-        assign_default_precinct_if_single!(supporter)
-
         if supporter.save
           log_audit!(supporter, action: "created", changed_data: supporter.saved_changes.except("updated_at"))
 
@@ -445,13 +443,6 @@ module Api
 
       def staff_entry_mode?
         params[:entry_mode] == "staff"
-      end
-
-      def assign_default_precinct_if_single!(supporter)
-        return if supporter.precinct_id.present? || supporter.village_id.blank?
-
-        precinct_ids = Precinct.where(village_id: supporter.village_id).limit(2).pluck(:id)
-        supporter.precinct_id = precinct_ids.first if precinct_ids.one?
       end
 
       def supporter_json(supporter)

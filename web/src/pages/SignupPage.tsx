@@ -9,7 +9,6 @@ import { Link } from 'react-router-dom';
 interface Village {
   id: number;
   name: string;
-  precincts: { id: number; number: string; alpha_range: string }[];
 }
 
 type SignupForm = {
@@ -20,7 +19,6 @@ type SignupForm = {
   dob: string;
   street_address: string;
   village_id: string;
-  precinct_id: string;
   registered_voter: boolean;
   yard_sign: boolean;
   motorcade_available: boolean;
@@ -40,7 +38,6 @@ export default function SignupPage() {
     dob: '',
     street_address: '',
     village_id: '',
-    precinct_id: '',
     registered_voter: true,
     yard_sign: false,
     opt_in_email: false,
@@ -54,8 +51,6 @@ export default function SignupPage() {
   });
   const villages: Village[] = villageData?.villages || [];
 
-  const selectedVillage = villages.find(v => v.id === Number(form.village_id));
-
   const signup = useMutation({
     mutationFn: (data: Record<string, unknown>) => createSupporter(data, leaderCode),
     onSuccess: () => navigate('/thank-you'),
@@ -63,15 +58,9 @@ export default function SignupPage() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const validPrecinctIds = new Set((selectedVillage?.precincts || []).map((p) => String(p.id)));
-    const normalizedPrecinctId = form.precinct_id && validPrecinctIds.has(form.precinct_id)
-      ? Number(form.precinct_id)
-      : null;
-
     signup.mutate({
       ...form,
       village_id: Number(form.village_id),
-      precinct_id: normalizedPrecinctId,
     });
   };
 
@@ -151,10 +140,7 @@ export default function SignupPage() {
           <select
             required
             value={form.village_id}
-            onChange={e => {
-              updateField('village_id', e.target.value);
-              updateField('precinct_id', '');
-            }}
+            onChange={e => updateField('village_id', e.target.value)}
             className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent bg-white"
           >
             <option value="">Select your village</option>
@@ -163,23 +149,6 @@ export default function SignupPage() {
             ))}
           </select>
         </div>
-
-        {/* Precinct (auto-populated from village) */}
-        {selectedVillage && selectedVillage.precincts.length > 1 && (
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Precinct</label>
-            <select
-              value={form.precinct_id}
-              onChange={e => updateField('precinct_id', e.target.value)}
-              className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent bg-white"
-            >
-              <option value="">Not sure</option>
-              {selectedVillage.precincts.map(p => (
-                <option key={p.id} value={p.id}>Precinct {p.number} ({p.alpha_range})</option>
-              ))}
-            </select>
-          </div>
-        )}
 
         {/* Street Address */}
         <div>

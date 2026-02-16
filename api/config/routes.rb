@@ -9,7 +9,7 @@ Rails.application.routes.draw do
       get "dashboard", to: "dashboard#show"
       get "stats", to: "dashboard#stats"
       resource :settings, only: [ :show, :update ]
-      resources :villages, only: [ :index, :show, :update ]
+      resources :villages, only: [ :index, :show ]
       resources :supporters, only: [ :create, :index, :show, :update ] do
         member do
           patch :verify

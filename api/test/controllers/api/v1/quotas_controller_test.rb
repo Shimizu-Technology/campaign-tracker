@@ -9,10 +9,9 @@ class Api::V1::QuotasControllerTest < ActionDispatch::IntegrationTest
     )
     @village = Village.create!(
       name: "Tamuning",
-      region: "Central",
-      registered_voters: 1234,
-      precinct_count: 1
+      region: "Central"
     )
+    Precinct.create!(village: @village, number: "Q1", alpha_range: "A-Z", registered_voters: 1234)
     @quota = Quota.create!(
       campaign: @campaign,
       village: @village,
@@ -76,10 +75,9 @@ class Api::V1::QuotasControllerTest < ActionDispatch::IntegrationTest
   test "admin can create village quota when missing" do
     village = Village.create!(
       name: "Dededo",
-      region: "North",
-      registered_voters: 2222,
-      precinct_count: 1
+      region: "North"
     )
+    Precinct.create!(village: village, number: "Q2", alpha_range: "A-Z", registered_voters: 2222)
 
     assert_difference -> { Quota.count }, +1 do
       patch "/api/v1/quotas/#{village.id}",

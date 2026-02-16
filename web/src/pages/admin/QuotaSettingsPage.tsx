@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Save, Search, Target } from 'lucide-react';
-import { getQuotas, updateVillage, updateVillageQuota } from '../../lib/api';
+import { getQuotas, updateVillageQuota } from '../../lib/api';
 
 interface QuotaItem {
   village_id: number;
@@ -32,7 +32,6 @@ export default function QuotaSettingsPage() {
   });
   const [search, setSearch] = useState('');
   const [pendingByVillage, setPendingByVillage] = useState<Record<number, string>>({});
-  const [pendingVotersByVillage, setPendingVotersByVillage] = useState<Record<number, string>>({});
   const [changeNote, setChangeNote] = useState('');
   const [notice, setNotice] = useState<string | null>(null);
 
@@ -52,23 +51,6 @@ export default function QuotaSettingsPage() {
       window.setTimeout(() => setNotice(null), 2500);
     },
   });
-  const villageMutation = useMutation({
-    mutationFn: ({ villageId, registeredVoters }: { villageId: number; registeredVoters: number }) =>
-      updateVillage(villageId, { registered_voters: registeredVoters, change_note: changeNote.trim() || undefined }),
-    onSuccess: (_payload, vars) => {
-      setPendingVotersByVillage((prev) => {
-        const next = { ...prev };
-        delete next[vars.villageId];
-        return next;
-      });
-      queryClient.invalidateQueries({ queryKey: ['quotas'] });
-      queryClient.invalidateQueries({ queryKey: ['villages'] });
-      queryClient.invalidateQueries({ queryKey: ['village'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      setNotice('Registered voters updated');
-      window.setTimeout(() => setNotice(null), 2500);
-    },
-  });
 
   const quotas = useMemo(() => data?.quotas || [], [data?.quotas]);
   const filtered = useMemo(() => {
@@ -81,6 +63,7 @@ export default function QuotaSettingsPage() {
   }, [quotas, search]);
 
   const totalTarget = filtered.reduce((sum, row) => sum + row.target_count, 0);
+  const totalVoters = filtered.reduce((sum, row) => sum + row.registered_voters, 0);
 
   const effectiveValue = (row: QuotaItem) => {
     const pending = pendingByVillage[row.village_id];
@@ -90,14 +73,6 @@ export default function QuotaSettingsPage() {
   const hasChanged = (row: QuotaItem) => {
     const parsed = Number(effectiveValue(row));
     return Number.isFinite(parsed) && parsed !== row.target_count;
-  };
-  const effectiveVotersValue = (row: QuotaItem) => {
-    const pending = pendingVotersByVillage[row.village_id];
-    return pending ?? String(row.registered_voters);
-  };
-  const hasVoterChanged = (row: QuotaItem) => {
-    const parsed = Number(effectiveVotersValue(row));
-    return Number.isFinite(parsed) && parsed !== row.registered_voters;
   };
 
   if (isLoading) {
@@ -133,7 +108,7 @@ export default function QuotaSettingsPage() {
           <Target className="w-5 h-5 text-[#1B3A6B]" /> Quota Settings
         </h1>
         <p className="text-gray-500 text-sm">
-          Update per-village supporter targets. Changes are audited and reflected in dashboard metrics.
+          Set per-village supporter targets. Voter counts come from GEC precinct data (edit on Precinct Settings).
         </p>
       </div>
 
@@ -158,20 +133,23 @@ export default function QuotaSettingsPage() {
               className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl min-h-[44px]"
             />
             <div className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-bg)] min-h-[44px] flex items-center justify-between text-sm">
-              <span className="text-[var(--text-secondary)]">Visible total target</span>
+              <span className="text-[var(--text-secondary)]">Total target</span>
               <span className="font-semibold text-[var(--text-primary)]">{totalTarget.toLocaleString()}</span>
             </div>
+          </div>
+          <div className="text-xs text-[var(--text-secondary)]">
+            Total registered voters: <span className="font-semibold">{totalVoters.toLocaleString()}</span> (from GEC Jan 2026)
           </div>
           {notice && <p className="text-sm text-green-700 mt-2">{notice}</p>}
         </div>
 
         <div className="app-card overflow-x-auto">
-          <table className="w-full text-sm min-w-[760px]">
+          <table className="w-full text-sm min-w-[640px]">
             <thead>
               <tr className="border-b bg-[var(--surface-bg)]">
                 <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Village</th>
                 <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Region</th>
-                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Registered Voters</th>
+                <th className="text-right px-4 py-3 font-medium text-[var(--text-secondary)]">Registered Voters</th>
                 <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Quota Target</th>
                 <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Updated</th>
                 <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Action</th>
@@ -180,22 +158,12 @@ export default function QuotaSettingsPage() {
             <tbody>
               {filtered.map((row) => {
                 const candidate = Number(effectiveValue(row));
-                const votersCandidate = Number(effectiveVotersValue(row));
                 const invalid = !Number.isFinite(candidate) || candidate <= 0;
-                const invalidVoters = !Number.isFinite(votersCandidate) || votersCandidate <= 0;
                 return (
                   <tr key={row.village_id} className="border-b">
                     <td className="px-4 py-3 font-medium text-[var(--text-primary)]">{row.village_name}</td>
                     <td className="px-4 py-3 text-[var(--text-secondary)]">{row.region || '—'}</td>
-                    <td className="px-4 py-3">
-                      <input
-                        type="number"
-                        min={1}
-                        value={effectiveVotersValue(row)}
-                        onChange={(e) => setPendingVotersByVillage((prev) => ({ ...prev, [row.village_id]: e.target.value }))}
-                        className="border border-[var(--border-soft)] rounded-xl px-3 py-2 min-h-[44px] w-32"
-                      />
-                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums text-[var(--text-secondary)]">{row.registered_voters.toLocaleString()}</td>
                     <td className="px-4 py-3">
                       <input
                         type="number"
@@ -207,30 +175,17 @@ export default function QuotaSettingsPage() {
                     </td>
                     <td className="px-4 py-3 text-[var(--text-secondary)]">{row.updated_at ? new Date(row.updated_at).toLocaleString() : '—'}</td>
                     <td className="px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          disabled={villageMutation.isPending || invalidVoters || !hasVoterChanged(row)}
-                          onClick={() => {
-                            if (!window.confirm(`Update registered voters for ${row.village_name} to ${votersCandidate.toLocaleString()}?`)) return;
-                            villageMutation.mutate({ villageId: row.village_id, registeredVoters: votersCandidate });
-                          }}
-                          className="bg-[var(--surface-raised)] border border-[#1B3A6B] text-[#1B3A6B] px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1 disabled:opacity-50"
-                        >
-                          <Save className="w-3.5 h-3.5" /> Save Voters
-                        </button>
-                        <button
-                          type="button"
-                          disabled={mutation.isPending || invalid || !hasChanged(row)}
-                          onClick={() => {
-                            if (!window.confirm(`Update quota target for ${row.village_name} to ${candidate.toLocaleString()}?`)) return;
-                            mutation.mutate({ villageId: row.village_id, targetCount: candidate });
-                          }}
-                          className="bg-[#1B3A6B] text-white px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1 disabled:opacity-50"
-                        >
-                          <Save className="w-3.5 h-3.5" /> Save Quota
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        disabled={mutation.isPending || invalid || !hasChanged(row)}
+                        onClick={() => {
+                          if (!window.confirm(`Update quota target for ${row.village_name} to ${candidate.toLocaleString()}?`)) return;
+                          mutation.mutate({ villageId: row.village_id, targetCount: candidate });
+                        }}
+                        className="bg-[#1B3A6B] text-white px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1 disabled:opacity-50"
+                      >
+                        <Save className="w-3.5 h-3.5" /> Save
+                      </button>
                     </td>
                   </tr>
                 );
@@ -247,7 +202,7 @@ export default function QuotaSettingsPage() {
         </div>
 
         <p className="text-xs text-[var(--text-secondary)]">
-          Editing guidance: set quotas to values greater than 0. Update one row at a time to avoid accidental bulk changes.
+          Voter counts are from GEC precinct data (Jan 2026). To update voter numbers, go to Precinct Settings.
         </p>
       </div>
     </div>
