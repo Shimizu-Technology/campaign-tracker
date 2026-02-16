@@ -173,6 +173,11 @@ class ClicksendClient
           if unaccounted > 0
             Rails.logger.warn("[ClicksendClient] #{unaccounted} messages unaccounted for in API response")
             failed += unaccounted
+            accounted_tos = results.map { |r| r[:to] }.to_set
+            messages.each do |m|
+              next if accounted_tos.include?(m[:to])
+              results << { to: m[:to], success: false, message_id: nil, error: "unaccounted_in_response" }
+            end
           end
         end
       else
