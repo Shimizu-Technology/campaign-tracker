@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Home, Mail, Pencil, Plus, Save, Search, Users, X } from 'lucide-react';
+import { Mail, Pencil, Plus, Save, Search, Users, X } from 'lucide-react';
 import { createUser, getUsers, resendUserInvite, updateUser } from '../../lib/api';
 
 interface UserItem {
@@ -235,7 +235,7 @@ export default function UsersPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       <div>
         <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
           <Users className="w-5 h-5 text-[#1B3A6B]" /> User Management

@@ -1,7 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, QrCode, Copy, Check, Download } from 'lucide-react';
+import { QrCode, Copy, Check, Download } from 'lucide-react';
 import api, { getVillages } from '../../lib/api';
 
 interface QRResult {
@@ -54,12 +53,9 @@ export default function QRCodePage() {
     : null;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div>
-        <Link to="/admin" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm mb-3">
-          <ArrowLeft className="w-4 h-4" /> Dashboard
-        </Link>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
             <QrCode className="w-5 h-5 text-purple-600" />

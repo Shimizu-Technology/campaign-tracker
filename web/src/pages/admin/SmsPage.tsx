@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, MessageSquare, Send, Users, Zap, DollarSign, CheckCircle, AlertTriangle, Phone, Settings } from 'lucide-react';
+import { MessageSquare, Send, Users, Zap, DollarSign, CheckCircle, AlertTriangle, Phone, Settings } from 'lucide-react';
 import { getSmsStatus, sendTestSms, sendSmsBlast, getEvents, sendEventNotify, getSmsBlasts, getSmsBlastStatus } from '../../lib/api';
 import { useSession } from '../../hooks/useSession';
 import { DEFAULT_GUAM_PHONE_PREFIX } from '../../lib/phone';
@@ -64,12 +64,9 @@ export default function SmsPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div>
-        <Link to="/admin" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm mb-3">
-          <ArrowLeft className="w-4 h-4" /> Dashboard
-        </Link>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">

@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createStrikeListContactAttempt, getPollWatcher, getPollWatcherStrikeList, submitPollReport, updateStrikeListTurnout } from '../../lib/api';
 import { useCampaignUpdates } from '../../hooks/useCampaignUpdates';
-import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Eye, Send, CheckCircle, Clock, AlertTriangle, MapPin, BarChart3, Timer, Lock, Search, PhoneCall, UserCheck } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Eye, Send, CheckCircle, Clock, AlertTriangle, MapPin, BarChart3, Timer, Lock, Search, PhoneCall, UserCheck } from 'lucide-react';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 
 interface PrecinctItem {
@@ -262,9 +262,6 @@ export default function PollWatcherPage() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div>
-        <Link to="/admin" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm mb-3">
-          <ArrowLeft className="w-4 h-4" /> Dashboard
-        </Link>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
             <Eye className="w-5 h-5 text-green-600" />
