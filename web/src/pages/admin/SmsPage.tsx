@@ -179,7 +179,7 @@ function BlastTab() {
   const { data: blastsData } = useQuery({
     queryKey: ['smsBlasts'],
     queryFn: getSmsBlasts,
-    refetchInterval: activeBlastId ? 5000 : false,
+    refetchInterval: activeBlastId && !blastProgress?.finished ? 5000 : false,
   });
 
   const dryRunMutation = useMutation({
