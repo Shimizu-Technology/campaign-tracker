@@ -66,7 +66,7 @@ export const uploadImportPreview = (file: File) => {
 };
 export const parseImportRows = (data: { import_key: string; sheet_index: number; column_mapping: Record<string, unknown> }) =>
   api.post('/imports/parse', data).then(r => r.data);
-export const confirmImport = (data: { import_key: string; village_id: number; rows: Record<string, unknown>[] }) =>
+export const confirmImport = (data: { import_key: string; village_id?: number; rows: Record<string, unknown>[] }) =>
   api.post('/imports/confirm', data).then(r => r.data);
 
 export const checkDuplicate = (name: string, villageId: number, firstName?: string, lastName?: string) =>
