@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, Home, Save, Search } from 'lucide-react';
+import { AlertTriangle, Save, Search } from 'lucide-react';
 import { getPrecincts, updatePrecinct } from '../../lib/api';
 
 interface PrecinctItem {

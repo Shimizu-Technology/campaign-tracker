@@ -4,7 +4,7 @@ import { getVillages, createSupporter, scanForm, checkDuplicate } from '../../li
 import { DEFAULT_GUAM_PHONE_PREFIX } from '../../lib/phone';
 import { Link } from 'react-router-dom';
 import {
-  ArrowLeft, Camera, Loader2, Check, AlertTriangle,
+  Camera, Loader2, Check, AlertTriangle,
   RotateCcw, ImagePlus, ShieldCheck, ShieldAlert, ShieldQuestion,
 } from 'lucide-react';
 

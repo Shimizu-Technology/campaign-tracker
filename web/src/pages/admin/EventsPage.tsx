@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getEvents, createEvent, getVillages } from '../../lib/api';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Plus, Calendar, MapPin, Search, Users, X } from 'lucide-react';
+import { Plus, Calendar, MapPin, Search, Users, X } from 'lucide-react';
 
 interface EventForm {
   name: string;

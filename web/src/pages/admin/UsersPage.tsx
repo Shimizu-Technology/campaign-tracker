@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useSearchParams } from 'react-router-dom';
+import { useSearchParams } from 'react-router-dom';
 import { Mail, Pencil, Plus, Save, Search, Users, X } from 'lucide-react';
 import { createUser, getUsers, resendUserInvite, updateUser } from '../../lib/api';
 

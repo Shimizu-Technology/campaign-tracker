@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSettings, updateSettings } from '../../lib/api';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Home, Save, RotateCcw, MessageSquare, Info } from 'lucide-react';
+import { Save, RotateCcw, MessageSquare, Info } from 'lucide-react';
 
 interface SettingsData {
   welcome_sms_template: string;

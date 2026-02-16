@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getSupporters, exportSupporters, getVillages, updateSupporter } from '../../lib/api';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Search, ClipboardPlus, Download, Home, ArrowUpDown } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Search, ClipboardPlus, Download, ArrowUpDown } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { formatDateTime } from '../../lib/datetime';
 import { useSession } from '../../hooks/useSession';
@@ -67,7 +67,6 @@ function supporterLabel(count: number) {
 }
 
 export default function SupportersPage() {
-  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { data: sessionData } = useSession();

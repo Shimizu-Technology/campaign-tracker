@@ -2,8 +2,7 @@ import { useState, useRef, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getVillages, createSupporter, scanForm, checkDuplicate } from '../../lib/api';
 import { DEFAULT_GUAM_PHONE_PREFIX } from '../../lib/phone';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Check, AlertTriangle, Loader2, Camera, ScanLine } from 'lucide-react';
+import { Check, AlertTriangle, Loader2, Camera, ScanLine } from 'lucide-react';
 
 interface Village {
   id: number;

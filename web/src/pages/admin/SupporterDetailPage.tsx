@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, Home, Pencil, Save, UserRound, X } from 'lucide-react';
+import { Link, useParams } from 'react-router-dom';
+import { AlertTriangle, Pencil, Save, UserRound, X } from 'lucide-react';
 import { getSupporter, getVillages, updateSupporter, verifySupporter } from '../../lib/api';
 import { formatDateTime } from '../../lib/datetime';
 
@@ -105,9 +105,6 @@ function humanizeAuditValue(value: unknown) {
 export default function SupporterDetailPage() {
   const { id } = useParams();
   const supporterId = Number(id);
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const returnTo = searchParams.get('return_to') || '/admin/supporters';
   const queryClient = useQueryClient();
 
   const { data, isLoading, refetch } = useQuery({
@@ -184,16 +181,6 @@ export default function SupporterDetailPage() {
   const confirmDiscardIfNeeded = () => {
     if (!isEditing || !isDirty) return true;
     return window.confirm('You have unsaved changes. Discard them?');
-  };
-
-  const goBack = () => {
-    if (!confirmDiscardIfNeeded()) return;
-    navigate(returnTo);
-  };
-
-  const goHome = () => {
-    if (!confirmDiscardIfNeeded()) return;
-    navigate('/admin');
   };
 
   const startEdit = () => {

@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Home, Save, Search, Target } from 'lucide-react';
+import { Save, Search, Target } from 'lucide-react';
 import { getQuotas, updateVillage, updateVillageQuota } from '../../lib/api';
 
 interface QuotaItem {

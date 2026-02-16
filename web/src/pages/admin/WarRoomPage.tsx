@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getWarRoom } from '../../lib/api';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  ArrowLeft, Radio, Users, TrendingUp, MapPin, Phone,
+  Radio, Users, TrendingUp, MapPin, Phone,
   AlertTriangle, Clock, Activity, Eye, CheckCircle, X, Search
 } from 'lucide-react';
 import { useCampaignUpdates } from '../../hooks/useCampaignUpdates';
@@ -177,7 +177,7 @@ export default function WarRoomPage() {
   if (isLoading) {
     return (
       <div className="min-h-[200px] flex items-center justify-center">
-        <div className="text-gray-400 text-lg flex items-center gap-3">
+        <div className="text-gray-500 text-lg flex items-center gap-3">
           <Radio className="w-5 h-5 animate-pulse" /> Loading War Room...
         </div>
       </div>
@@ -189,7 +189,7 @@ export default function WarRoomPage() {
       <div className="min-h-[200px] flex items-center justify-center">
         <div className="text-center p-8">
           <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4 opacity-70" />
-          <h2 className="text-xl font-bold text-white mb-2">Can't connect to server</h2>
+          <h2 className="text-xl font-bold text-gray-900 mb-2">Can't connect to server</h2>
           <p className="text-gray-400 mb-4">Check your connection and try again.</p>
           <button onClick={() => window.location.reload()} className="bg-[#1B3A6B] text-white px-4 py-2 rounded-lg hover:bg-[#152e55]">
             Retry

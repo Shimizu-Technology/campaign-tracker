@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useParams, Link } from 'react-router-dom';
 import { getEvent, getEventAttendees } from '../../lib/api';
-import { ArrowLeft, CheckCircle, XCircle, ClipboardCheck } from 'lucide-react';
+import { CheckCircle, XCircle, ClipboardCheck } from 'lucide-react';
 
 interface Attendee {
   rsvp_id: number;
