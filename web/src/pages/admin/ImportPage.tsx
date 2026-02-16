@@ -172,29 +172,27 @@ export default function ImportPage() {
   const rawHeaders = currentSheet?.headers.raw_headers || [];
 
   return (
-    <div className="min-h-screen">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
       {/* Header */}
-      <header className="bg-[#1B3A6B] text-white py-4 px-4">
-        <div className="max-w-5xl mx-auto">
-          <Link to="/admin" className="flex items-center gap-1 text-blue-200 hover:text-white text-sm mb-1">
-            <ArrowLeft className="w-3.5 h-3.5" /> Dashboard
-          </Link>
-          <h1 className="text-xl font-bold">Import Supporters</h1>
-          <div className="flex items-center gap-2 mt-2 text-sm text-blue-200">
-            {(['upload', 'select-sheet', 'map-columns', 'review', 'complete'] as Step[]).map((s, i) => (
-              <span key={s} className={`flex items-center gap-1 ${step === s ? 'text-white font-medium' : ''}`}>
-                {i > 0 && <span className="mx-1">→</span>}
-                <span className={`w-5 h-5 rounded-full text-xs flex items-center justify-center ${
-                  step === s ? 'bg-[var(--surface-raised)] text-[#1B3A6B]' : 'bg-white/20'
-                }`}>{i + 1}</span>
-                {s === 'upload' ? 'Upload' : s === 'select-sheet' ? 'Sheet' : s === 'map-columns' ? 'Columns' : s === 'review' ? 'Review' : 'Done'}
-              </span>
-            ))}
-          </div>
+      <div>
+        <Link to="/admin" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm mb-3">
+          <ArrowLeft className="w-4 h-4" /> Dashboard
+        </Link>
+        <h1 className="text-2xl font-bold text-gray-900">Import Supporters</h1>
+        <div className="flex items-center gap-2 mt-3 text-sm text-gray-500">
+          {(['upload', 'select-sheet', 'map-columns', 'review', 'complete'] as Step[]).map((s, i) => (
+            <span key={s} className={`flex items-center gap-1 ${step === s ? 'text-gray-900 font-medium' : ''}`}>
+              {i > 0 && <span className="mx-1 text-gray-300">→</span>}
+              <span className={`w-5 h-5 rounded-full text-xs flex items-center justify-center ${
+                step === s ? 'bg-[#1B3A6B] text-white' : 'bg-gray-200 text-gray-500'
+              }`}>{i + 1}</span>
+              {s === 'upload' ? 'Upload' : s === 'select-sheet' ? 'Sheet' : s === 'map-columns' ? 'Columns' : s === 'review' ? 'Review' : 'Done'}
+            </span>
+          ))}
         </div>
-      </header>
+      </div>
 
-      <div className="max-w-5xl mx-auto px-4 py-6">
+      <div>
         {/* Step 1: Upload */}
         {step === 'upload' && (
           <div className="space-y-6">
@@ -203,7 +201,7 @@ export default function ImportPage() {
               onDragLeave={() => setDragActive(false)}
               onDrop={handleDrop}
               className={`border-2 border-dashed rounded-2xl p-12 text-center transition-colors ${
-                dragActive ? 'border-[#1B3A6B] bg-blue-500/10' : 'border-[var(--border-soft)] bg-[var(--surface-raised)]'
+                dragActive ? 'border-[#1B3A6B] bg-blue-50' : 'border-[var(--border-soft)] bg-[var(--surface-raised)]'
               }`}
             >
               {uploadMutation.isPending ? (
@@ -230,7 +228,7 @@ export default function ImportPage() {
               )}
             </div>
             {(uploadMutation.isError || fileError) && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-300 text-sm">
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600 text-sm">
                 {fileError || (uploadMutation.error as Error)?.message || 'Failed to parse file. Please check the format.'}
               </div>
             )}
@@ -250,7 +248,7 @@ export default function ImportPage() {
                   <button
                     key={sheet.index}
                     onClick={() => selectSheet(sheet)}
-                    className="w-full text-left p-4 border border-[var(--border-soft)] rounded-xl hover:border-[#1B3A6B] hover:bg-blue-500/10 transition-colors"
+                    className="w-full text-left p-4 border border-[var(--border-soft)] rounded-xl hover:border-[#1B3A6B] hover:bg-blue-50 transition-colors"
                   >
                     <div className="flex items-center justify-between">
                       <div>
@@ -353,7 +351,7 @@ export default function ImportPage() {
                 </select>
               </div>
             ) : (
-              <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-3 text-sm text-blue-300">
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-700">
                 Village will be assigned per-row from the <strong>Village</strong> column in your spreadsheet.
                 Rows with unrecognized village names will be flagged as errors.
               </div>
@@ -377,7 +375,7 @@ export default function ImportPage() {
               </button>
             </div>
             {parseMutation.isError && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-300 text-sm">
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600 text-sm">
                 {(parseMutation.error as Error)?.message || 'Failed to parse the spreadsheet. Please check the file and try again.'}
               </div>
             )}
@@ -395,11 +393,11 @@ export default function ImportPage() {
                   <p className="text-2xl font-bold text-[var(--text-primary)]">{rows.length}</p>
                   <p className="text-xs text-[var(--text-secondary)]">Total Rows</p>
                 </div>
-                <div className="bg-emerald-500/10 rounded-lg p-3">
+                <div className="bg-green-50 rounded-lg p-3">
                   <p className="text-2xl font-bold text-green-600">{activeRows.filter(r => r._issues.length === 0).length}</p>
                   <p className="text-xs text-[var(--text-secondary)]">Ready</p>
                 </div>
-                <div className="bg-amber-500/10 rounded-lg p-3">
+                <div className="bg-amber-50 rounded-lg p-3">
                   <p className="text-2xl font-bold text-amber-600">{activeRows.filter(r => r._issues.length > 0).length}</p>
                   <p className="text-xs text-[var(--text-secondary)]">Has Issues</p>
                 </div>
@@ -411,7 +409,7 @@ export default function ImportPage() {
             </div>
 
             {/* Village reminder */}
-            <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-3 text-sm text-blue-300">
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-700">
               {columnMapping.village
                 ? <>Village assigned <strong>per-row</strong> from spreadsheet column</>
                 : <>Importing into <strong>{villages.find(v => v.id === Number(villageId))?.name}</strong></>
@@ -436,7 +434,7 @@ export default function ImportPage() {
                 </thead>
                 <tbody>
                   {rows.map((row, idx) => (
-                    <tr key={idx} className={`border-b border-[var(--border-subtle)] ${row._skip ? 'opacity-40 bg-[var(--surface-bg)]' : row._issues.length > 0 ? 'bg-amber-500/10' : ''}`}>
+                    <tr key={idx} className={`border-b border-[var(--border-subtle)] ${row._skip ? 'opacity-40 bg-[var(--surface-bg)]' : row._issues.length > 0 ? 'bg-amber-50' : ''}`}>
                       <td className="px-3 py-2 text-[var(--text-muted)]">{row._row}</td>
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-1">
@@ -504,7 +502,7 @@ export default function ImportPage() {
             </div>
 
             {confirmMutation.isError && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-300 text-sm">
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600 text-sm">
                 {(confirmMutation.error as Error)?.message || 'Import failed. Please try again.'}
               </div>
             )}
@@ -549,8 +547,8 @@ export default function ImportPage() {
               {importResult.skipped > 0 && <> · {importResult.skipped} skipped due to errors</>}
             </p>
             {importResult.errors.length > 0 && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-6 text-left max-w-md mx-auto">
-                <p className="font-medium text-red-300 mb-2">Errors:</p>
+              <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 text-left max-w-md mx-auto">
+                <p className="font-medium text-red-600 mb-2">Errors:</p>
                 {importResult.errors.slice(0, 10).map((err, i) => (
                   <p key={i} className="text-sm text-red-600">Row {err.row}: {err.errors.join(', ')}</p>
                 ))}

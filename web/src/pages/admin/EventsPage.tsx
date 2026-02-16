@@ -109,22 +109,21 @@ export default function EventsPage() {
   };
 
   return (
-    <div className="min-h-screen">
-      <header className="bg-[#1B3A6B] text-white py-4 px-4">
-        <div className="max-w-4xl mx-auto">
-          <Link to="/admin" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-2">
-            <ArrowLeft className="w-4 h-4" /> Dashboard
-          </Link>
-          <div className="flex items-center justify-between">
-            <h1 className="text-2xl font-bold tracking-tight">Events</h1>
-            <button onClick={() => setShowCreate(true)} className="bg-[#C41E3A] hover:bg-[#a01830] px-3 py-2 min-h-[44px] rounded-xl text-sm font-medium flex items-center gap-1">
-              <Plus className="w-4 h-4" /> New Event
-            </button>
-          </div>
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto space-y-6">
+      {/* Header */}
+      <div>
+        <Link to="/admin" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm mb-3">
+          <ArrowLeft className="w-4 h-4" /> Dashboard
+        </Link>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Events</h1>
+          <button onClick={() => setShowCreate(true)} className="app-btn-danger flex items-center gap-1">
+            <Plus className="w-4 h-4" /> New Event
+          </button>
         </div>
-      </header>
+      </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-6">
+      <div>
         {/* Create Modal */}
         {showCreate && (
           <div className="app-card p-6 mb-6">

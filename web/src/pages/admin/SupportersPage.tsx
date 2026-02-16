@@ -257,51 +257,50 @@ export default function SupportersPage() {
   };
 
   return (
-    <div className="min-h-screen">
-      <header className="bg-[#1B3A6B] text-white py-4 px-4">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between mb-2 gap-3">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+      {/* Header */}
+      <div>
+        <div className="flex items-center justify-between mb-3 gap-3">
+          <button
+            type="button"
+            onClick={() => navigate(returnTo || -1)}
+            className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back
+          </button>
+          <Link to="/admin" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm">
+            <Home className="w-4 h-4" /> Home
+          </Link>
+        </div>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">All Supporters</h1>
+          <div className="flex flex-wrap gap-2">
             <button
-              type="button"
-              onClick={() => navigate(returnTo || -1)}
-              className="flex items-center gap-2 text-blue-200 hover:text-white text-sm"
-            >
-              <ArrowLeft className="w-4 h-4" /> Back
-            </button>
-            <Link to="/admin" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm">
-              <Home className="w-4 h-4" /> Home
-            </Link>
-          </div>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <h1 className="text-2xl font-bold tracking-tight">All Supporters</h1>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => exportSupporters({
-                  village_id: villageFilter || undefined,
-                  precinct_id: precinctFilter || undefined,
-                  source: sourceFilter || undefined,
-                  opt_in: optInFilter || undefined,
-                  verification_status: verificationFilter || undefined,
-                  unassigned_precinct: unassignedPrecinct ? 'true' : undefined,
-                  search: debouncedSearch || undefined,
-                  sort_by: sortBy || undefined,
-                  sort_dir: sortDir || undefined,
-                })}
-                className="bg-white/10 hover:bg-white/20 px-3 py-2 min-h-[44px] rounded-xl text-sm font-medium flex items-center gap-1"
+              onClick={() => exportSupporters({
+                village_id: villageFilter || undefined,
+                precinct_id: precinctFilter || undefined,
+                source: sourceFilter || undefined,
+                opt_in: optInFilter || undefined,
+                verification_status: verificationFilter || undefined,
+                unassigned_precinct: unassignedPrecinct ? 'true' : undefined,
+                search: debouncedSearch || undefined,
+                sort_by: sortBy || undefined,
+                sort_dir: sortDir || undefined,
+              })}
+              className="app-btn-secondary"
               >
                 <Download className="w-4 h-4" /> Excel
               </button>
               {sessionData?.permissions?.can_create_staff_supporters && (
-                <Link to="/admin/supporters/new" className="bg-[#C41E3A] hover:bg-[#a01830] px-3 py-2 min-h-[44px] rounded-xl text-sm font-medium flex items-center gap-1">
+                <Link to="/admin/supporters/new" className="app-btn-danger">
                   <ClipboardPlus className="w-4 h-4" /> New Entry
                 </Link>
               )}
-            </div>
           </div>
         </div>
-      </header>
+      </div>
 
-      <div className="max-w-6xl mx-auto px-4 py-6">
+      <div>
         {/* Filters */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-3 mb-6">
           <div className="relative md:col-span-5 min-w-0">

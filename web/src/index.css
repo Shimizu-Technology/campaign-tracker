@@ -6,23 +6,23 @@
   --campaign-blue: #1B3A6B;
   --campaign-red: #C41E3A;
 
-  /* Dark theme surfaces */
-  --surface-bg: #0a0a0b;
-  --surface-raised: #141416;
-  --surface-overlay: #1e1e22;
+  /* Light theme surfaces */
+  --surface-bg: #f3f4f6;
+  --surface-raised: #ffffff;
+  --surface-overlay: #f9fafb;
 
   /* Text */
-  --text-primary: #ececec;
-  --text-secondary: #8b8b8b;
-  --text-muted: #5a5a5e;
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
 
   /* Borders */
-  --border-soft: #2a2a2e;
-  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-soft: #e5e7eb;
+  --border-subtle: rgba(0, 0, 0, 0.05);
 
   /* Shadows */
-  --shadow-card: 0 2px 8px -2px rgba(0, 0, 0, 0.3);
-  --shadow-card-hover: 0 8px 24px -6px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --shadow-card-hover: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
 }
 
 body {
@@ -60,12 +60,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .app-card-hover:hover {
   box-shadow: var(--shadow-card-hover);
   transform: translateY(-2px);
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: var(--border-soft);
 }
 
-/* ---- Inputs (dark) ---- */
+/* ---- Inputs ---- */
 .app-input {
-  background: var(--surface-bg);
+  background: var(--surface-raised);
   border: 1px solid var(--border-soft);
   border-radius: 12px;
   color: var(--text-primary);
@@ -84,7 +84,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 
 .app-select {
-  background: var(--surface-bg);
+  background: var(--surface-raised);
   border: 1px solid var(--border-soft);
   border-radius: 12px;
   color: var(--text-primary);
@@ -92,7 +92,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   font-size: 0.875rem;
   min-height: 44px;
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235a5a5e' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
   padding-right: 2.5rem;
@@ -175,16 +175,16 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 .app-btn-secondary:hover {
   background: var(--surface-overlay);
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: var(--border-soft);
 }
 
-/* ---- Tables (dark) ---- */
+/* ---- Tables ---- */
 .app-table {
   width: 100%;
   font-size: 0.875rem;
 }
 .app-table thead tr {
-  background: var(--surface-bg);
+  background: var(--surface-overlay);
   border-bottom: 1px solid var(--border-soft);
 }
 .app-table th {
@@ -199,7 +199,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   transition: background 150ms ease;
 }
 .app-table tbody tr:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--surface-overlay);
 }
 .app-table td {
   padding: 0.75rem 1rem;

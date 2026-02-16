@@ -62,23 +62,20 @@ export default function SmsSettingsPage() {
   }
 
   return (
-    <div className="min-h-screen">
-      {/* Header */}
-      <header className="bg-[#1B3A6B] text-white px-4 py-4 sticky top-0 z-30">
-        <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link to="/admin/sms" className="flex items-center gap-1 text-blue-200 hover:text-white text-sm">
-              <ArrowLeft className="w-4 h-4" />
-            </Link>
-            <h1 className="text-lg font-bold">SMS Settings</h1>
-          </div>
-          <Link to="/admin" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm">
-            <Home className="w-4 h-4" /> Home
+    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Link to="/admin/sms" className="flex items-center gap-1 text-gray-500 hover:text-gray-700 text-sm">
+            <ArrowLeft className="w-4 h-4" />
           </Link>
+          <h1 className="text-lg font-bold text-gray-900">SMS Settings</h1>
         </div>
-      </header>
+        <Link to="/admin" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm">
+          <Home className="w-4 h-4" /> Home
+        </Link>
+      </div>
 
-      <div className="max-w-3xl mx-auto p-4 space-y-6">
+      <div className="space-y-6">
         {/* Welcome SMS Template */}
         <div className="app-card p-6 space-y-4">
           <div className="flex items-center gap-2">
@@ -90,12 +87,12 @@ export default function SmsSettingsPage() {
           </p>
 
           {/* Variables */}
-          <div className="bg-blue-500/10 border border-blue-500/30 rounded-xl p-4">
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
             <div className="flex items-start gap-2">
               <Info className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
               <div>
                 <p className="text-sm font-medium text-blue-900">Available variables</p>
-                <p className="text-sm text-blue-300 mt-1">
+                <p className="text-sm text-blue-700 mt-1">
                   Click to insert: {settings?.available_variables.map((v) => (
                     <button
                       key={v}
@@ -135,7 +132,7 @@ export default function SmsSettingsPage() {
           {/* Preview */}
           <div>
             <p className="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wide mb-2">Preview</p>
-            <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4">
+            <div className="bg-green-50 border border-green-200 rounded-xl p-4">
               <p className="text-sm text-[var(--text-primary)] whitespace-pre-wrap">{previewText || '(empty)'}</p>
               <p className="text-xs text-[var(--text-muted)] mt-2">Sample: Maria Cruz from Tamuning</p>
             </div>
@@ -165,7 +162,7 @@ export default function SmsSettingsPage() {
           </div>
 
           {saveMutation.isError && (
-            <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-red-300 text-sm">
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600 text-sm">
               {(saveMutation.error as Error)?.message || 'Failed to save. Please try again.'}
             </div>
           )}

@@ -54,29 +54,29 @@ function ConfidenceBadge({ level }: { level: 'high' | 'medium' | 'low' | null | 
   if (!level) return null;
   if (level === 'high') {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
         <ShieldCheck className="w-3 h-3" /> High
       </span>
     );
   }
   if (level === 'medium') {
     return (
-      <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-full">
+      <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">
         <ShieldQuestion className="w-3 h-3" /> Medium
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-1 text-xs font-medium text-red-300 bg-red-500/10 px-2 py-0.5 rounded-full">
+    <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600 bg-red-50 px-2 py-0.5 rounded-full">
       <ShieldAlert className="w-3 h-3" /> Low
     </span>
   );
 }
 
 function confidenceBorder(level: string | null | undefined): string {
-  if (level === 'high') return 'border-green-400 bg-emerald-500/10';
-  if (level === 'medium') return 'border-amber-400 bg-amber-500/10';
-  if (level === 'low') return 'border-red-400 bg-red-500/10';
+  if (level === 'high') return 'border-green-400 bg-green-50';
+  if (level === 'medium') return 'border-amber-400 bg-amber-50';
+  if (level === 'low') return 'border-red-400 bg-red-50';
   return 'border-[var(--border-soft)]';
 }
 
@@ -242,28 +242,31 @@ export default function ScanFormPage() {
   const medConfidenceCount = Object.values(confidence).filter(c => c === 'medium').length;
 
   return (
-    <div className="min-h-screen">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-2xl mx-auto space-y-6">
       {/* Header */}
-      <header className="bg-[#1B3A6B] text-white py-4 px-4">
-        <div className="max-w-lg mx-auto">
-          <Link to="/admin" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-2 min-h-[44px]">
-            <ArrowLeft className="w-4 h-4" /> Dashboard
-          </Link>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-xl font-bold">Scan Paper Form</h1>
-              <p className="text-blue-200 text-sm">Take a photo → Review → Submit</p>
+      <div>
+        <Link to="/admin" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm mb-3">
+          <ArrowLeft className="w-4 h-4" /> Dashboard
+        </Link>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+              <Camera className="w-5 h-5 text-[#1B3A6B]" />
             </div>
-            {successCount > 0 && (
-              <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm font-medium">
-                {successCount} scanned
-              </span>
-            )}
+            <div>
+              <h1 className="text-xl font-bold text-gray-900">Scan Paper Form</h1>
+              <p className="text-gray-500 text-sm">Take a photo → Review → Submit</p>
+            </div>
           </div>
+          {successCount > 0 && (
+            <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium">
+              {successCount} scanned
+            </span>
+          )}
         </div>
-      </header>
+      </div>
 
-      <div className="max-w-lg mx-auto px-4 py-6">
+      <div>
         {/* ─── CAPTURE PHASE ─── */}
         {phase === 'capture' && (
           <div className="space-y-4">
@@ -283,7 +286,7 @@ export default function ScanFormPage() {
             {/* Main camera button */}
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="w-full bg-[var(--surface-raised)] rounded-2xl border-2 border-dashed border-[var(--border-soft)] hover:border-[#1B3A6B] hover:bg-blue-500/10 transition-all p-12 flex flex-col items-center gap-4"
+              className="w-full bg-[var(--surface-raised)] rounded-2xl border-2 border-dashed border-[var(--border-soft)] hover:border-[#1B3A6B] hover:bg-blue-50 transition-all p-12 flex flex-col items-center gap-4"
             >
               <div className="w-20 h-20 rounded-full bg-[#1B3A6B] flex items-center justify-center">
                 <Camera className="w-10 h-10 text-white" />
@@ -314,15 +317,15 @@ export default function ScanFormPage() {
             </button>
 
             {scanError && (
-              <div className="bg-red-500/10 border border-red-500/30 text-red-300 px-4 py-3 rounded-xl flex items-center gap-2">
+              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 shrink-0" /> {scanError}
               </div>
             )}
 
             {/* Tips */}
-            <div className="bg-blue-500/10 border border-blue-100 rounded-xl p-4">
+            <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
               <p className="font-medium text-blue-900 text-sm mb-2">Tips for best results:</p>
-              <ul className="text-sm text-blue-300 space-y-1">
+              <ul className="text-sm text-blue-700 space-y-1">
                 <li>• Place the form on a flat, well-lit surface</li>
                 <li>• Capture the entire form in the frame</li>
                 <li>• Avoid shadows and glare</li>
@@ -373,12 +376,12 @@ export default function ScanFormPage() {
                 </p>
                 <div className="flex flex-wrap gap-2 mt-2">
                   {lowConfidenceCount > 0 && (
-                    <span className="text-xs font-medium text-red-300 bg-red-500/10 px-2 py-1 rounded-full">
+                    <span className="text-xs font-medium text-red-600 bg-red-50 px-2 py-1 rounded-full">
                       {lowConfidenceCount} low confidence
                     </span>
                   )}
                   {medConfidenceCount > 0 && (
-                    <span className="text-xs font-medium text-amber-300 bg-amber-500/10 px-2 py-1 rounded-full">
+                    <span className="text-xs font-medium text-amber-600 bg-amber-50 px-2 py-1 rounded-full">
                       {medConfidenceCount} needs review
                     </span>
                   )}
@@ -393,7 +396,7 @@ export default function ScanFormPage() {
             )}
 
             {submitMutation.isError && (
-              <div className="bg-red-500/10 border border-red-500/30 text-red-300 px-4 py-3 rounded-xl flex items-center gap-2">
+              <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-xl flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 shrink-0" /> Error saving. Check required fields and try again.
               </div>
             )}

@@ -102,16 +102,16 @@ export default function VettingPage() {
   const statusBadge = (status: string) => {
     switch (status) {
       case 'verified':
-        return <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-100 text-emerald-300"><CheckCircle className="w-3 h-3" /> Verified</span>;
+        return <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-600"><CheckCircle className="w-3 h-3" /> Verified</span>;
       case 'flagged':
-        return <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-300"><XCircle className="w-3 h-3" /> Flagged</span>;
+        return <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-600"><XCircle className="w-3 h-3" /> Flagged</span>;
       default:
-        return <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-300"><AlertTriangle className="w-3 h-3" /> Unverified</span>;
+        return <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-600"><AlertTriangle className="w-3 h-3" /> Unverified</span>;
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -253,7 +253,7 @@ export default function VettingPage() {
 
                     {/* Duplicate warning */}
                     {s.potential_duplicate && s.duplicate_notes && (
-                      <div className="mt-1.5 text-xs text-amber-600 bg-amber-500/10 rounded px-2 py-1">
+                      <div className="mt-1.5 text-xs text-amber-600 bg-amber-50 rounded px-2 py-1">
                         {s.duplicate_notes}
                         {s.duplicate_of_id && (
                           <span>
@@ -315,7 +315,7 @@ export default function VettingPage() {
                       <button
                         onClick={() => verifyMutation.mutate({ id: s.id, status: 'flagged' })}
                         disabled={verifyMutation.isPending}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-sm border border-red-300 text-red-600 rounded-lg hover:bg-red-500/10 disabled:opacity-50"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-sm border border-red-300 text-red-600 rounded-lg hover:bg-red-50 disabled:opacity-50"
                         title="Flag"
                       >
                         <XCircle className="w-3.5 h-3.5" />

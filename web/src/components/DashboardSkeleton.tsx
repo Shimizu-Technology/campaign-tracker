@@ -1,5 +1,5 @@
 function Pulse({ className }: { className?: string }) {
-  return <div className={`animate-pulse rounded-lg bg-[var(--surface-overlay)] ${className || ''}`} />;
+  return <div className={`animate-pulse rounded-lg bg-gray-200 ${className || ''}`} />;
 }
 
 export default function DashboardSkeleton() {

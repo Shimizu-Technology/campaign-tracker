@@ -197,57 +197,55 @@ export default function StaffEntryPage() {
 
   const inputClass = (field: string) =>
     `w-full px-3 py-3 border rounded-lg text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent ${
-      scannedFields.has(field) ? 'border-blue-400 bg-blue-500/10 ring-2 ring-blue-200' : 'border-[var(--border-soft)]'
+      scannedFields.has(field) ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-200' : 'border-[var(--border-soft)]'
     }`;
 
   return (
-    <div className="min-h-screen">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-lg mx-auto space-y-6">
       {/* Header */}
-      <header className="bg-[#1B3A6B] text-white py-4 px-4">
-        <div className="max-w-lg mx-auto">
-          <Link to="/admin" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-2">
-            <ArrowLeft className="w-4 h-4" /> Dashboard
-          </Link>
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl font-bold">Staff Entry Form</h1>
-            <div className="flex items-center gap-2">
-              {successCount > 0 && (
-                <span className="bg-green-500 text-white px-3 py-1 rounded-full text-sm font-medium">
-                  {successCount} entered
-                </span>
+      <div>
+        <Link to="/admin" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm mb-3">
+          <ArrowLeft className="w-4 h-4" /> Dashboard
+        </Link>
+        <div className="flex items-center justify-between">
+          <h1 className="text-xl font-bold text-gray-900">Staff Entry Form</h1>
+          <div className="flex items-center gap-2">
+            {successCount > 0 && (
+              <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm font-medium">
+                {successCount} entered
+              </span>
+            )}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleScan(file);
+                e.target.value = '';
+              }}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={scanning}
+              className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 disabled:opacity-50 transition-all"
+            >
+              {scanning ? (
+                <><Loader2 className="w-4 h-4 animate-spin" /> Scanning...</>
+              ) : (
+                <><Camera className="w-4 h-4" /> Scan Form</>
               )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleScan(file);
-                  e.target.value = '';
-                }}
-              />
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={scanning}
-                className="bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1.5 disabled:opacity-50 transition-all"
-              >
-                {scanning ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Scanning...</>
-                ) : (
-                  <><Camera className="w-4 h-4" /> Scan Form</>
-                )}
-              </button>
-            </div>
+            </button>
           </div>
         </div>
-      </header>
+      </div>
 
       {/* Scan Results */}
       {scannedFields.size > 0 && (
-        <div className="max-w-lg mx-auto px-4 mt-4">
-          <div className="bg-blue-500/10 border border-blue-500/30 text-blue-300 px-4 py-3 rounded-lg flex items-center gap-2">
+        <div>
+          <div className="bg-blue-50 border border-blue-200 text-blue-700 px-4 py-3 rounded-lg flex items-center gap-2">
             <ScanLine className="w-5 h-5" />
             <span>Scanned {scannedFields.size} fields — <strong>review and confirm</strong> before saving</span>
           </div>
@@ -255,7 +253,7 @@ export default function StaffEntryPage() {
       )}
       {scanError && (
         <div className="max-w-lg mx-auto px-4 mt-4">
-          <div className="bg-red-500/10 border border-red-500/30 text-red-300 px-4 py-3 rounded-lg flex items-center gap-2">
+          <div className="bg-red-50 border border-red-200 text-red-600 px-4 py-3 rounded-lg flex items-center gap-2">
             <AlertTriangle className="w-5 h-5" /> {scanError}
           </div>
         </div>
@@ -264,7 +262,7 @@ export default function StaffEntryPage() {
       {/* Success Toast */}
       {showSuccess && (
         <div className="max-w-lg mx-auto px-4 mt-4">
-          <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 px-4 py-3 rounded-lg flex items-center gap-2">
+          <div className="bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-lg flex items-center gap-2">
             <Check className="w-5 h-5" /> Supporter added! Ready for next entry.
           </div>
         </div>

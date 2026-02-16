@@ -54,20 +54,24 @@ export default function QRCodePage() {
     : null;
 
   return (
-    <div className="min-h-screen">
-      <header className="bg-[#1B3A6B] text-white py-4 px-4">
-        <div className="max-w-lg mx-auto">
-          <Link to="/admin" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-2">
-            <ArrowLeft className="w-4 h-4" /> Dashboard
-          </Link>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <QrCode className="w-6 h-6" /> QR Code Generator
-          </h1>
-          <p className="text-blue-200 text-sm mt-1">Generate unique QR codes for block leaders</p>
+    <div className="p-4 sm:p-6 lg:p-8 max-w-2xl mx-auto space-y-6">
+      {/* Header */}
+      <div>
+        <Link to="/admin" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm mb-3">
+          <ArrowLeft className="w-4 h-4" /> Dashboard
+        </Link>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
+            <QrCode className="w-5 h-5 text-purple-600" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">QR Code Generator</h1>
+            <p className="text-gray-500 text-sm">Generate unique QR codes for block leaders</p>
+          </div>
         </div>
-      </header>
+      </div>
 
-      <div className="max-w-lg mx-auto px-4 py-6">
+      <div>
         {/* Generator Form */}
         <form onSubmit={handleGenerate} className="app-card p-6 mb-6">
           <h2 className="font-semibold text-[var(--text-primary)] mb-4">Generate New QR Code</h2>

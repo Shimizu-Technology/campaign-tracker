@@ -36,7 +36,7 @@ function rankIcon(rank: number) {
 function rankBg(rank: number) {
   if (rank === 1) return 'bg-yellow-500/10 border-yellow-500/30';
   if (rank === 2) return 'bg-[var(--surface-bg)] border-[var(--border-soft)]';
-  if (rank === 3) return 'bg-amber-500/10 border-amber-500/30';
+  if (rank === 3) return 'bg-amber-50 border-amber-200';
   return 'bg-[var(--surface-raised)] border-[var(--border-soft)]';
 }
 
@@ -100,23 +100,24 @@ export default function LeaderboardPage() {
   }
 
   return (
-    <div className="min-h-screen">
-      <header className="bg-[#1B3A6B] text-white py-4 px-4">
-        <div className="max-w-2xl mx-auto">
-          <Link to="/admin" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-2">
-            <ArrowLeft className="w-4 h-4" /> Dashboard
-          </Link>
-          <div className="flex items-center gap-3">
-            <Trophy className="w-7 h-7 text-yellow-400" />
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight">Block Leader Leaderboard</h1>
-              <p className="text-blue-200 text-sm">Who's bringing in the most supporters?</p>
-            </div>
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto space-y-6">
+      {/* Header */}
+      <div>
+        <Link to="/admin" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm mb-3">
+          <ArrowLeft className="w-4 h-4" /> Dashboard
+        </Link>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-yellow-100 flex items-center justify-center">
+            <Trophy className="w-5 h-5 text-yellow-600" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Block Leader Leaderboard</h1>
+            <p className="text-gray-500 text-sm">Who's bringing in the most supporters?</p>
           </div>
         </div>
-      </header>
+      </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-6">
+      <div>
         {/* Stats */}
         <div className="grid grid-cols-3 gap-3 mb-6">
           <div className="app-card p-3 text-center">

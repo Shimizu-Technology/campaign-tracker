@@ -235,25 +235,23 @@ export default function UsersPage() {
   };
 
   return (
-    <div className="min-h-screen">
-      <header className="bg-[#1B3A6B] text-white py-4 px-4">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex items-center justify-between mb-2">
-            <Link to="/admin" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm">
-              <ArrowLeft className="w-4 h-4" /> Back
-            </Link>
-            <Link to="/admin" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm">
-              <Home className="w-4 h-4" /> Home
-            </Link>
-          </div>
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <Users className="w-5 h-5" /> User Management
-          </h1>
-          <p className="text-blue-200 text-sm">Authorized managers can invite users and assign allowed campaign roles.</p>
+    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <Link to="/admin" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm">
+            <ArrowLeft className="w-4 h-4" /> Back
+          </Link>
+          <Link to="/admin" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm">
+            <Home className="w-4 h-4" /> Home
+          </Link>
         </div>
-      </header>
+        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          <Users className="w-5 h-5 text-[#1B3A6B]" /> User Management
+        </h1>
+        <p className="text-gray-500 text-sm">Authorized managers can invite users and assign allowed campaign roles.</p>
+      </div>
 
-      <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+      <div className="space-y-6">
         <section className="app-card p-4">
           <h2 className="app-section-title text-xl mb-2">Add User</h2>
           <p className="text-xs text-[var(--text-secondary)] mb-3">

@@ -49,20 +49,19 @@ export default function VillageDetailPage() {
   const pct = v.quota_target > 0 ? ((v.supporter_count / v.quota_target) * 100).toFixed(1) : '0';
 
   return (
-    <div className="min-h-screen">
-      <header className="bg-[#1B3A6B] text-white py-4 px-4">
-        <div className="max-w-4xl mx-auto">
-          <Link to="/admin" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-2">
-            <ArrowLeft className="w-4 h-4" /> Dashboard
-          </Link>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <MapPin className="w-6 h-6" /> {v.name}
-          </h1>
-          <p className="text-blue-200 text-sm">{v.region} · {v.registered_voters.toLocaleString()} registered voters (GEC Jan 2026)</p>
-        </div>
-      </header>
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto space-y-6">
+      {/* Header */}
+      <div>
+        <Link to="/admin" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm mb-3">
+          <ArrowLeft className="w-4 h-4" /> Dashboard
+        </Link>
+        <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
+          <MapPin className="w-6 h-6 text-[#1B3A6B]" /> {v.name}
+        </h1>
+        <p className="text-gray-500 text-sm">{v.region} · {v.registered_voters.toLocaleString()} registered voters (GEC Jan 2026)</p>
+      </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-6">
+      <div>
         {/* Progress */}
         <div className="app-card p-6 mb-6">
           <div className="flex justify-between items-center mb-2">

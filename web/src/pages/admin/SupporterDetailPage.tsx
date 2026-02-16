@@ -219,43 +219,41 @@ export default function SupporterDetailPage() {
   }
 
   return (
-    <div className="min-h-screen">
-      <header className="bg-[#1B3A6B] text-white py-4 px-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="flex items-center justify-between mb-2">
-            <button
-              type="button"
-              onClick={goBack}
-              className="flex items-center gap-2 text-blue-200 hover:text-white text-sm"
-            >
-              <ArrowLeft className="w-4 h-4" /> Back
-            </button>
-            <button type="button" onClick={goHome} className="flex items-center gap-2 text-blue-200 hover:text-white text-sm">
-              <Home className="w-4 h-4" /> Home
-            </button>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
-            <UserRound className="w-5 h-5" /> {supporter.first_name} {supporter.last_name}
-          </h1>
-          <p className="text-blue-200 text-sm">
-            Signed up {formatDateTime(supporter.created_at)} · {supporter.source === 'qr_signup' ? 'Public Signup' : 'Staff Entry'}
-          </p>
-          <div className="flex items-center gap-2 mt-1">
-            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-              supporter.verification_status === 'verified' ? 'bg-green-500 text-white' :
-              supporter.verification_status === 'flagged' ? 'bg-red-500 text-white' :
-              'bg-yellow-400 text-yellow-900'
-            }`}>
-              {supporter.verification_status === 'verified' ? 'Verified' :
-               supporter.verification_status === 'flagged' ? 'Flagged' : 'Unverified'}
-            </span>
-          </div>
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto space-y-6">
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <button
+            type="button"
+            onClick={goBack}
+            className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back
+          </button>
+          <button type="button" onClick={goHome} className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm">
+            <Home className="w-4 h-4" /> Home
+          </button>
         </div>
-      </header>
+        <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
+          <UserRound className="w-5 h-5 text-[#1B3A6B]" /> {supporter.first_name} {supporter.last_name}
+        </h1>
+        <p className="text-gray-500 text-sm">
+          Signed up {formatDateTime(supporter.created_at)} · {supporter.source === 'qr_signup' ? 'Public Signup' : 'Staff Entry'}
+        </p>
+        <div className="flex items-center gap-2 mt-1">
+          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+            supporter.verification_status === 'verified' ? 'bg-green-100 text-green-800' :
+            supporter.verification_status === 'flagged' ? 'bg-red-100 text-red-800' :
+            'bg-yellow-100 text-yellow-800'
+          }`}>
+            {supporter.verification_status === 'verified' ? 'Verified' :
+             supporter.verification_status === 'flagged' ? 'Flagged' : 'Unverified'}
+          </span>
+        </div>
+      </div>
 
-      <div className="max-w-4xl mx-auto px-4 py-6 space-y-6">
+      <div className="space-y-6">
         {supporter.potential_duplicate && (
-          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex items-start gap-3">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-amber-500 flex-shrink-0 mt-0.5" />
             <div>
               <p className="font-medium text-amber-800">Potential Duplicate</p>
@@ -433,8 +431,8 @@ export default function SupporterDetailPage() {
           <h2 className="font-semibold text-[var(--text-primary)] mb-2">Verification</h2>
           <div className="flex items-center gap-3 flex-wrap">
             <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-              supporter.verification_status === 'verified' ? 'bg-green-100 text-emerald-300' :
-              supporter.verification_status === 'flagged' ? 'bg-red-100 text-red-300' :
+              supporter.verification_status === 'verified' ? 'bg-green-100 text-green-600' :
+              supporter.verification_status === 'flagged' ? 'bg-red-100 text-red-600' :
               'bg-yellow-100 text-yellow-700'
             }`}>
               {supporter.verification_status === 'verified' ? 'Verified' :

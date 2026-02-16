@@ -108,7 +108,7 @@ export default function DashboardPage() {
       value: summary.total_supporters.toLocaleString(),
       sub: `of ${summary.total_target.toLocaleString()} goal`,
       icon: Users,
-      iconBg: 'bg-blue-500/10',
+      iconBg: 'bg-blue-50',
       iconColor: 'text-blue-400',
     },
     {
@@ -117,7 +117,7 @@ export default function DashboardPage() {
       sub: statusLabel(summary.status),
       subColor: statusTextColor(summary.status),
       icon: TrendingUp,
-      iconBg: summary.status === 'on_track' ? 'bg-emerald-500/10' : summary.status === 'behind' ? 'bg-amber-500/10' : 'bg-red-500/10',
+      iconBg: summary.status === 'on_track' ? 'bg-green-50' : summary.status === 'behind' ? 'bg-amber-50' : 'bg-red-50',
       iconColor: statusTextColor(summary.status),
     },
     {

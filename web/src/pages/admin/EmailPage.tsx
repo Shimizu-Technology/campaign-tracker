@@ -86,28 +86,26 @@ export default function EmailPage() {
   const fromEmail = emailStatus?.from_email || '(not set)';
 
   return (
-    <div className="min-h-screen">
-      <header className="bg-[#1B3A6B] text-white py-4 px-4">
-        <div className="max-w-3xl mx-auto">
-          <Link to="/admin" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-2">
-            <ArrowLeft className="w-4 h-4" /> Dashboard
-          </Link>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Mail className="w-7 h-7 text-blue-300" />
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight">Email Center</h1>
-                <p className="text-blue-200 text-sm">Send emails to supporters</p>
-              </div>
-            </div>
-            {/* Email settings page — future enhancement */}
+    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto space-y-6">
+      {/* Header */}
+      <div>
+        <Link to="/admin" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm mb-3">
+          <ArrowLeft className="w-4 h-4" /> Dashboard
+        </Link>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+            <Mail className="w-5 h-5 text-[#1B3A6B]" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Email Center</h1>
+            <p className="text-gray-500 text-sm">Send emails to supporters</p>
           </div>
         </div>
-      </header>
+      </div>
 
-      <main className="max-w-3xl mx-auto p-4">
+      <div className="space-y-4">
         {/* Status Card */}
-        <div className={`app-card mb-4 ${isConfigured ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-amber-500'}`}>
+        <div className={`app-card p-5 mb-4 ${isConfigured ? 'border-l-4 border-l-green-500' : 'border-l-4 border-l-amber-500'}`}>
           <div className="flex items-center gap-3">
             {isConfigured ? (
               <CheckCircle className="w-6 h-6 text-green-500 flex-shrink-0" />
@@ -126,7 +124,7 @@ export default function EmailPage() {
         </div>
 
         {/* Compose Form */}
-        <div className="app-card mb-4">
+        <div className="app-card p-5 mb-4">
           <h2 className="text-lg font-bold text-[var(--text-primary)] mb-4 flex items-center gap-2">
             <Send className="w-5 h-5 text-[#1B3A6B]" /> Compose Email Blast
           </h2>
@@ -321,9 +319,9 @@ export default function EmailPage() {
         )}
 
         {/* Tips */}
-        <div className="app-card bg-blue-500/10 border-blue-500/30">
-          <h3 className="font-medium text-[var(--text-primary)] mb-2">Tips for Better Email Delivery</h3>
-          <ul className="text-sm text-[var(--text-primary)] space-y-1.5 list-disc list-inside">
+        <div className="app-card p-5 bg-blue-50 border-blue-200">
+          <h3 className="font-medium text-gray-900 mb-2">Tips for Better Email Delivery</h3>
+          <ul className="text-sm text-gray-600 space-y-1.5 list-disc list-inside">
             <li>Keep subject lines under 50 characters for mobile</li>
             <li>Personalize with {'{first_name}'} to increase engagement</li>
             <li>Always preview recipient count before sending</li>
@@ -331,7 +329,7 @@ export default function EmailPage() {
             <li>Test with a small group before large blasts</li>
           </ul>
         </div>
-      </main>
+      </div>
     </div>
   );
 }

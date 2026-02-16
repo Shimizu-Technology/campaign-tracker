@@ -86,7 +86,7 @@ function turnoutBg(pct: number | null) {
 }
 
 function turnoutStatusBadgeClasses(status: StrikeListSupporter['turnout_status']) {
-  if (status === 'voted') return 'bg-green-100 text-emerald-300 border-emerald-500/30';
+  if (status === 'voted') return 'bg-green-100 text-green-600 border-green-200';
   if (status === 'not_yet_voted') return 'bg-yellow-100 text-yellow-700 border-yellow-500/30';
   return 'bg-[var(--surface-overlay)] text-[var(--text-secondary)] border-[var(--border-soft)]';
 }
@@ -259,27 +259,27 @@ export default function PollWatcherPage() {
   const visiblePrecinctCount = filteredVillages.reduce((sum, village) => sum + village.precincts.length, 0);
 
   return (
-    <div className="min-h-screen">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto space-y-6">
       {/* Header */}
-      <header className="bg-[#1B3A6B] text-white py-3 px-4">
-        <div className="max-w-2xl mx-auto">
-          <Link to="/admin" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-2">
-            <ArrowLeft className="w-4 h-4" /> Dashboard
-          </Link>
-          <div className="flex items-center gap-3">
-            <Eye className="w-6 h-6 text-blue-200" />
-            <div>
-              <h1 className="text-xl font-bold tracking-tight">Poll Watcher</h1>
-              <p className="text-blue-200 text-xs">Election Day Real-Time Reporting</p>
-            </div>
+      <div>
+        <Link to="/admin" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm mb-3">
+          <ArrowLeft className="w-4 h-4" /> Dashboard
+        </Link>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
+            <Eye className="w-5 h-5 text-green-600" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900 tracking-tight">Poll Watcher</h1>
+            <p className="text-gray-500 text-xs">Election Day Real-Time Reporting</p>
           </div>
         </div>
-      </header>
+      </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-4">
+      <div className="space-y-4">
         {/* Success Message */}
         {successMsg && (
-          <div className="bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-2xl p-3 mb-4 flex items-center gap-2">
+          <div className="bg-green-50 border border-green-200 text-green-700 rounded-2xl p-3 mb-4 flex items-center gap-2">
             <CheckCircle className="w-5 h-5 shrink-0" />
             <span className="font-medium">{successMsg}</span>
           </div>
@@ -326,7 +326,7 @@ export default function PollWatcherPage() {
                     onClick={() => setReportType(value)}
                     className={`p-2 min-h-[44px] rounded-xl border text-sm font-medium text-left flex items-center gap-2 ${
                       reportType === value
-                        ? 'border-[#1B3A6B] bg-blue-500/10 text-[#1B3A6B]'
+                        ? 'border-[#1B3A6B] bg-blue-50 text-[#1B3A6B]'
                         : 'border-[var(--border-soft)] text-[var(--text-secondary)] hover:bg-[var(--surface-bg)]'
                     }`}
                   >
@@ -379,11 +379,11 @@ export default function PollWatcherPage() {
                   {strikeListData?.supporters.length || 0} supporters
                 </span>
               </div>
-              <p className="text-xs text-amber-300 bg-amber-500/10 border border-amber-500/30 rounded-lg px-2.5 py-2 mb-3">
+              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 mb-3">
                 {strikeListData?.compliance_note || 'Campaign operations tracking only; not official election records.'}
               </p>
               {strikeNotice && (
-                <p className="text-xs text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-2.5 py-2 mb-3">
+                <p className="text-xs text-green-600 bg-green-50 border border-green-200 rounded-lg px-2.5 py-2 mb-3">
                   {strikeNotice}
                 </p>
               )}
@@ -432,7 +432,7 @@ export default function PollWatcherPage() {
                             onClick={() => turnoutMutation.mutate({ supporterId: supporter.id, turnoutStatus: option.value })}
                             className={`min-h-[44px] rounded-xl border text-xs font-semibold ${
                               supporter.turnout_status === option.value
-                                ? 'border-[#1B3A6B] bg-blue-500/10 text-[#1B3A6B]'
+                                ? 'border-[#1B3A6B] bg-blue-50 text-[#1B3A6B]'
                                 : 'border-[var(--border-soft)] text-[var(--text-secondary)]'
                             }`}
                             disabled={turnoutMutation.isPending}
@@ -484,7 +484,7 @@ export default function PollWatcherPage() {
             </div>
           </div>
         ) : (
-          <div className="bg-blue-500/10 border border-blue-500/30 rounded-2xl p-3 mb-4 text-sm text-blue-300 flex items-center gap-2">
+          <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 mb-4 text-sm text-blue-700 flex items-center gap-2">
             <MapPin className="w-4 h-4 shrink-0" />
             Tap a precinct below to submit a report
           </div>
@@ -559,9 +559,9 @@ export default function PollWatcherPage() {
                   onClick={() => handleSelectPrecinct(p)}
                   className={`w-full text-left rounded-xl border p-3 min-h-[44px] transition-all ${
                     selectedPrecinct?.id === p.id
-                      ? 'border-[#1B3A6B] bg-blue-500/10 ring-2 ring-[#1B3A6B]/20'
+                      ? 'border-[#1B3A6B] bg-blue-50 ring-2 ring-[#1B3A6B]/20'
                       : p.reporting
-                        ? 'border-emerald-500/30 bg-emerald-500/10 hover:shadow-sm'
+                        ? 'border-green-200 bg-green-50 hover:shadow-sm'
                         : 'border-[var(--border-soft)] bg-[var(--surface-raised)] hover:shadow-sm'
                   }`}
                 >

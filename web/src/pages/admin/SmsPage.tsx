@@ -64,40 +64,41 @@ export default function SmsPage() {
   }
 
   return (
-    <div className="min-h-screen">
-      <header className="bg-[#1B3A6B] text-white py-4 px-4">
-        <div className="max-w-2xl mx-auto">
-          <Link to="/admin" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-2">
-            <ArrowLeft className="w-4 h-4" /> Dashboard
-          </Link>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <MessageSquare className="w-7 h-7 text-green-400" />
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight">SMS Center</h1>
-                <p className="text-blue-200 text-sm">Send texts to supporters</p>
-              </div>
+    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto space-y-6">
+      {/* Header */}
+      <div>
+        <Link to="/admin" className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm mb-3">
+          <ArrowLeft className="w-4 h-4" /> Dashboard
+        </Link>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
+              <MessageSquare className="w-5 h-5 text-green-600" />
             </div>
-            {sessionData?.permissions?.can_manage_configuration && (
-              <Link
-                to="/admin/sms/settings"
-                className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg text-sm"
-              >
-                <Settings className="w-4 h-4" /> Settings
-              </Link>
-            )}
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 tracking-tight">SMS Center</h1>
+              <p className="text-gray-500 text-sm">Send texts to supporters</p>
+            </div>
           </div>
+          {sessionData?.permissions?.can_manage_configuration && (
+            <Link
+              to="/admin/sms/settings"
+              className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium"
+            >
+              <Settings className="w-4 h-4" /> Settings
+            </Link>
+          )}
         </div>
-      </header>
+      </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-6">
+      <div className="space-y-4">
         {/* Status Banner */}
         <div className="app-card p-4 mb-6">
           <div className="grid grid-cols-3 gap-3 text-center">
             <div>
               <Zap className={`w-5 h-5 mx-auto mb-1 ${smsStatus?.configured ? 'text-green-500' : 'text-red-500'}`} />
               <div className="text-xs text-[var(--text-secondary)]">Status</div>
-              <div className={`text-sm font-semibold ${smsStatus?.configured ? 'text-emerald-300' : 'text-red-300'}`}>
+              <div className={`text-sm font-semibold ${smsStatus?.configured ? 'text-green-600' : 'text-red-600'}`}>
                 {smsStatus?.configured ? 'Active' : 'Not Configured'}
               </div>
             </div>
@@ -117,7 +118,7 @@ export default function SmsPage() {
         </div>
 
         {!smsStatus?.configured && (
-          <div className="bg-red-500/10 border border-red-500/30 rounded-2xl p-4 mb-6 flex items-start gap-3">
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 mb-6 flex items-start gap-3">
             <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
             <div>
               <p className="text-red-800 font-medium">ClickSend not configured</p>
@@ -265,7 +266,7 @@ function BlastTab() {
         <button
           onClick={() => dryRunMutation.mutate()}
           disabled={!message.trim() || dryRunMutation.isPending || (activeBlastId !== null && !blastProgress?.finished)}
-          className="flex-1 bg-[var(--surface-raised)] border border-[#1B3A6B] text-[#1B3A6B] py-3 rounded-xl font-semibold text-sm hover:bg-blue-500/10 disabled:opacity-50 transition-all"
+          className="flex-1 bg-[var(--surface-raised)] border border-[#1B3A6B] text-[#1B3A6B] py-3 rounded-xl font-semibold text-sm hover:bg-blue-50 disabled:opacity-50 transition-all"
         >
           {dryRunMutation.isPending ? 'Counting...' : 'Preview (Dry Run)'}
         </button>
@@ -285,7 +286,7 @@ function BlastTab() {
 
       {/* Dry run result */}
       {result?.dry_run && (
-        <div className="rounded-xl border p-4 bg-blue-500/10 border-blue-500/30">
+        <div className="rounded-xl border p-4 bg-blue-50 border-blue-200">
           <div className="flex items-center gap-2">
             <Users className="w-5 h-5 text-blue-600" />
             <span className="text-blue-800 font-medium">
@@ -317,7 +318,7 @@ function BlastTab() {
 
       {/* Blast completed */}
       {blastProgress?.finished && (
-        <div className={`rounded-xl border p-4 ${blastProgress.status === 'completed' ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+        <div className={`rounded-xl border p-4 ${blastProgress.status === 'completed' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
           <div className="flex items-center gap-2 mb-1">
             {blastProgress.status === 'completed' ? (
               <CheckCircle className="w-5 h-5 text-green-600" />
@@ -357,9 +358,9 @@ function BlastTab() {
                 </div>
                 <div className="text-right ml-3 flex-shrink-0">
                   <span className={`text-xs px-2 py-0.5 rounded-full ${
-                    blast.status === 'completed' ? 'bg-green-100 text-emerald-300' :
-                    blast.status === 'sending' ? 'bg-blue-100 text-blue-300' :
-                    blast.status === 'failed' ? 'bg-red-100 text-red-300' :
+                    blast.status === 'completed' ? 'bg-green-100 text-green-600' :
+                    blast.status === 'sending' ? 'bg-blue-100 text-blue-700' :
+                    blast.status === 'failed' ? 'bg-red-100 text-red-600' :
                     'bg-[var(--surface-overlay)] text-[var(--text-secondary)]'
                   }`}>
                     {blast.status}
@@ -446,12 +447,12 @@ function EventTab({ events }: { events: EventItem[] }) {
       </button>
 
       {result && (
-        <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-4">
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
           <div className="flex items-center gap-2 mb-1">
             <CheckCircle className="w-5 h-5 text-green-600" />
             <span className="text-green-800 font-medium">Notifications sent!</span>
           </div>
-          <div className="text-sm text-emerald-300">
+          <div className="text-sm text-green-600">
             Event: {result.event} · Sent: {result.sent} · Failed: {result.failed}
           </div>
         </div>
@@ -506,7 +507,7 @@ function TestTab() {
       </button>
 
       {result && (
-        <div className={`rounded-xl border p-4 ${result.success ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-red-500/10 border-red-500/30'}`}>
+        <div className={`rounded-xl border p-4 ${result.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
           <div className="flex items-center gap-2">
             {result.success ? (
               <CheckCircle className="w-5 h-5 text-green-600" />
