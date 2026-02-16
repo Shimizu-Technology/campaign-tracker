@@ -25,6 +25,7 @@ module Api
         response.headers["Pragma"] = "no-cache"
 
         campaign = Campaign.active.first
+        Rails.logger.info("[Dashboard] user=#{current_user&.id} role=#{current_user&.role} campaign=#{campaign&.id}")
         villages_base = Village.order(:name).select(:id, :name, :region, :registered_voters, :precinct_count).to_a
         village_ids = villages_base.map(&:id)
         supporter_counts = Supporter.active.where(village_id: village_ids).group(:village_id).count
@@ -64,6 +65,8 @@ module Api
         total_registered_voters = villages.sum { |v| v[:registered_voters].to_i }
         total_villages = villages.size
         total_precincts = villages.sum { |v| v[:precinct_count].to_i }
+
+        Rails.logger.info("[Dashboard] total_target=#{total_target} total_precincts=#{total_precincts} villages=#{villages.size}")
 
         render json: {
           campaign: campaign&.slice(:id, :name, :candidate_names, :election_year, :primary_color, :secondary_color),
