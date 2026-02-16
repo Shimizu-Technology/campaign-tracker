@@ -158,7 +158,7 @@ function AuthorizedContent({ children }: { children: React.ReactNode }) {
             Your account is not authorized to access this application. Please contact the campaign admin to request access.
           </p>
           <button
-            onClick={() => signOut(() => window.location.href = '/')}
+            onClick={() => signOut({ redirectUrl: '/admin' })}
             className="w-full bg-[#1B3A6B] hover:bg-[#152e55] text-white font-bold py-3 rounded-xl text-lg transition-all"
           >
             Sign Out &amp; Switch Account
