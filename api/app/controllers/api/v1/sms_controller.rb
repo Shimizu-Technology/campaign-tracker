@@ -5,7 +5,7 @@ module Api
     class SmsController < ApplicationController
       include Authenticatable
       before_action :authenticate_request
-      before_action :require_coordinator_or_above!, only: [ :send_single, :blast, :event_notify ]
+      before_action :require_coordinator_or_above!, only: [ :send_single, :blast, :event_notify, :blasts, :blast_status ]
 
       # GET /api/v1/sms/status
       # Check ClickSend account status + balance
@@ -92,7 +92,7 @@ module Api
       # GET /api/v1/sms/blasts
       # Recent blast history
       def blasts
-        blasts = SmsBlast.recent.map do |b|
+        blasts = SmsBlast.recent.includes(:initiated_by).map do |b|
           {
             id: b.id,
             status: b.status,

@@ -11,6 +11,7 @@ type Tab = 'blast' | 'event' | 'test';
 interface SmsBlastResult {
   dry_run?: boolean;
   queued?: boolean;
+  blast_id?: number;
   recipient_count?: number;
   total_targeted?: number;
   sent?: number;

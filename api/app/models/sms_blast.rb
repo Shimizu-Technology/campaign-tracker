@@ -29,8 +29,9 @@ class SmsBlast < ApplicationRecord
   end
 
   def append_error(msg)
-    current = self.class.where(id: id).pick(:error_log) || []
-    current << msg if current.size < 50 # Cap error log
-    self.class.where(id: id).update_all([ "error_log = ?", current.to_json ])
+    # Atomic SQL append to avoid race conditions; cap at 50 entries
+    self.class.where(id: id)
+      .where("jsonb_array_length(COALESCE(error_log, '[]'::jsonb)) < 50")
+      .update_all([ "error_log = COALESCE(error_log, '[]'::jsonb) || ?::jsonb", [ msg ].to_json ])
   end
 end
