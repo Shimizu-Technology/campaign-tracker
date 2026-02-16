@@ -26,6 +26,7 @@ module Api
           render json: {
             success: true,
             extracted: result[:data],
+            confidence: result[:confidence] || {},
             message: "Form data extracted successfully"
           }
         else

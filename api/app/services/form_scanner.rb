@@ -35,12 +35,18 @@ class FormScanner
     Mongmong/Toto/Maite, Piti, Sånta Rita-Sumai, Sinajana, Talo'fo'fo',
     Tamuning, Yigo, Yona.
 
-    Return ONLY valid JSON with these exact keys. No markdown, no explanation.
+    Return ONLY valid JSON with two top-level keys: "fields" and "confidence".
+    - "fields": object with the extracted values (null for unreadable fields)
+    - "confidence": object with the same keys, each a value of "high", "medium", or "low"
+      - "high" = clearly legible, very confident
+      - "medium" = partially legible or inferred from context
+      - "low" = barely legible, guessing
+
     For boolean fields, use true/false. For unknown fields, use null.
     If you see multiple forms, extract only the first/most prominent one.
 
     Example response:
-    {"first_name":"Juan","last_name":"Cruz","contact_number":"671-555-1234","email":null,"street_address":"123 Marine Corps Dr","dob":"1985-03-15","village":"Tamuning","precinct_number":"17","registered_voter":true,"yard_sign":false,"motorcade_available":true}
+    {"fields":{"first_name":"Juan","last_name":"Cruz","contact_number":"671-555-1234","email":null,"street_address":"123 Marine Corps Dr","dob":"1985-03-15","village":"Tamuning","precinct_number":"17","registered_voter":true,"yard_sign":false,"motorcade_available":true},"confidence":{"first_name":"high","last_name":"high","contact_number":"medium","email":null,"street_address":"high","dob":"low","village":"high","precinct_number":"medium","registered_voter":"high","yard_sign":"high","motorcade_available":"high"}}
   PROMPT
 
   class << self
@@ -104,13 +110,22 @@ class FormScanner
           # Parse the JSON from the response (strip any markdown fencing)
           clean = content.strip.gsub(/\A```json\s*/, "").gsub(/\s*```\z/, "")
           begin
-            extracted = JSON.parse(clean)
+            parsed = JSON.parse(clean)
             Rails.logger.info("[FormScanner] Extraction successful")
+
+            # Support both new format (fields/confidence) and legacy flat format
+            if parsed.key?("fields")
+              extracted = parsed["fields"]
+              confidence = parsed["confidence"] || {}
+            else
+              extracted = parsed
+              confidence = {}
+            end
 
             # Normalize village name to match our DB
             extracted["village_id"] = match_village(extracted["village"]) if extracted["village"]
 
-            { success: true, data: extracted, raw_response: content }
+            { success: true, data: extracted, confidence: confidence, raw_response: content }
           rescue JSON::ParserError => e
             Rails.logger.error("[FormScanner] JSON parse error: #{e.message}, raw: #{content}")
             { success: false, error: "Could not parse extracted data", raw_response: content }

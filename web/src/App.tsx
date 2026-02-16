@@ -31,6 +31,7 @@ const PrecinctSettingsPage = lazy(() => import('./pages/admin/PrecinctSettingsPa
 const DuplicatesPage = lazy(() => import('./pages/admin/DuplicatesPage'));
 const ImportPage = lazy(() => import('./pages/admin/ImportPage'));
 const VettingPage = lazy(() => import('./pages/admin/VettingPage'));
+const ScanFormPage = lazy(() => import('./pages/admin/ScanFormPage'));
 
 function LazyFallback() {
   return (
@@ -134,6 +135,16 @@ export default function App() {
               <AdminRoute>
                 <PermissionRoute permission="can_create_staff_supporters">
                   <StaffEntryPage />
+                </PermissionRoute>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/scan"
+            element={
+              <AdminRoute>
+                <PermissionRoute permission="can_create_staff_supporters">
+                  <ScanFormPage />
                 </PermissionRoute>
               </AdminRoute>
             }
