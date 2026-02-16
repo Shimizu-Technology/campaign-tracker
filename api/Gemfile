@@ -14,8 +14,8 @@ gem "puma", ">= 5.0"
 gem "tzinfo-data", platforms: %i[ windows jruby ]
 
 # Use the database-backed adapters for Rails.cache and Active Job
-gem "solid_cache"
-gem "solid_queue"
+# gem "solid_cache"  # Disabled — using memory_store, no solid_cache_entries table in Neon
+# gem "solid_queue"  # Disabled — using :async adapter for Active Job
 
 # Reduces boot times through caching; required in config/boot.rb
 gem "bootsnap", require: false
