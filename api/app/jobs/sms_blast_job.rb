@@ -42,7 +42,7 @@ class SmsBlastJob < ApplicationJob
       sent_total += result[:sent]
       failed_total += result[:failed]
 
-      # Update progress in DB (atomic increments)
+      # Update progress in DB (absolute counts from running totals)
       SmsBlast.where(id: blast.id).update_all(
         [ "sent_count = ?, failed_count = ?", sent_total, failed_total ]
       )
@@ -51,7 +51,6 @@ class SmsBlastJob < ApplicationJob
       result[:results].select { |r| !r[:success] }.each do |failure|
         blast.append_error("#{failure[:to]}: #{failure[:error]}")
       end
-
     end
 
     blast.update!(status: "completed", completed_at: Time.current)

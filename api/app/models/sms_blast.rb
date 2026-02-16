@@ -19,6 +19,8 @@ class SmsBlast < ApplicationRecord
     %w[completed failed].include?(status)
   end
 
+  # NOTE: Available for per-message tracking (e.g., single SMS sends).
+  # Not used by SmsBlastJob, which uses batch update_all instead.
   def increment_sent!
     self.class.where(id: id).update_all("sent_count = COALESCE(sent_count, 0) + 1")
   end
