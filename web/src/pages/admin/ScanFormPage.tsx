@@ -92,12 +92,14 @@ export default function ScanFormPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dupeTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
 
-  // Revoke object URLs to prevent memory leaks in batch scanning
+  // Revoke object URL on unmount only (resetForNextScan handles mid-lifecycle cleanup)
+  const previewUrlRef = useRef(previewUrl);
+  previewUrlRef.current = previewUrl;
   useEffect(() => {
     return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     };
-  }, [previewUrl]);
+  }, []);
 
   const { data: villageData } = useQuery({
     queryKey: ['villages'],
@@ -220,7 +222,7 @@ export default function ScanFormPage() {
   const updateField = <K extends keyof ScanResult>(field: K, value: ScanResult[K]) => {
     setForm(prev => ({ ...prev, [field]: value }));
     // Clear confidence when user manually edits (they've verified it)
-    setConfidence(prev => ({ ...prev, [field]: undefined }));
+    setConfidence(prev => ({ ...prev, [field]: null }));
   };
 
   const inputClass = (field: string) =>
