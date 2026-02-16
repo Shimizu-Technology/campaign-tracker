@@ -8,6 +8,9 @@ module Api
 
       # GET /api/v1/session
       def show
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+
         render json: {
           user: {
             id: current_user.id,

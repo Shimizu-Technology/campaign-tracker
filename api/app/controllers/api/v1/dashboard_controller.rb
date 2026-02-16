@@ -21,6 +21,9 @@ module Api
 
       # GET /api/v1/dashboard
       def show
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+
         campaign = Campaign.active.first
         villages_base = Village.order(:name).select(:id, :name, :region, :registered_voters, :precinct_count).to_a
         village_ids = villages_base.map(&:id)
