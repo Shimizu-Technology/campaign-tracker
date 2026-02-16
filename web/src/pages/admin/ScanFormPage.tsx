@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useCallback } from 'react';
+import { useState, useRef, useMemo, useCallback, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getVillages, createSupporter, scanForm, checkDuplicate } from '../../lib/api';
 import { DEFAULT_GUAM_PHONE_PREFIX } from '../../lib/phone';
@@ -92,6 +92,13 @@ export default function ScanFormPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dupeTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
 
+  // Revoke object URLs to prevent memory leaks in batch scanning
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
   const { data: villageData } = useQuery({
     queryKey: ['villages'],
     queryFn: getVillages,
@@ -120,12 +127,14 @@ export default function ScanFormPage() {
     setPhase('scanning');
     setScanError('');
     setDuplicateWarning('');
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(URL.createObjectURL(file));
 
     try {
-      const base64 = await new Promise<string>((resolve) => {
+      const base64 = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error('Failed to read file'));
         reader.readAsDataURL(file);
       });
 
@@ -201,6 +210,7 @@ export default function ScanFormPage() {
   const resetForNextScan = () => {
     setForm(emptyForm);
     setConfidence({});
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
     setPreviewUrl(null);
     setScanError('');
     setDuplicateWarning('');
@@ -436,7 +446,7 @@ export default function ScanFormPage() {
                   required
                   value={form.village_id}
                   onChange={e => { updateField('village_id', e.target.value); updateField('precinct_id', ''); }}
-                  className={`${inputClass('village_id')} bg-white`}
+                  className={`${inputClass('village')} bg-white`}
                 >
                   <option value="">Select village</option>
                   {villages.map(v => (
