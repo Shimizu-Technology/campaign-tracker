@@ -73,7 +73,7 @@ module Api
           status: "pending",
           message: message,
           filters: filters,
-          total_recipients: count,
+          total_recipients: 0,
           sent_count: 0,
           failed_count: 0,
           initiated_by: current_user
