@@ -94,7 +94,9 @@ export default function ScanFormPage() {
 
   // Revoke object URL on unmount only (resetForNextScan handles mid-lifecycle cleanup)
   const previewUrlRef = useRef(previewUrl);
-  previewUrlRef.current = previewUrl;
+  useEffect(() => {
+    previewUrlRef.current = previewUrl;
+  }, [previewUrl]);
   useEffect(() => {
     return () => {
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
