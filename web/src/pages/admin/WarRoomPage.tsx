@@ -190,7 +190,7 @@ export default function WarRoomPage() {
         <div className="text-center p-8">
           <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4 opacity-70" />
           <h2 className="text-xl font-bold text-gray-900 mb-2">Can't connect to server</h2>
-          <p className="text-gray-400 mb-4">Check your connection and try again.</p>
+          <p className="text-gray-500 mb-4">Check your connection and try again.</p>
           <button onClick={() => window.location.reload()} className="bg-[#1B3A6B] text-white px-4 py-2 rounded-lg hover:bg-[#152e55]">
             Retry
           </button>

@@ -95,7 +95,15 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
   const isActive = (to: string) => {
     if (to === '/admin') return location.pathname === '/admin';
-    return location.pathname === to || location.pathname.startsWith(to + '/');
+    if (location.pathname === to) return true;
+    // For sub-pages like /admin/supporters/123, highlight the parent nav item
+    // but NOT when another nav item is a more specific match (e.g. /admin/supporters/new)
+    if (location.pathname.startsWith(to + '/')) {
+      // Check if any other nav item is a more specific match
+      const allPaths = navGroups.flatMap(g => g.items.map(i => i.to));
+      return !allPaths.some(p => p !== to && p.startsWith(to) && location.pathname.startsWith(p));
+    }
+    return false;
   };
 
   const campaignName = 'Josh & Tina 2026';

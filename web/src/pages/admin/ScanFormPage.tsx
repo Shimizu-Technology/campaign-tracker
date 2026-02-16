@@ -575,7 +575,7 @@ export default function ScanFormPage() {
                 <button
                   type="button"
                   onClick={resetForNextScan}
-                  className="w-full bg-[var(--surface-overlay)] hover:bg-[var(--surface-overlay)] text-[var(--text-primary)] font-semibold py-3 rounded-xl text-lg transition-all flex items-center justify-center gap-2"
+                  className="w-full bg-[var(--surface-overlay)] hover:bg-gray-200 text-[var(--text-primary)] font-semibold py-3 rounded-xl text-lg transition-all flex items-center justify-center gap-2"
                 >
                   <RotateCcw className="w-4 h-4" /> Re-scan
                 </button>
@@ -607,7 +607,7 @@ export default function ScanFormPage() {
               </button>
               <Link
                 to="/admin/vetting"
-                className="block w-full bg-[var(--surface-overlay)] hover:bg-[var(--surface-overlay)] text-[var(--text-primary)] font-semibold py-3 rounded-xl text-lg transition-all text-center"
+                className="block w-full bg-[var(--surface-overlay)] hover:bg-gray-200 text-[var(--text-primary)] font-semibold py-3 rounded-xl text-lg transition-all text-center"
               >
                 Go to Vetting Queue
               </Link>

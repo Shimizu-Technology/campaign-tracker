@@ -55,7 +55,7 @@ export default function SmsSettingsPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="animate-pulse text-neutral-400 text-sm font-medium">Loading settings...</div>
+        <div className="animate-pulse text-[var(--text-muted)] text-sm font-medium">Loading settings...</div>
       </div>
     );
   }
@@ -142,7 +142,7 @@ export default function SmsSettingsPage() {
             <button
               onClick={() => resetMutation.mutate()}
               disabled={resetMutation.isPending}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--surface-overlay)] text-[var(--text-primary)] rounded-lg hover:bg-[var(--surface-overlay)] disabled:opacity-50 text-sm font-medium"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--surface-overlay)] text-[var(--text-primary)] rounded-lg hover:bg-gray-200 disabled:opacity-50 text-sm font-medium"
             >
               <RotateCcw className="w-4 h-4" />
               Reset to Default

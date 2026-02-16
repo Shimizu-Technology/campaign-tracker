@@ -4,7 +4,7 @@ function Pulse({ className }: { className?: string }) {
 
 export default function DashboardSkeleton() {
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-6xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
       {/* Page Header */}
       <div className="mb-8">
         <Pulse className="h-7 w-36 mb-2" />

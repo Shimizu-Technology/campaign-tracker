@@ -94,7 +94,7 @@ export default function LeaderboardPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="text-neutral-400 text-sm font-medium">Loading leaderboard...</div>
+        <div className="text-[var(--text-muted)] text-sm font-medium">Loading leaderboard...</div>
       </div>
     );
   }
