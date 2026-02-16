@@ -171,6 +171,8 @@ function BlastTab() {
       const data = query.state.data;
       return data?.finished ? false : 2000;
     },
+    refetchOnWindowFocus: false,
+    refetchIntervalInBackground: false,
   });
 
   // Recent blast history

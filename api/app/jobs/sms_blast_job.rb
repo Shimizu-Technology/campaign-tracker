@@ -27,6 +27,9 @@ class SmsBlastJob < ApplicationJob
 
     # Process in batches
     supporters.find_in_batches(batch_size: BATCH_SIZE).with_index do |batch, batch_idx|
+      # Rate limit between batches (sleep before batches 2+)
+      sleep(BATCH_DELAY) if batch_idx > 0
+
       phones_and_bodies = batch.filter_map do |supporter|
         next if supporter.contact_number.blank?
         { to: supporter.contact_number, body: blast.message }
@@ -49,8 +52,6 @@ class SmsBlastJob < ApplicationJob
         blast.append_error("#{failure[:to]}: #{failure[:error]}")
       end
 
-      # Rate limit between batches
-      sleep(BATCH_DELAY) if batch_idx > 0
     end
 
     blast.update!(status: "completed", completed_at: Time.current)
