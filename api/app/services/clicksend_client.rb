@@ -80,6 +80,88 @@ class ClicksendClient
       end
     end
 
+    # Send up to 1000 messages in a single API call.
+    # phones_and_bodies: array of { to:, body: } hashes
+    # Returns { results: [{ to:, success:, message_id:, error: }], sent: N, failed: N }
+    def send_batch(phones_and_bodies, from: nil)
+      username = ENV["CLICKSEND_USERNAME"]
+      api_key  = ENV["CLICKSEND_API_KEY"]
+      from   ||= ENV["CLICKSEND_SENDER_ID"] || "JT2026"
+
+      if username.blank? || api_key.blank?
+        Rails.logger.error("[ClicksendClient] Missing credentials — batch not sent")
+        return { results: [], sent: 0, failed: phones_and_bodies.size }
+      end
+
+      from = from[0...11] if from.length > 11
+
+      messages = phones_and_bodies.map do |item|
+        formatted_to = item[:to].strip
+        formatted_to = "+1#{formatted_to}" if formatted_to.match?(/\A\d{10}\z/)
+        formatted_to = "+#{formatted_to}" unless formatted_to.start_with?("+")
+
+        {
+          source: "campaign_tracker",
+          from: from,
+          body: item[:body].gsub("$", "USD "),
+          to: formatted_to
+        }
+      end
+
+      Rails.logger.info("[ClicksendClient] Sending batch of #{messages.size} SMS")
+
+      auth = Base64.strict_encode64("#{username}:#{api_key}")
+      uri  = URI("#{BASE_URL}/sms/send")
+
+      http = Net::HTTP.new(uri.host, uri.port)
+      http.use_ssl = true
+      http.open_timeout = 15
+      http.read_timeout = 60 # Longer timeout for batch
+
+      request = Net::HTTP::Post.new(uri.request_uri, {
+        "Authorization" => "Basic #{auth}",
+        "Content-Type"  => "application/json"
+      })
+      request.body = { messages: messages }.to_json
+
+      begin
+        response = http.request(request)
+      rescue StandardError => e
+        Rails.logger.error("[ClicksendClient] Batch HTTP error: #{e.message}")
+        return { results: [], sent: 0, failed: messages.size }
+      end
+
+      sent = 0
+      failed = 0
+      results = []
+
+      if response.code.to_i == 200
+        json = JSON.parse(response.body) rescue {}
+        api_messages = json.dig("data", "messages") || []
+
+        api_messages.each do |msg|
+          success = msg["status"] == "SUCCESS"
+          if success
+            sent += 1
+          else
+            failed += 1
+          end
+          results << {
+            to: msg["to"],
+            success: success,
+            message_id: msg["message_id"],
+            error: success ? nil : msg["status"]
+          }
+        end
+      else
+        Rails.logger.error("[ClicksendClient] Batch HTTP #{response.code}: #{response.body}")
+        failed = messages.size
+      end
+
+      Rails.logger.info("[ClicksendClient] Batch complete: #{sent} sent, #{failed} failed")
+      { results: results, sent: sent, failed: failed }
+    end
+
     def account_balance
       username = ENV["CLICKSEND_USERNAME"]
       api_key  = ENV["CLICKSEND_API_KEY"]

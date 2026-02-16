@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, MessageSquare, Send, Users, Zap, DollarSign, CheckCircle, AlertTriangle, Phone, Settings } from 'lucide-react';
-import { getSmsStatus, sendTestSms, sendSmsBlast, getEvents, sendEventNotify } from '../../lib/api';
+import { getSmsStatus, sendTestSms, sendSmsBlast, getEvents, sendEventNotify, getSmsBlasts, getSmsBlastStatus } from '../../lib/api';
 import { useSession } from '../../hooks/useSession';
 import { DEFAULT_GUAM_PHONE_PREFIX } from '../../lib/phone';
 
@@ -159,6 +159,25 @@ function BlastTab() {
   const [message, setMessage] = useState('');
   const [filters, setFilters] = useState({ motorcade: false, registered: false, yardSign: false });
   const [result, setResult] = useState<SmsBlastResult | null>(null);
+  const [activeBlastId, setActiveBlastId] = useState<number | null>(null);
+
+  // Poll active blast progress
+  const { data: blastProgress } = useQuery({
+    queryKey: ['smsBlastProgress', activeBlastId],
+    queryFn: () => getSmsBlastStatus(activeBlastId!),
+    enabled: activeBlastId !== null,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      return data?.finished ? false : 2000;
+    },
+  });
+
+  // Recent blast history
+  const { data: blastsData } = useQuery({
+    queryKey: ['smsBlasts'],
+    queryFn: getSmsBlasts,
+    refetchInterval: activeBlastId ? 5000 : false,
+  });
 
   const dryRunMutation = useMutation({
     mutationFn: () => sendSmsBlast({
@@ -178,11 +197,15 @@ function BlastTab() {
       registered_voter: filters.registered ? 'true' : undefined,
       yard_sign: filters.yardSign ? 'true' : undefined,
     }),
-    onSuccess: (data) => setResult(data),
+    onSuccess: (data) => {
+      setResult(data);
+      if (data.blast_id) setActiveBlastId(data.blast_id);
+    },
   });
 
   const charCount = message.length;
   const smsSegments = Math.ceil(charCount / 160) || 1;
+  const recentBlasts = blastsData?.blasts || [];
 
   return (
     <div className="space-y-4">
@@ -257,26 +280,92 @@ function BlastTab() {
         </button>
       </div>
 
-      {result && (
-        <div className={`rounded-xl border p-4 ${result.dry_run ? 'bg-blue-50 border-blue-200' : 'bg-green-50 border-green-200'}`}>
-          {result.dry_run ? (
-            <div className="flex items-center gap-2">
-              <Users className="w-5 h-5 text-blue-600" />
-              <span className="text-blue-800 font-medium">
-                Would send to <strong>{result.recipient_count}</strong> supporters
-              </span>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-                <span className="text-green-800 font-medium">Blast sent!</span>
+      {/* Dry run result */}
+      {result?.dry_run && (
+        <div className="rounded-xl border p-4 bg-blue-50 border-blue-200">
+          <div className="flex items-center gap-2">
+            <Users className="w-5 h-5 text-blue-600" />
+            <span className="text-blue-800 font-medium">
+              Would send to <strong>{result.recipient_count}</strong> supporters
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Active blast progress */}
+      {blastProgress && !blastProgress.finished && (
+        <div className="app-card p-4">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-semibold text-gray-900 text-sm">Sending in progress...</h3>
+            <span className="text-sm text-gray-500">{blastProgress.progress_pct}%</span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
+            <div
+              className="bg-[#1B3A6B] h-3 rounded-full transition-all duration-500"
+              style={{ width: `${blastProgress.progress_pct}%` }}
+            />
+          </div>
+          <div className="flex justify-between text-xs text-gray-500">
+            <span>{blastProgress.sent_count} sent · {blastProgress.failed_count} failed</span>
+            <span>{blastProgress.total_recipients} total</span>
+          </div>
+        </div>
+      )}
+
+      {/* Blast completed */}
+      {blastProgress?.finished && (
+        <div className={`rounded-xl border p-4 ${blastProgress.status === 'completed' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+          <div className="flex items-center gap-2 mb-1">
+            {blastProgress.status === 'completed' ? (
+              <CheckCircle className="w-5 h-5 text-green-600" />
+            ) : (
+              <AlertTriangle className="w-5 h-5 text-red-600" />
+            )}
+            <span className={blastProgress.status === 'completed' ? 'text-green-800 font-medium' : 'text-red-800 font-medium'}>
+              {blastProgress.status === 'completed' ? 'Blast complete!' : 'Blast failed'}
+            </span>
+          </div>
+          <div className="text-sm text-gray-700">
+            Sent: {blastProgress.sent_count} · Failed: {blastProgress.failed_count} · Total: {blastProgress.total_recipients}
+          </div>
+          {blastProgress.error_log?.length > 0 && (
+            <details className="mt-2">
+              <summary className="text-xs text-gray-500 cursor-pointer">View errors ({blastProgress.error_log.length})</summary>
+              <div className="mt-1 text-xs text-red-600 space-y-0.5">
+                {blastProgress.error_log.map((err: string, i: number) => <p key={i}>{err}</p>)}
               </div>
-              <div className="text-sm text-green-700">
-                Sent: {result.sent} · Failed: {result.failed} · Skipped: {result.skipped}
-              </div>
-            </div>
+            </details>
           )}
+        </div>
+      )}
+
+      {/* Recent blast history */}
+      {recentBlasts.length > 0 && (
+        <div className="app-card p-4">
+          <h3 className="font-semibold text-gray-900 mb-3 text-sm">Recent Blasts</h3>
+          <div className="space-y-2">
+            {recentBlasts.slice(0, 5).map((blast: { id: number; status: string; message: string; sent_count: number; failed_count: number; total_recipients: number; started_at: string; initiated_by: string }) => (
+              <div key={blast.id} className="flex items-center justify-between text-sm border-b border-gray-100 pb-2">
+                <div className="min-w-0 flex-1">
+                  <p className="text-gray-700 truncate">{blast.message}</p>
+                  <p className="text-xs text-gray-400">
+                    {blast.initiated_by} · {blast.started_at ? new Date(blast.started_at).toLocaleString() : 'pending'}
+                  </p>
+                </div>
+                <div className="text-right ml-3 flex-shrink-0">
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                    blast.status === 'completed' ? 'bg-green-100 text-green-700' :
+                    blast.status === 'sending' ? 'bg-blue-100 text-blue-700' :
+                    blast.status === 'failed' ? 'bg-red-100 text-red-700' :
+                    'bg-gray-100 text-gray-600'
+                  }`}>
+                    {blast.status}
+                  </span>
+                  <p className="text-xs text-gray-500 mt-0.5">{blast.sent_count}/{blast.total_recipients}</p>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

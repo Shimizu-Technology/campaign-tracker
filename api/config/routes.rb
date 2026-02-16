@@ -73,6 +73,8 @@ Rails.application.routes.draw do
       post "sms/send", to: "sms#send_single"
       post "sms/blast", to: "sms#blast"
       post "sms/event_notify", to: "sms#event_notify"
+      get "sms/blasts", to: "sms#blasts"
+      get "sms/blasts/:id", to: "sms#blast_status"
 
       # Email
       get "email/status", to: "email#status"

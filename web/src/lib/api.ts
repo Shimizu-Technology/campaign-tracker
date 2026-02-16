@@ -121,6 +121,8 @@ export const sendSmsBlast = (data: { message: string; village_id?: number; motor
   api.post('/sms/blast', data).then(r => r.data);
 export const sendEventNotify = (eventId: number, type: string) =>
   api.post('/sms/event_notify', { event_id: eventId, type }).then(r => r.data);
+export const getSmsBlasts = () => api.get('/sms/blasts').then(r => r.data);
+export const getSmsBlastStatus = (id: number) => api.get(`/sms/blasts/${id}`).then(r => r.data);
 
 // Email
 export const getEmailStatus = () => api.get('/email/status').then(r => r.data);
