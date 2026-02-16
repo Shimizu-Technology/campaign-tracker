@@ -23,6 +23,7 @@ class Supporter < ApplicationRecord
 
   # Keep print_name in sync as "Last, First" for display and backward compatibility
   before_validation :sync_print_name
+  before_validation :auto_assign_precinct, on: :create
   before_save :set_normalized_phone
   after_create :check_for_duplicates
 
@@ -117,6 +118,13 @@ class Supporter < ApplicationRecord
     return if block.village_id == village_id
 
     errors.add(:block_id, "must belong to the selected village")
+  end
+
+  # Auto-assign precinct from last name + village using GEC alpha_range data.
+  # Only runs on create; admins can still manually override after.
+  def auto_assign_precinct
+    return if precinct_id.present? # Don't override explicit selection
+    self.precinct_id = PrecinctAssigner.assign_id(self)
   end
 
   def set_normalized_phone

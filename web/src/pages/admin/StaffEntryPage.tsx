@@ -7,7 +7,6 @@ import { Check, AlertTriangle, Loader2, Camera, ScanLine } from 'lucide-react';
 interface Village {
   id: number;
   name: string;
-  precincts: { id: number; number: string; alpha_range: string }[];
 }
 
 type StaffForm = {
@@ -18,7 +17,6 @@ type StaffForm = {
   dob: string;
   street_address: string;
   village_id: string;
-  precinct_id: string;
   registered_voter: boolean;
   yard_sign: boolean;
   motorcade_available: boolean;
@@ -48,7 +46,6 @@ const emptyForm = {
   dob: '',
   street_address: '',
   village_id: '',
-  precinct_id: '',
   registered_voter: true,
   yard_sign: false,
   motorcade_available: false,
@@ -67,8 +64,6 @@ export default function StaffEntryPage() {
     queryFn: getVillages,
   });
   const villages: Village[] = useMemo(() => villageData?.villages || [], [villageData]);
-  const selectedVillage = villages.find(v => v.id === Number(form.village_id));
-
   // Duplicate detection
   const [duplicateWarning, setDuplicateWarning] = useState('');
   const dupeTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
@@ -184,7 +179,6 @@ export default function StaffEntryPage() {
     submit.mutate({
       ...form,
       village_id: Number(form.village_id),
-      precinct_id: form.precinct_id ? Number(form.precinct_id) : null,
     });
   };
 
@@ -377,23 +371,6 @@ export default function StaffEntryPage() {
             placeholder="123 Marine Corps Dr"
           />
         </div>
-
-        {/* Precinct */}
-        {selectedVillage && selectedVillage.precincts.length > 1 && (
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Precinct</label>
-            <select
-              value={form.precinct_id}
-              onChange={e => updateField('precinct_id', e.target.value)}
-              className="w-full px-3 py-3 border border-[var(--border-soft)] rounded-lg text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent bg-[var(--surface-raised)]"
-            >
-              <option value="">Not sure</option>
-              {selectedVillage.precincts.map(p => (
-                <option key={p.id} value={p.id}>Precinct {p.number} ({p.alpha_range})</option>
-              ))}
-            </select>
-          </div>
-        )}
 
         {/* Checkboxes */}
         <div className="space-y-3 py-2">

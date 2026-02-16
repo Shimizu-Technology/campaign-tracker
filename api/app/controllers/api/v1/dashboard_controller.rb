@@ -26,7 +26,7 @@ module Api
 
         campaign = Campaign.active.first
         Rails.logger.info("[Dashboard] user=#{current_user&.id} role=#{current_user&.role} campaign=#{campaign&.id}")
-        villages_base = Village.order(:name).select(:id, :name, :region, :registered_voters, :precinct_count).to_a
+        villages_base = Village.includes(:precincts).order(:name).to_a
         village_ids = villages_base.map(&:id)
         supporter_counts = Supporter.active.where(village_id: village_ids).group(:village_id).count
         today_counts = Supporter.active.today.where(village_id: village_ids).group(:village_id).count

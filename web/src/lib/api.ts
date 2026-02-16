@@ -27,8 +27,6 @@ export const getSession = () => api.get('/session').then(r => r.data);
 // Villages
 export const getVillages = () => api.get('/villages').then(r => r.data);
 export const getVillage = (id: number) => api.get(`/villages/${id}`).then(r => r.data);
-export const updateVillage = (id: number, data: JsonRecord) =>
-  api.patch(`/villages/${id}`, { village: data }).then(r => r.data);
 export const getQuotas = () => api.get('/quotas').then(r => r.data);
 export const updateVillageQuota = (villageId: number, targetCount: number, changeNote?: string) =>
   api.patch(`/quotas/${villageId}`, { quota: { target_count: targetCount, change_note: changeNote } }).then(r => r.data);

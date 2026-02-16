@@ -145,7 +145,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "index can filter by precinct and unassigned precinct" do
-    precinct = Precinct.create!(number: "SP-3", village: @village, registered_voters: 100)
+    precinct = Precinct.create!(number: "SP-3", village: @village, alpha_range: "A-Z", registered_voters: 100)
     assigned = Supporter.create!(
       first_name: "Assigned", last_name: "Supporter", print_name: "Assigned Supporter",
       contact_number: "6715557002",
@@ -154,14 +154,18 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
       source: "staff_entry",
       status: "active"
     )
+    # Create a village with no precincts so auto-assign leaves precinct_id nil
+    no_precinct_village = Village.create!(name: "No Precinct Village", region: "Test")
     unassigned = Supporter.create!(
       first_name: "Unassigned", last_name: "Supporter", print_name: "Unassigned Supporter",
       contact_number: "6715557003",
-      village: @village,
-      precinct: nil,
+      village: no_precinct_village,
       source: "staff_entry",
       status: "active"
     )
+    # Move to target village without triggering callback
+    unassigned.update_column(:village_id, @village.id)
+    unassigned.update_column(:precinct_id, nil)
 
     get "/api/v1/supporters",
       params: { village_id: @village.id, precinct_id: precinct.id },
@@ -241,7 +245,8 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "update creates audit log entry" do
-    precinct = Precinct.create!(number: "SP-4", village: @village, registered_voters: 100)
+    precinct_a = Precinct.create!(number: "SP-4A", village: @village, alpha_range: "A-L", registered_voters: 50)
+    precinct_b = Precinct.create!(number: "SP-4B", village: @village, alpha_range: "M-Z", registered_voters: 50)
     supporter = Supporter.create!(
       first_name: "Audit", last_name: "Supporter", print_name: "Audit Supporter",
       contact_number: "6715559001",
@@ -249,10 +254,14 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
       source: "staff_entry",
       status: "active"
     )
+    # Supporter's last name "Supporter" → auto-assigned to SP-4B (M-Z range)
+    # Update to the other precinct to create a real change
+    target_precinct = supporter.precinct_id == precinct_a.id ? precinct_b : precinct_a
+    original_precinct_id = supporter.precinct_id
 
     assert_difference -> { AuditLog.count }, 1 do
       patch "/api/v1/supporters/#{supporter.id}",
-        params: { supporter: { precinct_id: precinct.id } },
+        params: { supporter: { precinct_id: target_precinct.id } },
         headers: auth_headers(@user)
     end
 
@@ -260,7 +269,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     log = AuditLog.order(created_at: :desc).first
     assert_equal "updated", log.action
     assert_equal @user.id, log.actor_user_id
-    assert_equal({ "from" => nil, "to" => precinct.id }, log.changed_data["precinct_id"])
+    assert_equal({ "from" => original_precinct_id, "to" => target_precinct.id }, log.changed_data["precinct_id"])
   end
 
   test "update is forbidden for non editor roles" do

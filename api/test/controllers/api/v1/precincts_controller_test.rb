@@ -4,9 +4,7 @@ class Api::V1::PrecinctsControllerTest < ActionDispatch::IntegrationTest
   def setup
     @village = Village.create!(
       name: "Tamuning",
-      region: "Central",
-      registered_voters: 1200,
-      precinct_count: 1
+      region: "Central"
     )
     @precinct = Precinct.create!(
       village: @village,

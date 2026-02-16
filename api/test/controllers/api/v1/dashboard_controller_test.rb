@@ -15,8 +15,8 @@ class Api::V1::DashboardControllerTest < ActionDispatch::IntegrationTest
       status: "active"
     )
 
-    @village = Village.create!(name: "Dashboard Village", registered_voters: 1000, precinct_count: 1, region: "Central")
-    Precinct.create!(number: "D1", village: @village, registered_voters: 1000)
+    @village = Village.create!(name: "Dashboard Village", region: "Central")
+    Precinct.create!(number: "D1", village: @village)
     Quota.create!(village: @village, campaign: @campaign, period: "quarterly", target_count: 100, target_date: Date.current)
 
     Supporter.create!(

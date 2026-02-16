@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_16_023500) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_17_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -479,9 +479,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_16_023500) do
     t.bigint "district_id"
     t.string "name"
     t.integer "population"
-    t.integer "precinct_count"
     t.string "region"
-    t.integer "registered_voters"
     t.datetime "updated_at", null: false
     t.index ["district_id"], name: "index_villages_on_district_id"
     t.index ["name"], name: "index_villages_on_name", unique: true

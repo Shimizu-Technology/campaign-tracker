@@ -2,8 +2,8 @@ require "test_helper"
 
 class DuplicateDetectorTest < ActiveSupport::TestCase
   setup do
-    @village1 = Village.first || Village.create!(name: "Test Village", region: "Central", registered_voters: 100)
-    @village2 = Village.second || Village.create!(name: "Test Village 2", region: "South", registered_voters: 100)
+    @village1 = Village.first || Village.create!(name: "Test Village", region: "Central")
+    @village2 = Village.second || Village.create!(name: "Test Village 2", region: "South")
     @base_attrs = { status: "active", verification_status: "unverified" }
   end
 
