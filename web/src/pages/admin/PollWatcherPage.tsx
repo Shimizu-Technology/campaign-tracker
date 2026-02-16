@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createStrikeListContactAttempt, getPollWatcher, getPollWatcherStrikeList, submitPollReport, updateStrikeListTurnout } from '../../lib/api';
 import { useCampaignUpdates } from '../../hooks/useCampaignUpdates';
-import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Eye, Send, CheckCircle, Clock, AlertTriangle, MapPin, BarChart3, Timer, Lock, Search, PhoneCall, UserCheck } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Eye, Send, CheckCircle, Clock, AlertTriangle, MapPin, BarChart3, Timer, Lock, Search, PhoneCall, UserCheck } from 'lucide-react';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 
 interface PrecinctItem {
@@ -72,23 +72,23 @@ const TURNOUT_OPTIONS = [
 ] as const;
 
 function turnoutColor(pct: number | null) {
-  if (pct === null) return 'text-gray-400';
+  if (pct === null) return 'text-[var(--text-muted)]';
   if (pct >= 60) return 'text-green-600';
   if (pct >= 40) return 'text-yellow-600';
   return 'text-red-600';
 }
 
 function turnoutBg(pct: number | null) {
-  if (pct === null) return 'bg-gray-100';
+  if (pct === null) return 'bg-[var(--surface-overlay)]';
   if (pct >= 60) return 'bg-green-500';
   if (pct >= 40) return 'bg-yellow-500';
   return 'bg-red-500';
 }
 
 function turnoutStatusBadgeClasses(status: StrikeListSupporter['turnout_status']) {
-  if (status === 'voted') return 'bg-green-100 text-green-700 border-green-200';
-  if (status === 'not_yet_voted') return 'bg-yellow-100 text-yellow-700 border-yellow-200';
-  return 'bg-gray-100 text-gray-600 border-gray-200';
+  if (status === 'voted') return 'bg-green-100 text-green-600 border-green-200';
+  if (status === 'not_yet_voted') return 'bg-yellow-100 text-yellow-700 border-yellow-500/30';
+  return 'bg-[var(--surface-overlay)] text-[var(--text-secondary)] border-[var(--border-soft)]';
 }
 
 export default function PollWatcherPage() {
@@ -203,20 +203,20 @@ export default function PollWatcherPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-400 text-lg">Loading precincts...</div>
+      <div className="flex items-center justify-center py-20">
+        <div className="text-[var(--text-muted)] text-sm font-medium">Loading precincts...</div>
       </div>
     );
   }
 
   if (isError || !data) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="flex items-center justify-center py-20">
         <div className="text-center p-8">
-          <AlertTriangle className="w-12 h-12 text-[#1B3A6B] mx-auto mb-4 opacity-50" />
-          <h2 className="text-xl font-bold text-gray-700 mb-2">Can't connect to server</h2>
-          <p className="text-gray-500 mb-4">Check your connection and try again.</p>
-          <button onClick={() => window.location.reload()} className="bg-[#1B3A6B] text-white px-4 py-2 rounded-lg hover:bg-[#152e55]">
+          <AlertTriangle className="w-12 h-12 text-neutral-300 mx-auto mb-4" />
+          <h2 className="text-xl font-bold text-neutral-800 mb-2">Can&apos;t connect to server</h2>
+          <p className="text-neutral-500 mb-4 text-sm">Check your connection and try again.</p>
+          <button onClick={() => window.location.reload()} className="bg-[var(--campaign-blue)] hover:opacity-90 text-white px-5 py-2.5 rounded-xl font-medium transition-all">
             Retry
           </button>
         </div>
@@ -259,24 +259,21 @@ export default function PollWatcherPage() {
   const visiblePrecinctCount = filteredVillages.reduce((sum, village) => sum + village.precincts.length, 0);
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb]">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       {/* Header */}
-      <header className="bg-[#1B3A6B] text-white py-3 px-4">
-        <div className="max-w-2xl mx-auto">
-          <Link to="/admin" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-2">
-            <ArrowLeft className="w-4 h-4" /> Dashboard
-          </Link>
-          <div className="flex items-center gap-3">
-            <Eye className="w-6 h-6 text-blue-200" />
-            <div>
-              <h1 className="text-xl font-bold tracking-tight">Poll Watcher</h1>
-              <p className="text-blue-200 text-xs">Election Day Real-Time Reporting</p>
-            </div>
+      <div>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
+            <Eye className="w-5 h-5 text-green-600" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900 tracking-tight">Poll Watcher</h1>
+            <p className="text-gray-500 text-xs">Election Day Real-Time Reporting</p>
           </div>
         </div>
-      </header>
+      </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-4">
+      <div className="space-y-4">
         {/* Success Message */}
         {successMsg && (
           <div className="bg-green-50 border border-green-200 text-green-700 rounded-2xl p-3 mb-4 flex items-center gap-2">
@@ -288,18 +285,18 @@ export default function PollWatcherPage() {
         {/* Stats Bar */}
         <div className="grid grid-cols-3 gap-3 mb-4">
           <div className="app-card p-3 text-center">
-            <div className="text-2xl font-bold text-gray-900">{stats.reporting_precincts}/{stats.total_precincts}</div>
-            <div className="text-xs text-gray-500">Reporting</div>
+            <div className="text-2xl font-bold text-[var(--text-primary)]">{stats.reporting_precincts}/{stats.total_precincts}</div>
+            <div className="text-xs text-[var(--text-secondary)]">Reporting</div>
           </div>
           <div className="app-card p-3 text-center">
-            <div className="text-2xl font-bold text-gray-900">{stats.total_voters_reported.toLocaleString()}</div>
-            <div className="text-xs text-gray-500">Voters Counted</div>
+            <div className="text-2xl font-bold text-[var(--text-primary)]">{stats.total_voters_reported.toLocaleString()}</div>
+            <div className="text-xs text-[var(--text-secondary)]">Voters Counted</div>
           </div>
           <div className="app-card p-3 text-center">
             <div className={`text-2xl font-bold ${turnoutColor(stats.overall_turnout_pct)}`}>
               {stats.overall_turnout_pct || 0}%
             </div>
-            <div className="text-xs text-gray-500">Turnout</div>
+            <div className="text-xs text-[var(--text-secondary)]">Turnout</div>
           </div>
         </div>
 
@@ -309,11 +306,11 @@ export default function PollWatcherPage() {
             <form onSubmit={handleSubmit} className="app-card p-4">
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <h3 className="font-bold text-gray-900">Precinct {selectedPrecinct.number}</h3>
-                  <p className="text-sm text-gray-500">{selectedPrecinct.polling_site || 'No polling site listed'}</p>
-                  <p className="text-xs text-gray-400">{selectedPrecinct.registered_voters?.toLocaleString()} registered voters</p>
+                  <h3 className="font-bold text-[var(--text-primary)]">Precinct {selectedPrecinct.number}</h3>
+                  <p className="text-sm text-[var(--text-secondary)]">{selectedPrecinct.polling_site || 'No polling site listed'}</p>
+                  <p className="text-xs text-[var(--text-muted)]">{selectedPrecinct.registered_voters?.toLocaleString()} registered voters</p>
                 </div>
-                <button type="button" onClick={() => setSelectedPrecinct(null)} className="text-gray-400 hover:text-gray-600 text-sm">
+                <button type="button" onClick={() => setSelectedPrecinct(null)} className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] text-sm">
                   Cancel
                 </button>
               </div>
@@ -327,7 +324,7 @@ export default function PollWatcherPage() {
                     className={`p-2 min-h-[44px] rounded-xl border text-sm font-medium text-left flex items-center gap-2 ${
                       reportType === value
                         ? 'border-[#1B3A6B] bg-blue-50 text-[#1B3A6B]'
-                        : 'border-gray-200 text-gray-600 hover:bg-gray-50'
+                        : 'border-[var(--border-soft)] text-[var(--text-secondary)] hover:bg-[var(--surface-bg)]'
                     }`}
                   >
                     <Icon className="w-4 h-4" /> {label}
@@ -336,7 +333,7 @@ export default function PollWatcherPage() {
               </div>
 
               <div className="mb-3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">
                   Voters who have voted so far
                 </label>
                 <input
@@ -344,7 +341,7 @@ export default function PollWatcherPage() {
                   value={voterCount}
                   onChange={e => setVoterCount(e.target.value)}
                   placeholder="Enter count"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B]"
+                  className="w-full px-4 py-3 border border-[var(--border-soft)] rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B]"
                   min="0"
                   autoFocus
                   required
@@ -352,12 +349,12 @@ export default function PollWatcherPage() {
               </div>
 
               <div className="mb-3">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notes (optional)</label>
+                <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Notes (optional)</label>
                 <textarea
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
                   placeholder="Any issues, observations..."
-                  className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm focus:ring-2 focus:ring-[#1B3A6B]"
+                  className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl text-sm focus:ring-2 focus:ring-[#1B3A6B]"
                   rows={2}
                 />
               </div>
@@ -374,16 +371,16 @@ export default function PollWatcherPage() {
 
             <div className="app-card p-4">
               <div className="flex items-center justify-between mb-3 gap-2">
-                <h3 className="font-bold text-gray-900">Supporter Strike List</h3>
-                <span className="text-xs text-gray-500">
+                <h3 className="font-bold text-[var(--text-primary)]">Supporter Strike List</h3>
+                <span className="text-xs text-[var(--text-secondary)]">
                   {strikeListData?.supporters.length || 0} supporters
                 </span>
               </div>
-              <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 mb-3">
+              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 mb-3">
                 {strikeListData?.compliance_note || 'Campaign operations tracking only; not official election records.'}
               </p>
               {strikeNotice && (
-                <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-lg px-2.5 py-2 mb-3">
+                <p className="text-xs text-green-600 bg-green-50 border border-green-200 rounded-lg px-2.5 py-2 mb-3">
                   {strikeNotice}
                 </p>
               )}
@@ -394,12 +391,12 @@ export default function PollWatcherPage() {
                   value={strikeSearch}
                   onChange={(e) => setStrikeSearch(e.target.value)}
                   placeholder="Search supporter name/phone..."
-                  className="md:col-span-2 w-full px-3 py-2 border border-gray-300 rounded-xl text-sm min-h-[44px]"
+                  className="md:col-span-2 w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl text-sm min-h-[44px]"
                 />
                 <select
                   value={strikeStatusFilter}
                   onChange={(e) => setStrikeStatusFilter(e.target.value as 'not_yet_voted' | 'voted' | 'unknown' | '')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-xl text-sm bg-white min-h-[44px]"
+                  className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl text-sm bg-[var(--surface-raised)] min-h-[44px]"
                 >
                   <option value="">All turnout states</option>
                   <option value="not_yet_voted">Not yet voted</option>
@@ -409,15 +406,15 @@ export default function PollWatcherPage() {
               </div>
 
               {strikeListLoading ? (
-                <div className="text-sm text-gray-500 py-4">Loading strike list...</div>
+                <div className="text-sm text-[var(--text-secondary)] py-4">Loading strike list...</div>
               ) : (
                 <div className="space-y-2">
                   {(strikeListData?.supporters || []).map((supporter) => (
-                    <div key={supporter.id} className="border border-gray-200 rounded-xl p-3 bg-white">
+                    <div key={supporter.id} className="border border-[var(--border-soft)] rounded-xl p-3 bg-[var(--surface-raised)]">
                       <div className="flex items-center justify-between gap-2">
                         <div>
-                          <p className="font-medium text-gray-900">{supporter.print_name}</p>
-                          <p className="text-xs text-gray-500">{supporter.contact_number}</p>
+                          <p className="font-medium text-[var(--text-primary)]">{supporter.print_name}</p>
+                          <p className="text-xs text-[var(--text-secondary)]">{supporter.contact_number}</p>
                         </div>
                         <span className={`text-xs border rounded-full px-2 py-1 ${turnoutStatusBadgeClasses(supporter.turnout_status)}`}>
                           {supporter.turnout_status.replaceAll('_', ' ')}
@@ -433,7 +430,7 @@ export default function PollWatcherPage() {
                             className={`min-h-[44px] rounded-xl border text-xs font-semibold ${
                               supporter.turnout_status === option.value
                                 ? 'border-[#1B3A6B] bg-blue-50 text-[#1B3A6B]'
-                                : 'border-gray-200 text-gray-600'
+                                : 'border-[var(--border-soft)] text-[var(--text-secondary)]'
                             }`}
                             disabled={turnoutMutation.isPending}
                           >
@@ -446,7 +443,7 @@ export default function PollWatcherPage() {
                         <button
                           type="button"
                           onClick={() => contactAttemptMutation.mutate({ supporterId: supporter.id, outcome: 'attempted' })}
-                          className="min-h-[44px] rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 flex items-center justify-center gap-1"
+                          className="min-h-[44px] rounded-xl border border-[var(--border-soft)] text-xs font-semibold text-[var(--text-primary)] flex items-center justify-center gap-1"
                           disabled={contactAttemptMutation.isPending}
                         >
                           <PhoneCall className="w-3.5 h-3.5" /> Call Attempted
@@ -454,7 +451,7 @@ export default function PollWatcherPage() {
                         <button
                           type="button"
                           onClick={() => contactAttemptMutation.mutate({ supporterId: supporter.id, outcome: 'reached' })}
-                          className="min-h-[44px] rounded-xl border border-gray-200 text-xs font-semibold text-gray-700 flex items-center justify-center gap-1"
+                          className="min-h-[44px] rounded-xl border border-[var(--border-soft)] text-xs font-semibold text-[var(--text-primary)] flex items-center justify-center gap-1"
                           disabled={contactAttemptMutation.isPending}
                         >
                           <UserCheck className="w-3.5 h-3.5" /> Reached
@@ -466,18 +463,18 @@ export default function PollWatcherPage() {
                         value={turnoutNoteBySupporter[supporter.id] || ''}
                         onChange={(e) => setTurnoutNoteBySupporter((prev) => ({ ...prev, [supporter.id]: e.target.value }))}
                         placeholder="Optional note for turnout/contact update"
-                        className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-xl text-xs min-h-[44px]"
+                        className="mt-2 w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl text-xs min-h-[44px]"
                       />
 
                       {supporter.latest_contact_attempt && (
-                        <p className="text-[11px] text-gray-500 mt-1.5">
+                        <p className="text-[11px] text-[var(--text-secondary)] mt-1.5">
                           Last contact: {supporter.latest_contact_attempt.outcome} via {supporter.latest_contact_attempt.channel}
                         </p>
                       )}
                     </div>
                   ))}
                   {!strikeListLoading && (strikeListData?.supporters || []).length === 0 && (
-                    <div className="text-sm text-gray-400 py-4">No supporters match current strike-list filters.</div>
+                    <div className="text-sm text-[var(--text-muted)] py-4">No supporters match current strike-list filters.</div>
                   )}
                 </div>
               )}
@@ -492,19 +489,19 @@ export default function PollWatcherPage() {
 
         <div className="app-card p-3 mb-4 grid grid-cols-1 md:grid-cols-5 gap-3">
           <div className="relative md:col-span-2">
-            <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+            <Search className="w-4 h-4 absolute left-3 top-3 text-[var(--text-muted)]" />
             <input
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Search precinct #, site, alpha..."
-              className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl text-sm min-h-[44px]"
+              className="w-full pl-9 pr-3 py-2 border border-[var(--border-soft)] rounded-xl text-sm min-h-[44px]"
             />
           </div>
           <select
             value={filterVillage}
             onChange={e => setFilterVillage(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-xl text-sm bg-white min-h-[44px]"
+            className="px-3 py-2 border border-[var(--border-soft)] rounded-xl text-sm bg-[var(--surface-raised)] min-h-[44px]"
           >
             <option value="">All Villages ({stats.total_precincts} precincts)</option>
             {villages.map((v) => (
@@ -516,7 +513,7 @@ export default function PollWatcherPage() {
           <select
             value={reportingFilter}
             onChange={(e) => setReportingFilter(e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-xl text-sm bg-white min-h-[44px]"
+            className="px-3 py-2 border border-[var(--border-soft)] rounded-xl text-sm bg-[var(--surface-raised)] min-h-[44px]"
           >
             <option value="">All statuses</option>
             <option value="reporting">Reporting only</option>
@@ -529,7 +526,7 @@ export default function PollWatcherPage() {
               setSortBy(field);
               setSortDir(dir);
             }}
-            className="px-3 py-2 border border-gray-300 rounded-xl text-sm bg-white min-h-[44px]"
+            className="px-3 py-2 border border-[var(--border-soft)] rounded-xl text-sm bg-[var(--surface-raised)] min-h-[44px]"
           >
             <option value="precinct_number:asc">Precinct number A-Z</option>
             <option value="precinct_number:desc">Precinct number Z-A</option>
@@ -539,7 +536,7 @@ export default function PollWatcherPage() {
             <option value="last_voter_count:asc">Least voters counted</option>
           </select>
         </div>
-        <p className="text-xs text-gray-500 mb-3">
+        <p className="text-xs text-[var(--text-secondary)] mb-3">
           Showing {visiblePrecinctCount} of {stats.total_precincts} precincts
         </p>
 
@@ -547,8 +544,8 @@ export default function PollWatcherPage() {
         {filteredVillages.map((village) => (
           <div key={village.id} className="mb-4">
             <div className="flex items-center justify-between mb-2">
-              <h3 className="font-semibold text-gray-700">{village.name}</h3>
-              <span className="text-xs text-gray-400">
+              <h3 className="font-semibold text-[var(--text-primary)]">{village.name}</h3>
+              <span className="text-xs text-[var(--text-muted)]">
                 {village.reporting_count}/{village.total_precincts} reporting
               </span>
             </div>
@@ -562,7 +559,7 @@ export default function PollWatcherPage() {
                       ? 'border-[#1B3A6B] bg-blue-50 ring-2 ring-[#1B3A6B]/20'
                       : p.reporting
                         ? 'border-green-200 bg-green-50 hover:shadow-sm'
-                        : 'border-gray-200 bg-white hover:shadow-sm'
+                        : 'border-[var(--border-soft)] bg-[var(--surface-raised)] hover:shadow-sm'
                   }`}
                 >
                   <div className="flex items-center justify-between">
@@ -570,11 +567,11 @@ export default function PollWatcherPage() {
                       {p.reporting ? (
                         <CheckCircle className="w-4 h-4 text-green-500" />
                       ) : (
-                        <Clock className="w-4 h-4 text-gray-300" />
+                        <Clock className="w-4 h-4 text-[var(--text-muted)]" />
                       )}
-                      <span className="font-medium text-gray-900">Precinct {p.number}</span>
+                      <span className="font-medium text-[var(--text-primary)]">Precinct {p.number}</span>
                       {p.alpha_range && (
-                        <span className="text-xs text-gray-400">({p.alpha_range})</span>
+                        <span className="text-xs text-[var(--text-muted)]">({p.alpha_range})</span>
                       )}
                     </div>
                     {p.reporting ? (
@@ -582,24 +579,24 @@ export default function PollWatcherPage() {
                         <span className={`font-bold ${turnoutColor(p.turnout_pct)}`}>
                           {p.turnout_pct}%
                         </span>
-                        <span className="text-xs text-gray-400 ml-1">
+                        <span className="text-xs text-[var(--text-muted)] ml-1">
                           ({p.last_voter_count?.toLocaleString()})
                         </span>
                       </div>
                     ) : (
-                      <span className="text-xs text-gray-400">No report</span>
+                      <span className="text-xs text-[var(--text-muted)]">No report</span>
                     )}
                   </div>
                   {p.reporting && (
                     <div className="mt-1.5">
-                      <div className="w-full bg-gray-200 rounded-full h-1.5">
+                      <div className="w-full bg-[var(--surface-overlay)] rounded-full h-1.5">
                         <div
                           className={`h-1.5 rounded-full ${turnoutBg(p.turnout_pct)}`}
                           style={{ width: `${Math.min(p.turnout_pct || 0, 100)}%` }}
                         />
                       </div>
                       {p.last_notes && (
-                        <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                        <p className="text-xs text-[var(--text-secondary)] mt-1 flex items-center gap-1">
                           <AlertTriangle className="w-3 h-3" /> {p.last_notes}
                         </p>
                       )}
@@ -611,7 +608,7 @@ export default function PollWatcherPage() {
           </div>
         ))}
         {filteredVillages.length === 0 && (
-          <div className="text-center text-gray-400 py-8">
+          <div className="text-center text-[var(--text-muted)] py-8">
             No precincts match current filters.
           </div>
         )}

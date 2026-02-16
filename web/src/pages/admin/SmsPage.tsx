@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, MessageSquare, Send, Users, Zap, DollarSign, CheckCircle, AlertTriangle, Phone, Settings } from 'lucide-react';
+import { MessageSquare, Send, Users, Zap, DollarSign, CheckCircle, AlertTriangle, Phone, Settings } from 'lucide-react';
 import { getSmsStatus, sendTestSms, sendSmsBlast, getEvents, sendEventNotify, getSmsBlasts, getSmsBlastStatus } from '../../lib/api';
 import { useSession } from '../../hooks/useSession';
 import { DEFAULT_GUAM_PHONE_PREFIX } from '../../lib/phone';
@@ -57,61 +57,59 @@ export default function SmsPage() {
 
   if (statusLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-400 text-lg">Loading SMS status...</div>
+      <div className="flex items-center justify-center py-20">
+        <div className="text-[var(--text-muted)] text-sm font-medium">Loading SMS status...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb]">
-      <header className="bg-[#1B3A6B] text-white py-4 px-4">
-        <div className="max-w-2xl mx-auto">
-          <Link to="/admin" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-2">
-            <ArrowLeft className="w-4 h-4" /> Dashboard
-          </Link>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <MessageSquare className="w-7 h-7 text-green-400" />
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight">SMS Center</h1>
-                <p className="text-blue-200 text-sm">Send texts to supporters</p>
-              </div>
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+      {/* Header */}
+      <div>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center">
+              <MessageSquare className="w-5 h-5 text-green-600" />
             </div>
-            {sessionData?.permissions?.can_manage_configuration && (
-              <Link
-                to="/admin/sms/settings"
-                className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg text-sm"
-              >
-                <Settings className="w-4 h-4" /> Settings
-              </Link>
-            )}
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900 tracking-tight">SMS Center</h1>
+              <p className="text-gray-500 text-sm">Send texts to supporters</p>
+            </div>
           </div>
+          {sessionData?.permissions?.can_manage_configuration && (
+            <Link
+              to="/admin/sms/settings"
+              className="flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg text-sm font-medium"
+            >
+              <Settings className="w-4 h-4" /> Settings
+            </Link>
+          )}
         </div>
-      </header>
+      </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-6">
+      <div className="space-y-4">
         {/* Status Banner */}
         <div className="app-card p-4 mb-6">
           <div className="grid grid-cols-3 gap-3 text-center">
             <div>
               <Zap className={`w-5 h-5 mx-auto mb-1 ${smsStatus?.configured ? 'text-green-500' : 'text-red-500'}`} />
-              <div className="text-xs text-gray-500">Status</div>
-              <div className={`text-sm font-semibold ${smsStatus?.configured ? 'text-green-700' : 'text-red-700'}`}>
+              <div className="text-xs text-[var(--text-secondary)]">Status</div>
+              <div className={`text-sm font-semibold ${smsStatus?.configured ? 'text-green-600' : 'text-red-600'}`}>
                 {smsStatus?.configured ? 'Active' : 'Not Configured'}
               </div>
             </div>
             <div>
-              <DollarSign className="w-5 h-5 mx-auto mb-1 text-gray-400" />
-              <div className="text-xs text-gray-500">Balance</div>
-              <div className="text-sm font-semibold text-gray-900">
+              <DollarSign className="w-5 h-5 mx-auto mb-1 text-[var(--text-muted)]" />
+              <div className="text-xs text-[var(--text-secondary)]">Balance</div>
+              <div className="text-sm font-semibold text-[var(--text-primary)]">
                 {smsStatus?.balance != null ? `$${smsStatus.balance.toFixed(2)}` : '—'}
               </div>
             </div>
             <div>
-              <Phone className="w-5 h-5 mx-auto mb-1 text-gray-400" />
-              <div className="text-xs text-gray-500">Sender</div>
-              <div className="text-sm font-semibold text-gray-900">{smsStatus?.sender_id || '—'}</div>
+              <Phone className="w-5 h-5 mx-auto mb-1 text-[var(--text-muted)]" />
+              <div className="text-xs text-[var(--text-secondary)]">Sender</div>
+              <div className="text-sm font-semibold text-[var(--text-primary)]">{smsStatus?.sender_id || '—'}</div>
             </div>
           </div>
         </div>
@@ -139,7 +137,7 @@ export default function SmsPage() {
               className={`flex items-center justify-center gap-2 px-4 py-2 min-h-[44px] rounded-xl text-sm font-medium transition-all ${
                 activeTab === key
                   ? 'bg-[#1B3A6B] text-white shadow-sm'
-                  : 'bg-white text-gray-600 border hover:bg-gray-50'
+                  : 'bg-[var(--surface-raised)] text-[var(--text-secondary)] border hover:bg-[var(--surface-bg)]'
               }`}
             >
               <Icon className="w-4 h-4" />
@@ -213,30 +211,30 @@ function BlastTab() {
   return (
     <div className="space-y-4">
       <div className="app-card p-4">
-        <h3 className="font-semibold text-gray-900 mb-3">Compose Blast Message</h3>
+        <h3 className="font-semibold text-[var(--text-primary)] mb-3">Compose Blast Message</h3>
 
         <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Type your message to supporters..."
-          className="w-full border border-gray-300 rounded-xl p-3 h-32 text-sm resize-none focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+          className="w-full border border-[var(--border-soft)] rounded-xl p-3 h-32 text-sm resize-none focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
           maxLength={480}
         />
-        <div className="flex justify-between text-xs text-gray-400 mt-1">
+        <div className="flex justify-between text-xs text-[var(--text-muted)] mt-1">
           <span>{charCount}/480 characters</span>
           <span>{smsSegments} SMS segment{smsSegments > 1 ? 's' : ''}</span>
         </div>
       </div>
 
       <div className="app-card p-4">
-        <h3 className="font-semibold text-gray-900 mb-3">Filters</h3>
+        <h3 className="font-semibold text-[var(--text-primary)] mb-3">Filters</h3>
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-sm min-h-[44px]">
             <input
               type="checkbox"
               checked={filters.motorcade}
               onChange={(e) => setFilters(f => ({ ...f, motorcade: e.target.checked }))}
-              className="rounded border-gray-300 text-[#1B3A6B] focus:ring-[#1B3A6B]"
+              className="rounded border-[var(--border-soft)] text-[#1B3A6B] focus:ring-[#1B3A6B]"
             />
             Motorcade available only
           </label>
@@ -245,7 +243,7 @@ function BlastTab() {
               type="checkbox"
               checked={filters.registered}
               onChange={(e) => setFilters(f => ({ ...f, registered: e.target.checked }))}
-              className="rounded border-gray-300 text-[#1B3A6B] focus:ring-[#1B3A6B]"
+              className="rounded border-[var(--border-soft)] text-[#1B3A6B] focus:ring-[#1B3A6B]"
             />
             Registered voters only
           </label>
@@ -254,7 +252,7 @@ function BlastTab() {
               type="checkbox"
               checked={filters.yardSign}
               onChange={(e) => setFilters(f => ({ ...f, yardSign: e.target.checked }))}
-              className="rounded border-gray-300 text-[#1B3A6B] focus:ring-[#1B3A6B]"
+              className="rounded border-[var(--border-soft)] text-[#1B3A6B] focus:ring-[#1B3A6B]"
             />
             Yard sign supporters only
           </label>
@@ -265,7 +263,7 @@ function BlastTab() {
         <button
           onClick={() => dryRunMutation.mutate()}
           disabled={!message.trim() || dryRunMutation.isPending || (activeBlastId !== null && !blastProgress?.finished)}
-          className="flex-1 bg-white border border-[#1B3A6B] text-[#1B3A6B] py-3 rounded-xl font-semibold text-sm hover:bg-blue-50 disabled:opacity-50 transition-all"
+          className="flex-1 bg-[var(--surface-raised)] border border-[#1B3A6B] text-[#1B3A6B] py-3 rounded-xl font-semibold text-sm hover:bg-blue-50 disabled:opacity-50 transition-all"
         >
           {dryRunMutation.isPending ? 'Counting...' : 'Preview (Dry Run)'}
         </button>
@@ -299,16 +297,16 @@ function BlastTab() {
       {blastProgress && !blastProgress.finished && (
         <div className="app-card p-4">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="font-semibold text-gray-900 text-sm">Sending in progress...</h3>
-            <span className="text-sm text-gray-500">{blastProgress.progress_pct}%</span>
+            <h3 className="font-semibold text-[var(--text-primary)] text-sm">Sending in progress...</h3>
+            <span className="text-sm text-[var(--text-secondary)]">{blastProgress.progress_pct}%</span>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-3 mb-2">
+          <div className="w-full bg-[var(--surface-overlay)] rounded-full h-3 mb-2">
             <div
               className="bg-[#1B3A6B] h-3 rounded-full transition-all duration-500"
               style={{ width: `${blastProgress.progress_pct}%` }}
             />
           </div>
-          <div className="flex justify-between text-xs text-gray-500">
+          <div className="flex justify-between text-xs text-[var(--text-secondary)]">
             <span>{blastProgress.sent_count} sent · {blastProgress.failed_count} failed</span>
             <span>{blastProgress.total_recipients} total</span>
           </div>
@@ -328,12 +326,12 @@ function BlastTab() {
               {blastProgress.status === 'completed' ? 'Blast complete!' : 'Blast failed'}
             </span>
           </div>
-          <div className="text-sm text-gray-700">
+          <div className="text-sm text-[var(--text-primary)]">
             Sent: {blastProgress.sent_count} · Failed: {blastProgress.failed_count} · Total: {blastProgress.total_recipients}
           </div>
           {blastProgress.error_log?.length > 0 && (
             <details className="mt-2">
-              <summary className="text-xs text-gray-500 cursor-pointer">View errors ({blastProgress.error_log.length})</summary>
+              <summary className="text-xs text-[var(--text-secondary)] cursor-pointer">View errors ({blastProgress.error_log.length})</summary>
               <div className="mt-1 text-xs text-red-600 space-y-0.5">
                 {blastProgress.error_log.map((err: string, i: number) => <p key={i}>{err}</p>)}
               </div>
@@ -345,26 +343,26 @@ function BlastTab() {
       {/* Recent blast history */}
       {recentBlasts.length > 0 && (
         <div className="app-card p-4">
-          <h3 className="font-semibold text-gray-900 mb-3 text-sm">Recent Blasts</h3>
+          <h3 className="font-semibold text-[var(--text-primary)] mb-3 text-sm">Recent Blasts</h3>
           <div className="space-y-2">
             {recentBlasts.slice(0, 5).map((blast: { id: number; status: string; message: string; sent_count: number; failed_count: number; total_recipients: number; started_at: string; initiated_by: string }) => (
-              <div key={blast.id} className="flex items-center justify-between text-sm border-b border-gray-100 pb-2">
+              <div key={blast.id} className="flex items-center justify-between text-sm border-b border-[var(--border-subtle)] pb-2">
                 <div className="min-w-0 flex-1">
-                  <p className="text-gray-700 truncate">{blast.message}</p>
-                  <p className="text-xs text-gray-400">
+                  <p className="text-[var(--text-primary)] truncate">{blast.message}</p>
+                  <p className="text-xs text-[var(--text-muted)]">
                     {blast.initiated_by} · {blast.started_at ? new Date(blast.started_at).toLocaleString() : 'pending'}
                   </p>
                 </div>
                 <div className="text-right ml-3 flex-shrink-0">
                   <span className={`text-xs px-2 py-0.5 rounded-full ${
-                    blast.status === 'completed' ? 'bg-green-100 text-green-700' :
+                    blast.status === 'completed' ? 'bg-green-100 text-green-600' :
                     blast.status === 'sending' ? 'bg-blue-100 text-blue-700' :
-                    blast.status === 'failed' ? 'bg-red-100 text-red-700' :
-                    'bg-gray-100 text-gray-600'
+                    blast.status === 'failed' ? 'bg-red-100 text-red-600' :
+                    'bg-[var(--surface-overlay)] text-[var(--text-secondary)]'
                   }`}>
                     {blast.status}
                   </span>
-                  <p className="text-xs text-gray-500 mt-0.5">{blast.sent_count}/{blast.total_recipients}</p>
+                  <p className="text-xs text-[var(--text-secondary)] mt-0.5">{blast.sent_count}/{blast.total_recipients}</p>
                 </div>
               </div>
             ))}
@@ -388,15 +386,15 @@ function EventTab({ events }: { events: EventItem[] }) {
   return (
     <div className="space-y-4">
       <div className="app-card p-4">
-        <h3 className="font-semibold text-gray-900 mb-3">Event Notification</h3>
+        <h3 className="font-semibold text-[var(--text-primary)] mb-3">Event Notification</h3>
 
         <div className="space-y-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Event</label>
+            <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Event</label>
             <select
               value={selectedEvent}
               onChange={(e) => setSelectedEvent(e.target.value)}
-              className="w-full border border-gray-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#1B3A6B]"
+              className="w-full border border-[var(--border-soft)] rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#1B3A6B]"
             >
               <option value="">Select an event...</option>
               {events.map((event) => (
@@ -408,7 +406,7 @@ function EventTab({ events }: { events: EventItem[] }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notification Type</label>
+            <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Notification Type</label>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               {[
                 { key: 'rsvp', label: 'RSVP Confirm' },
@@ -421,7 +419,7 @@ function EventTab({ events }: { events: EventItem[] }) {
                   className={`py-2 min-h-[44px] rounded-xl text-sm font-medium border transition-all ${
                     notifyType === key
                       ? 'bg-[#1B3A6B] text-white border-[#1B3A6B]'
-                      : 'bg-white text-gray-600 hover:bg-gray-50'
+                      : 'bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:bg-[var(--surface-bg)]'
                   }`}
                 >
                   {label}
@@ -451,7 +449,7 @@ function EventTab({ events }: { events: EventItem[] }) {
             <CheckCircle className="w-5 h-5 text-green-600" />
             <span className="text-green-800 font-medium">Notifications sent!</span>
           </div>
-          <div className="text-sm text-green-700">
+          <div className="text-sm text-green-600">
             Event: {result.event} · Sent: {result.sent} · Failed: {result.failed}
           </div>
         </div>
@@ -473,24 +471,24 @@ function TestTab() {
   return (
     <div className="space-y-4">
       <div className="app-card p-4">
-        <h3 className="font-semibold text-gray-900 mb-3">Send Test SMS</h3>
+        <h3 className="font-semibold text-[var(--text-primary)] mb-3">Send Test SMS</h3>
         <div className="space-y-3">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number</label>
+            <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Phone Number</label>
             <input
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="+1671XXXXXXX"
-              className="w-full border border-gray-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#1B3A6B]"
+              className="w-full border border-[var(--border-soft)] rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#1B3A6B]"
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+            <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Message</label>
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              className="w-full border border-gray-300 rounded-xl p-3 h-24 text-sm resize-none focus:ring-2 focus:ring-[#1B3A6B]"
+              className="w-full border border-[var(--border-soft)] rounded-xl p-3 h-24 text-sm resize-none focus:ring-2 focus:ring-[#1B3A6B]"
             />
           </div>
         </div>

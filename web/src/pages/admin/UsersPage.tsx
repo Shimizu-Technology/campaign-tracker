@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Home, Mail, Pencil, Plus, Save, Search, Users, X } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import { Mail, Pencil, Plus, Save, Search, Users, X } from 'lucide-react';
 import { createUser, getUsers, resendUserInvite, updateUser } from '../../lib/api';
 
 interface UserItem {
@@ -235,28 +235,18 @@ export default function UsersPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb]">
-      <header className="bg-[#1B3A6B] text-white py-4 px-4">
-        <div className="max-w-5xl mx-auto">
-          <div className="flex items-center justify-between mb-2">
-            <Link to="/admin" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm">
-              <ArrowLeft className="w-4 h-4" /> Back
-            </Link>
-            <Link to="/admin" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm">
-              <Home className="w-4 h-4" /> Home
-            </Link>
-          </div>
-          <h1 className="text-xl font-bold flex items-center gap-2">
-            <Users className="w-5 h-5" /> User Management
-          </h1>
-          <p className="text-blue-200 text-sm">Authorized managers can invite users and assign allowed campaign roles.</p>
-        </div>
-      </header>
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+          <Users className="w-5 h-5 text-[#1B3A6B]" /> User Management
+        </h1>
+        <p className="text-gray-500 text-sm">Authorized managers can invite users and assign allowed campaign roles.</p>
+      </div>
 
-      <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+      <div className="space-y-6">
         <section className="app-card p-4">
           <h2 className="app-section-title text-xl mb-2">Add User</h2>
-          <p className="text-xs text-gray-500 mb-3">
+          <p className="text-xs text-[var(--text-secondary)] mb-3">
             Use the same email they will use with Clerk. Name comes from Clerk profile on first login.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -265,12 +255,12 @@ export default function UsersPage() {
               value={newEmail}
               onChange={(e) => setNewEmail(e.target.value)}
               placeholder="Email"
-              className="border border-gray-300 rounded-xl px-3 py-2 md:col-span-2 min-h-[44px]"
+              className="border border-[var(--border-soft)] rounded-xl px-3 py-2 md:col-span-2 min-h-[44px]"
             />
             <select
               value={newRole}
               onChange={(e) => setNewRole(e.target.value)}
-              className="border border-gray-300 rounded-xl px-3 py-2 bg-white min-h-[44px]"
+              className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px]"
             >
               {roles.map((role) => (
                 <option key={role} value={role}>{roleLabel(role)}</option>
@@ -295,39 +285,39 @@ export default function UsersPage() {
 
         <section className="app-card overflow-hidden">
           <details>
-            <summary className="cursor-pointer px-4 py-3 border-b bg-gray-50">
+            <summary className="cursor-pointer px-4 py-3 border-b bg-[var(--surface-bg)]">
               <h2 className="app-section-title text-lg inline">Role Matrix</h2>
-              <p className="text-xs text-gray-500 mt-1">Reference guide for what each campaign role is intended to do.</p>
+              <p className="text-xs text-[var(--text-secondary)] mt-1">Reference guide for what each campaign role is intended to do.</p>
             </summary>
             <div className="md:hidden divide-y">
               {ROLE_GUIDE.map((row) => (
                 <div key={row.role} className="p-4 space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-gray-900">{roleLabel(row.role)}</span>
-                    <span className="text-xs app-chip bg-gray-100 text-gray-700">{row.level}</span>
+                    <span className="text-sm font-semibold text-[var(--text-primary)]">{roleLabel(row.role)}</span>
+                    <span className="text-xs app-chip bg-[var(--surface-overlay)] text-[var(--text-primary)]">{row.level}</span>
                   </div>
-                  <p className="text-xs text-gray-500">{row.who}</p>
-                  <p className="text-xs text-gray-700">{row.can}</p>
+                  <p className="text-xs text-[var(--text-secondary)]">{row.who}</p>
+                  <p className="text-xs text-[var(--text-primary)]">{row.can}</p>
                 </div>
               ))}
             </div>
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b bg-gray-50">
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Role</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Hierarchy</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Typical User</th>
-                    <th className="text-left px-4 py-3 font-medium text-gray-600">Primary Permissions</th>
+                  <tr className="border-b bg-[var(--surface-bg)]">
+                    <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Role</th>
+                    <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Hierarchy</th>
+                    <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Typical User</th>
+                    <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Primary Permissions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {ROLE_GUIDE.map((row) => (
                     <tr key={row.role} className="border-b">
-                      <td className="px-4 py-3 text-gray-900 font-medium">{roleLabel(row.role)}</td>
-                      <td className="px-4 py-3 text-gray-600">{row.level}</td>
-                      <td className="px-4 py-3 text-gray-600">{row.who}</td>
-                      <td className="px-4 py-3 text-gray-700">{row.can}</td>
+                      <td className="px-4 py-3 text-[var(--text-primary)] font-medium">{roleLabel(row.role)}</td>
+                      <td className="px-4 py-3 text-[var(--text-secondary)]">{row.level}</td>
+                      <td className="px-4 py-3 text-[var(--text-secondary)]">{row.who}</td>
+                      <td className="px-4 py-3 text-[var(--text-primary)]">{row.can}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -337,14 +327,14 @@ export default function UsersPage() {
         </section>
 
         <section className="app-card overflow-hidden">
-          <div className="px-4 py-3 border-b bg-gray-50 flex items-center justify-between">
+          <div className="px-4 py-3 border-b bg-[var(--surface-bg)] flex items-center justify-between">
             <h2 className="app-section-title text-lg">Existing Users</h2>
             {pendingSaves.length > 0 && (
               <span className="text-xs text-amber-700">{pendingSaves.length} unsaved role change(s)</span>
             )}
           </div>
           {isLoading ? (
-            <div className="p-4 text-sm text-gray-400">Loading users...</div>
+            <div className="p-4 text-sm text-[var(--text-muted)]">Loading users...</div>
           ) : error ? (
             <div className="p-4 text-sm text-red-600 space-y-2">
                   Could not load users. Please try again.
@@ -361,21 +351,21 @@ export default function UsersPage() {
             </div>
           ) : (
             <>
-              <div className="p-4 border-b bg-white grid grid-cols-1 md:grid-cols-4 gap-3">
+              <div className="p-4 border-b bg-[var(--surface-raised)] grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div className="relative md:col-span-2">
-                  <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+                  <Search className="w-4 h-4 absolute left-3 top-3 text-[var(--text-muted)]" />
                   <input
                     type="text"
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
                     placeholder="Search by name or email..."
-                    className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl min-h-[44px]"
+                    className="w-full pl-9 pr-3 py-2 border border-[var(--border-soft)] rounded-xl min-h-[44px]"
                   />
                 </div>
                 <select
                   value={roleFilter}
                   onChange={(e) => setRoleFilter(e.target.value)}
-                  className="border border-gray-300 rounded-xl px-3 py-2 bg-white min-h-[44px]"
+                  className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px]"
                 >
                   <option value="">All roles</option>
                   {roles.map((role) => (
@@ -389,7 +379,7 @@ export default function UsersPage() {
                     setSortBy(field);
                     setSortDir(dir);
                   }}
-                  className="border border-gray-300 rounded-xl px-3 py-2 bg-white min-h-[44px]"
+                  className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px]"
                 >
                   <option value="role:asc">Role A-Z</option>
                   <option value="role:desc">Role Z-A</option>
@@ -404,7 +394,7 @@ export default function UsersPage() {
               <div className="px-4 pt-2">
                 <p
                   aria-live="polite"
-                  className={`text-xs text-gray-400 transition-opacity duration-200 ${isFetching ? 'opacity-100' : 'opacity-0'}`}
+                  className={`text-xs text-[var(--text-muted)] transition-opacity duration-200 ${isFetching ? 'opacity-100' : 'opacity-0'}`}
                 >
                   Updating...
                 </p>
@@ -430,14 +420,14 @@ export default function UsersPage() {
                               value={draft.firstName}
                               onChange={(e) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, firstName: e.target.value } }))}
                               placeholder="First Name"
-                              className="border border-gray-300 rounded-xl px-3 py-2 min-h-[44px]"
+                              className="border border-[var(--border-soft)] rounded-xl px-3 py-2 min-h-[44px]"
                             />
                             <input
                               type="text"
                               value={draft.lastName}
                               onChange={(e) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, lastName: e.target.value } }))}
                               placeholder="Last Name"
-                              className="border border-gray-300 rounded-xl px-3 py-2 min-h-[44px]"
+                              className="border border-[var(--border-soft)] rounded-xl px-3 py-2 min-h-[44px]"
                             />
                           </div>
                           <input
@@ -445,12 +435,12 @@ export default function UsersPage() {
                             value={draft.email}
                             onChange={(e) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, email: e.target.value } }))}
                             placeholder="Email"
-                            className="border border-gray-300 rounded-xl px-3 py-2 min-h-[44px]"
+                            className="border border-[var(--border-soft)] rounded-xl px-3 py-2 min-h-[44px]"
                           />
                           <select
                             value={draft.role}
                             onChange={(e) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, role: e.target.value } }))}
-                            className="border border-gray-300 rounded-xl px-3 py-2 bg-white min-h-[44px]"
+                            className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px]"
                           >
                             {roles.map((role) => (
                               <option key={role} value={role}>{roleLabel(role)}</option>
@@ -468,7 +458,7 @@ export default function UsersPage() {
                             <button
                               type="button"
                               onClick={() => cancelEdit(user.id)}
-                              className="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center justify-center gap-1"
+                              className="bg-[var(--surface-raised)] border border-[var(--border-soft)] text-[var(--text-primary)] px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center justify-center gap-1"
                             >
                               <X className="w-3.5 h-3.5" /> Cancel
                             </button>
@@ -476,7 +466,7 @@ export default function UsersPage() {
                               type="button"
                               disabled={resendInviteMutation.isPending}
                               onClick={() => resendInviteMutation.mutate(user.id)}
-                              className="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center justify-center gap-1 disabled:opacity-50"
+                              className="bg-[var(--surface-raised)] border border-[var(--border-soft)] text-[var(--text-primary)] px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center justify-center gap-1 disabled:opacity-50"
                             >
                               <Mail className="w-3.5 h-3.5" /> Resend
                             </button>
@@ -485,9 +475,9 @@ export default function UsersPage() {
                       ) : (
                         <>
                           <div>
-                            <p className="text-sm font-medium text-gray-900">{user.name || 'Unnamed user'}</p>
-                            <p className="text-xs text-gray-500 break-all">{user.email}</p>
-                            <p className="text-xs text-gray-500 mt-1">Role: {roleLabel(user.role)}</p>
+                            <p className="text-sm font-medium text-[var(--text-primary)]">{user.name || 'Unnamed user'}</p>
+                            <p className="text-xs text-[var(--text-secondary)] break-all">{user.email}</p>
+                            <p className="text-xs text-[var(--text-secondary)] mt-1">Role: {roleLabel(user.role)}</p>
                           </div>
                           <div className="grid grid-cols-2 gap-2">
                             <button
@@ -501,7 +491,7 @@ export default function UsersPage() {
                               type="button"
                               disabled={resendInviteMutation.isPending}
                               onClick={() => resendInviteMutation.mutate(user.id)}
-                              className="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center justify-center gap-1 disabled:opacity-50"
+                              className="bg-[var(--surface-raised)] border border-[var(--border-soft)] text-[var(--text-primary)] px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center justify-center gap-1 disabled:opacity-50"
                             >
                               <Mail className="w-3.5 h-3.5" /> Resend
                             </button>
@@ -512,24 +502,24 @@ export default function UsersPage() {
                   );
                 })}
                 {filteredUsers.length === 0 && (
-                  <div className="p-4 text-sm text-gray-400">No users match current filters.</div>
+                  <div className="p-4 text-sm text-[var(--text-muted)]">No users match current filters.</div>
                 )}
               </div>
 
               <div className={`hidden md:block overflow-x-auto transition-opacity duration-200 ${isFetching ? 'opacity-80' : 'opacity-100'}`}>
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b bg-gray-50">
-                      <th className="text-left px-4 py-3 font-medium text-gray-600">
-                        <button type="button" onClick={() => handleSort('name')} className="hover:text-gray-900">Name</button>
+                    <tr className="border-b bg-[var(--surface-bg)]">
+                      <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">
+                        <button type="button" onClick={() => handleSort('name')} className="hover:text-[var(--text-primary)]">Name</button>
                       </th>
-                      <th className="text-left px-4 py-3 font-medium text-gray-600">
-                        <button type="button" onClick={() => handleSort('email')} className="hover:text-gray-900">Email</button>
+                      <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">
+                        <button type="button" onClick={() => handleSort('email')} className="hover:text-[var(--text-primary)]">Email</button>
                       </th>
-                      <th className="text-left px-4 py-3 font-medium text-gray-600">
-                        <button type="button" onClick={() => handleSort('role')} className="hover:text-gray-900">Role</button>
+                      <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">
+                        <button type="button" onClick={() => handleSort('role')} className="hover:text-[var(--text-primary)]">Role</button>
                       </th>
-                      <th className="text-left px-4 py-3 font-medium text-gray-600">Action</th>
+                      <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -544,7 +534,7 @@ export default function UsersPage() {
 
                       return (
                         <tr key={user.id} className="border-b">
-                          <td className="px-4 py-3 text-gray-800">
+                          <td className="px-4 py-3 text-[var(--text-primary)]">
                             {isEditing ? (
                               <div className="flex gap-2">
                                 <input
@@ -552,27 +542,27 @@ export default function UsersPage() {
                                   value={draft.firstName}
                                   onChange={(e) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, firstName: e.target.value } }))}
                                   placeholder="First"
-                                  className="border border-gray-300 rounded-xl px-3 py-2 bg-white min-h-[44px] w-full"
+                                  className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px] w-full"
                                 />
                                 <input
                                   type="text"
                                   value={draft.lastName}
                                   onChange={(e) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, lastName: e.target.value } }))}
                                   placeholder="Last"
-                                  className="border border-gray-300 rounded-xl px-3 py-2 bg-white min-h-[44px] w-full"
+                                  className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px] w-full"
                                 />
                               </div>
                             ) : (
                               user.name || '—'
                             )}
                           </td>
-                          <td className="px-4 py-3 text-gray-600">
+                          <td className="px-4 py-3 text-[var(--text-secondary)]">
                             {isEditing ? (
                               <input
                                 type="email"
                                 value={draft.email}
                                 onChange={(e) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, email: e.target.value } }))}
-                                className="border border-gray-300 rounded-xl px-3 py-2 bg-white min-h-[44px] w-full"
+                                className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px] w-full"
                               />
                             ) : (
                               user.email
@@ -583,7 +573,7 @@ export default function UsersPage() {
                               <select
                                 value={draft.role}
                                 onChange={(e) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, role: e.target.value } }))}
-                                className="border border-gray-300 rounded-xl px-3 py-2 bg-white min-h-[44px]"
+                                className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px]"
                               >
                                 {roles.map((role) => (
                                   <option key={role} value={role}>{roleLabel(role)}</option>
@@ -608,7 +598,7 @@ export default function UsersPage() {
                                   <button
                                     type="button"
                                     onClick={() => cancelEdit(user.id)}
-                                    className="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1"
+                                    className="bg-[var(--surface-raised)] border border-[var(--border-soft)] text-[var(--text-primary)] px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1"
                                   >
                                     <X className="w-3.5 h-3.5" /> Cancel
                                   </button>
@@ -626,7 +616,7 @@ export default function UsersPage() {
                                 type="button"
                                 disabled={resendInviteMutation.isPending}
                                 onClick={() => resendInviteMutation.mutate(user.id)}
-                                className="bg-white border border-gray-300 text-gray-700 px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1 disabled:opacity-50"
+                                className="bg-[var(--surface-raised)] border border-[var(--border-soft)] text-[var(--text-primary)] px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1 disabled:opacity-50"
                               >
                                 <Mail className="w-3.5 h-3.5" /> Resend
                               </button>
@@ -637,7 +627,7 @@ export default function UsersPage() {
                     })}
                     {filteredUsers.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="px-4 py-8 text-center text-gray-400">
+                        <td colSpan={4} className="px-4 py-8 text-center text-[var(--text-muted)]">
                           No users match current filters.
                         </td>
                       </tr>

@@ -45,28 +45,28 @@ export default function CheckInPage() {
   const attendees: Attendee[] = attendeeData?.attendees || [];
 
   if (!hasValidId) {
-    return <div className="min-h-screen flex items-center justify-center text-gray-400">Invalid event link.</div>;
+    return <div className="min-h-screen flex items-center justify-center text-[var(--text-muted)]">Invalid event link.</div>;
   }
 
-  if (!event) return <div className="min-h-screen flex items-center justify-center text-gray-400">Loading...</div>;
+  if (!event) return <div className="min-h-screen flex items-center justify-center text-[var(--text-muted)]">Loading...</div>;
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb]">
-      {/* Sticky Header */}
-      <header className="bg-[#1B3A6B] text-white py-4 px-4 sticky top-0 z-10">
-        <div className="max-w-lg mx-auto">
-          <Link to={`/admin/events/${id}`} className="flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-2">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="app-card p-4 sticky top-0 z-10">
+        <div>
+          <Link to={`/admin/events/${id}`} className="flex items-center gap-2 text-gray-500 hover:text-gray-700 text-sm mb-2">
             <ArrowLeft className="w-4 h-4" /> Event Detail
           </Link>
-            <h1 className="text-xl font-bold tracking-tight">{event.name} — Check In</h1>
+          <h1 className="text-xl font-bold text-gray-900 tracking-tight">{event.name} — Check In</h1>
 
           {/* Live Counter */}
           {stats && (
             <div className="flex items-center gap-4 mt-2">
               <div className="flex items-center gap-1">
-                <Users className="w-4 h-4 text-blue-200" />
-                <span className="text-2xl font-bold">{stats.attended}</span>
-                <span className="text-blue-200">/ {event.quota || stats.total_invited}</span>
+                <Users className="w-4 h-4 text-gray-500" />
+                <span className="text-2xl font-bold text-gray-900">{stats.attended}</span>
+                <span className="text-gray-500">/ {event.quota || stats.total_invited}</span>
               </div>
               <div className={`px-2 py-0.5 rounded text-sm font-medium ${
                 event.quota && stats.attended >= event.quota ? 'bg-green-500' : 'bg-yellow-500 text-black'
@@ -78,30 +78,30 @@ export default function CheckInPage() {
 
           {/* Search */}
           <div className="relative mt-3">
-            <Search className="w-5 h-5 absolute left-3 top-3 text-blue-300" />
+            <Search className="w-5 h-5 absolute left-3 top-3 text-blue-700" />
             <input
               type="text"
               autoFocus
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search supporter name..."
-              className="w-full pl-10 pr-4 py-3 bg-white/10 border border-white/20 rounded-xl text-white placeholder-blue-300 text-lg focus:ring-2 focus:ring-white/30 focus:border-transparent"
+              className="app-input text-lg"
             />
           </div>
         </div>
-      </header>
+      </div>
 
       {/* Attendee List */}
-      <div className="max-w-lg mx-auto px-4 py-4">
+      <div>
         {attendees.map((a) => (
           <div key={a.rsvp_id}
             className={`flex items-center justify-between p-4 mb-2 rounded-2xl border ${
-              a.attended ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'
+              a.attended ? 'bg-green-50 border-green-200' : 'bg-[var(--surface-raised)] border-[var(--border-soft)]'
             }`}
           >
             <div>
-              <div className="font-medium text-gray-800">{a.print_name}</div>
-              <div className="text-sm text-gray-500">{a.village} · {a.contact_number}</div>
+              <div className="font-medium text-[var(--text-primary)]">{a.print_name}</div>
+              <div className="text-sm text-[var(--text-secondary)]">{a.village} · {a.contact_number}</div>
             </div>
             {a.attended ? (
               <div className="flex items-center gap-1 text-green-600">
@@ -120,7 +120,7 @@ export default function CheckInPage() {
           </div>
         ))}
         {attendees.length === 0 && (
-          <div className="text-center text-gray-400 py-12">
+          <div className="text-center text-[var(--text-muted)] py-12">
             {search ? 'No matching supporters found' : 'No attendees for this event yet'}
           </div>
         )}

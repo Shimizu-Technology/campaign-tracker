@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSettings, updateSettings } from '../../lib/api';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Home, Save, RotateCcw, MessageSquare, Info } from 'lucide-react';
+import { Save, RotateCcw, MessageSquare, Info } from 'lucide-react';
 
 interface SettingsData {
   welcome_sms_template: string;
@@ -55,37 +54,26 @@ export default function SmsSettingsPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-pulse text-gray-400">Loading settings...</div>
+      <div className="flex items-center justify-center py-20">
+        <div className="animate-pulse text-[var(--text-muted)] text-sm font-medium">Loading settings...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-[#1B3A6B] text-white px-4 py-4 sticky top-0 z-30">
-        <div className="max-w-3xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Link to="/admin/sms" className="flex items-center gap-1 text-blue-200 hover:text-white text-sm">
-              <ArrowLeft className="w-4 h-4" />
-            </Link>
-            <h1 className="text-lg font-bold">SMS Settings</h1>
-          </div>
-          <Link to="/admin" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm">
-            <Home className="w-4 h-4" /> Home
-          </Link>
-        </div>
-      </header>
+    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-lg font-bold text-gray-900">SMS Settings</h1>
+      </div>
 
-      <div className="max-w-3xl mx-auto p-4 space-y-6">
+      <div className="space-y-6">
         {/* Welcome SMS Template */}
         <div className="app-card p-6 space-y-4">
           <div className="flex items-center gap-2">
             <MessageSquare className="w-5 h-5 text-[#1B3A6B]" />
-            <h2 className="text-lg font-semibold text-gray-900">Welcome SMS Template</h2>
+            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Welcome SMS Template</h2>
           </div>
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-[var(--text-secondary)]">
             This message is sent automatically when a new supporter signs up (if they opt in to text messages).
           </p>
 
@@ -117,11 +105,11 @@ export default function SmsSettingsPage() {
               onChange={(e) => setTemplate(e.target.value)}
               rows={4}
               maxLength={320}
-              className="w-full border border-gray-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent resize-none"
+              className="w-full border border-[var(--border-soft)] rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent resize-none"
               placeholder="Enter your welcome SMS template..."
             />
             <div className="flex justify-between mt-1">
-              <span className={`text-xs ${charCount > 160 ? 'text-amber-600' : 'text-gray-400'}`}>
+              <span className={`text-xs ${charCount > 160 ? 'text-amber-600' : 'text-[var(--text-muted)]'}`}>
                 {charCount}/320 chars · {smsSegments} SMS segment{smsSegments !== 1 ? 's' : ''}
               </span>
               {charCount > 160 && (
@@ -134,10 +122,10 @@ export default function SmsSettingsPage() {
 
           {/* Preview */}
           <div>
-            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Preview</p>
+            <p className="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wide mb-2">Preview</p>
             <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-              <p className="text-sm text-gray-800 whitespace-pre-wrap">{previewText || '(empty)'}</p>
-              <p className="text-xs text-gray-400 mt-2">Sample: Maria Cruz from Tamuning</p>
+              <p className="text-sm text-[var(--text-primary)] whitespace-pre-wrap">{previewText || '(empty)'}</p>
+              <p className="text-xs text-[var(--text-muted)] mt-2">Sample: Maria Cruz from Tamuning</p>
             </div>
           </div>
 
@@ -154,7 +142,7 @@ export default function SmsSettingsPage() {
             <button
               onClick={() => resetMutation.mutate()}
               disabled={resetMutation.isPending}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 disabled:opacity-50 text-sm font-medium"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--surface-overlay)] text-[var(--text-primary)] rounded-lg hover:bg-gray-200 disabled:opacity-50 text-sm font-medium"
             >
               <RotateCcw className="w-4 h-4" />
               Reset to Default
@@ -165,7 +153,7 @@ export default function SmsSettingsPage() {
           </div>
 
           {saveMutation.isError && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-700 text-sm">
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600 text-sm">
               {(saveMutation.error as Error)?.message || 'Failed to save. Please try again.'}
             </div>
           )}

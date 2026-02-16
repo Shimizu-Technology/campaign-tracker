@@ -3,6 +3,7 @@ import { BrowserRouter, Link, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AdminLayout from './components/AdminLayout';
 import { useSession } from './hooks/useSession';
+import { Shield } from 'lucide-react';
 
 // Eagerly loaded (public pages — fast initial load)
 import LandingPage from './pages/LandingPage';
@@ -35,15 +36,15 @@ const ScanFormPage = lazy(() => import('./pages/admin/ScanFormPage'));
 
 function LazyFallback() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#f5f7fb]">
-      <div className="text-gray-400 text-lg">Loading...</div>
+    <div className="min-h-screen flex items-center justify-center bg-[var(--surface-bg)]">
+      <div className="w-8 h-8 border-[3px] border-[var(--border-soft)] border-t-blue-500 rounded-full animate-spin" />
     </div>
   );
 }
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { staleTime: 30_000, refetchInterval: 30_000 },
+    queries: { staleTime: 30_000 },
   },
 });
 
@@ -72,19 +73,22 @@ function PermissionRoute({
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-400 text-lg">Loading permissions...</div>
+      <div className="flex items-center justify-center py-32">
+        <div className="w-8 h-8 border-[3px] border-[var(--border-soft)] border-t-blue-500 rounded-full animate-spin" />
       </div>
     );
   }
 
   if (!data?.permissions?.[permission]) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f5f7fb] px-4">
-        <div className="app-card p-6 max-w-md w-full text-center">
-          <h1 className="text-xl font-bold text-gray-900 mb-2">Not Authorized</h1>
-          <p className="text-sm text-gray-600 mb-4">Your role does not have access to this tool.</p>
-          <Link to="/admin" className="inline-flex items-center justify-center bg-[#1B3A6B] text-white px-4 py-2 rounded-xl min-h-[44px]">
+      <div className="flex items-center justify-center py-32 px-4">
+        <div className="app-card p-8 max-w-sm w-full text-center">
+          <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-red-500/10 flex items-center justify-center">
+            <Shield className="w-7 h-7 text-red-400" />
+          </div>
+          <h1 className="text-xl font-bold text-[var(--text-primary)] mb-2">Not Authorized</h1>
+          <p className="text-sm text-[var(--text-secondary)] mb-6 leading-relaxed">Your role does not have access to this tool.</p>
+          <Link to="/admin" className="app-btn-primary">
             Back to Dashboard
           </Link>
         </div>

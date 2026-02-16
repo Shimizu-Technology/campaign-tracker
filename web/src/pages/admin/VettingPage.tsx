@@ -102,24 +102,24 @@ export default function VettingPage() {
   const statusBadge = (status: string) => {
     switch (status) {
       case 'verified':
-        return <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700"><CheckCircle className="w-3 h-3" /> Verified</span>;
+        return <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-600"><CheckCircle className="w-3 h-3" /> Verified</span>;
       case 'flagged':
-        return <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700"><XCircle className="w-3 h-3" /> Flagged</span>;
+        return <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-600"><XCircle className="w-3 h-3" /> Flagged</span>;
       default:
-        return <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700"><AlertTriangle className="w-3 h-3" /> Unverified</span>;
+        return <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-600"><AlertTriangle className="w-3 h-3" /> Unverified</span>;
     }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+          <h1 className="text-2xl font-bold text-[var(--text-primary)] flex items-center gap-2">
             <ShieldCheck className="w-7 h-7 text-[#1B3A6B]" />
             Vetting Queue
           </h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-[var(--text-secondary)] mt-1">
             {statusFilter === 'unverified'
               ? `${supporters.length} supporter${supporters.length !== 1 ? 's' : ''} pending review`
               : `${supporters.length} supporter${supporters.length !== 1 ? 's' : ''} shown`
@@ -130,7 +130,7 @@ export default function VettingPage() {
         {/* Bulk actions */}
         {selectedIds.size > 0 && (
           <div className="flex items-center gap-2">
-            <span className="text-sm text-gray-600">{selectedIds.size} selected</span>
+            <span className="text-sm text-[var(--text-secondary)]">{selectedIds.size} selected</span>
             <button
               onClick={() => bulkMutation.mutate({ ids: Array.from(selectedIds), status: 'verified' })}
               disabled={bulkMutation.isPending}
@@ -154,11 +154,11 @@ export default function VettingPage() {
       {/* Filters */}
       <div className="app-card p-4 flex flex-wrap items-center gap-4">
         <div>
-          <label className="text-sm font-medium text-gray-700 mr-2">Status:</label>
+          <label className="text-sm font-medium text-[var(--text-primary)] mr-2">Status:</label>
           <select
             value={statusFilter}
             onChange={(e) => { setStatusFilter(e.target.value); setSelectedIds(new Set()); }}
-            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+            className="rounded-lg border border-[var(--border-soft)] px-3 py-1.5 text-sm"
           >
             <option value="unverified">Unverified</option>
             <option value="verified">Verified</option>
@@ -169,11 +169,11 @@ export default function VettingPage() {
 
         {!isChief && !isLeader && (
           <div>
-            <label className="text-sm font-medium text-gray-700 mr-2">Village:</label>
+            <label className="text-sm font-medium text-[var(--text-primary)] mr-2">Village:</label>
             <select
               value={villageFilter}
               onChange={(e) => { setVillageFilter(e.target.value); setSelectedIds(new Set()); }}
-              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+              className="rounded-lg border border-[var(--border-soft)] px-3 py-1.5 text-sm"
             >
               <option value="">All Villages</option>
               {villages.map((v: Village) => (
@@ -184,7 +184,7 @@ export default function VettingPage() {
         )}
 
         {isChief && userVillageId && (
-          <div className="text-sm text-gray-500">
+          <div className="text-sm text-[var(--text-secondary)]">
             Showing your village only
           </div>
         )}
@@ -192,14 +192,14 @@ export default function VettingPage() {
 
       {/* List */}
       {isLoading ? (
-        <div className="text-center py-12 text-gray-400">Loading...</div>
+        <div className="text-center py-12 text-[var(--text-muted)]">Loading...</div>
       ) : supporters.length === 0 ? (
         <div className="app-card p-12 text-center">
           <ClipboardList className="w-12 h-12 text-green-400 mx-auto mb-3" />
-          <h3 className="text-lg font-medium text-gray-900">
+          <h3 className="text-lg font-medium text-[var(--text-primary)]">
             {statusFilter === 'unverified' ? 'All Clear!' : 'No Results'}
           </h3>
-          <p className="text-sm text-gray-500 mt-1">
+          <p className="text-sm text-[var(--text-secondary)] mt-1">
             {statusFilter === 'unverified'
               ? 'No supporters pending review. Great job!'
               : 'No supporters match the current filters.'}
@@ -213,9 +213,9 @@ export default function VettingPage() {
               type="checkbox"
               checked={selectedIds.size === supporters.length && supporters.length > 0}
               onChange={toggleSelectAll}
-              className="w-4 h-4 rounded border-gray-300 text-[#1B3A6B] focus:ring-[#1B3A6B]"
+              className="w-4 h-4 rounded border-[var(--border-soft)] text-[#1B3A6B] focus:ring-[#1B3A6B]"
             />
-            <span className="text-sm text-gray-500">Select all</span>
+            <span className="text-sm text-[var(--text-secondary)]">Select all</span>
           </div>
 
           {supporters.map((s) => {
@@ -228,7 +228,7 @@ export default function VettingPage() {
                     type="checkbox"
                     checked={selectedIds.has(s.id)}
                     onChange={() => toggleSelect(s.id)}
-                    className="mt-1 w-4 h-4 rounded border-gray-300 text-[#1B3A6B] focus:ring-[#1B3A6B]"
+                    className="mt-1 w-4 h-4 rounded border-[var(--border-soft)] text-[#1B3A6B] focus:ring-[#1B3A6B]"
                   />
 
                   {/* Main content */}
@@ -247,7 +247,7 @@ export default function VettingPage() {
                         </span>
                       )}
                     </div>
-                    <div className="mt-1 text-sm text-gray-500">
+                    <div className="mt-1 text-sm text-[var(--text-secondary)]">
                       {s.contact_number} · {s.village_name} · {s.source?.replace('_', ' ')} · {formatDate(s.created_at)}
                     </div>
 
@@ -270,20 +270,20 @@ export default function VettingPage() {
                     {isExpanded && (
                       <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2 text-sm">
                         <div>
-                          <span className="text-gray-400">Email:</span>{' '}
-                          <span className="text-gray-700">{s.email || '—'}</span>
+                          <span className="text-[var(--text-muted)]">Email:</span>{' '}
+                          <span className="text-[var(--text-primary)]">{s.email || '—'}</span>
                         </div>
                         <div>
-                          <span className="text-gray-400">Registered Voter:</span>{' '}
-                          <span className="text-gray-700">{s.registered_voter ? 'Yes' : 'No'}</span>
+                          <span className="text-[var(--text-muted)]">Registered Voter:</span>{' '}
+                          <span className="text-[var(--text-primary)]">{s.registered_voter ? 'Yes' : 'No'}</span>
                         </div>
                         <div>
-                          <span className="text-gray-400">Opt-in Email:</span>{' '}
-                          <span className="text-gray-700">{s.opt_in_email ? 'Yes' : 'No'}</span>
+                          <span className="text-[var(--text-muted)]">Opt-in Email:</span>{' '}
+                          <span className="text-[var(--text-primary)]">{s.opt_in_email ? 'Yes' : 'No'}</span>
                         </div>
                         <div>
-                          <span className="text-gray-400">Opt-in Text:</span>{' '}
-                          <span className="text-gray-700">{s.opt_in_text ? 'Yes' : 'No'}</span>
+                          <span className="text-[var(--text-muted)]">Opt-in Text:</span>{' '}
+                          <span className="text-[var(--text-primary)]">{s.opt_in_text ? 'Yes' : 'No'}</span>
                         </div>
                       </div>
                     )}
@@ -293,7 +293,7 @@ export default function VettingPage() {
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <button
                       onClick={() => setExpandedId(isExpanded ? null : s.id)}
-                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"
+                      className="p-1.5 rounded-lg hover:bg-[var(--surface-overlay)] text-[var(--text-muted)]"
                       title="Show details"
                     >
                       {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -327,7 +327,7 @@ export default function VettingPage() {
                       <button
                         onClick={() => verifyMutation.mutate({ id: s.id, status: 'unverified' })}
                         disabled={verifyMutation.isPending}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-sm border border-gray-300 text-gray-600 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-sm border border-[var(--border-soft)] text-[var(--text-secondary)] rounded-lg hover:bg-[var(--surface-bg)] disabled:opacity-50"
                         title="Reset to unverified"
                       >
                         Reset

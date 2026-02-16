@@ -67,12 +67,12 @@ export default function DuplicatesPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Duplicate Review</h1>
-          <p className="text-sm text-gray-500 mt-1">
+          <h1 className="text-2xl font-bold text-[var(--text-primary)]">Duplicate Review</h1>
+          <p className="text-sm text-[var(--text-secondary)] mt-1">
             {totalCount} potential duplicate{totalCount !== 1 ? 's' : ''} flagged for review
           </p>
         </div>
@@ -88,11 +88,11 @@ export default function DuplicatesPage() {
 
       {/* Filter */}
       <div className="app-card p-4">
-        <label className="text-sm font-medium text-gray-700 mr-2">Filter by Village:</label>
+        <label className="text-sm font-medium text-[var(--text-primary)] mr-2">Filter by Village:</label>
         <select
           value={villageFilter}
           onChange={(e) => setVillageFilter(e.target.value)}
-          className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+          className="rounded-lg border border-[var(--border-soft)] px-3 py-1.5 text-sm"
         >
           <option value="">All Villages</option>
           {villages.map((v: Village) => (
@@ -103,12 +103,12 @@ export default function DuplicatesPage() {
 
       {/* List */}
       {isLoading ? (
-        <div className="text-center py-12 text-gray-400">Loading...</div>
+        <div className="text-center py-12 text-[var(--text-muted)]">Loading...</div>
       ) : supporters.length === 0 ? (
         <div className="app-card p-12 text-center">
           <CheckCircle className="w-12 h-12 text-green-400 mx-auto mb-3" />
-          <h3 className="text-lg font-medium text-gray-900">No Duplicates Found</h3>
-          <p className="text-sm text-gray-500 mt-1">All supporters look unique. Run a scan to check again.</p>
+          <h3 className="text-lg font-medium text-[var(--text-primary)]">No Duplicates Found</h3>
+          <p className="text-sm text-[var(--text-secondary)] mt-1">All supporters look unique. Run a scan to check again.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -128,18 +128,18 @@ export default function DuplicatesPage() {
                       Potential Duplicate
                     </span>
                   </div>
-                  <div className="mt-1 text-sm text-gray-500 space-y-0.5">
+                  <div className="mt-1 text-sm text-[var(--text-secondary)] space-y-0.5">
                     <p>{s.contact_number} · {s.village_name} · {s.source?.replace('_', ' ')} · {formatDate(s.created_at)}</p>
                     {s.duplicate_notes && (
-                      <p className="text-xs text-gray-400">{s.duplicate_notes}</p>
+                      <p className="text-xs text-[var(--text-muted)]">{s.duplicate_notes}</p>
                     )}
                     {s.duplicate_of && (
                       <p className="text-xs">
-                        <span className="text-gray-400">Possible match: </span>
+                        <span className="text-[var(--text-muted)]">Possible match: </span>
                         <Link to={`/admin/supporters/${s.duplicate_of.id}`} className="text-[#1B3A6B] hover:underline">
                           {s.duplicate_of.name}
                         </Link>
-                        <span className="text-gray-400"> ({s.duplicate_of.contact_number})</span>
+                        <span className="text-[var(--text-muted)]"> ({s.duplicate_of.contact_number})</span>
                       </p>
                     )}
                   </div>
@@ -148,7 +148,7 @@ export default function DuplicatesPage() {
                   <button
                     onClick={() => resolveMutation.mutate({ id: s.id, resolution: 'dismiss' })}
                     disabled={resolveMutation.isPending}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-700"
+                    className="inline-flex items-center gap-1 px-3 py-1.5 text-sm border border-[var(--border-soft)] rounded-lg hover:bg-[var(--surface-bg)] text-[var(--text-primary)]"
                     title="Not a duplicate"
                   >
                     <X className="w-3.5 h-3.5" />

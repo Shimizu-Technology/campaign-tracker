@@ -37,10 +37,15 @@ module Authenticatable
       clerk_id = decoded["sub"]
       token_email = extract_token_email(decoded)
       token_name = extract_token_name(decoded)
-      token_email ||= fetch_clerk_email(clerk_id)
-      token_name ||= fetch_clerk_name(clerk_id)
 
       @current_user = User.find_by(clerk_id: clerk_id)
+
+      if @current_user.nil? && (token_email.blank? || token_name.blank?)
+        profile = fetch_clerk_profile(clerk_id)
+        token_email ||= profile[:email]
+        token_name ||= profile[:name]
+      end
+
       @current_user ||= find_or_link_user_by_email(clerk_id: clerk_id, token_email: token_email, token_name: token_name)
 
       if @current_user && token_name.present? && @current_user.name != token_name
@@ -351,13 +356,13 @@ module Authenticatable
     parts.join(" ")
   end
 
-  def fetch_clerk_email(clerk_id)
-    return nil if clerk_id.blank?
+  def fetch_clerk_profile(clerk_id)
+    return {} if clerk_id.blank?
 
     secret_key = ENV["CLERK_SECRET_KEY"]
-    return nil if secret_key.blank?
+    return {} if secret_key.blank?
 
-    Rails.cache.fetch("clerk_user_email:#{clerk_id}", expires_in: 10.minutes) do
+    Rails.cache.fetch("clerk_user_profile:#{clerk_id}", expires_in: 10.minutes) do
       uri = URI("https://api.clerk.com/v1/users/#{clerk_id}")
       request = Net::HTTP::Get.new(uri)
       request["Authorization"] = "Bearer #{secret_key}"
@@ -372,47 +377,25 @@ module Authenticatable
       end
 
       payload = JSON.parse(response.body)
+      full_name = payload["full_name"]
+      name = if full_name.present?
+        full_name
+      else
+        [ payload["first_name"], payload["last_name"] ].compact.join(" ").presence
+      end
+
       primary_id = payload["primary_email_address_id"]
       email_entries = payload["email_addresses"] || []
       primary = email_entries.find { |entry| entry["id"] == primary_id } || email_entries.first
 
-      primary&.dig("email_address")&.downcase
+      {
+        email: primary&.dig("email_address")&.downcase,
+        name: name
+      }
     end
   rescue StandardError => e
     Rails.logger.warn("[Authenticatable] Clerk user lookup error: #{e.class} #{e.message}")
-    nil
-  end
-
-  def fetch_clerk_name(clerk_id)
-    return nil if clerk_id.blank?
-
-    secret_key = ENV["CLERK_SECRET_KEY"]
-    return nil if secret_key.blank?
-
-    Rails.cache.fetch("clerk_user_name:#{clerk_id}", expires_in: 10.minutes) do
-      uri = URI("https://api.clerk.com/v1/users/#{clerk_id}")
-      request = Net::HTTP::Get.new(uri)
-      request["Authorization"] = "Bearer #{secret_key}"
-      request["Content-Type"] = "application/json"
-
-      response = Net::HTTP.start(uri.host, uri.port, use_ssl: true) do |http|
-        http.request(request)
-      end
-      unless response.is_a?(Net::HTTPSuccess)
-        Rails.logger.warn("[Authenticatable] Clerk user name lookup failed status=#{response.code}")
-        next nil
-      end
-
-      payload = JSON.parse(response.body)
-      full_name = payload["full_name"]
-      next full_name if full_name.present?
-
-      parts = [ payload["first_name"], payload["last_name"] ].compact
-      parts.join(" ").presence
-    end
-  rescue StandardError => e
-    Rails.logger.warn("[Authenticatable] Clerk user name lookup error: #{e.class} #{e.message}")
-    nil
+    {}
   end
 
   def clerk_jwks(clerk_domain)

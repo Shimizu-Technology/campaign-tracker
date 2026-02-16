@@ -1,10 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { getDashboard } from '../../lib/api';
 import { Link } from 'react-router-dom';
-import { Users, MapPin, TrendingUp, CalendarPlus, ClipboardPlus, BarChart3, QrCode, Trophy, MessageSquare, Shield, ChevronDown, Target, Copy, Upload, Mail, ShieldCheck, Camera } from 'lucide-react';
-import { UserButton } from '@clerk/clerk-react';
+import { Users, MapPin, TrendingUp, BarChart3 } from 'lucide-react';
 import { useCampaignUpdates } from '../../hooks/useCampaignUpdates';
-import { useSession } from '../../hooks/useSession';
+import DashboardSkeleton from '../../components/DashboardSkeleton';
 
 interface VillageData {
   id: number;
@@ -42,43 +41,51 @@ interface DashboardPayload {
   villages?: VillageData[];
 }
 
-function statusColor(status: string) {
-  if (status === 'on_track') return 'bg-green-500';
-  if (status === 'behind') return 'bg-yellow-500';
+function statusBarColor(status: string) {
+  if (status === 'on_track') return 'bg-emerald-500';
+  if (status === 'behind') return 'bg-amber-500';
   return 'bg-red-500';
 }
 
-function statusBg(status: string) {
-  if (status === 'on_track') return 'bg-green-50 border-green-200';
-  if (status === 'behind') return 'bg-yellow-50 border-yellow-200';
-  return 'bg-red-50 border-red-200';
+function statusTextColor(status: string) {
+  if (status === 'on_track') return 'text-emerald-400';
+  if (status === 'behind') return 'text-amber-400';
+  return 'text-red-400';
+}
+
+function statusLabel(status: string) {
+  if (status === 'on_track') return 'On Track';
+  if (status === 'behind') return 'Behind';
+  return 'Critical';
 }
 
 export default function DashboardPage() {
-  useCampaignUpdates(); // Auto-invalidates dashboard queries on real-time events
-  const { data: sessionData } = useSession();
+  useCampaignUpdates();
 
   const { data, isLoading, isError } = useQuery<DashboardPayload>({
     queryKey: ['dashboard'],
     queryFn: getDashboard,
+    retry: (failureCount, error) => {
+      const status = (error as { response?: { status?: number } })?.response?.status;
+      if (status === 401 || status === 403) return false;
+      return failureCount < 1;
+    },
   });
 
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-gray-400 text-lg">Loading dashboard...</div>
-      </div>
-    );
+    return <DashboardSkeleton />;
   }
 
   if (isError || !data) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center p-8">
-          <Users className="w-12 h-12 text-[#1B3A6B] mx-auto mb-4 opacity-50" />
-          <h2 className="text-xl font-bold text-gray-700 mb-2">Can't connect to server</h2>
-          <p className="text-gray-500 mb-4">Check your connection and try again.</p>
-          <button onClick={() => window.location.reload()} className="bg-[#1B3A6B] text-white px-4 py-2 rounded-lg hover:bg-[#152e55]">
+      <div className="flex items-center justify-center py-32 px-4">
+        <div className="text-center max-w-sm">
+          <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-[var(--surface-overlay)] flex items-center justify-center">
+            <Users className="w-8 h-8 text-[var(--text-muted)]" />
+          </div>
+          <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Can&apos;t connect to server</h2>
+          <p className="text-[var(--text-secondary)] mb-6 text-sm leading-relaxed">Check your connection and try again.</p>
+          <button onClick={() => window.location.reload()} className="app-btn-primary">
             Retry
           </button>
         </div>
@@ -86,7 +93,6 @@ export default function DashboardPage() {
     );
   }
 
-  const campaign = data.campaign;
   const summarySource = data.summary || data.stats || {};
   const summary: DashboardSummary = {
     total_supporters: Number(summarySource.total_supporters || 0),
@@ -100,198 +106,122 @@ export default function DashboardPage() {
     status: (summarySource.status as DashboardSummary['status']) || 'critical',
   };
   const villages = Array.isArray(data.villages) ? data.villages : [];
-  const primaryActions = [
-    ...(sessionData?.permissions?.can_create_staff_supporters
-      ? [
-          { to: '/admin/scan', label: 'Scan Form', icon: Camera, className: 'bg-[#C41E3A] hover:bg-[#a01830]' },
-          { to: '/admin/supporters/new', label: 'New Entry', icon: ClipboardPlus, className: 'bg-white/10 hover:bg-white/20' },
-        ]
-      : []),
-    ...(sessionData?.permissions?.can_view_supporters
-      ? [ { to: '/admin/supporters', label: 'Supporters', icon: Users, className: 'bg-white/10 hover:bg-white/20' } ]
-      : []),
-    ...(sessionData?.permissions?.can_access_events
-      ? [ { to: '/admin/events', label: 'Events', icon: CalendarPlus, className: 'bg-white/10 hover:bg-white/20' } ]
-      : []),
-    ...(sessionData?.permissions?.can_access_war_room
-      ? [ { to: '/admin/war-room', label: 'War Room', icon: TrendingUp, className: 'bg-[#C41E3A]/80 hover:bg-[#C41E3A]' } ]
-      : []),
-  ] as const;
-  const secondaryActions = [
-    ...(sessionData?.permissions?.can_access_qr ? [ { to: '/admin/qr', label: 'QR', icon: QrCode } ] : []),
-    ...(sessionData?.permissions?.can_access_poll_watcher ? [ { to: '/admin/poll-watcher', label: 'Poll Watcher', icon: MapPin } ] : []),
-    ...(sessionData?.permissions?.can_access_leaderboard ? [ { to: '/admin/leaderboard', label: 'Top', icon: Trophy } ] : []),
-    ...(sessionData?.permissions?.can_send_sms ? [ { to: '/admin/sms', label: 'SMS', icon: MessageSquare } ] : []),
-    ...(sessionData?.permissions?.can_send_email ? [ { to: '/admin/email', label: 'Email', icon: Mail } ] : []),
-    ...(sessionData?.permissions?.can_manage_users ? [ { to: '/admin/users', label: 'Users', icon: Shield } ] : []),
-    ...(sessionData?.permissions?.can_manage_configuration ? [ { to: '/admin/quotas', label: 'Quotas', icon: Target } ] : []),
-    ...(sessionData?.permissions?.can_manage_configuration ? [ { to: '/admin/precincts', label: 'Precincts', icon: MapPin } ] : []),
-    ...(sessionData?.permissions?.can_edit_supporters ? [ { to: '/admin/import', label: 'Import', icon: Upload } ] : []),
-    ...(sessionData?.permissions?.can_view_supporters ? [ { to: '/admin/vetting', label: 'Vetting', icon: ShieldCheck, badge: sessionData?.counts?.pending_vetting || 0 } ] : []),
-    ...(sessionData?.permissions?.can_view_supporters ? [ { to: '/admin/duplicates', label: 'Duplicates', icon: Copy } ] : []),
-  ] as const;
+
+  const statCards = [
+    {
+      label: 'Total Supporters',
+      value: summary.total_supporters.toLocaleString(),
+      sub: `of ${summary.total_target.toLocaleString()} goal`,
+      icon: Users,
+      iconBg: 'bg-blue-50',
+      iconColor: 'text-blue-400',
+    },
+    {
+      label: 'Progress',
+      value: `${summary.total_percentage}%`,
+      sub: statusLabel(summary.status),
+      subColor: statusTextColor(summary.status),
+      icon: TrendingUp,
+      iconBg: summary.status === 'on_track' ? 'bg-green-50' : summary.status === 'behind' ? 'bg-amber-50' : 'bg-red-50',
+      iconColor: statusTextColor(summary.status),
+    },
+    {
+      label: 'Today',
+      value: String(summary.today_signups),
+      sub: `${summary.week_signups} this week`,
+      icon: BarChart3,
+      iconBg: 'bg-violet-500/10',
+      iconColor: 'text-violet-400',
+    },
+    {
+      label: 'Coverage',
+      value: String(summary.total_villages),
+      sub: `${summary.total_precincts} precincts`,
+      icon: MapPin,
+      iconBg: 'bg-teal-500/10',
+      iconColor: 'text-teal-400',
+    },
+  ];
 
   return (
-    <div className="min-h-screen bg-[#f5f7fb]">
-      {/* Header */}
-      <header className="bg-[#1B3A6B] text-white py-3 px-4 shadow-lg">
-        <div className="max-w-6xl mx-auto">
-          <div className="flex items-center justify-between mb-2 sm:mb-0">
-            <div className="min-w-0">
-              <h1 className="text-lg sm:text-xl font-bold tracking-tight truncate">{campaign?.name || 'Campaign Tracker'}</h1>
-              <p className="text-blue-200 text-sm truncate">{campaign?.candidate_names}</p>
-            </div>
-            <UserButton afterSignOutUrl="/" />
-          </div>
-          <div className="mt-3 space-y-2">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              {primaryActions.map((action) => {
-                const Icon = action.icon;
-                return (
-                  <Link
-                    key={action.to}
-                    to={action.to}
-                    className={`${action.className} px-3 py-2 min-h-[44px] rounded-xl text-sm font-medium flex items-center justify-center gap-2 shadow-sm`}
-                  >
-                    <Icon className="w-4 h-4" /> {action.label}
-                  </Link>
-                );
-              })}
-            </div>
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+      {/* Page Header */}
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">Dashboard</h1>
+        <p className="text-sm text-[var(--text-secondary)] mt-1">Island-wide campaign progress overview</p>
+      </div>
 
-            <div className="hidden md:flex flex-wrap gap-2">
-              {secondaryActions.map((action) => {
-                const Icon = action.icon;
-                const badge = 'badge' in action ? (action as { badge: number }).badge : 0;
-                return (
-                  <Link
-                    key={action.to}
-                    to={action.to}
-                    className="bg-white/10 hover:bg-white/20 px-3 py-2 min-h-[44px] rounded-xl text-xs font-medium flex items-center gap-1.5"
-                  >
-                    <Icon className="w-3.5 h-3.5" /> {action.label}
-                    {badge > 0 && (
-                      <span className="bg-[#C41E3A] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
-                        {badge}
-                      </span>
-                    )}
-                  </Link>
-                );
-              })}
-            </div>
-
-            <details className="md:hidden bg-white/10 rounded-xl">
-              <summary className="list-none cursor-pointer px-3 py-2 min-h-[44px] text-sm font-medium flex items-center justify-between">
-                More Tools
-                <ChevronDown className="w-4 h-4" />
-              </summary>
-              <div className="grid grid-cols-2 gap-2 px-2 pb-2">
-                {secondaryActions.map((action) => {
-                  const Icon = action.icon;
-                  const badge = 'badge' in action ? (action as { badge: number }).badge : 0;
-                  return (
-                    <Link
-                      key={action.to}
-                      to={action.to}
-                      className="bg-white/10 hover:bg-white/20 px-2.5 py-2 min-h-[44px] rounded-xl text-xs font-medium flex items-center justify-center gap-1.5"
-                    >
-                      <Icon className="w-3.5 h-3.5" /> {action.label}
-                      {badge > 0 && (
-                        <span className="bg-[#C41E3A] text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
-                          {badge}
-                        </span>
-                      )}
-                    </Link>
-                  );
-                })}
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {statCards.map((card) => {
+          const Icon = card.icon;
+          return (
+            <div key={card.label} className="app-card app-card-hover p-5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className={`w-9 h-9 rounded-xl ${card.iconBg} flex items-center justify-center`}>
+                  <Icon className={`w-[18px] h-[18px] ${card.iconColor}`} />
+                </div>
+                <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">{card.label}</span>
               </div>
-            </details>
-          </div>
+              <div className="text-3xl font-bold text-[var(--text-primary)] tracking-tight tabular-nums">{card.value}</div>
+              <div className={`text-sm mt-1 font-medium ${card.subColor || 'text-[var(--text-secondary)]'}`}>
+                {card.sub}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Overall Progress Bar */}
+      <div className="app-card p-5 mb-8">
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-sm font-semibold text-[var(--text-primary)]">Island-Wide Progress</span>
+          <span className="text-sm text-[var(--text-secondary)] font-medium tabular-nums">
+            {summary.total_supporters.toLocaleString()} / {summary.total_target.toLocaleString()}
+          </span>
         </div>
-      </header>
-
-      <div className="max-w-6xl mx-auto px-4 py-6">
-        {/* Summary Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          <div className="app-card p-4">
-            <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
-              <Users className="w-4 h-4" /> Total Supporters
-            </div>
-            <div className="text-3xl font-bold text-gray-900">{summary.total_supporters.toLocaleString()}</div>
-            <div className="text-sm text-gray-500">of {summary.total_target.toLocaleString()} goal</div>
-          </div>
-          <div className="app-card p-4">
-            <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
-              <TrendingUp className="w-4 h-4" /> Progress
-            </div>
-            <div className="text-3xl font-bold text-gray-900">{summary.total_percentage}%</div>
-            <div className={`text-sm ${summary.status === 'on_track' ? 'text-green-600' : summary.status === 'behind' ? 'text-yellow-600' : 'text-red-600'}`}>
-              {summary.status === 'on_track' ? 'On Track' : summary.status === 'behind' ? 'Behind' : 'Critical'}
-            </div>
-          </div>
-          <div className="app-card p-4">
-            <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
-              <BarChart3 className="w-4 h-4" /> Today
-            </div>
-            <div className="text-3xl font-bold text-gray-900">{summary.today_signups}</div>
-            <div className="text-sm text-gray-500">{summary.week_signups} this week</div>
-          </div>
-          <div className="app-card p-4">
-            <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
-              <MapPin className="w-4 h-4" /> Coverage
-            </div>
-            <div className="text-3xl font-bold text-gray-900">{summary.total_villages}</div>
-            <div className="text-sm text-gray-500">{summary.total_precincts} precincts</div>
-          </div>
+        <div className="w-full bg-[var(--surface-overlay)] rounded-full h-3 overflow-hidden">
+          <div
+            className={`h-3 rounded-full transition-all duration-700 ease-out ${statusBarColor(summary.status)}`}
+            style={{ width: `${Math.min(summary.total_percentage, 100)}%` }}
+          />
         </div>
+      </div>
 
-        {/* Overall Progress Bar */}
-        <div className="app-card p-4 mb-8">
-          <div className="flex items-center justify-between mb-2">
-            <span className="font-semibold text-gray-700">Island-Wide Progress</span>
-            <span className="text-sm text-gray-500">
-              {summary.total_supporters.toLocaleString()} / {summary.total_target.toLocaleString()}
-            </span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-4">
-            <div
-              className={`h-4 rounded-full transition-all ${statusColor(summary.status)}`}
-              style={{ width: `${Math.min(summary.total_percentage, 100)}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Village Grid */}
-        <h2 className="app-section-title text-2xl mb-4">Village Progress</h2>
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {villages.map((v: VillageData) => (
-            <Link
-              key={v.id}
-              to={`/admin/villages/${v.id}`}
-              className={`block rounded-xl shadow-sm p-4 border hover:shadow-md transition-shadow ${statusBg(v.status)}`}
-            >
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-semibold text-gray-800">{v.name}</h3>
-                <span className="text-xs text-gray-500">{v.region}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm text-gray-600 mb-2">
-                <span>{v.supporter_count} / {v.quota_target}</span>
-                <span className="font-medium">{v.quota_percentage}%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2.5">
-                <div
-                  className={`h-2.5 rounded-full transition-all ${statusColor(v.status)}`}
-                  style={{ width: `${Math.min(v.quota_percentage, 100)}%` }}
-                />
-              </div>
-              <div className="mt-2 flex justify-between text-xs text-gray-500">
-                <span>{v.registered_voters.toLocaleString()} voters</span>
-                {v.today_count > 0 && <span className="text-green-600">+{v.today_count} today</span>}
-              </div>
-            </Link>
-          ))}
-        </div>
-
+      {/* Village Grid */}
+      <div className="mb-5">
+        <h2 className="text-lg font-bold text-[var(--text-primary)] tracking-tight">Village Progress</h2>
+        <p className="text-sm text-[var(--text-secondary)] mt-0.5">{villages.length} villages across the island</p>
+      </div>
+      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {villages.map((v: VillageData) => (
+          <Link
+            key={v.id}
+            to={`/admin/villages/${v.id}`}
+            className="group block app-card app-card-hover p-4"
+          >
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-[var(--text-primary)] group-hover:text-blue-400 transition-colors text-[15px]">
+                {v.name}
+              </h3>
+              <span className="text-[11px] text-[var(--text-muted)] font-medium uppercase tracking-wider">{v.region}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm mb-2.5">
+              <span className="text-[var(--text-secondary)] font-medium tabular-nums">{v.supporter_count} / {v.quota_target}</span>
+              <span className={`font-semibold tabular-nums ${statusTextColor(v.status)}`}>{v.quota_percentage}%</span>
+            </div>
+            <div className="w-full bg-[var(--surface-overlay)] rounded-full h-2 overflow-hidden">
+              <div
+                className={`h-2 rounded-full transition-all duration-500 ${statusBarColor(v.status)}`}
+                style={{ width: `${Math.min(v.quota_percentage, 100)}%` }}
+              />
+            </div>
+            <div className="mt-2.5 flex justify-between text-[11px] text-[var(--text-muted)]">
+              <span>{v.registered_voters.toLocaleString()} registered voters</span>
+              {v.today_count > 0 && <span className="text-emerald-400 font-medium">+{v.today_count} today</span>}
+            </div>
+          </Link>
+        ))}
       </div>
     </div>
   );
