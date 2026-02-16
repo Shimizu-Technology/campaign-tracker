@@ -44,7 +44,7 @@ function LazyFallback() {
 
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { staleTime: 30_000, refetchInterval: 30_000 },
+    queries: { staleTime: 30_000 },
   },
 });
 

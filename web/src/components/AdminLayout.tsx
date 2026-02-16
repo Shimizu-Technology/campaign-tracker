@@ -1,7 +1,8 @@
 import { SignedIn, SignedOut, SignInButton, useAuth, useClerk } from '@clerk/clerk-react';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import api from '../lib/api';
+import { useQueryClient } from '@tanstack/react-query';
+import api, { getSession } from '../lib/api';
 import AdminShell from './AdminShell';
 
 function hasSufficientTokenLifetime(authHeader: string, minimumSecondsRemaining = 5): boolean {
@@ -118,6 +119,7 @@ function AuthTokenSync({ onReady }: { onReady: () => void }) {
 function AuthorizedContent({ children }: { children: React.ReactNode }) {
   const { isLoaded, isSignedIn } = useAuth();
   const { signOut } = useClerk();
+  const queryClient = useQueryClient();
   const [sessionState, setSessionState] = useState<'loading' | 'authorized' | 'unauthorized'>('loading');
 
   useEffect(() => {
@@ -125,7 +127,13 @@ function AuthorizedContent({ children }: { children: React.ReactNode }) {
 
     const checkSession = async () => {
       try {
-        await api.get('/session');
+        // Use fetchQuery so the result is cached under ['session'] —
+        // this eliminates the duplicate /session call from useSession()
+        await queryClient.fetchQuery({
+          queryKey: ['session'],
+          queryFn: getSession,
+          staleTime: 60_000,
+        });
         setSessionState('authorized');
       } catch (error) {
         const axiosError = error as { response?: { status?: number } };
@@ -139,7 +147,7 @@ function AuthorizedContent({ children }: { children: React.ReactNode }) {
     };
 
     checkSession();
-  }, [isLoaded, isSignedIn]);
+  }, [isLoaded, isSignedIn, queryClient]);
 
   if (sessionState === 'loading') {
     return (
