@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_16_013117) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_16_014500) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -512,6 +512,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_16_013117) do
   add_foreign_key "quotas", "campaigns"
   add_foreign_key "quotas", "districts"
   add_foreign_key "quotas", "villages"
+  add_foreign_key "sms_blasts", "users", column: "initiated_by_user_id"
   add_foreign_key "supporter_contact_attempts", "supporters"
   add_foreign_key "supporter_contact_attempts", "users", column: "recorded_by_user_id"
   add_foreign_key "supporters", "blocks"
