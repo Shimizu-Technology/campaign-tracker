@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_15_103456) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_16_023500) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -345,6 +345,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_15_103456) do
     t.index ["village_id"], name: "index_quotas_on_village_id"
   end
 
+  create_table "sms_blasts", force: :cascade do |t|
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.jsonb "error_log"
+    t.integer "failed_count", default: 0, null: false
+    t.jsonb "filters"
+    t.integer "initiated_by_user_id"
+    t.text "message"
+    t.integer "sent_count", default: 0, null: false
+    t.datetime "started_at"
+    t.string "status"
+    t.integer "total_recipients", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["initiated_by_user_id"], name: "index_sms_blasts_on_initiated_by_user_id"
+    t.index ["status"], name: "index_sms_blasts_on_status"
+  end
+
   create_table "supporter_contact_attempts", force: :cascade do |t|
     t.string "channel", null: false
     t.datetime "created_at", null: false
@@ -495,6 +512,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_15_103456) do
   add_foreign_key "quotas", "campaigns"
   add_foreign_key "quotas", "districts"
   add_foreign_key "quotas", "villages"
+  add_foreign_key "sms_blasts", "users", column: "initiated_by_user_id"
   add_foreign_key "supporter_contact_attempts", "supporters"
   add_foreign_key "supporter_contact_attempts", "users", column: "recorded_by_user_id"
   add_foreign_key "supporters", "blocks"
