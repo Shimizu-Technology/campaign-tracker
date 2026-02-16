@@ -92,6 +92,13 @@ export default function ScanFormPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dupeTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
 
+  // Clear debounce timer on unmount
+  useEffect(() => {
+    return () => {
+      if (dupeTimerRef.current) clearTimeout(dupeTimerRef.current);
+    };
+  }, []);
+
   // Revoke object URL on unmount only (resetForNextScan handles mid-lifecycle cleanup)
   const previewUrlRef = useRef(previewUrl);
   useEffect(() => {
