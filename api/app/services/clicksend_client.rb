@@ -167,6 +167,13 @@ class ClicksendClient
               error: success ? nil : msg["status"]
             }
           end
+
+          # If API returned fewer results than messages sent, count the gap as failures
+          unaccounted = messages.size - (sent + failed)
+          if unaccounted > 0
+            Rails.logger.warn("[ClicksendClient] #{unaccounted} messages unaccounted for in API response")
+            failed += unaccounted
+          end
         end
       else
         Rails.logger.error("[ClicksendClient] Batch HTTP #{response.code}: #{response.body}")
