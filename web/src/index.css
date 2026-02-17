@@ -217,7 +217,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 /* Safe area padding for iOS notch phones */
 @supports (padding: env(safe-area-inset-bottom)) {
   .min-h-screen {
-    min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
   }
 }
 
