@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { UserButton } from '@clerk/clerk-react';
 import { useSession } from '../hooks/useSession';
+import { useCampaignUpdates } from '../hooks/useCampaignUpdates';
+import { useRealtimeToast } from '../hooks/useRealtimeToast';
 import {
   LayoutDashboard,
   Users,
@@ -39,7 +41,14 @@ interface NavGroup {
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const { data: sessionData } = useSession();
+  const { toasts, handleEvent, dismiss } = useRealtimeToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const isWarRoomRoute = location.pathname.startsWith('/admin/war-room');
+  // Keep one global realtime subscription for admin pages so nav badges
+  // (like pending vetting) update live even when not on dashboard.
+  // Disable here on War Room route to avoid duplicate subscription,
+  // since War Room subscribes with custom toast handling.
+  useCampaignUpdates(handleEvent, !isWarRoomRoute);
 
   const permissions = sessionData?.permissions;
 
@@ -122,7 +131,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
             : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
         }`}
       >
-        <Icon className={`w-4 h-4 flex-shrink-0 ${active ? 'text-blue-200' : 'text-gray-400'}`} />
+        <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-blue-200' : 'text-gray-400'}`} />
         <span className="truncate">{item.label}</span>
         {item.badge && item.badge > 0 ? (
           <span className="ml-auto bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-tight">
@@ -168,7 +177,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           onClick={() => setSidebarOpen(false)}
           className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all duration-150"
         >
-          <ExternalLink className="w-4 h-4 flex-shrink-0 text-gray-400" />
+          <ExternalLink className="w-4 h-4 shrink-0 text-gray-400" />
           <span className="truncate">Public Site</span>
         </Link>
       </div>
@@ -220,6 +229,30 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
       {/* Main content */}
       <div className="lg:pl-[220px]">
+        {/* Real-time toast notifications for non-War Room admin pages */}
+        {!isWarRoomRoute && toasts.length > 0 && (
+          <div className="fixed top-16 left-2 right-2 sm:left-auto sm:right-4 z-50 space-y-2 max-w-sm sm:max-w-md">
+            {toasts.map(toast => (
+              <div
+                key={toast.id}
+                className={`rounded-lg p-3 pr-8 shadow-lg border text-sm animate-slide-in relative ${
+                  toast.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' :
+                  toast.type === 'warning' ? 'bg-yellow-50 border-yellow-200 text-yellow-800' :
+                  'bg-blue-50 border-blue-200 text-blue-800'
+                }`}
+              >
+                {toast.message}
+                <button
+                  onClick={() => dismiss(toast.id)}
+                  className="absolute top-2 right-2 text-gray-400 hover:text-gray-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Mobile top bar */}
         <header className="lg:hidden sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm">
           <button

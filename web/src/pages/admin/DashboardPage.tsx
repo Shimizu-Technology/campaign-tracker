@@ -2,7 +2,6 @@ import { useQuery } from '@tanstack/react-query';
 import { getDashboard } from '../../lib/api';
 import { Link } from 'react-router-dom';
 import { Users, MapPin, TrendingUp, BarChart3 } from 'lucide-react';
-import { useCampaignUpdates } from '../../hooks/useCampaignUpdates';
 import DashboardSkeleton from '../../components/DashboardSkeleton';
 
 interface VillageData {
@@ -78,8 +77,6 @@ function paceLabel(diff: number, status: string) {
 }
 
 export default function DashboardPage() {
-  useCampaignUpdates();
-
   const { data, isLoading, isError } = useQuery<DashboardPayload>({
     queryKey: ['dashboard'],
     queryFn: getDashboard,

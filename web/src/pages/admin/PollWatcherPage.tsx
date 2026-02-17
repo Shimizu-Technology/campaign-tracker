@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createStrikeListContactAttempt, getPollWatcher, getPollWatcherStrikeList, submitPollReport, updateStrikeListTurnout } from '../../lib/api';
-import { useCampaignUpdates } from '../../hooks/useCampaignUpdates';
 import { useSearchParams } from 'react-router-dom';
-import { Eye, Send, CheckCircle, Clock, AlertTriangle, MapPin, BarChart3, Timer, Lock, Search, PhoneCall, UserCheck } from 'lucide-react';
+import { Eye, Send, CheckCircle, Clock, AlertTriangle, MapPin, BarChart3, Timer, Lock, Search, PhoneCall, UserCheck, ChevronDown, ChevronUp } from 'lucide-react';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 
 interface PrecinctItem {
@@ -55,6 +54,12 @@ interface StrikeListSupporter {
 interface StrikeListData {
   compliance_note?: string;
   supporters: StrikeListSupporter[];
+  pagination?: {
+    page: number;
+    per_page: number;
+    total: number;
+    pages: number;
+  };
 }
 
 type PollWatcherSortField = 'precinct_number' | 'turnout_pct' | 'last_voter_count';
@@ -66,10 +71,12 @@ const REPORT_TYPES = [
   { value: 'closing', label: 'Polls Closing', icon: Lock },
 ];
 
-const TURNOUT_OPTIONS = [
+const TURNOUT_PRIMARY_OPTIONS = [
   { value: 'not_yet_voted', label: 'Not Yet Voted' },
   { value: 'voted', label: 'Voted' },
 ] as const;
+
+const TURNOUT_CLEAR_OPTION = { value: 'unknown', label: 'Clear turnout status' } as const;
 
 function turnoutColor(pct: number | null) {
   if (pct === null) return 'text-[var(--text-muted)]';
@@ -91,8 +98,13 @@ function turnoutStatusBadgeClasses(status: StrikeListSupporter['turnout_status']
   return 'bg-[var(--surface-overlay)] text-[var(--text-secondary)] border-[var(--border-soft)]';
 }
 
+function turnoutStatusLabel(status: StrikeListSupporter['turnout_status']) {
+  if (status === 'not_yet_voted') return 'not yet voted';
+  if (status === 'voted') return 'voted';
+  return 'not set';
+}
+
 export default function PollWatcherPage() {
-  useCampaignUpdates(); // Auto-invalidates on real-time events
   const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedPrecinct, setSelectedPrecinct] = useState<PrecinctItem | null>(null);
@@ -109,6 +121,12 @@ export default function PollWatcherPage() {
   const [strikeStatusFilter, setStrikeStatusFilter] = useState<'not_yet_voted' | 'voted' | 'unknown' | ''>('not_yet_voted');
   const [strikeNotice, setStrikeNotice] = useState('');
   const [turnoutNoteBySupporter, setTurnoutNoteBySupporter] = useState<Record<number, string>>({});
+  const [noteOpenBySupporter, setNoteOpenBySupporter] = useState<Record<number, boolean>>({});
+  const [turnoutDraftBySupporter, setTurnoutDraftBySupporter] = useState<Record<number, StrikeListSupporter['turnout_status']>>({});
+  const [activeSupporterId, setActiveSupporterId] = useState<number | null>(null);
+  const [strikePage, setStrikePage] = useState(1);
+  const [strikePerPage, setStrikePerPage] = useState(25);
+  const [reportFormOpen, setReportFormOpen] = useState(false);
   const debouncedStrikeSearch = useDebouncedValue(strikeSearch, 250);
 
   const { data, isLoading, isError } = useQuery<PollWatcherData>({
@@ -130,17 +148,19 @@ export default function PollWatcherPage() {
   });
 
   const { data: strikeListData, isLoading: strikeListLoading } = useQuery<StrikeListData>({
-    queryKey: ['poll_watcher_strike_list', selectedPrecinct?.id, strikeStatusFilter, debouncedStrikeSearch],
+    queryKey: ['poll_watcher_strike_list', selectedPrecinct?.id, strikeStatusFilter, debouncedStrikeSearch, strikePage, strikePerPage],
     queryFn: () => getPollWatcherStrikeList({
       precinct_id: selectedPrecinct?.id,
       turnout_status: strikeStatusFilter || undefined,
       search: debouncedStrikeSearch || undefined,
+      page: strikePage,
+      per_page: strikePerPage,
     }),
     enabled: Boolean(selectedPrecinct?.id),
   });
 
   const turnoutMutation = useMutation({
-    mutationFn: ({ supporterId, turnoutStatus }: { supporterId: number; turnoutStatus: 'not_yet_voted' | 'voted' }) => {
+    mutationFn: ({ supporterId, turnoutStatus }: { supporterId: number; turnoutStatus: 'not_yet_voted' | 'voted' | 'unknown' }) => {
       if (!selectedPrecinct) throw new Error('No precinct selected');
       return updateStrikeListTurnout(supporterId, {
         precinct_id: selectedPrecinct.id,
@@ -148,8 +168,13 @@ export default function PollWatcherPage() {
         note: turnoutNoteBySupporter[supporterId] || undefined,
       });
     },
-    onSuccess: (response: { message?: string }) => {
+    onSuccess: (response: { message?: string }, variables) => {
       setStrikeNotice(response?.message || 'Turnout updated');
+      setTurnoutDraftBySupporter((prev) => {
+        const next = { ...prev };
+        delete next[variables.supporterId];
+        return next;
+      });
       queryClient.invalidateQueries({ queryKey: ['poll_watcher'] });
       queryClient.invalidateQueries({ queryKey: ['poll_watcher_strike_list'] });
       setTimeout(() => setStrikeNotice(''), 3000);
@@ -189,6 +214,11 @@ export default function PollWatcherPage() {
     setStrikeSearch('');
     setStrikeStatusFilter('not_yet_voted');
     setTurnoutNoteBySupporter({});
+    setNoteOpenBySupporter({});
+    setTurnoutDraftBySupporter({});
+    setActiveSupporterId(null);
+    setStrikePage(1);
+    setReportFormOpen(false);
   };
 
   useEffect(() => {
@@ -200,6 +230,19 @@ export default function PollWatcherPage() {
     params.set('sort_dir', sortDir);
     setSearchParams(params, { replace: true });
   }, [filterVillage, search, reportingFilter, sortBy, sortDir, setSearchParams]);
+
+  const strikeSupporters = strikeListData?.supporters || [];
+
+  useEffect(() => {
+    if (strikeSupporters.length === 0) {
+      setActiveSupporterId(null);
+      return;
+    }
+    setActiveSupporterId((prev) => {
+      if (prev && strikeSupporters.some((supporter) => supporter.id === prev)) return prev;
+      return strikeSupporters[0].id;
+    });
+  }, [strikeSupporters]);
 
   if (isLoading) {
     return (
@@ -257,6 +300,122 @@ export default function PollWatcherPage() {
   }).filter((village) => village.precincts.length > 0);
 
   const visiblePrecinctCount = filteredVillages.reduce((sum, village) => sum + village.precincts.length, 0);
+  const activeSupporter = activeSupporterId
+    ? strikeSupporters.find((supporter) => supporter.id === activeSupporterId) || null
+    : null;
+
+  const renderSupporterActions = (supporter: StrikeListSupporter) => {
+    const selectedTurnoutStatus = turnoutDraftBySupporter[supporter.id] || supporter.turnout_status;
+    const hasPendingTurnoutChange = selectedTurnoutStatus !== supporter.turnout_status;
+    const noteOpen = noteOpenBySupporter[supporter.id] || Boolean(turnoutNoteBySupporter[supporter.id]);
+
+    return (
+      <>
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          {TURNOUT_PRIMARY_OPTIONS.map((option) => (
+            <button
+              key={`${supporter.id}-${option.value}`}
+              type="button"
+              onClick={() => setTurnoutDraftBySupporter((prev) => ({ ...prev, [supporter.id]: option.value }))}
+              className={`min-h-[44px] rounded-xl border text-xs font-semibold ${
+                selectedTurnoutStatus === option.value
+                  ? 'border-[#1B3A6B] bg-blue-50 text-[#1B3A6B]'
+                  : 'border-[var(--border-soft)] text-[var(--text-secondary)]'
+              }`}
+              disabled={turnoutMutation.isPending || contactAttemptMutation.isPending}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => setTurnoutDraftBySupporter((prev) => ({ ...prev, [supporter.id]: TURNOUT_CLEAR_OPTION.value }))}
+            className={`min-h-[40px] rounded-xl border px-3 text-xs font-semibold ${
+              selectedTurnoutStatus === TURNOUT_CLEAR_OPTION.value
+                ? 'border-amber-300 bg-amber-50 text-amber-800'
+                : 'border-[var(--border-soft)] text-[var(--text-secondary)]'
+            }`}
+            disabled={turnoutMutation.isPending || contactAttemptMutation.isPending}
+          >
+            {TURNOUT_CLEAR_OPTION.label}
+          </button>
+        </div>
+
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => turnoutMutation.mutate({ supporterId: supporter.id, turnoutStatus: selectedTurnoutStatus })}
+            disabled={!hasPendingTurnoutChange || turnoutMutation.isPending}
+            className="min-h-[40px] rounded-xl bg-[#1B3A6B] text-white text-xs font-semibold px-3 disabled:opacity-40"
+          >
+            Save Turnout
+          </button>
+          <button
+            type="button"
+            onClick={() => setTurnoutDraftBySupporter((prev) => {
+              const next = { ...prev };
+              delete next[supporter.id];
+              return next;
+            })}
+            disabled={!hasPendingTurnoutChange || turnoutMutation.isPending}
+            className="min-h-[40px] rounded-xl border border-[var(--border-soft)] text-xs font-semibold px-3 text-[var(--text-secondary)] disabled:opacity-40"
+          >
+            Revert
+          </button>
+          {hasPendingTurnoutChange && (
+            <span className="text-[11px] text-amber-700">Unsaved turnout change</span>
+          )}
+        </div>
+
+        <div className="mt-2 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => contactAttemptMutation.mutate({ supporterId: supporter.id, outcome: 'attempted' })}
+            className="min-h-[44px] rounded-xl border border-[var(--border-soft)] text-xs font-semibold text-[var(--text-primary)] flex items-center justify-center gap-1"
+            disabled={contactAttemptMutation.isPending}
+          >
+            <PhoneCall className="w-3.5 h-3.5" /> Call Attempted
+          </button>
+          <button
+            type="button"
+            onClick={() => contactAttemptMutation.mutate({ supporterId: supporter.id, outcome: 'reached' })}
+            className="min-h-[44px] rounded-xl border border-[var(--border-soft)] text-xs font-semibold text-[var(--text-primary)] flex items-center justify-center gap-1"
+            disabled={contactAttemptMutation.isPending}
+          >
+            <UserCheck className="w-3.5 h-3.5" /> Reached
+          </button>
+        </div>
+
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => setNoteOpenBySupporter((prev) => ({ ...prev, [supporter.id]: !noteOpen }))}
+            className="text-xs text-[var(--text-secondary)] underline underline-offset-2"
+          >
+            {noteOpen ? 'Hide note' : 'Add note'}
+          </button>
+          {noteOpen && (
+            <input
+              type="text"
+              value={turnoutNoteBySupporter[supporter.id] || ''}
+              onChange={(e) => setTurnoutNoteBySupporter((prev) => ({ ...prev, [supporter.id]: e.target.value }))}
+              placeholder="Optional note for turnout/contact update"
+              className="mt-2 w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl text-xs min-h-[44px]"
+            />
+          )}
+        </div>
+
+        {supporter.latest_contact_attempt && (
+          <p className="text-[11px] text-[var(--text-secondary)] mt-1.5">
+            Last contact: {supporter.latest_contact_attempt.outcome} via {supporter.latest_contact_attempt.channel}
+          </p>
+        )}
+      </>
+    );
+  };
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
@@ -303,81 +462,38 @@ export default function PollWatcherPage() {
         {/* Report + Strike List */}
         {selectedPrecinct ? (
           <div className="space-y-4 mb-4">
-            <form onSubmit={handleSubmit} className="app-card p-4">
+            <div className="app-card p-4">
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <h3 className="font-bold text-[var(--text-primary)]">Precinct {selectedPrecinct.number}</h3>
                   <p className="text-sm text-[var(--text-secondary)]">{selectedPrecinct.polling_site || 'No polling site listed'}</p>
                   <p className="text-xs text-[var(--text-muted)]">{selectedPrecinct.registered_voters?.toLocaleString()} registered voters</p>
                 </div>
-                <button type="button" onClick={() => setSelectedPrecinct(null)} className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] text-sm">
-                  Cancel
-                </button>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 mb-3">
-                {REPORT_TYPES.map(({ value, label, icon: Icon }) => (
+                <div className="flex items-center gap-2">
                   <button
-                    key={value}
                     type="button"
-                    onClick={() => setReportType(value)}
-                    className={`p-2 min-h-[44px] rounded-xl border text-sm font-medium text-left flex items-center gap-2 ${
-                      reportType === value
-                        ? 'border-[#1B3A6B] bg-blue-50 text-[#1B3A6B]'
-                        : 'border-[var(--border-soft)] text-[var(--text-secondary)] hover:bg-[var(--surface-bg)]'
-                    }`}
+                    onClick={() => setReportFormOpen((prev) => !prev)}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-[var(--border-soft)] text-[var(--text-secondary)] hover:bg-[var(--surface-bg)]"
                   >
-                    <Icon className="w-4 h-4" /> {label}
+                    {reportFormOpen ? 'Hide Report Form' : 'Open Report Form'}
                   </button>
-                ))}
+                  <button type="button" onClick={() => setSelectedPrecinct(null)} className="text-[var(--text-muted)] hover:text-[var(--text-secondary)] text-sm">
+                    Cancel
+                  </button>
+                </div>
               </div>
+            </div>
 
-              <div className="mb-3">
-                <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">
-                  Voters who have voted so far
-                </label>
-                <input
-                  type="number"
-                  value={voterCount}
-                  onChange={e => setVoterCount(e.target.value)}
-                  placeholder="Enter count"
-                  className="w-full px-4 py-3 border border-[var(--border-soft)] rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B]"
-                  min="0"
-                  autoFocus
-                  required
-                />
-              </div>
-
-              <div className="mb-3">
-                <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Notes (optional)</label>
-                <textarea
-                  value={notes}
-                  onChange={e => setNotes(e.target.value)}
-                  placeholder="Any issues, observations..."
-                  className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl text-sm focus:ring-2 focus:ring-[#1B3A6B]"
-                  rows={2}
-                />
-              </div>
-
-              <button
-                type="submit"
-                disabled={reportMutation.isPending || !voterCount}
-                className="w-full bg-[#1B3A6B] hover:bg-[#152e55] text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
-              >
-                <Send className="w-4 h-4" />
-                {reportMutation.isPending ? 'Submitting...' : 'Submit Report'}
-              </button>
-            </form>
-
+            {/* Strike list first: most frequent poll-watcher workflow */}
             <div className="app-card p-4">
               <div className="flex items-center justify-between mb-3 gap-2">
                 <h3 className="font-bold text-[var(--text-primary)]">Supporter Strike List</h3>
                 <span className="text-xs text-[var(--text-secondary)]">
-                  {strikeListData?.supporters.length || 0} supporters
+                  {strikeListData?.pagination?.total || strikeListData?.supporters.length || 0} supporters
                 </span>
               </div>
-              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2 mb-3">
-                {strikeListData?.compliance_note || 'Campaign operations tracking only; not official election records.'}
+              <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-2 mb-3">
+                {strikeListData?.compliance_note || 'Campaign operations tracking only; not official election records.'} Strike-list updates track supporter outreach only; precinct reporting stays at "No report" until you submit the precinct report form.
               </p>
               {strikeNotice && (
                 <p className="text-xs text-green-600 bg-green-50 border border-green-200 rounded-lg px-2.5 py-2 mb-3">
@@ -389,13 +505,19 @@ export default function PollWatcherPage() {
                 <input
                   type="text"
                   value={strikeSearch}
-                  onChange={(e) => setStrikeSearch(e.target.value)}
+                  onChange={(e) => {
+                    setStrikeSearch(e.target.value);
+                    setStrikePage(1);
+                  }}
                   placeholder="Search supporter name/phone..."
                   className="md:col-span-2 w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl text-sm min-h-[44px]"
                 />
                 <select
                   value={strikeStatusFilter}
-                  onChange={(e) => setStrikeStatusFilter(e.target.value as 'not_yet_voted' | 'voted' | 'unknown' | '')}
+                  onChange={(e) => {
+                    setStrikeStatusFilter(e.target.value as 'not_yet_voted' | 'voted' | 'unknown' | '');
+                    setStrikePage(1);
+                  }}
                   className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl text-sm bg-[var(--surface-raised)] min-h-[44px]"
                 >
                   <option value="">All turnout states</option>
@@ -404,81 +526,203 @@ export default function PollWatcherPage() {
                   <option value="unknown">Unknown</option>
                 </select>
               </div>
+              <p className="text-[11px] text-[var(--text-secondary)] mb-3">
+                Need to correct a prior mark? Switch turnout filter to "Voted" or "All turnout states", then update and save again.
+              </p>
 
               {strikeListLoading ? (
                 <div className="text-sm text-[var(--text-secondary)] py-4">Loading strike list...</div>
               ) : (
-                <div className="space-y-2">
-                  {(strikeListData?.supporters || []).map((supporter) => (
-                    <div key={supporter.id} className="border border-[var(--border-soft)] rounded-xl p-3 bg-[var(--surface-raised)]">
-                      <div className="flex items-center justify-between gap-2">
-                        <div>
-                          <p className="font-medium text-[var(--text-primary)]">{supporter.print_name}</p>
-                          <p className="text-xs text-[var(--text-secondary)]">{supporter.contact_number}</p>
-                        </div>
-                        <span className={`text-xs border rounded-full px-2 py-1 ${turnoutStatusBadgeClasses(supporter.turnout_status)}`}>
-                          {supporter.turnout_status.replaceAll('_', ' ')}
-                        </span>
-                      </div>
-
-                      <div className="mt-2 grid grid-cols-2 gap-2">
-                        {TURNOUT_OPTIONS.map((option) => (
+                <>
+                  {/* Mobile: one-at-a-time expandable cards */}
+                  <div className="space-y-2 lg:hidden">
+                    {strikeSupporters.map((supporter) => {
+                      const expanded = activeSupporterId === supporter.id;
+                      return (
+                        <div key={supporter.id} className="border border-[var(--border-soft)] rounded-xl p-3 bg-[var(--surface-raised)]">
                           <button
-                            key={`${supporter.id}-${option.value}`}
                             type="button"
-                            onClick={() => turnoutMutation.mutate({ supporterId: supporter.id, turnoutStatus: option.value })}
-                            className={`min-h-[44px] rounded-xl border text-xs font-semibold ${
-                              supporter.turnout_status === option.value
-                                ? 'border-[#1B3A6B] bg-blue-50 text-[#1B3A6B]'
-                                : 'border-[var(--border-soft)] text-[var(--text-secondary)]'
-                            }`}
-                            disabled={turnoutMutation.isPending}
+                            onClick={() => setActiveSupporterId((prev) => prev === supporter.id ? null : supporter.id)}
+                            className="w-full text-left"
+                            aria-expanded={expanded}
                           >
-                            {option.label}
+                            <div className="flex items-center justify-between gap-2">
+                              <div>
+                                <p className="font-medium text-[var(--text-primary)]">{supporter.print_name}</p>
+                                <p className="text-xs text-[var(--text-secondary)]">{supporter.contact_number}</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-xs border rounded-full px-2 py-1 ${turnoutStatusBadgeClasses(supporter.turnout_status)}`}>
+                                  {turnoutStatusLabel(supporter.turnout_status)}
+                                </span>
+                                {expanded ? (
+                                  <ChevronUp className="w-4 h-4 text-[var(--text-muted)]" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4 text-[var(--text-muted)]" />
+                                )}
+                              </div>
+                            </div>
+                            <p className="mt-1 text-[11px] text-[var(--text-muted)]">
+                              {expanded ? 'Tap to collapse' : 'Tap to expand'}
+                            </p>
                           </button>
-                        ))}
-                      </div>
+                          {expanded && renderSupporterActions(supporter)}
+                        </div>
+                      );
+                    })}
+                  </div>
 
-                      <div className="mt-2 grid grid-cols-2 gap-2">
+                  {/* Desktop: split list + detail panel */}
+                  <div className="hidden lg:grid lg:grid-cols-3 gap-3">
+                    <div className="lg:col-span-1 space-y-2 max-h-[560px] overflow-y-auto pr-1">
+                      {strikeSupporters.map((supporter) => (
                         <button
+                          key={supporter.id}
                           type="button"
-                          onClick={() => contactAttemptMutation.mutate({ supporterId: supporter.id, outcome: 'attempted' })}
-                          className="min-h-[44px] rounded-xl border border-[var(--border-soft)] text-xs font-semibold text-[var(--text-primary)] flex items-center justify-center gap-1"
-                          disabled={contactAttemptMutation.isPending}
+                          onClick={() => setActiveSupporterId(supporter.id)}
+                          className={`w-full text-left border rounded-xl p-3 transition-colors ${
+                            activeSupporterId === supporter.id
+                              ? 'border-[#1B3A6B] bg-blue-50'
+                              : 'border-[var(--border-soft)] bg-[var(--surface-raised)] hover:bg-[var(--surface-bg)]'
+                          }`}
                         >
-                          <PhoneCall className="w-3.5 h-3.5" /> Call Attempted
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-medium text-[var(--text-primary)] truncate">{supporter.print_name}</p>
+                            <span className={`text-xs border rounded-full px-2 py-1 ${turnoutStatusBadgeClasses(supporter.turnout_status)}`}>
+                              {turnoutStatusLabel(supporter.turnout_status)}
+                            </span>
+                          </div>
+                          <p className="text-xs text-[var(--text-secondary)] mt-1">{supporter.contact_number}</p>
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => contactAttemptMutation.mutate({ supporterId: supporter.id, outcome: 'reached' })}
-                          className="min-h-[44px] rounded-xl border border-[var(--border-soft)] text-xs font-semibold text-[var(--text-primary)] flex items-center justify-center gap-1"
-                          disabled={contactAttemptMutation.isPending}
-                        >
-                          <UserCheck className="w-3.5 h-3.5" /> Reached
-                        </button>
-                      </div>
-
-                      <input
-                        type="text"
-                        value={turnoutNoteBySupporter[supporter.id] || ''}
-                        onChange={(e) => setTurnoutNoteBySupporter((prev) => ({ ...prev, [supporter.id]: e.target.value }))}
-                        placeholder="Optional note for turnout/contact update"
-                        className="mt-2 w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl text-xs min-h-[44px]"
-                      />
-
-                      {supporter.latest_contact_attempt && (
-                        <p className="text-[11px] text-[var(--text-secondary)] mt-1.5">
-                          Last contact: {supporter.latest_contact_attempt.outcome} via {supporter.latest_contact_attempt.channel}
-                        </p>
+                      ))}
+                    </div>
+                    <div className="lg:col-span-2 border border-[var(--border-soft)] rounded-xl p-3 bg-[var(--surface-raised)] min-h-[320px]">
+                      {activeSupporter ? (
+                        <>
+                          <div className="flex items-center justify-between gap-2">
+                            <div>
+                              <p className="font-medium text-[var(--text-primary)]">{activeSupporter.print_name}</p>
+                              <p className="text-xs text-[var(--text-secondary)]">{activeSupporter.contact_number}</p>
+                            </div>
+                            <span className={`text-xs border rounded-full px-2 py-1 ${turnoutStatusBadgeClasses(activeSupporter.turnout_status)}`}>
+                              {turnoutStatusLabel(activeSupporter.turnout_status)}
+                            </span>
+                          </div>
+                          {renderSupporterActions(activeSupporter)}
+                        </>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-sm text-[var(--text-muted)]">
+                          Select a supporter to update turnout/contact details.
+                        </div>
                       )}
                     </div>
-                  ))}
-                  {!strikeListLoading && (strikeListData?.supporters || []).length === 0 && (
+                  </div>
+
+                  {!strikeListLoading && strikeSupporters.length === 0 && (
                     <div className="text-sm text-[var(--text-muted)] py-4">No supporters match current strike-list filters.</div>
                   )}
+                </>
+              )}
+
+              {strikeListData?.pagination && strikeListData.pagination.pages > 1 && (
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="text-xs text-[var(--text-secondary)]">
+                    Page {strikeListData.pagination.page} of {strikeListData.pagination.pages}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={strikePerPage}
+                      onChange={(e) => {
+                        setStrikePerPage(Number(e.target.value));
+                        setStrikePage(1);
+                      }}
+                      className="px-2 py-1.5 border border-[var(--border-soft)] rounded-lg text-xs bg-[var(--surface-raised)]"
+                    >
+                      <option value={10}>10/page</option>
+                      <option value={25}>25/page</option>
+                      <option value={50}>50/page</option>
+                      <option value={100}>100/page</option>
+                    </select>
+                    <button
+                      type="button"
+                      disabled={strikePage <= 1}
+                      onClick={() => setStrikePage((p) => p - 1)}
+                      className="px-3 py-1.5 rounded-lg border border-[var(--border-soft)] text-xs disabled:opacity-40"
+                    >
+                      Prev
+                    </button>
+                    <button
+                      type="button"
+                      disabled={strikePage >= strikeListData.pagination.pages}
+                      onClick={() => setStrikePage((p) => p + 1)}
+                      className="px-3 py-1.5 rounded-lg border border-[var(--border-soft)] text-xs disabled:opacity-40"
+                    >
+                      Next
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
+
+            {reportFormOpen && (
+              <form onSubmit={handleSubmit} className="app-card p-4">
+                <p className="text-[11px] text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-2 mb-3">
+                  Submitting this report updates precinct reporting and War Room turnout metrics.
+                </p>
+                <div className="grid grid-cols-2 gap-2 mb-3">
+                  {REPORT_TYPES.map(({ value, label, icon: Icon }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setReportType(value)}
+                      className={`p-2 min-h-[44px] rounded-xl border text-sm font-medium text-left flex items-center gap-2 ${
+                        reportType === value
+                          ? 'border-[#1B3A6B] bg-blue-50 text-[#1B3A6B]'
+                          : 'border-[var(--border-soft)] text-[var(--text-secondary)] hover:bg-[var(--surface-bg)]'
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" /> {label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mb-3">
+                  <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">
+                    Voters who have voted so far
+                  </label>
+                  <input
+                    type="number"
+                    value={voterCount}
+                    onChange={e => setVoterCount(e.target.value)}
+                    placeholder="Enter count"
+                    className="w-full px-4 py-3 border border-[var(--border-soft)] rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B]"
+                    min="0"
+                    autoFocus
+                    required
+                  />
+                </div>
+
+                <div className="mb-3">
+                  <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Notes (optional)</label>
+                  <textarea
+                    value={notes}
+                    onChange={e => setNotes(e.target.value)}
+                    placeholder="Any issues, observations..."
+                    className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl text-sm focus:ring-2 focus:ring-[#1B3A6B]"
+                    rows={2}
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={reportMutation.isPending || !voterCount}
+                  className="w-full bg-[#1B3A6B] hover:bg-[#152e55] text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
+                >
+                  <Send className="w-4 h-4" />
+                  {reportMutation.isPending ? 'Submitting...' : 'Submit Report'}
+                </button>
+              </form>
+            )}
           </div>
         ) : (
           <div className="bg-blue-50 border border-blue-200 rounded-2xl p-3 mb-4 text-sm text-blue-700 flex items-center gap-2">

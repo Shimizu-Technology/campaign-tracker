@@ -128,6 +128,10 @@ function supporterLabel(count: number) {
   return `${count} supporter${count === 1 ? "" : "s"}`;
 }
 
+function voterLabel(count: number) {
+  return `${count.toLocaleString()} voter${count === 1 ? "" : "s"}`;
+}
+
 export default function WarRoomPage() {
   const { toasts, handleEvent, dismiss } = useRealtimeToast();
   useCampaignUpdates(handleEvent);
@@ -326,6 +330,12 @@ export default function WarRoomPage() {
             <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
               <TrendingUp className="w-4 h-4" /> Village Turnout
             </h2>
+            <p className="text-xs text-gray-500 mb-3">
+              "NO DATA" means no precinct turnout report has been submitted yet (strike-list supporter updates alone do not mark precinct reporting).
+            </p>
+            <p className="text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg px-2.5 py-2 mb-3">
+              War Room turnout is driven by precinct reports. Supporter strike-list marks are for outreach tracking and follow-up.
+            </p>
             <div className="bg-white border border-gray-200 rounded-xl p-3 mb-3 grid grid-cols-1 sm:grid-cols-4 gap-3">
               <div className="relative sm:col-span-2">
                 <Search className="w-4 h-4 absolute left-3 top-3 text-gray-500" />
@@ -412,13 +422,27 @@ export default function WarRoomPage() {
           <div className="space-y-4">
             {/* Not-yet-voted Queue */}
             <div>
-              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
-                <Users className="w-4 h-4 text-amber-500" /> Not Yet Voted Queue
-              </h2>
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider flex items-center gap-2">
+                  <Users className="w-4 h-4 text-amber-500" /> Not Yet Voted Queue
+                </h2>
+                {sessionData?.permissions?.can_access_poll_watcher && (
+                  <Link
+                    to="/admin/poll-watcher"
+                    className="text-xs font-medium text-[#1B3A6B] hover:text-[#152e55] underline underline-offset-2"
+                  >
+                    View list
+                  </Link>
+                )}
+              </div>
               {not_yet_voted_queue.length > 0 ? (
                 <div className="space-y-2">
                   {not_yet_voted_queue.map((v) => (
-                    <div key={v.id} className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                    <Link
+                      key={v.id}
+                      to={`/admin/poll-watcher?village_id=${v.id}`}
+                      className="block bg-amber-50 border border-amber-200 rounded-xl p-3 hover:bg-amber-100 transition-colors"
+                    >
                       <div className="flex items-center justify-between">
                         <span className="font-medium text-sm">{v.name}</span>
                         <span className="text-amber-600 font-bold text-sm">{v.not_yet_voted_count} pending</span>
@@ -426,7 +450,7 @@ export default function WarRoomPage() {
                       <div className="text-xs text-gray-400">
                         Turnout {v.turnout_pct}% · Attempted {v.outreach_attempted_count} · Reached {v.outreach_reached_count}
                       </div>
-                    </div>
+                    </Link>
                   ))}
                 </div>
               ) : (
@@ -482,7 +506,7 @@ export default function WarRoomPage() {
                         <span className="text-xs text-gray-400">{timeAgo(a.reported_at)}</span>
                       </div>
                       <div className="text-xs text-gray-400">
-                        {a.village_name} · {a.voter_count.toLocaleString()} voters
+                        {a.village_name} · {voterLabel(a.voter_count)}
                       </div>
                       {a.notes && (
                         <div className="text-xs text-yellow-600 mt-1 flex items-center gap-1">

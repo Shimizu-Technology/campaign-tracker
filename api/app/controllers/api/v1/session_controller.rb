@@ -23,7 +23,7 @@ module Api
             scoped_village_ids: scoped_village_ids
           },
           counts: {
-            pending_vetting: scope_supporters(Supporter.unverified).count
+            pending_vetting: scope_supporters(Supporter.active.unverified).count
           },
           permissions: {
             can_manage_users: can_manage_users?,

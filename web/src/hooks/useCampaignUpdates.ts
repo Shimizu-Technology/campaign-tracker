@@ -10,17 +10,18 @@ import { subscribeToCampaign, type CampaignEvent, type CampaignEventType } from 
  * Usage: just call useCampaignUpdates() in any admin page.
  * Optionally pass an onEvent callback for custom handling (e.g. toast notifications).
  */
-export function useCampaignUpdates(onEvent?: (event: CampaignEvent) => void) {
+export function useCampaignUpdates(onEvent?: (event: CampaignEvent) => void, enabled = true) {
   const queryClient = useQueryClient();
   const { getToken, isLoaded, isSignedIn } = useAuth();
 
   const handleEvent = useCallback((event: CampaignEvent) => {
     // Invalidate relevant queries based on event type
     const invalidations: Record<CampaignEventType, string[]> = {
-      new_supporter: ['dashboard', 'supporters', 'war_room', 'leaderboard'],
-      poll_report: ['war_room', 'poll_watcher', 'dashboard'],
+      new_supporter: ['dashboard', 'supporters', 'war_room', 'leaderboard', 'session', 'village', 'vetting-supporters'],
+      poll_report: ['war_room', 'poll_watcher', 'dashboard', 'village'],
       event_check_in: ['events', 'war_room', 'dashboard'],
-      stats_update: ['dashboard', 'war_room'],
+      supporter_updated: ['supporters', 'dashboard', 'session', 'village', 'vetting-supporters', 'duplicates', 'war_room'],
+      stats_update: ['dashboard', 'war_room', 'session', 'supporters', 'village', 'vetting-supporters'],
     };
 
     const keys = invalidations[event.type] || [];
@@ -33,7 +34,7 @@ export function useCampaignUpdates(onEvent?: (event: CampaignEvent) => void) {
   }, [queryClient, onEvent]);
 
   useEffect(() => {
-    if (!isLoaded || !isSignedIn) return;
+    if (!enabled || !isLoaded || !isSignedIn) return;
 
     let unsubscribe: (() => void) | undefined;
     let cancelled = false;
@@ -52,5 +53,5 @@ export function useCampaignUpdates(onEvent?: (event: CampaignEvent) => void) {
       cancelled = true;
       unsubscribe?.();
     };
-  }, [getToken, handleEvent, isLoaded, isSignedIn]);
+  }, [enabled, getToken, handleEvent, isLoaded, isSignedIn]);
 }

@@ -88,7 +88,7 @@ export default function VillageDetailPage() {
             {v.unassigned_precinct_count} supporter{v.unassigned_precinct_count > 1 ? "s are" : " is"} in this village without a precinct assignment.
             {" "}
             <Link
-              to={`/admin/supporters?village_id=${id}&unassigned_precinct=true&return_to=${encodeURIComponent(returnTo)}`}
+              to={`/admin/supporters?village_id=${id}&unassigned_precinct=true&status=active&return_to=${encodeURIComponent(returnTo)}`}
               className="underline font-medium hover:text-yellow-900"
             >
               View and assign
@@ -100,7 +100,7 @@ export default function VillageDetailPage() {
           {v.precincts.map((p) => (
             <Link
               key={p.id}
-              to={`/admin/supporters?village_id=${id}&precinct_id=${p.id}&return_to=${encodeURIComponent(returnTo)}`}
+              to={`/admin/supporters?village_id=${id}&precinct_id=${p.id}&status=active&return_to=${encodeURIComponent(returnTo)}`}
               className="app-card p-4 block hover:shadow-md transition-shadow"
             >
               <div className="flex justify-between items-center">

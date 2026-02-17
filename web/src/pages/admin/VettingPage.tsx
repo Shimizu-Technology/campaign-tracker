@@ -46,6 +46,7 @@ export default function VettingPage() {
   const { data: supportersData, isLoading } = useQuery({
     queryKey: ['vetting-supporters', effectiveVillageFilter, statusFilter],
     queryFn: () => getSupporters({
+      status: 'active',
       verification_status: statusFilter || undefined,
       village_id: effectiveVillageFilter || undefined,
       per_page: 200,
@@ -133,6 +134,9 @@ export default function VettingPage() {
               ? `${supporters.length} supporter${supporters.length !== 1 ? 's' : ''} pending review`
               : `${supporters.length} supporter${supporters.length !== 1 ? 's' : ''} shown`
             }
+          </p>
+          <p className="text-xs text-[var(--text-muted)] mt-1">
+            Removed supporters are excluded from this queue. View them in Supporters with the lifecycle filter set to Removed.
           </p>
         </div>
 
