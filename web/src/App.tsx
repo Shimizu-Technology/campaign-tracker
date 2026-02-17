@@ -27,6 +27,7 @@ const SmsPage = lazy(() => import('./pages/admin/SmsPage'));
 const SmsSettingsPage = lazy(() => import('./pages/admin/SmsSettingsPage'));
 const EmailPage = lazy(() => import('./pages/admin/EmailPage'));
 const UsersPage = lazy(() => import('./pages/admin/UsersPage'));
+const DistrictsPage = lazy(() => import('./pages/admin/DistrictsPage'));
 const QuotaSettingsPage = lazy(() => import('./pages/admin/QuotaSettingsPage'));
 const PrecinctSettingsPage = lazy(() => import('./pages/admin/PrecinctSettingsPage'));
 const DuplicatesPage = lazy(() => import('./pages/admin/DuplicatesPage'));
@@ -299,6 +300,16 @@ export default function App() {
               <AdminRoute>
                 <PermissionRoute permission="can_manage_users">
                   <UsersPage />
+                </PermissionRoute>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/districts"
+            element={
+              <AdminRoute>
+                <PermissionRoute permission="can_manage_configuration">
+                  <DistrictsPage />
                 </PermissionRoute>
               </AdminRoute>
             }

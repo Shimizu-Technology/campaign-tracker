@@ -27,6 +27,11 @@ export const getSession = () => api.get('/session').then(r => r.data);
 // Villages
 export const getVillages = () => api.get('/villages').then(r => r.data);
 export const getDistricts = () => api.get('/districts').then(r => r.data);
+export const createDistrict = (data: JsonRecord) => api.post('/districts', { district: data }).then(r => r.data);
+export const updateDistrict = (id: number, data: JsonRecord) => api.patch(`/districts/${id}`, { district: data }).then(r => r.data);
+export const deleteDistrict = (id: number) => api.delete(`/districts/${id}`).then(r => r.data);
+export const assignVillagesToDistrict = (id: number, villageIds: number[]) =>
+  api.patch(`/districts/${id}/assign_villages`, { village_ids: villageIds }).then(r => r.data);
 export const getVillage = (id: number) => api.get(`/villages/${id}`).then(r => r.data);
 export const getQuotas = () => api.get('/quotas').then(r => r.data);
 export const updateVillageQuota = (villageId: number, targetCount: number, changeNote?: string) =>
