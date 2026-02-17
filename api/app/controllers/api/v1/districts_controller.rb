@@ -12,6 +12,13 @@ module Api
         districts = District.includes(:villages).order(:name)
         unassigned_villages = Village.where(district_id: nil).order(:name)
 
+        # Batch load supporter counts to avoid N+1
+        all_village_ids = Village.pluck(:id)
+        @supporter_counts = Supporter.active
+          .where(village_id: all_village_ids)
+          .group(:village_id)
+          .count
+
         render json: {
           districts: districts.map { |d| district_json(d) },
           unassigned_villages: unassigned_villages.map { |v| village_summary(v) }
@@ -84,7 +91,7 @@ module Api
           name: district.name,
           description: district.description,
           villages: district.villages.order(:name).map { |v| village_summary(v) },
-          supporter_count: Supporter.active.where(village_id: district.village_ids).count,
+          supporter_count: district.village_ids.sum { |vid| @supporter_counts&.fetch(vid, 0) || 0 },
           registered_voters: district.villages.joins(:precincts).sum("precincts.registered_voters")
         }
       end
@@ -93,7 +100,7 @@ module Api
         {
           id: village.id,
           name: village.name,
-          supporter_count: village.supporters.active.count,
+          supporter_count: @supporter_counts&.fetch(village.id, 0) || village.supporters.active.count,
           registered_voters: village.registered_voters
         }
       end
