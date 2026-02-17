@@ -17,15 +17,51 @@ function eventToToast(event: CampaignEvent): { message: string; type: Toast['typ
         type: 'success',
       };
     case 'poll_report':
+      {
+        const count = Number(data.voter_count ?? 0);
+        const votersLabel = `${count.toLocaleString()} voter${count === 1 ? '' : 's'}`;
       return {
-        message: `Precinct ${data.precinct_number ?? 'Unknown'}: ${data.voter_count ?? 0} voters (${data.turnout_pct ?? 0}%)`,
+        message: `Precinct ${data.precinct_number ?? 'Unknown'}: ${votersLabel} (${data.turnout_pct ?? 0}%)`,
         type: 'info',
       };
+      }
     case 'event_check_in':
       return {
         message: `${data.supporter_name ?? 'Supporter'} checked in at ${data.event_name ?? 'event'}`,
         type: 'success',
       };
+    case 'supporter_updated': {
+      const name = data.print_name ?? `Supporter #${data.supporter_id ?? '?'}`;
+      const village = data.village_name ? ` (${data.village_name})` : '';
+      const action = String(data.action ?? 'updated');
+      const status = String(data.status ?? '');
+
+      if (action === 'verification_changed') {
+        return {
+          message: `Verification updated: ${name}${village}`,
+          type: 'info',
+        };
+      }
+
+      if (action === 'duplicate_resolved') {
+        return {
+          message: `Duplicate review resolved: ${name}${village}`,
+          type: 'info',
+        };
+      }
+
+      if (status === 'removed') {
+        return {
+          message: `Supporter removed from active lists: ${name}${village}`,
+          type: 'warning',
+        };
+      }
+
+      return {
+        message: `Supporter record updated: ${name}${village}`,
+        type: 'info',
+      };
+    }
     default:
       return null;
   }

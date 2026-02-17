@@ -36,6 +36,7 @@ interface SupporterItem {
   verification_status: string;
   potential_duplicate: boolean;
   source: string;
+  status: string;
   created_at: string;
 }
 
@@ -66,6 +67,21 @@ function supporterLabel(count: number) {
   return `${count} supporter${count === 1 ? '' : 's'}`;
 }
 
+function lifecycleChipClass(status: string) {
+  switch (status) {
+    case 'active':
+      return 'bg-emerald-100 text-emerald-700';
+    case 'removed':
+      return 'bg-slate-200 text-slate-700';
+    case 'duplicate':
+      return 'bg-amber-100 text-amber-700';
+    case 'inactive':
+      return 'bg-zinc-200 text-zinc-700';
+    default:
+      return 'bg-gray-200 text-gray-700';
+  }
+}
+
 export default function SupportersPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -77,6 +93,7 @@ export default function SupportersPage() {
   const [sourceFilter, setSourceFilter] = useState(searchParams.get('source') || '');
   const [optInFilter, setOptInFilter] = useState(searchParams.get('opt_in') || '');
   const [verificationFilter, setVerificationFilter] = useState(searchParams.get('verification_status') || '');
+  const [lifecycleFilter, setLifecycleFilter] = useState(searchParams.get('status') || '');
   const [unassignedPrecinct, setUnassignedPrecinct] = useState(searchParams.get('unassigned_precinct') === 'true');
   const [sortBy, setSortBy] = useState<SortField>(parseSortField(searchParams.get('sort_by')));
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>((searchParams.get('sort_dir') as 'asc' | 'desc') || 'desc');
@@ -106,16 +123,17 @@ export default function SupportersPage() {
     if (sourceFilter) params.set('source', sourceFilter);
     if (optInFilter) params.set('opt_in', optInFilter);
     if (verificationFilter) params.set('verification_status', verificationFilter);
+    if (lifecycleFilter) params.set('status', lifecycleFilter);
     if (unassignedPrecinct) params.set('unassigned_precinct', 'true');
     params.set('sort_by', sortBy);
     params.set('sort_dir', sortDir);
     params.set('per_page', String(perPage));
     if (returnTo) params.set('return_to', returnTo);
     setSearchParams(params, { replace: true });
-  }, [debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, unassignedPrecinct, sortBy, sortDir, perPage, returnTo, setSearchParams]);
+  }, [debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, lifecycleFilter, unassignedPrecinct, sortBy, sortDir, perPage, returnTo, setSearchParams]);
 
   const { data, isFetching } = useQuery<SupportersResponse>({
-    queryKey: ['supporters', debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, unassignedPrecinct, sortBy, sortDir, page, perPage],
+    queryKey: ['supporters', debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, lifecycleFilter, unassignedPrecinct, sortBy, sortDir, page, perPage],
     queryFn: () => getSupporters({
       search: debouncedSearch,
       village_id: villageFilter || undefined,
@@ -124,6 +142,7 @@ export default function SupportersPage() {
       opt_in_email: optInFilter === 'email' || optInFilter === 'both' ? 'true' : undefined,
       opt_in_text: optInFilter === 'text' || optInFilter === 'both' ? 'true' : undefined,
       verification_status: verificationFilter || undefined,
+      status: lifecycleFilter || undefined,
       unassigned_precinct: unassignedPrecinct ? 'true' : undefined,
       sort_by: sortBy,
       sort_dir: sortDir,
@@ -144,7 +163,7 @@ export default function SupportersPage() {
   useEffect(() => {
     const timer = window.setTimeout(() => setVisibleRows(80), 0);
     return () => window.clearTimeout(timer);
-  }, [progressiveRenderingEnabled, page, debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, unassignedPrecinct, sortBy, sortDir, perPage]);
+  }, [progressiveRenderingEnabled, page, debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, lifecycleFilter, unassignedPrecinct, sortBy, sortDir, perPage]);
 
   useEffect(() => {
     if (!progressiveRenderingEnabled) return;
@@ -161,7 +180,7 @@ export default function SupportersPage() {
     const totalPages = data.pagination.pages;
     if (page < totalPages) {
       void queryClient.prefetchQuery({
-        queryKey: ['supporters', debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, unassignedPrecinct, sortBy, sortDir, page + 1, perPage],
+        queryKey: ['supporters', debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, lifecycleFilter, unassignedPrecinct, sortBy, sortDir, page + 1, perPage],
         queryFn: () => getSupporters({
           search: debouncedSearch,
           village_id: villageFilter || undefined,
@@ -170,6 +189,7 @@ export default function SupportersPage() {
           opt_in_email: optInFilter === 'email' || optInFilter === 'both' ? 'true' : undefined,
           opt_in_text: optInFilter === 'text' || optInFilter === 'both' ? 'true' : undefined,
           verification_status: verificationFilter || undefined,
+          status: lifecycleFilter || undefined,
           unassigned_precinct: unassignedPrecinct ? 'true' : undefined,
           sort_by: sortBy,
           sort_dir: sortDir,
@@ -178,7 +198,7 @@ export default function SupportersPage() {
         }),
       });
     }
-  }, [data, page, perPage, debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, unassignedPrecinct, sortBy, sortDir, queryClient]);
+  }, [data, page, perPage, debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, lifecycleFilter, unassignedPrecinct, sortBy, sortDir, queryClient]);
 
   const assignPrecinctMutation = useMutation({
     mutationFn: ({ supporterId, precinctId }: { supporterId: number; precinctId: number }) =>
@@ -269,6 +289,7 @@ export default function SupportersPage() {
                 source: sourceFilter || undefined,
                 opt_in: optInFilter || undefined,
                 verification_status: verificationFilter || undefined,
+                status: lifecycleFilter || undefined,
                 unassigned_precinct: unassignedPrecinct ? 'true' : undefined,
                 search: debouncedSearch || undefined,
                 sort_by: sortBy || undefined,
@@ -283,6 +304,9 @@ export default function SupportersPage() {
                   <ClipboardPlus className="w-4 h-4" /> New Entry
                 </Link>
               )}
+              <Link to="/admin/supporters?status=removed" className="app-btn-secondary">
+                Removed
+              </Link>
           </div>
         </div>
       </div>
@@ -352,6 +376,21 @@ export default function SupportersPage() {
             <option value="unverified">Unverified</option>
             <option value="verified">Verified</option>
             <option value="flagged">Flagged</option>
+          </select>
+          <select
+            value={lifecycleFilter}
+            onChange={(e) => {
+              setLifecycleFilter(e.target.value);
+              setPage(1);
+            }}
+            className="md:col-span-2 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent min-w-0"
+          >
+            <option value="">All lifecycle</option>
+            <option value="active">Active</option>
+            <option value="removed">Removed</option>
+            <option value="duplicate">Duplicate</option>
+            <option value="inactive">Inactive</option>
+            <option value="unverified">Legacy unverified</option>
           </select>
           {villageFilter && (
             <select
@@ -458,6 +497,9 @@ export default function SupportersPage() {
                   {s.verification_status === 'verified' ? 'Verified' :
                    s.verification_status === 'flagged' ? 'Flagged' : 'Unverified'}
                 </span>
+                <span className={`app-chip ${lifecycleChipClass(s.status)}`}>
+                  {s.status}
+                </span>
               </div>
               <div className="text-sm text-[var(--text-secondary)] space-y-0.5">
                 <div className="flex justify-between">
@@ -521,7 +563,8 @@ export default function SupportersPage() {
                     Source <ArrowUpDown className="w-3.5 h-3.5" /> {sortLabel('source')}
                   </button>
                 </th>
-                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Status</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Verification</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Lifecycle</th>
                 <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">
                   <button type="button" onClick={() => handleSort('created_at')} className="inline-flex items-center gap-1 hover:text-[var(--text-primary)]">
                     Date <ArrowUpDown className="w-3.5 h-3.5" /> {sortLabel('created_at')}
@@ -587,12 +630,17 @@ export default function SupportersPage() {
                        s.verification_status === 'flagged' ? 'Flagged' : 'Unverified'}
                     </span>
                   </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <span className={`app-chip ${lifecycleChipClass(s.status)}`}>
+                      {s.status}
+                    </span>
+                  </td>
                   <td className="px-4 py-3 text-[var(--text-secondary)] whitespace-nowrap">{formatDateTime(s.created_at)}</td>
                 </motion.tr>
               ))}
               {supportersRows.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-4 py-8 text-center text-[var(--text-muted)]">
+                  <td colSpan={10} className="px-4 py-8 text-center text-[var(--text-muted)]">
                     No supporters found
                   </td>
                 </tr>

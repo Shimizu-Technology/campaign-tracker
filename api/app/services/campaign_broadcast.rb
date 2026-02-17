@@ -52,6 +52,22 @@ class CampaignBroadcast
       })
     end
 
+    # Supporter updated (verification/lifecycle/assignment edits)
+    def supporter_updated(supporter, action: "updated")
+      broadcast(:supporter_updated, {
+        supporter_id: supporter.id,
+        print_name: supporter.print_name,
+        village_id: supporter.village_id,
+        village_name: supporter.village&.name,
+        precinct_id: supporter.precinct_id,
+        status: supporter.status,
+        verification_status: supporter.verification_status,
+        potential_duplicate: supporter.potential_duplicate,
+        action: action,
+        updated_at: supporter.updated_at&.iso8601
+      })
+    end
+
     # Dashboard stats refresh (can be triggered periodically or on demand)
     def stats_update(stats)
       broadcast(:stats_update, stats)

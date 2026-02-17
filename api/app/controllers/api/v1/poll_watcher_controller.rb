@@ -148,6 +148,13 @@ module Api
           )
         end
 
+        page = [ params[:page].to_i, 1 ].max
+        per_page = params[:per_page].to_i
+        per_page = 25 if per_page <= 0
+        per_page = [ per_page, 100 ].min
+        total = supporters.count
+        supporters = supporters.offset((page - 1) * per_page).limit(per_page)
+
         render json: {
           compliance_note: campaign_operations_compliance_note,
           precinct: {
@@ -156,7 +163,13 @@ module Api
             village_id: precinct.village_id,
             village_name: precinct.village.name
           },
-          supporters: supporters.limit(250).map { |supporter| strike_list_supporter_payload(supporter) }
+          supporters: supporters.map { |supporter| strike_list_supporter_payload(supporter) },
+          pagination: {
+            page: page,
+            per_page: per_page,
+            total: total,
+            pages: (total.to_f / per_page).ceil
+          }
         }
       end
 

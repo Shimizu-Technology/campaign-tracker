@@ -86,6 +86,7 @@ module Api
         if supporter.update(updates)
           changes = supporter.saved_changes.except("updated_at")
           log_audit!(supporter, action: "updated", changed_data: changes) if changes.present?
+          CampaignBroadcast.supporter_updated(supporter, action: "updated")
           render json: { supporter: supporter_json(supporter) }
         else
           render_api_error(
@@ -120,6 +121,7 @@ module Api
           "verification_status" => [ old_status, new_status ],
           "verified_by" => current_user.name || current_user.email
         })
+        CampaignBroadcast.supporter_updated(supporter, action: "verification_changed")
 
         render json: { supporter: supporter_json(supporter) }
       end
@@ -165,6 +167,11 @@ module Api
             "verified_by" => current_user.name || current_user.email
           })
         end
+        CampaignBroadcast.stats_update({
+          reason: "bulk_verification_changed",
+          updated_count: count,
+          verification_status: new_status
+        })
 
         render json: { updated: count, verification_status: new_status }
       end
@@ -362,11 +369,13 @@ module Api
         end
 
         DuplicateDetector.resolve!(supporter, action: action, merge_into: merge_into, resolved_by: current_user)
+        supporter.reload
 
         log_audit!(supporter, action: "duplicate_resolved", changed_data: {
           "resolution" => action,
           "merge_into_id" => merge_into&.id
         })
+        CampaignBroadcast.supporter_updated(supporter, action: "duplicate_resolved")
 
         render json: { message: "Duplicate #{action == 'merge' ? 'merged' : 'dismissed'}", supporter: supporter_json(supporter.reload) }
       end
