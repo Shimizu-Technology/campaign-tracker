@@ -210,7 +210,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 @media (max-width: 639px) {
   /* Ensure tables scroll horizontally on mobile */
   .app-card table {
-    display: block;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
   }
