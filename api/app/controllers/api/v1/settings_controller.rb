@@ -14,11 +14,7 @@ module Api
           return render_api_error(message: "No active campaign", status: :not_found, code: "no_campaign")
         end
 
-        render json: {
-          welcome_sms_template: campaign.welcome_sms_template || SmsService::DEFAULT_WELCOME_TEMPLATE,
-          welcome_sms_preview: SmsService.preview_welcome_template(campaign.welcome_sms_template),
-          available_variables: SmsService::WELCOME_TEMPLATE_VARIABLES
-        }
+        render json: settings_json(campaign)
       end
 
       # PATCH /api/v1/settings
@@ -28,8 +24,8 @@ module Api
           return render_api_error(message: "No active campaign", status: :not_found, code: "no_campaign")
         end
 
+        # SMS template
         template = params[:welcome_sms_template]
-
         if template.present? && template.length > 320
           return render_api_error(
             message: "Template too long (#{template.length} chars). Maximum is 320 characters (2 SMS segments).",
@@ -38,17 +34,25 @@ module Api
           )
         end
 
-        # Allow blank to reset to default
-        campaign.update!(welcome_sms_template: template.presence)
+        updates = {}
+        updates[:welcome_sms_template] = template.presence if params.key?(:welcome_sms_template)
+        updates[:show_pace] = ActiveModel::Type::Boolean.new.cast(params[:show_pace]) if params.key?(:show_pace)
 
-        render json: {
-          welcome_sms_template: campaign.welcome_sms_template || SmsService::DEFAULT_WELCOME_TEMPLATE,
-          welcome_sms_preview: SmsService.preview_welcome_template(campaign.welcome_sms_template),
-          available_variables: SmsService::WELCOME_TEMPLATE_VARIABLES
-        }
+        campaign.update!(updates) if updates.any?
+
+        render json: settings_json(campaign)
       end
 
       private
+
+      def settings_json(campaign)
+        {
+          welcome_sms_template: campaign.welcome_sms_template || SmsService::DEFAULT_WELCOME_TEMPLATE,
+          welcome_sms_preview: SmsService.preview_welcome_template(campaign.welcome_sms_template),
+          available_variables: SmsService::WELCOME_TEMPLATE_VARIABLES,
+          show_pace: campaign.show_pace
+        }
+      end
 
       def require_admin!
         unless current_user&.admin?

@@ -100,7 +100,7 @@ module Api
         Rails.logger.info("[Dashboard] total_target=#{total_target} total_precincts=#{total_precincts} villages=#{villages.size}")
 
         render json: {
-          campaign: campaign&.slice(:id, :name, :candidate_names, :election_year, :primary_color, :secondary_color),
+          campaign: campaign&.slice(:id, :name, :candidate_names, :election_year, :primary_color, :secondary_color)&.merge(show_pace: campaign&.show_pace || false),
           summary: {
             total_supporters: total_supporters,
             total_target: total_target,

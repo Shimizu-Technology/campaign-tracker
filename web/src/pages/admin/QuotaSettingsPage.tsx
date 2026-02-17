@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Save, Search, Target } from 'lucide-react';
-import { getQuotas, updateVillageQuota } from '../../lib/api';
+import { Save, Search, Target, TrendingUp } from 'lucide-react';
+import { getQuotas, updateVillageQuota, getSettings, updateSettings } from '../../lib/api';
 
 interface QuotaItem {
   village_id: number;
@@ -24,11 +24,26 @@ interface QuotasResponse {
   quotas: QuotaItem[];
 }
 
+interface SettingsResponse {
+  show_pace: boolean;
+}
+
 export default function QuotaSettingsPage() {
   const queryClient = useQueryClient();
   const { data, isLoading, isError } = useQuery<QuotasResponse>({
     queryKey: ['quotas'],
     queryFn: getQuotas,
+  });
+  const { data: settings } = useQuery<SettingsResponse>({
+    queryKey: ['settings'],
+    queryFn: getSettings,
+  });
+  const paceMutation = useMutation({
+    mutationFn: (showPace: boolean) => updateSettings({ show_pace: showPace }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
   });
   const [search, setSearch] = useState('');
   const [pendingByVillage, setPendingByVillage] = useState<Record<number, string>>({});
@@ -110,6 +125,39 @@ export default function QuotaSettingsPage() {
         <p className="text-gray-500 text-sm">
           Set per-village supporter targets. Voter counts come from GEC precinct data (edit on Precinct Settings).
         </p>
+      </div>
+
+      {/* Pace Tracking Toggle */}
+      <div className="app-card p-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center">
+              <TrendingUp className="w-[18px] h-[18px] text-blue-500" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-[var(--text-primary)]">Pace Tracking</p>
+              <p className="text-xs text-[var(--text-secondary)]">
+                Show expected progress and weekly targets on the dashboard
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={settings?.show_pace ?? false}
+            disabled={paceMutation.isPending}
+            onClick={() => paceMutation.mutate(!(settings?.show_pace ?? false))}
+            className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+              settings?.show_pace ? 'bg-[#1B3A6B]' : 'bg-gray-300'
+            } ${paceMutation.isPending ? 'opacity-50' : ''}`}
+          >
+            <span
+              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${
+                settings?.show_pace ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
       <div className="space-y-4">
