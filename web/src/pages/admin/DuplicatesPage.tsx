@@ -245,7 +245,7 @@ export default function DuplicatesPage() {
                         <button
                           onClick={() => {
                             if (!confirm(`Keep "${s.first_name} ${s.last_name}" and merge the other record into it?`)) return;
-                            resolveMutation.mutate({ id: match && 'first_name' in match ? match.id : s.duplicate_of_id!, resolution: 'merge', mergeIntoId: s.id });
+                            resolveMutation.mutate({ id: matchIsFullRecord ? match!.id : s.duplicate_of_id!, resolution: 'merge', mergeIntoId: s.id });
                           }}
                           disabled={resolveMutation.isPending}
                           className="inline-flex items-center gap-1 px-3 py-2 text-sm bg-[#1B3A6B] text-white rounded-xl min-h-[44px] hover:bg-[#15305a]"
