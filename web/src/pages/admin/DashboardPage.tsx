@@ -43,6 +43,7 @@ interface DashboardPayload {
     id?: number;
     name?: string;
     candidate_names?: string;
+    show_pace?: boolean;
   };
   summary?: Partial<DashboardSummary>;
   stats?: Partial<DashboardSummary>;
@@ -127,6 +128,7 @@ export default function DashboardPage() {
     pace_weekly_needed: Number(summarySource.pace_weekly_needed || 0),
   };
   const villages = Array.isArray(data.villages) ? data.villages : [];
+  const showPace = data.campaign?.show_pace === true;
 
   const statCards = [
     {
@@ -137,7 +139,7 @@ export default function DashboardPage() {
       iconBg: 'bg-blue-50',
       iconColor: 'text-blue-400',
     },
-    {
+    ...(showPace ? [ {
       label: 'Pace',
       value: paceLabel(summary.pace_diff, summary.pace_status),
       sub: summary.pace_weekly_needed > 0 ? `${summary.pace_weekly_needed}/week needed` : `${summary.total_percentage}% complete`,
@@ -145,7 +147,7 @@ export default function DashboardPage() {
       icon: TrendingUp,
       iconBg: summary.pace_status === 'ahead' || summary.pace_status === 'complete' ? 'bg-green-50' : summary.pace_status === 'slightly_behind' ? 'bg-amber-50' : 'bg-red-50',
       iconColor: paceColor(summary.pace_status),
-    },
+    } ] : []),
     {
       label: 'Today',
       value: String(summary.today_signups),
@@ -238,11 +240,17 @@ export default function DashboardPage() {
               />
             </div>
             <div className="mt-2.5 flex justify-between text-[11px] text-[var(--text-muted)]">
-              <span className={`font-medium ${paceColor(v.pace_status)}`}>
-                {paceLabel(v.pace_diff, v.pace_status)}
-              </span>
-              {v.pace_weekly_needed > 0 && (
-                <span>{v.pace_weekly_needed}/wk needed</span>
+              {showPace ? (
+                <>
+                  <span className={`font-medium ${paceColor(v.pace_status)}`}>
+                    {paceLabel(v.pace_diff, v.pace_status)}
+                  </span>
+                  {v.pace_weekly_needed > 0 && (
+                    <span>{v.pace_weekly_needed}/wk needed</span>
+                  )}
+                </>
+              ) : (
+                <span>{v.registered_voters.toLocaleString()} registered voters</span>
               )}
               {v.today_count > 0 && <span className="text-emerald-600 font-medium">+{v.today_count} today</span>}
             </div>
