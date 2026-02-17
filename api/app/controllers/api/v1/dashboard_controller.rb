@@ -134,9 +134,10 @@ module Api
         total_days = (target_date - start_date).to_f
         elapsed_days = (today - start_date).to_f
 
-        # If campaign hasn't started yet or just started
+        # If campaign hasn't started yet or total duration is zero/negative
         if elapsed_days <= 0 || total_days <= 0
-          return { expected: 0, diff: supporter_count, status: "ahead", weekly_needed: (target / [ (total_days / 7.0), 1 ].max).ceil }
+          total_weeks = total_days > 0 ? (total_days / 7.0) : 1.0
+          return { expected: 0, diff: supporter_count, status: "ahead", weekly_needed: (target / total_weeks).ceil }
         end
 
         # Past deadline
