@@ -26,6 +26,7 @@ export const getSession = () => api.get('/session').then(r => r.data);
 
 // Villages
 export const getVillages = () => api.get('/villages').then(r => r.data);
+export const getDistricts = () => api.get('/districts').then(r => r.data);
 export const getVillage = (id: number) => api.get(`/villages/${id}`).then(r => r.data);
 export const getQuotas = () => api.get('/quotas').then(r => r.data);
 export const updateVillageQuota = (villageId: number, targetCount: number, changeNote?: string) =>

@@ -10,6 +10,7 @@ Rails.application.routes.draw do
       get "stats", to: "dashboard#stats"
       resource :settings, only: [ :show, :update ]
       resources :villages, only: [ :index, :show ]
+      resources :districts, only: [ :index ]
       resources :supporters, only: [ :create, :index, :show, :update ] do
         member do
           patch :verify

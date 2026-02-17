@@ -2,8 +2,20 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import { Mail, Pencil, Plus, Save, Search, Trash2, Users, X } from 'lucide-react';
-import { createUser, deleteUser, getUsers, resendUserInvite, updateUser } from '../../lib/api';
+import { createUser, deleteUser, getDistricts, getUsers, getVillages, resendUserInvite, updateUser } from '../../lib/api';
 import { useSession } from '../../hooks/useSession';
+
+interface VillageOption {
+  id: number;
+  name: string;
+}
+
+interface DistrictOption {
+  id: number;
+  name: string;
+  village_ids: number[];
+  village_names: string[];
+}
 
 interface UserItem {
   id: number;
@@ -33,6 +45,8 @@ interface UserDraft {
   lastName: string;
   email: string;
   role: string;
+  assigned_district_id: number | null;
+  assigned_village_id: number | null;
 }
 
 function splitName(fullName: string | null): { firstName: string; lastName: string } {
@@ -57,30 +71,107 @@ const ROLE_GUIDE: RoleGuideRow[] = [
     role: 'district_coordinator',
     level: 'Level 2',
     who: 'District managers',
-    can: 'Edit supporters and manage district-level field operations',
+    can: 'Edit supporters and manage field ops for all villages in their assigned district',
   },
   {
     role: 'village_chief',
     level: 'Level 3',
     who: 'Village coordinators',
-    can: 'View and coordinate village execution without broad edit/admin controls',
+    can: 'View and coordinate village execution for their assigned village',
   },
   {
     role: 'block_leader',
     level: 'Level 4',
     who: 'Street/block organizers',
-    can: 'Submit and track supporter activity for assigned areas',
+    can: 'Submit and track supporter activity for their assigned village',
   },
   {
     role: 'poll_watcher',
     level: 'Level 5',
     who: 'Election day reporting staff',
-    can: 'Submit polling/turnout updates and monitor election-day status',
+    can: 'Submit polling/turnout updates for their assigned village on election day',
   },
 ];
 
 function roleLabel(role: string) {
   return role.replaceAll('_', ' ');
+}
+
+/** Which area assignment field does this role need? */
+function roleAssignmentType(role: string): 'none' | 'district' | 'village' {
+  if (role === 'campaign_admin') return 'none';
+  if (role === 'district_coordinator') return 'district';
+  return 'village'; // village_chief, block_leader, poll_watcher
+}
+
+function AssignmentDropdown({
+  role,
+  villageId,
+  districtId,
+  onVillageChange,
+  onDistrictChange,
+  villages,
+  districts,
+}: {
+  role: string;
+  villageId: number | null;
+  districtId: number | null;
+  onVillageChange: (id: number | null) => void;
+  onDistrictChange: (id: number | null) => void;
+  villages: VillageOption[];
+  districts: DistrictOption[];
+}) {
+  const type = roleAssignmentType(role);
+  if (type === 'none') return null;
+
+  if (type === 'district') {
+    return (
+      <select
+        value={districtId ?? ''}
+        onChange={(e) => onDistrictChange(e.target.value ? Number(e.target.value) : null)}
+        className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px] w-full"
+      >
+        <option value="">Select district...</option>
+        {districts.map((d) => (
+          <option key={d.id} value={d.id}>{d.name} ({d.village_names.length} villages)</option>
+        ))}
+        {districts.length === 0 && (
+          <option disabled>No districts configured yet</option>
+        )}
+      </select>
+    );
+  }
+
+  return (
+    <select
+      value={villageId ?? ''}
+      onChange={(e) => onVillageChange(e.target.value ? Number(e.target.value) : null)}
+      className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px] w-full"
+    >
+      <option value="">Select village...</option>
+      {villages.map((v) => (
+        <option key={v.id} value={v.id}>{v.name}</option>
+      ))}
+    </select>
+  );
+}
+
+function assignmentLabel(
+  user: UserItem,
+  villages: VillageOption[],
+  districts: DistrictOption[],
+): string {
+  const type = roleAssignmentType(user.role);
+  if (type === 'district' && user.assigned_district_id) {
+    const d = districts.find((d) => d.id === user.assigned_district_id);
+    return d ? `District: ${d.name}` : `District #${user.assigned_district_id}`;
+  }
+  if (type === 'village' && user.assigned_village_id) {
+    const v = villages.find((v) => v.id === user.assigned_village_id);
+    return v ? `Village: ${v.name}` : `Village #${user.assigned_village_id}`;
+  }
+  if (type === 'none') return '';
+  return 'No area assigned';
 }
 
 type UserSortField = 'name' | 'email' | 'role' | 'created_at';
@@ -107,8 +198,21 @@ export default function UsersPage() {
     refetchOnWindowFocus: true,
   });
 
+  const { data: villagesData } = useQuery<{ villages: VillageOption[] }>({
+    queryKey: ['villages'],
+    queryFn: getVillages,
+  });
+  const { data: districtsData } = useQuery<{ districts: DistrictOption[] }>({
+    queryKey: ['districts'],
+    queryFn: getDistricts,
+  });
+  const villages = useMemo(() => villagesData?.villages || [], [villagesData]);
+  const districts = useMemo(() => districtsData?.districts || [], [districtsData]);
+
   const [newEmail, setNewEmail] = useState('');
   const [newRole, setNewRole] = useState('block_leader');
+  const [newAssignedVillageId, setNewAssignedVillageId] = useState<number | null>(null);
+  const [newAssignedDistrictId, setNewAssignedDistrictId] = useState<number | null>(null);
   const [draftByUser, setDraftByUser] = useState<Record<number, UserDraft>>({});
   const [inviteNotice, setInviteNotice] = useState<string | null>(null);
   const [search, setSearch] = useState(searchParams.get('search') || '');
@@ -157,21 +261,35 @@ export default function UsersPage() {
   }, [search, roleFilter, sortBy, sortDir, setSearchParams]);
 
   const createMutation = useMutation({
-    mutationFn: () => createUser({ email: newEmail, role: newRole }),
+    mutationFn: () => {
+      const assignType = roleAssignmentType(newRole);
+      return createUser({
+        email: newEmail,
+        role: newRole,
+        assigned_village_id: assignType === 'village' ? newAssignedVillageId : null,
+        assigned_district_id: assignType === 'district' ? newAssignedDistrictId : null,
+      });
+    },
     onSuccess: () => {
       setNewEmail('');
       setNewRole('block_leader');
+      setNewAssignedVillageId(null);
+      setNewAssignedDistrictId(null);
       queryClient.invalidateQueries({ queryKey: ['users'] });
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: number; payload: UserDraft }) =>
-      updateUser(id, {
+    mutationFn: ({ id, payload }: { id: number; payload: UserDraft }) => {
+      const assignType = roleAssignmentType(payload.role);
+      return updateUser(id, {
         name: joinName(payload.firstName, payload.lastName) || null,
         email: payload.email.trim(),
         role: payload.role,
-      }),
+        assigned_village_id: assignType === 'village' ? payload.assigned_village_id : null,
+        assigned_district_id: assignType === 'district' ? payload.assigned_district_id : null,
+      });
+    },
     onSuccess: (_data, variables) => {
       setDraftByUser((prev) => {
         const next = { ...prev };
@@ -213,14 +331,22 @@ export default function UsersPage() {
   const getDraft = (user: UserItem): UserDraft => {
     if (draftByUser[user.id]) return draftByUser[user.id];
     const { firstName, lastName } = splitName(user.name);
-    return { firstName, lastName, email: user.email, role: user.role };
+    return {
+      firstName, lastName, email: user.email, role: user.role,
+      assigned_district_id: user.assigned_district_id,
+      assigned_village_id: user.assigned_village_id,
+    };
   };
 
   const startEdit = (user: UserItem) => {
     const { firstName, lastName } = splitName(user.name);
     setDraftByUser((prev) => ({
       ...prev,
-      [user.id]: { firstName, lastName, email: user.email, role: user.role },
+      [user.id]: {
+        firstName, lastName, email: user.email, role: user.role,
+        assigned_district_id: user.assigned_district_id,
+        assigned_village_id: user.assigned_village_id,
+      },
     }));
   };
 
@@ -232,15 +358,19 @@ export default function UsersPage() {
     });
   };
 
+  const hasChanges = (user: UserItem, draft: UserDraft) => (
+    (user.name || '') !== joinName(draft.firstName, draft.lastName) ||
+    user.email !== draft.email.trim().toLowerCase() ||
+    user.role !== draft.role ||
+    user.assigned_village_id !== draft.assigned_village_id ||
+    user.assigned_district_id !== draft.assigned_district_id
+  );
+
   const pendingSaves = useMemo(
     () => Object.entries(draftByUser).filter(([id, draft]) => {
       const user = users.find((u) => u.id === Number(id));
       if (!user) return false;
-      return (
-        (user.name || '') !== joinName(draft.firstName, draft.lastName) ||
-        user.email !== draft.email.trim().toLowerCase() ||
-        user.role !== draft.role
-      );
+      return hasChanges(user, draft);
     }),
     [draftByUser, users]
   );
@@ -279,7 +409,11 @@ export default function UsersPage() {
             />
             <select
               value={newRole}
-              onChange={(e) => setNewRole(e.target.value)}
+              onChange={(e) => {
+                setNewRole(e.target.value);
+                setNewAssignedVillageId(null);
+                setNewAssignedDistrictId(null);
+              }}
               className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px]"
             >
               {roles.map((role) => (
@@ -287,6 +421,22 @@ export default function UsersPage() {
               ))}
             </select>
           </div>
+          {roleAssignmentType(newRole) !== 'none' && (
+            <div className="mt-3 max-w-sm">
+              <label className="block text-xs text-[var(--text-secondary)] mb-1">
+                {roleAssignmentType(newRole) === 'district' ? 'Assign to district' : 'Assign to village'}
+              </label>
+              <AssignmentDropdown
+                role={newRole}
+                villageId={newAssignedVillageId}
+                districtId={newAssignedDistrictId}
+                onVillageChange={setNewAssignedVillageId}
+                onDistrictChange={setNewAssignedDistrictId}
+                villages={villages}
+                districts={districts}
+              />
+            </div>
+          )}
           <button
             type="button"
             onClick={() => createMutation.mutate()}
@@ -427,11 +577,7 @@ export default function UsersPage() {
                 {filteredUsers.map((user) => {
                   const isEditing = Boolean(draftByUser[user.id]);
                   const draft = getDraft(user);
-                  const changed = (
-                    (user.name || '') !== joinName(draft.firstName, draft.lastName) ||
-                    user.email !== draft.email.trim().toLowerCase() ||
-                    user.role !== draft.role
-                  );
+                  const changed = hasChanges(user, draft);
 
                   return (
                     <div key={user.id} className="p-4 space-y-3">
@@ -462,13 +608,27 @@ export default function UsersPage() {
                           />
                           <select
                             value={draft.role}
-                            onChange={(e) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, role: e.target.value } }))}
+                            onChange={(e) => setDraftByUser((prev) => ({
+                              ...prev,
+                              [user.id]: { ...draft, role: e.target.value, assigned_village_id: null, assigned_district_id: null },
+                            }))}
                             className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px]"
                           >
                             {roles.map((role) => (
                               <option key={role} value={role}>{roleLabel(role)}</option>
                             ))}
                           </select>
+                          {roleAssignmentType(draft.role) !== 'none' && (
+                            <AssignmentDropdown
+                              role={draft.role}
+                              villageId={draft.assigned_village_id}
+                              districtId={draft.assigned_district_id}
+                              onVillageChange={(id) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, assigned_village_id: id } }))}
+                              onDistrictChange={(id) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, assigned_district_id: id } }))}
+                              villages={villages}
+                              districts={districts}
+                            />
+                          )}
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                             <button
                               type="button"
@@ -501,6 +661,11 @@ export default function UsersPage() {
                             <p className="text-sm font-medium text-[var(--text-primary)]">{user.name || 'Unnamed user'}</p>
                             <p className="text-xs text-[var(--text-secondary)] break-all">{user.email}</p>
                             <p className="text-xs text-[var(--text-secondary)] mt-1">Role: {roleLabel(user.role)}</p>
+                            {assignmentLabel(user, villages, districts) && (
+                              <p className={`text-xs mt-0.5 ${user.assigned_village_id || user.assigned_district_id ? 'text-[var(--text-secondary)]' : 'text-amber-600'}`}>
+                                {assignmentLabel(user, villages, districts)}
+                              </p>
+                            )}
                           </div>
                           <div className="grid grid-cols-3 gap-2">
                             <button
@@ -555,6 +720,7 @@ export default function UsersPage() {
                       <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">
                         <button type="button" onClick={() => handleSort('role')} className="hover:text-[var(--text-primary)]">Role</button>
                       </th>
+                      <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Area</th>
                       <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Action</th>
                     </tr>
                   </thead>
@@ -562,11 +728,7 @@ export default function UsersPage() {
                     {filteredUsers.map((user) => {
                       const isEditing = Boolean(draftByUser[user.id]);
                       const draft = getDraft(user);
-                      const changed = (
-                        (user.name || '') !== joinName(draft.firstName, draft.lastName) ||
-                        user.email !== draft.email.trim().toLowerCase() ||
-                        user.role !== draft.role
-                      );
+                      const changed = hasChanges(user, draft);
 
                       return (
                         <tr key={user.id} className="border-b">
@@ -608,7 +770,10 @@ export default function UsersPage() {
                             {isEditing ? (
                               <select
                                 value={draft.role}
-                                onChange={(e) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, role: e.target.value } }))}
+                                onChange={(e) => setDraftByUser((prev) => ({
+                                  ...prev,
+                                  [user.id]: { ...draft, role: e.target.value, assigned_village_id: null, assigned_district_id: null },
+                                }))}
                                 className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px]"
                               >
                                 {roles.map((role) => (
@@ -617,6 +782,27 @@ export default function UsersPage() {
                               </select>
                             ) : (
                               roleLabel(user.role)
+                            )}
+                          </td>
+                          <td className="px-4 py-3">
+                            {isEditing ? (
+                              roleAssignmentType(draft.role) !== 'none' ? (
+                                <AssignmentDropdown
+                                  role={draft.role}
+                                  villageId={draft.assigned_village_id}
+                                  districtId={draft.assigned_district_id}
+                                  onVillageChange={(id) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, assigned_village_id: id } }))}
+                                  onDistrictChange={(id) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, assigned_district_id: id } }))}
+                                  villages={villages}
+                                  districts={districts}
+                                />
+                              ) : (
+                                <span className="text-xs text-[var(--text-muted)]">Full access</span>
+                              )
+                            ) : (
+                              <span className={`text-xs ${user.assigned_village_id || user.assigned_district_id ? 'text-[var(--text-secondary)]' : roleAssignmentType(user.role) === 'none' ? 'text-[var(--text-muted)]' : 'text-amber-600'}`}>
+                                {assignmentLabel(user, villages, districts) || 'Full access'}
+                              </span>
                             )}
                           </td>
                           <td className="px-4 py-3">
@@ -676,7 +862,7 @@ export default function UsersPage() {
                     })}
                     {filteredUsers.length === 0 && (
                       <tr>
-                        <td colSpan={4} className="px-4 py-8 text-center text-[var(--text-muted)]">
+                        <td colSpan={5} className="px-4 py-8 text-center text-[var(--text-muted)]">
                           No users match current filters.
                         </td>
                       </tr>
