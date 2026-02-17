@@ -23,7 +23,7 @@ Rails.application.routes.draw do
           post :scan_duplicates
         end
       end
-      resources :users, only: [ :index, :create, :update ] do
+      resources :users, only: [ :index, :create, :update, :destroy ] do
         member do
           post :resend_invite
         end

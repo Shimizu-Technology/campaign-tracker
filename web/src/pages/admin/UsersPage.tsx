@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Mail, Pencil, Plus, Save, Search, Users, X } from 'lucide-react';
-import { createUser, getUsers, resendUserInvite, updateUser } from '../../lib/api';
+import { Mail, Pencil, Plus, Save, Search, Trash2, Users, X } from 'lucide-react';
+import { createUser, deleteUser, getUsers, resendUserInvite, updateUser } from '../../lib/api';
+import { useSession } from '../../hooks/useSession';
 
 interface UserItem {
   id: number;
@@ -177,6 +178,16 @@ export default function UsersPage() {
         delete next[variables.id];
         return next;
       });
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+  });
+
+  const { data: session } = useSession();
+  const currentUserId = session?.user?.id;
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => deleteUser(id),
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
     },
   });
@@ -479,7 +490,7 @@ export default function UsersPage() {
                             <p className="text-xs text-[var(--text-secondary)] break-all">{user.email}</p>
                             <p className="text-xs text-[var(--text-secondary)] mt-1">Role: {roleLabel(user.role)}</p>
                           </div>
-                          <div className="grid grid-cols-2 gap-2">
+                          <div className="grid grid-cols-3 gap-2">
                             <button
                               type="button"
                               onClick={() => startEdit(user)}
@@ -495,6 +506,19 @@ export default function UsersPage() {
                             >
                               <Mail className="w-3.5 h-3.5" /> Resend
                             </button>
+                            {user.id !== currentUserId && (
+                              <button
+                                type="button"
+                                disabled={deleteMutation.isPending}
+                                onClick={() => {
+                                  if (!window.confirm(`Remove ${user.name || user.email}? They will lose access to the app.`)) return;
+                                  deleteMutation.mutate(user.id);
+                                }}
+                                className="bg-red-50 border border-red-200 text-red-600 px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center justify-center gap-1 disabled:opacity-50"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" /> Remove
+                              </button>
+                            )}
                           </div>
                         </>
                       )}
@@ -620,6 +644,19 @@ export default function UsersPage() {
                               >
                                 <Mail className="w-3.5 h-3.5" /> Resend
                               </button>
+                              {user.id !== currentUserId && (
+                                <button
+                                  type="button"
+                                  disabled={deleteMutation.isPending}
+                                  onClick={() => {
+                                    if (!window.confirm(`Remove ${user.name || user.email}? They will lose access to the app.`)) return;
+                                    deleteMutation.mutate(user.id);
+                                  }}
+                                  className="bg-red-50 border border-red-200 text-red-600 px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1 disabled:opacity-50"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" /> Remove
+                                </button>
+                              )}
                             </div>
                           </td>
                         </tr>

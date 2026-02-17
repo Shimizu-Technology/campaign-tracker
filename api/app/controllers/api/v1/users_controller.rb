@@ -90,6 +90,30 @@ module Api
         end
       end
 
+      # DELETE /api/v1/users/:id
+      def destroy
+        user = User.find(params[:id])
+
+        if user.id == current_user.id
+          return render_api_error(
+            message: "You cannot remove yourself",
+            status: :unprocessable_entity,
+            code: "user_self_delete"
+          )
+        end
+
+        unless manageable_roles_for_current_user.include?(user.role)
+          return render_api_error(
+            message: "You do not have permission to remove this user",
+            status: :forbidden,
+            code: "user_delete_forbidden"
+          )
+        end
+
+        user.destroy!
+        render json: { message: "User removed" }, status: :ok
+      end
+
       # POST /api/v1/users/:id/resend_invite
       def resend_invite
         user = User.find(params[:id])
