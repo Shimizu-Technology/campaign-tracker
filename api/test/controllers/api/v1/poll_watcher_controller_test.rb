@@ -178,7 +178,7 @@ class Api::V1::PollWatcherControllerTest < ActionDispatch::IntegrationTest
     assert audit_log.present?
     assert_equal @watcher.id, audit_log.actor_user_id
     assert_equal "campaign_operations_not_official_record", audit_log.metadata["compliance_context"]
-    assert_equal "unknown", audit_log.changed_data.dig("turnout_status", "from")
+    assert_equal "not_yet_voted", audit_log.changed_data.dig("turnout_status", "from")
     assert_equal "voted", audit_log.changed_data.dig("turnout_status", "to")
   end
 

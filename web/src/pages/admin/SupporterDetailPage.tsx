@@ -223,6 +223,11 @@ export default function SupporterDetailPage() {
             {supporter.verification_status === 'verified' ? 'Verified' :
              supporter.verification_status === 'flagged' ? 'Flagged' : 'Unverified'}
           </span>
+          {supporter.status === 'removed' && (
+            <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-600">
+              Removed
+            </span>
+          )}
         </div>
       </div>
 
@@ -456,6 +461,37 @@ export default function SupporterDetailPage() {
                 className="px-3 py-1 border border-[var(--border-soft)] text-[var(--text-primary)] text-sm rounded-lg hover:bg-[var(--surface-bg)]"
               >
                 Reset
+              </button>
+            )}
+            {canEdit && supporter.status !== 'removed' && (
+              <button
+                onClick={async () => {
+                  if (!window.confirm('Remove this supporter? They will be excluded from all counts but kept in the audit log.')) return;
+                  try {
+                    await updateSupporter(supporter.id, { status: 'removed' });
+                    refetch();
+                  } catch {
+                    alert('Failed to remove supporter.');
+                  }
+                }}
+                className="px-3 py-1 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg hover:bg-red-100"
+              >
+                Remove
+              </button>
+            )}
+            {canEdit && supporter.status === 'removed' && (
+              <button
+                onClick={async () => {
+                  try {
+                    await updateSupporter(supporter.id, { status: 'active' });
+                    refetch();
+                  } catch {
+                    alert('Failed to restore supporter.');
+                  }
+                }}
+                className="px-3 py-1 bg-blue-50 border border-blue-200 text-blue-600 text-sm rounded-lg hover:bg-blue-100"
+              >
+                Restore
               </button>
             )}
           </div>
