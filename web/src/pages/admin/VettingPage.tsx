@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getSupporters, getVillages, verifySupporter, bulkVerifySupporters } from '../../lib/api';
+import { getSupporters, getVillages, verifySupporter, bulkVerifySupporters, updateSupporter } from '../../lib/api';
 import { Link } from 'react-router-dom';
 import { useSession } from '../../hooks/useSession';
-import { CheckCircle, XCircle, AlertTriangle, ShieldCheck, ClipboardList, ChevronDown, ChevronUp } from 'lucide-react';
+import { CheckCircle, XCircle, AlertTriangle, ShieldCheck, ClipboardList, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 
 interface Supporter {
   id: number;
@@ -62,6 +62,15 @@ export default function VettingPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vetting-supporters'] });
       queryClient.invalidateQueries({ queryKey: ['session'] });
+    },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: (id: number) => updateSupporter(id, { status: 'removed' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vetting-supporters'] });
+      queryClient.invalidateQueries({ queryKey: ['session'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 
@@ -333,6 +342,19 @@ export default function VettingPage() {
                         Reset
                       </button>
                     )}
+
+                    <button
+                      onClick={() => {
+                        if (!window.confirm(`Remove ${s.first_name} ${s.last_name}? They will be excluded from all counts but kept in the audit log.`)) return;
+                        removeMutation.mutate(s.id);
+                      }}
+                      disabled={removeMutation.isPending}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-sm bg-red-50 border border-red-200 text-red-600 rounded-lg hover:bg-red-100 disabled:opacity-50"
+                      title="Remove from counts (soft delete)"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Remove</span>
+                    </button>
                   </div>
                 </div>
               </div>

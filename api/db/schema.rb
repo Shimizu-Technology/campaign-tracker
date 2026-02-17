@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_17_030000) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_17_040000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -406,7 +406,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_17_030000) do
     t.string "street_address"
     t.text "turnout_note"
     t.string "turnout_source"
-    t.string "turnout_status", default: "unknown", null: false
+    t.string "turnout_status", default: "not_yet_voted", null: false
     t.datetime "turnout_updated_at"
     t.bigint "turnout_updated_by_user_id"
     t.datetime "updated_at", null: false

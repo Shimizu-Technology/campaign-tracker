@@ -30,7 +30,7 @@ class Supporter < ApplicationRecord
   def display_name
     [ first_name, last_name ].compact_blank.join(" ")
   end
-  validates :status, inclusion: { in: %w[active inactive duplicate unverified] }
+  validates :status, inclusion: { in: %w[active inactive duplicate unverified removed] }
   validates :source, inclusion: { in: %w[staff_entry qr_signup referral bulk_import] }, allow_nil: true
   validates :turnout_status, inclusion: { in: TURNOUT_STATUSES }
   validates :turnout_source, inclusion: { in: TURNOUT_SOURCES }, allow_blank: true

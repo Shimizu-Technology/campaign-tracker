@@ -18,8 +18,8 @@ class SupporterTurnoutTrackingTest < ActiveSupport::TestCase
     )
   end
 
-  test "supporter turnout status defaults to unknown" do
-    assert_equal "unknown", @supporter.turnout_status
+  test "supporter turnout status defaults to not_yet_voted" do
+    assert_equal "not_yet_voted", @supporter.turnout_status
   end
 
   test "supporter validates turnout status inclusion" do
