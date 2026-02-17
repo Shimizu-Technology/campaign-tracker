@@ -133,6 +133,7 @@ export const createUser = (data: JsonRecord) => api.post('/users', { user: data 
 export const updateUser = (id: number, data: JsonRecord) =>
   api.patch(`/users/${id}`, { user: data }).then(r => r.data);
 export const resendUserInvite = (id: number) => api.post(`/users/${id}/resend_invite`).then(r => r.data);
+export const deleteUser = (id: number) => api.delete(`/users/${id}`).then(r => r.data);
 
 // Settings
 export const getSettings = () => api.get('/settings').then(r => r.data);
