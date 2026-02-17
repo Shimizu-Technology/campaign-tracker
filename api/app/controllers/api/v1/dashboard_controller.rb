@@ -37,12 +37,31 @@ module Api
           {}
         end
 
+        # Pace tracking: calculate expected progress based on linear interpolation
+        # from campaign start to quota target date
+        target_dates = if campaign
+          Quota.where(campaign_id: campaign.id, village_id: village_ids)
+               .group(:village_id)
+               .maximum(:target_date)
+        else
+          {}
+        end
+        campaign_started_at = campaign&.started_at || campaign&.created_at&.to_date || Date.current
+
         villages = villages_base.map do |village|
           supporter_count = supporter_counts[village.id] || 0
           today_count = today_counts[village.id] || 0
           week_count = week_counts[village.id] || 0
           target = quota_targets[village.id] || 0
           percentage = target.positive? ? (supporter_count * 100.0 / target).round(1) : 0
+
+          # Pace calculation
+          pace = calculate_pace(
+            supporter_count: supporter_count,
+            target: target,
+            started_at: campaign_started_at,
+            target_date: target_dates[village.id]
+          )
 
           {
             id: village.id,
@@ -55,7 +74,11 @@ module Api
             week_count: week_count,
             quota_target: target,
             quota_percentage: percentage,
-            status: percentage >= 75 ? "on_track" : percentage >= 50 ? "behind" : "critical"
+            status: percentage >= 75 ? "on_track" : percentage >= 50 ? "behind" : "critical",
+            pace_expected: pace[:expected],
+            pace_diff: pace[:diff],
+            pace_status: pace[:status],
+            pace_weekly_needed: pace[:weekly_needed]
           }
         end
 
@@ -65,6 +88,14 @@ module Api
         total_registered_voters = villages.sum { |v| v[:registered_voters].to_i }
         total_villages = villages.size
         total_precincts = villages.sum { |v| v[:precinct_count].to_i }
+
+        # Overall pace
+        overall_pace = calculate_pace(
+          supporter_count: total_supporters,
+          target: total_target,
+          started_at: campaign_started_at,
+          target_date: target_dates.values.compact.max
+        )
 
         Rails.logger.info("[Dashboard] total_target=#{total_target} total_precincts=#{total_precincts} villages=#{villages.size}")
 
@@ -80,10 +111,67 @@ module Api
             verified_supporters: Supporter.active.verified.where(village_id: village_ids).count,
             today_signups: today_counts.values.sum,
             week_signups: week_counts.values.sum,
-            status: total_percentage >= 75 ? "on_track" : total_percentage >= 50 ? "behind" : "critical"
+            status: total_percentage >= 75 ? "on_track" : total_percentage >= 50 ? "behind" : "critical",
+            pace_expected: overall_pace[:expected],
+            pace_diff: overall_pace[:diff],
+            pace_status: overall_pace[:status],
+            pace_weekly_needed: overall_pace[:weekly_needed]
           },
           villages: villages
         }
+      end
+
+      private
+
+      # Calculate pace metrics for a given supporter count against a target.
+      # Returns expected count by now, diff (actual - expected), status, and weekly rate needed.
+      def calculate_pace(supporter_count:, target:, started_at:, target_date:)
+        return { expected: 0, diff: 0, status: "no_target", weekly_needed: 0 } if target <= 0
+        return { expected: 0, diff: supporter_count, status: "no_deadline", weekly_needed: 0 } if target_date.blank?
+
+        today = Date.current
+        start_date = started_at || today
+        total_days = (target_date - start_date).to_f
+        elapsed_days = (today - start_date).to_f
+
+        # If campaign hasn't started yet or just started
+        if elapsed_days <= 0 || total_days <= 0
+          return { expected: 0, diff: supporter_count, status: "ahead", weekly_needed: (target / [ (total_days / 7.0), 1 ].max).ceil }
+        end
+
+        # Past deadline
+        if today > target_date
+          return {
+            expected: target,
+            diff: supporter_count - target,
+            status: supporter_count >= target ? "complete" : "overdue",
+            weekly_needed: 0
+          }
+        end
+
+        # Linear interpolation: where should we be right now?
+        progress_fraction = elapsed_days / total_days
+        expected = (target * progress_fraction).round
+
+        diff = supporter_count - expected
+        diff_pct = expected > 0 ? (diff.to_f / expected * 100) : 0
+
+        # Status thresholds
+        status = if diff >= 0
+          "ahead"
+        elsif diff_pct >= -10
+          "slightly_behind"
+        else
+          "behind"
+        end
+
+        # How many per week needed to hit target from here?
+        remaining_days = (target_date - today).to_f
+        remaining_weeks = remaining_days / 7.0
+        remaining_count = [ target - supporter_count, 0 ].max
+        weekly_needed = remaining_weeks > 0 ? (remaining_count / remaining_weeks).ceil : remaining_count
+
+        { expected: expected, diff: diff, status: status, weekly_needed: weekly_needed }
       end
     end
   end

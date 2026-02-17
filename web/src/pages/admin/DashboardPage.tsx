@@ -16,6 +16,10 @@ interface VillageData {
   quota_target: number;
   quota_percentage: number;
   status: 'on_track' | 'behind' | 'critical';
+  pace_expected: number;
+  pace_diff: number;
+  pace_status: string;
+  pace_weekly_needed: number;
 }
 
 interface DashboardSummary {
@@ -28,6 +32,10 @@ interface DashboardSummary {
   today_signups: number;
   week_signups: number;
   status: 'on_track' | 'behind' | 'critical';
+  pace_expected: number;
+  pace_diff: number;
+  pace_status: string;
+  pace_weekly_needed: number;
 }
 
 interface DashboardPayload {
@@ -53,10 +61,19 @@ function statusTextColor(status: string) {
   return 'text-red-400';
 }
 
-function statusLabel(status: string) {
-  if (status === 'on_track') return 'On Track';
-  if (status === 'behind') return 'Behind';
-  return 'Critical';
+function paceColor(paceStatus: string) {
+  if (paceStatus === 'ahead' || paceStatus === 'complete') return 'text-emerald-600';
+  if (paceStatus === 'slightly_behind') return 'text-amber-600';
+  if (paceStatus === 'behind' || paceStatus === 'overdue') return 'text-red-600';
+  return 'text-gray-500';
+}
+
+function paceLabel(diff: number, status: string) {
+  if (status === 'no_target' || status === 'no_deadline') return '—';
+  if (status === 'complete') return '✓ Goal reached';
+  if (status === 'overdue') return `${Math.abs(diff)} short`;
+  if (diff >= 0) return `${diff} ahead`;
+  return `${Math.abs(diff)} behind`;
 }
 
 export default function DashboardPage() {
@@ -104,6 +121,10 @@ export default function DashboardPage() {
     today_signups: Number(summarySource.today_signups || 0),
     week_signups: Number(summarySource.week_signups || 0),
     status: (summarySource.status as DashboardSummary['status']) || 'critical',
+    pace_expected: Number(summarySource.pace_expected || 0),
+    pace_diff: Number(summarySource.pace_diff || 0),
+    pace_status: (summarySource.pace_status as string) || 'no_target',
+    pace_weekly_needed: Number(summarySource.pace_weekly_needed || 0),
   };
   const villages = Array.isArray(data.villages) ? data.villages : [];
 
@@ -117,13 +138,13 @@ export default function DashboardPage() {
       iconColor: 'text-blue-400',
     },
     {
-      label: 'Progress',
-      value: `${summary.total_percentage}%`,
-      sub: statusLabel(summary.status),
-      subColor: statusTextColor(summary.status),
+      label: 'Pace',
+      value: paceLabel(summary.pace_diff, summary.pace_status),
+      sub: summary.pace_weekly_needed > 0 ? `${summary.pace_weekly_needed}/week needed` : `${summary.total_percentage}% complete`,
+      subColor: paceColor(summary.pace_status),
       icon: TrendingUp,
-      iconBg: summary.status === 'on_track' ? 'bg-green-50' : summary.status === 'behind' ? 'bg-amber-50' : 'bg-red-50',
-      iconColor: statusTextColor(summary.status),
+      iconBg: summary.pace_status === 'ahead' || summary.pace_status === 'complete' ? 'bg-green-50' : summary.pace_status === 'slightly_behind' ? 'bg-amber-50' : 'bg-red-50',
+      iconColor: paceColor(summary.pace_status),
     },
     {
       label: 'Today',
@@ -217,8 +238,13 @@ export default function DashboardPage() {
               />
             </div>
             <div className="mt-2.5 flex justify-between text-[11px] text-[var(--text-muted)]">
-              <span>{v.registered_voters.toLocaleString()} registered voters</span>
-              {v.today_count > 0 && <span className="text-emerald-400 font-medium">+{v.today_count} today</span>}
+              <span className={`font-medium ${paceColor(v.pace_status)}`}>
+                {paceLabel(v.pace_diff, v.pace_status)}
+              </span>
+              {v.pace_weekly_needed > 0 && (
+                <span>{v.pace_weekly_needed}/wk needed</span>
+              )}
+              {v.today_count > 0 && <span className="text-emerald-600 font-medium">+{v.today_count} today</span>}
             </div>
           </Link>
         ))}
