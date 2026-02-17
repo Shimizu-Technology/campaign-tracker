@@ -116,7 +116,7 @@ export default function LeaderboardPage() {
 
       <div>
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-3 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
           <div className="app-card p-3 text-center">
             <Users className="w-5 h-5 mx-auto text-[var(--text-muted)] mb-1" />
             <div className="text-2xl font-bold text-[var(--text-primary)]">{stats.total_qr_signups}</div>

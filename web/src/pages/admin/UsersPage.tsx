@@ -446,7 +446,7 @@ export default function UsersPage() {
                               <option key={role} value={role}>{roleLabel(role)}</option>
                             ))}
                           </select>
-                          <div className="grid grid-cols-3 gap-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                             <button
                               type="button"
                               disabled={!changed || updateMutation.isPending}

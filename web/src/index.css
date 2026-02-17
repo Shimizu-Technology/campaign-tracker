@@ -206,6 +206,22 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   color: var(--text-primary);
 }
 
+/* ---- Mobile utilities ---- */
+@media (max-width: 639px) {
+  /* Ensure selects don't overflow on mobile */
+  select {
+    max-width: 100%;
+  }
+}
+
+/* Safe area padding for iOS notch phones */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .min-h-screen {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
 /* ---- Animations ---- */
 @keyframes slide-in {
   from { transform: translateX(100%); opacity: 0; }
