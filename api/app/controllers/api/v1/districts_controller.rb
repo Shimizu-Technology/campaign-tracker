@@ -4,6 +4,7 @@ module Api
       include Authenticatable
 
       before_action :authenticate_request
+      before_action :load_supporter_counts, only: [ :index, :create, :update, :assign_villages ]
       before_action :require_coordinator_or_above!, only: [ :index ]
       before_action :require_admin!, only: [ :create, :update, :destroy, :assign_villages ]
 
@@ -11,13 +12,6 @@ module Api
       def index
         districts = District.includes(:villages).order(:name)
         unassigned_villages = Village.where(district_id: nil).order(:name)
-
-        # Batch load supporter counts to avoid N+1
-        all_village_ids = Village.pluck(:id)
-        @supporter_counts = Supporter.active
-          .where(village_id: all_village_ids)
-          .group(:village_id)
-          .count
 
         render json: {
           districts: districts.map { |d| district_json(d) },
@@ -59,6 +53,8 @@ module Api
       # DELETE /api/v1/districts/:id
       def destroy
         district = District.find(params[:id])
+        # Clear assignment for any users assigned to this district
+        User.where(assigned_district_id: district.id).update_all(assigned_district_id: nil)
         # Nullify village associations (don't delete villages)
         district.destroy!
         render json: { message: "District deleted" }
@@ -85,13 +81,18 @@ module Api
         params.require(:district).permit(:name, :description)
       end
 
+      # Batch load supporter counts to avoid N+1 queries
+      def load_supporter_counts
+        @supporter_counts = Supporter.active.group(:village_id).count
+      end
+
       def district_json(district)
         {
           id: district.id,
           name: district.name,
           description: district.description,
-          villages: district.villages.order(:name).map { |v| village_summary(v) },
-          supporter_count: district.village_ids.sum { |vid| @supporter_counts&.fetch(vid, 0) || 0 },
+          villages: district.villages.sort_by(&:name).map { |v| village_summary(v) },
+          supporter_count: district.village_ids.sum { |vid| @supporter_counts.fetch(vid, 0) },
           registered_voters: district.villages.joins(:precincts).sum("precincts.registered_voters")
         }
       end
@@ -100,7 +101,7 @@ module Api
         {
           id: village.id,
           name: village.name,
-          supporter_count: @supporter_counts&.fetch(village.id, 0) || village.supporters.active.count,
+          supporter_count: @supporter_counts.fetch(village.id, 0),
           registered_voters: village.registered_voters
         }
       end
