@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { createStrikeListContactAttempt, getPollWatcher, getPollWatcherStrikeList, submitPollReport, updateStrikeListTurnout } from '../../lib/api';
 import { useSearchParams } from 'react-router-dom';
@@ -231,18 +231,22 @@ export default function PollWatcherPage() {
     setSearchParams(params, { replace: true });
   }, [filterVillage, search, reportingFilter, sortBy, sortDir, setSearchParams]);
 
-  const strikeSupporters = strikeListData?.supporters || [];
+  const strikeSupporters = useMemo(() => strikeListData?.supporters || [], [strikeListData]);
 
+  // Sync active supporter when strike list changes — setState is intentional here
+  // to keep user's selection in sync with filtered data
+  const strikeIds = useMemo(() => strikeSupporters.map((s) => s.id), [strikeSupporters]);
+  /* eslint-disable react-hooks/set-state-in-effect -- intentional: sync selection with filtered data */
   useEffect(() => {
-    if (strikeSupporters.length === 0) {
+    if (strikeIds.length === 0) {
       setActiveSupporterId(null);
-      return;
+    } else {
+      setActiveSupporterId((prev) =>
+        prev && strikeIds.includes(prev) ? prev : strikeIds[0]
+      );
     }
-    setActiveSupporterId((prev) => {
-      if (prev && strikeSupporters.some((supporter) => supporter.id === prev)) return prev;
-      return strikeSupporters[0].id;
-    });
-  }, [strikeSupporters]);
+  }, [strikeIds]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (isLoading) {
     return (

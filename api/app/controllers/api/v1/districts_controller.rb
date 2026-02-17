@@ -3,7 +3,8 @@ module Api
     class DistrictsController < ApplicationController
       include Authenticatable
 
-      before_action :require_authenticated_user!
+      before_action :authenticate_request
+      before_action :require_coordinator_or_above!, only: [ :index ]
       before_action :require_admin!, only: [ :create, :update, :destroy, :assign_villages ]
 
       # GET /api/v1/districts

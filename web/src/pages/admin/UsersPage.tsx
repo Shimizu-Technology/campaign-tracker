@@ -13,8 +13,7 @@ interface VillageOption {
 interface DistrictOption {
   id: number;
   name: string;
-  village_ids: number[];
-  village_names: string[];
+  villages: { id: number; name: string }[];
 }
 
 interface UserItem {
@@ -133,7 +132,7 @@ function AssignmentDropdown({
       >
         <option value="">Select district...</option>
         {districts.map((d) => (
-          <option key={d.id} value={d.id}>{d.name} ({d.village_names.length} villages)</option>
+          <option key={d.id} value={d.id}>{d.name} ({d.villages.length} villages)</option>
         ))}
         {districts.length === 0 && (
           <option disabled>No districts configured yet</option>
@@ -440,7 +439,7 @@ export default function UsersPage() {
           <button
             type="button"
             onClick={() => createMutation.mutate()}
-            disabled={!newEmail || createMutation.isPending}
+            disabled={!newEmail || createMutation.isPending || (roleAssignmentType(newRole) === 'village' && !newAssignedVillageId) || (roleAssignmentType(newRole) === 'district' && !newAssignedDistrictId)}
             className="mt-3 bg-[#1B3A6B] text-white px-4 py-2 rounded-xl min-h-[44px] text-sm font-medium flex items-center gap-2 disabled:opacity-50"
           >
             <Plus className="w-4 h-4" /> {createMutation.isPending ? 'Adding...' : 'Add User'}
@@ -608,10 +607,20 @@ export default function UsersPage() {
                           />
                           <select
                             value={draft.role}
-                            onChange={(e) => setDraftByUser((prev) => ({
-                              ...prev,
-                              [user.id]: { ...draft, role: e.target.value, assigned_village_id: null, assigned_district_id: null },
-                            }))}
+                            onChange={(e) => {
+                              const newRole = e.target.value;
+                              const oldType = roleAssignmentType(draft.role);
+                              const newType = roleAssignmentType(newRole);
+                              setDraftByUser((prev) => ({
+                                ...prev,
+                                [user.id]: {
+                                  ...draft,
+                                  role: newRole,
+                                  assigned_village_id: newType === oldType ? draft.assigned_village_id : null,
+                                  assigned_district_id: newType === oldType ? draft.assigned_district_id : null,
+                                },
+                              }));
+                            }}
                             className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px]"
                           >
                             {roles.map((role) => (
@@ -770,10 +779,20 @@ export default function UsersPage() {
                             {isEditing ? (
                               <select
                                 value={draft.role}
-                                onChange={(e) => setDraftByUser((prev) => ({
-                                  ...prev,
-                                  [user.id]: { ...draft, role: e.target.value, assigned_village_id: null, assigned_district_id: null },
-                                }))}
+                                onChange={(e) => {
+                                  const newRole = e.target.value;
+                                  const oldType = roleAssignmentType(draft.role);
+                                  const newType = roleAssignmentType(newRole);
+                                  setDraftByUser((prev) => ({
+                                    ...prev,
+                                    [user.id]: {
+                                      ...draft,
+                                      role: newRole,
+                                      assigned_village_id: newType === oldType ? draft.assigned_village_id : null,
+                                      assigned_district_id: newType === oldType ? draft.assigned_district_id : null,
+                                    },
+                                  }));
+                                }}
                                 className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px]"
                               >
                                 {roles.map((role) => (
