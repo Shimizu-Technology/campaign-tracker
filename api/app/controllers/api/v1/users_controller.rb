@@ -110,7 +110,15 @@ module Api
           )
         end
 
-        user.destroy!
+        begin
+          user.destroy!
+        rescue ActiveRecord::DeleteRestrictionError
+          return render_api_error(
+            message: "Cannot remove this user because they have associated activity records. Reassign or clear their activity first.",
+            status: :unprocessable_entity,
+            code: "user_has_dependencies"
+          )
+        end
         render json: { message: "User removed" }, status: :ok
       end
 

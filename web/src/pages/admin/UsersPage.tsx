@@ -185,10 +185,19 @@ export default function UsersPage() {
   const { data: session } = useSession();
   const currentUserId = session?.user?.id;
 
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   const deleteMutation = useMutation({
     mutationFn: (id: number) => deleteUser(id),
     onSuccess: () => {
+      setDeleteError(null);
       queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (err: unknown) => {
+      const message = (err as { response?: { data?: { error?: string } } })?.response?.data?.error
+        || 'Failed to remove user. Please try again.';
+      setDeleteError(message);
+      setTimeout(() => setDeleteError(null), 5000);
     },
   });
 
@@ -291,6 +300,9 @@ export default function UsersPage() {
           )}
           {inviteNotice && (
             <p className="text-sm text-green-700 mt-2">{inviteNotice}</p>
+          )}
+          {deleteError && (
+            <p className="text-sm text-red-600 mt-2">{deleteError}</p>
           )}
         </section>
 
