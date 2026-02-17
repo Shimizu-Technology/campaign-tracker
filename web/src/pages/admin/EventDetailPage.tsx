@@ -40,7 +40,7 @@ export default function EventDetailPage() {
       <div>
         {/* Stats */}
         {stats && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <div className="app-card p-4 text-center">
               <div className="text-2xl font-bold text-[var(--text-primary)]">{stats.total_invited}</div>
               <div className="text-sm text-[var(--text-secondary)]">Invited</div>

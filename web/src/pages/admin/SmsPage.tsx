@@ -91,7 +91,7 @@ export default function SmsPage() {
       <div className="space-y-4">
         {/* Status Banner */}
         <div className="app-card p-4 mb-6">
-          <div className="grid grid-cols-3 gap-3 text-center">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
             <div>
               <Zap className={`w-5 h-5 mx-auto mb-1 ${smsStatus?.configured ? 'text-green-500' : 'text-red-500'}`} />
               <div className="text-xs text-[var(--text-secondary)]">Status</div>

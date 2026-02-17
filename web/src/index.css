@@ -206,6 +206,34 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   color: var(--text-primary);
 }
 
+/* ---- Mobile utilities ---- */
+@media (max-width: 639px) {
+  /* Ensure tables scroll horizontally on mobile */
+  .app-card table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Prevent text overflow on small screens */
+  .app-card {
+    overflow-wrap: break-word;
+    word-break: break-word;
+  }
+
+  /* Ensure selects don't overflow on mobile */
+  select {
+    max-width: 100%;
+  }
+}
+
+/* Safe area padding for iOS notch phones */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .min-h-screen {
+    min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
+}
+
 /* ---- Animations ---- */
 @keyframes slide-in {
   from { transform: translateX(100%); opacity: 0; }

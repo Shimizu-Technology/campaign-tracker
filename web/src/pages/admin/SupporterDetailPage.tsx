@@ -468,7 +468,7 @@ export default function SupporterDetailPage() {
 
         <section className="app-card p-4">
           <h2 className="font-semibold text-[var(--text-primary)] mb-2">Engagement Snapshot</h2>
-          <div className="grid grid-cols-3 gap-3 text-center">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
             <div className="border rounded-xl p-3">
               <div className="text-xl font-bold">{supporter.events_invited_count}</div>
               <div className="text-xs text-[var(--text-secondary)]">Invited</div>
