@@ -208,18 +208,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 
 /* ---- Mobile utilities ---- */
 @media (max-width: 639px) {
-  /* Ensure tables scroll horizontally on mobile */
-  .app-card table {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  /* Prevent text overflow on small screens */
-  .app-card {
-    overflow-wrap: break-word;
-    word-break: break-word;
-  }
-
   /* Ensure selects don't overflow on mobile */
   select {
     max-width: 100%;
