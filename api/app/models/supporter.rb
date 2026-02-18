@@ -33,6 +33,7 @@ class Supporter < ApplicationRecord
     [ first_name, last_name ].compact_blank.join(" ")
   end
   validates :status, inclusion: { in: %w[active inactive duplicate unverified removed] }
+  # "referral" kept for backward compatibility with legacy records
   validates :source, inclusion: { in: %w[staff_entry qr_signup referral bulk_import public_signup] }, allow_nil: true
   # DB column is NOT NULL with default "public_signup", but allow_nil guards against
   # in-memory objects that haven't been persisted yet (e.g. during validation checks).

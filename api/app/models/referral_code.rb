@@ -14,17 +14,17 @@ class ReferralCode < ApplicationRecord
     base_prefix = build_prefix(display_name)
     base_suffix = village_name.to_s.first(3).upcase
 
-    20.times do
-      candidate = "#{base_prefix}-#{base_suffix}-#{SecureRandom.hex(2).upcase}"
-      return candidate unless exists?(code: candidate)
-    end
+    # Generate candidates in batches and check existence in one query
+    candidates = Array.new(20) { "#{base_prefix}-#{base_suffix}-#{SecureRandom.hex(2).upcase}" }
+    existing = where(code: candidates).pluck(:code).to_set
+    candidates.each { |c| return c unless existing.include?(c) }
 
-    100.times do
-      candidate = "#{base_prefix}-#{base_suffix}-#{SecureRandom.hex(4).upcase}"
-      return candidate unless exists?(code: candidate)
-    end
+    # Longer codes as fallback
+    candidates = Array.new(50) { "#{base_prefix}-#{base_suffix}-#{SecureRandom.hex(4).upcase}" }
+    existing = where(code: candidates).pluck(:code).to_set
+    candidates.each { |c| return c unless existing.include?(c) }
 
-    raise "Unable to generate unique referral code after 120 attempts"
+    raise "Unable to generate unique referral code after 70 attempts"
   end
 
   def self.build_prefix(display_name)

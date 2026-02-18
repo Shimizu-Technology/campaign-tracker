@@ -83,6 +83,12 @@ module Api
       # Accepts post-save batch OCR quality metrics for tuning.
       def telemetry
         payload = telemetry_params.to_h
+
+        # Guard against oversized payloads (telemetry only, no DB persistence)
+        if payload.to_json.bytesize > 10_000
+          return render_api_error(message: "Telemetry payload too large", status: :unprocessable_entity)
+        end
+
         Rails.logger.info(
           {
             event: "scan_batch_quality_telemetry",
