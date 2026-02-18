@@ -103,7 +103,7 @@ module Api
           id: village.id,
           name: village.name,
           supporter_count: @supporter_counts.fetch(village.id, 0),
-          registered_voters: village.registered_voters
+          registered_voters: @registered_voter_counts.fetch(village.id, 0)
         }
       end
     end

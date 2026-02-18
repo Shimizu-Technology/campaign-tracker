@@ -44,7 +44,8 @@ module Api
         scope = scope.where(auditable_type: params[:auditable_type]) if params[:auditable_type].present?
 
         if params[:q].present?
-          query = "%#{params[:q].to_s.strip.downcase}%"
+          sanitized = ActiveRecord::Base.sanitize_sql_like(params[:q].to_s.strip)
+          query = "%#{sanitized.downcase}%"
           scope = scope.left_joins(:actor_user).where(
             "LOWER(audit_logs.action) LIKE :q OR LOWER(COALESCE(users.name, '')) LIKE :q OR LOWER(COALESCE(users.email, '')) LIKE :q OR LOWER(audit_logs.auditable_type) LIKE :q",
             q: query

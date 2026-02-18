@@ -24,7 +24,8 @@ module Api
         }
 
         # TODO: Refactor to SQL GROUP BY aggregation for better performance at scale
-        base_scope.limit(10_000).find_each do |supporter|
+        # .each (not .find_each) so .limit is respected; loads up to 10K records into memory
+        base_scope.limit(10_000).each do |supporter|
           attribution = attribution_channel_for(supporter)
           next unless attribution
 
