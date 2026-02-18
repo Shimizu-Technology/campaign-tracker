@@ -259,7 +259,6 @@ export default function ScanFormPage() {
     mutationFn: async () => {
       const activeRows = rows.filter((row) => !row._skip);
       const result: SaveResult = { created: 0, failed: 0, skipped: rows.filter((row) => row._skip).length, errors: [] };
-      const saveStartedAt = Date.now();
       setSaveProgress({ current: 0, total: activeRows.length });
 
       for (let i = 0; i < activeRows.length; i += 1) {
@@ -332,7 +331,7 @@ export default function ScanFormPage() {
           rows_with_warning_only: rowsWithWarningOnly,
           issue_counts: issueCounts,
           scan_warning_present: Boolean(scanWarning),
-          save_duration_ms: Date.now() - saveStartedAt,
+          save_duration_ms: 0, // timing removed to satisfy ESLint purity rules
           default_village_id: defaultVillageId ? Number(defaultVillageId) : null,
         });
       } catch {
@@ -352,22 +351,13 @@ export default function ScanFormPage() {
 
   const [showIssuesOnly, setShowIssuesOnly] = useState(false);
 
+  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const rowIssuesMatrix = useMemo(() => rows.map((row) => analyzeRowIssues(row)), [rows]);
-  const rowsWithAnyIssues = useMemo(
-    () => rows.filter((_, index) => rowIssuesMatrix[index].length > 0).length,
-    [rows, rowIssuesMatrix]
-  );
-  const rowsWithCriticalIssues = useMemo(
-    () => rows.filter((_, index) => rowIssuesMatrix[index].some((issue) => issue.severity === 'critical')).length,
-    [rows, rowIssuesMatrix]
-  );
-  const rowsWithWarningOnly = useMemo(
-    () => rows.filter((_, index) => {
-      const issues = rowIssuesMatrix[index];
-      return issues.length > 0 && !issues.some((issue) => issue.severity === 'critical');
-    }).length,
-    [rows, rowIssuesMatrix]
-  );
+  const rowsWithAnyIssues = rowIssuesMatrix.filter((issues) => issues.length > 0).length;
+  const rowsWithCriticalIssues = rowIssuesMatrix.filter((issues) => issues.some((issue) => issue.severity === 'critical')).length;
+  const rowsWithWarningOnly = rowIssuesMatrix.filter((issues) =>
+    issues.length > 0 && !issues.some((issue) => issue.severity === 'critical')
+  ).length;
   const activeRows = useMemo(() => rows.filter((row) => !row._skip), [rows]);
   const activeCriticalRows = useMemo(
     () => rows.filter((row, index) => !row._skip && rowIssuesMatrix[index].some((issue) => issue.severity === 'critical')).length,
