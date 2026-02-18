@@ -142,14 +142,22 @@ module Api
 
         # Village can come from: 1) village_id param (all rows), or 2) per-row village name
         default_village = village_id.present? ? Village.find_by(id: village_id) : nil
+
+        # Enforce village scope for non-admin users
+        if default_village && scoped_village_ids && !scoped_village_ids.include?(default_village.id)
+          return render_api_error(message: "Village not in your assigned scope", status: :forbidden, code: "village_scope_denied")
+        end
         has_per_row_village = rows.any? { |r| r["village"].present? }
 
         unless default_village || has_per_row_village
           return render_api_error(message: "village_id is required (or rows must include village names)", status: :bad_request, code: "missing_village")
         end
 
-        # Pre-load village name → record lookup for per-row matching
-        village_lookup = Village.all.index_by { |v| v.name.downcase.strip } if has_per_row_village
+        # Pre-load village name → record lookup for per-row matching (scoped if user has area restrictions)
+        if has_per_row_village
+          village_scope = scoped_village_ids ? Village.where(id: scoped_village_ids) : Village.all
+          village_lookup = village_scope.index_by { |v| v.name.downcase.strip }
+        end
 
         unless rows.is_a?(Array) && rows.any?
           return render_api_error(message: "No rows to import", status: :bad_request, code: "empty_rows")
