@@ -68,7 +68,9 @@ module Api
       # SQL-based aggregation: groups supporters by owner (referral code or entered_by user)
       # and counts attribution channels via conditional aggregation.
       def aggregate_by_owner(scope)
-        # Step 1: Get counts grouped by referral_code_id and entered_by_user_id
+        # Step 1: SQL aggregation. Note: .select with aliases (cnt, latest_at) are accessible
+        # as virtual attributes on the returned AR objects. Intentionally merges QR + staff
+        # entries under the same user key so each person gets one leaderboard row.
         rows = scope
           .select(
             "referral_code_id",

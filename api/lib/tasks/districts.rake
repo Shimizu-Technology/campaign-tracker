@@ -85,7 +85,8 @@ namespace :districts do
     end
 
     if unresolved.any?
-      abort "Unresolved villages: #{unresolved.uniq.sort.join(', ')}"
+      warn "WARNING: Unresolved villages: #{unresolved.uniq.sort.join(', ')}"
+      warn "These villages were skipped. Create them and re-run this task to complete assignment."
     end
 
     puts "  Assigned #{assignments} village-to-district links"

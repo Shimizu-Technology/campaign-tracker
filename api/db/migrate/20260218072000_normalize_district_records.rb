@@ -36,7 +36,12 @@ class NormalizeDistrictRecords < ActiveRecord::Migration[8.1]
           next if duplicate.id == primary.id
 
           Village.where(district_id: duplicate.id).update_all(district_id: primary.id)
-          Quota.where(district_id: duplicate.id).update_all(district_id: primary.id)
+          # Delete conflicting quotas before reassigning to avoid unique constraint violations
+          if defined?(Quota) && Quota.table_exists?
+            existing_quota_keys = Quota.where(district_id: primary.id).pluck(:village_id)
+            Quota.where(district_id: duplicate.id, village_id: existing_quota_keys).delete_all if existing_quota_keys.any?
+            Quota.where(district_id: duplicate.id).update_all(district_id: primary.id)
+          end
           User.where(assigned_district_id: duplicate.id).update_all(assigned_district_id: primary.id)
           duplicate.destroy!
         end
