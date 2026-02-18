@@ -18,15 +18,12 @@ module Api
         page = 1 if page.zero?
         per_page = (params[:per_page] || 50).to_i.clamp(1, MAX_PER_PAGE)
 
-        total = logs.count
-        logs = logs.offset((page - 1) * per_page).limit(per_page)
+        total = logs.count(:all)
+        paginated_logs = logs.offset((page - 1) * per_page).limit(per_page)
 
         render json: {
-          audit_logs: serialize_logs(logs),
-          filters: page <= 1 ? {
-            actions: AuditLog.distinct.order(:action).pluck(:action),
-            auditable_types: AuditLog.distinct.order(:auditable_type).pluck(:auditable_type).compact
-          } : nil,
+          audit_logs: serialize_logs(paginated_logs),
+          filters: page <= 1 ? cached_filter_options : nil,
           pagination: {
             page: page,
             per_page: per_page,
@@ -37,6 +34,15 @@ module Api
       end
 
       private
+
+      def cached_filter_options
+        Rails.cache.fetch("audit_log_filter_options", expires_in: 5.minutes) do
+          {
+            actions: AuditLog.distinct.order(:action).pluck(:action),
+            auditable_types: AuditLog.distinct.order(:auditable_type).pluck(:auditable_type).compact
+          }
+        end
+      end
 
       def apply_filters(scope)
         scope = scope.where(action: params[:audit_action]) if params[:audit_action].present?

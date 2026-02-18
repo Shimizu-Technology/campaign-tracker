@@ -14,6 +14,7 @@ class CreateReferralCodesAndLinkSupporters < ActiveRecord::Migration[8.0]
     add_index :referral_codes, :code, unique: true
     add_reference :supporters, :referral_code, null: true, foreign_key: true
 
+    # Only backfill referral codes if both supporters and villages exist
     execute <<~SQL
       INSERT INTO referral_codes (code, display_name, village_id, active, created_at, updated_at)
       SELECT
@@ -38,7 +39,9 @@ class CreateReferralCodesAndLinkSupporters < ActiveRecord::Migration[8.0]
         NOW(),
         NOW()
       FROM supporters s
-      WHERE s.leader_code IS NOT NULL AND s.leader_code <> ''
+      WHERE s.leader_code IS NOT NULL
+        AND s.leader_code <> ''
+        AND EXISTS (SELECT 1 FROM villages LIMIT 1)
       GROUP BY s.leader_code
       ON CONFLICT (code) DO NOTHING;
     SQL

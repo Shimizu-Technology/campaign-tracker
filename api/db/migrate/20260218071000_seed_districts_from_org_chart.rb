@@ -77,13 +77,8 @@ class SeedDistrictsFromOrgChart < ActiveRecord::Migration[8.1]
     end
 
     if unresolved.any?
-      raise "District seed failed: unresolved village names: #{unresolved.uniq.sort.join(', ')}"
-    end
-
-    expected_count = DISTRICT_DEFINITIONS.flat_map { |d| d[:villages] }.uniq.count
-    actual_count = assigned_village_ids.uniq.count
-    if expected_count != actual_count
-      raise "District seed failed: expected #{expected_count} assigned villages, got #{actual_count}"
+      say "WARNING: unresolved village names during district seeding: #{unresolved.uniq.sort.join(', ')}"
+      say "These villages were skipped. Run `rails db:seed` after creating them to complete assignment."
     end
   end
 

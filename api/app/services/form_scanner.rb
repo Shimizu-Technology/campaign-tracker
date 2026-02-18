@@ -185,11 +185,13 @@ class FormScanner
       rows = [] unless rows.is_a?(Array)
 
       capped_rows = rows.first(100)
-      village_ids = capped_rows.filter_map { |r| match_village(r["village"].to_s.strip.presence) || default_village_id&.to_i }
-      village_map = Village.where(id: village_ids.uniq).index_by(&:id)
+      # Pre-load all villages to avoid N+1 queries in match_village
+      all_villages = Village.all.to_a
+      village_ids = capped_rows.filter_map { |r| match_village_cached(r["village"].to_s.strip.presence, all_villages) || default_village_id&.to_i }
+      village_map = all_villages.index_by(&:id)
 
       normalized_rows = capped_rows.each_with_index.map do |row, idx|
-        normalize_batch_row(row, idx: idx, default_village_id: default_village_id, village_map: village_map)
+        normalize_batch_row(row, idx: idx, default_village_id: default_village_id, village_map: village_map, all_villages: all_villages)
       end
 
       {
@@ -313,11 +315,11 @@ class FormScanner
       rows
     end
 
-    def normalize_batch_row(row, idx:, default_village_id:, village_map: {})
+    def normalize_batch_row(row, idx:, default_village_id:, village_map: {}, all_villages: [])
       source = row.is_a?(Hash) ? row : {}
       confidence = source["confidence"].is_a?(Hash) ? source["confidence"] : {}
       village_name = source["village"].to_s.strip
-      village_id = match_village(village_name.presence) || default_village_id&.to_i
+      village_id = match_village_cached(village_name.presence, all_villages) || default_village_id&.to_i
       issues = []
       issues << "Village missing" if village_id.blank?
 
@@ -373,6 +375,21 @@ class FormScanner
       fallback
     end
 
+    # In-memory village matching — no DB queries
+    def match_village_cached(name, all_villages)
+      return nil if name.blank?
+
+      downcased = name.downcase.strip
+      # Exact match
+      village = all_villages.find { |v| v.name.downcase == downcased }
+      return village.id if village
+
+      # Partial match
+      village = all_villages.find { |v| v.name.downcase.include?(downcased) }
+      village&.id
+    end
+
+    # DB-based match (used by single-form extract)
     def match_village(name)
       return nil if name.blank?
 

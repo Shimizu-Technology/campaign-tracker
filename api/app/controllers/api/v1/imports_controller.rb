@@ -161,6 +161,7 @@ module Api
         created = 0
         skipped = 0
         errors = []
+        audit_records = []
 
         # Partial import: each row saved independently so valid rows aren't blocked by bad ones
         rows.each_with_index do |row, idx|
@@ -204,12 +205,29 @@ module Api
 
           if supporter.save
             created += 1
-            log_supporter_create_audit!(supporter, import_key: import_key, row_number: row["_row"] || (idx + 1))
+            audit_records << {
+              auditable_type: "Supporter",
+              auditable_id: supporter.id,
+              actor_user_id: current_user.id,
+              action: "created",
+              changed_data: normalize_changed_data(supporter.saved_changes.except("updated_at")),
+              metadata: {
+                entry_mode: "bulk_import",
+                import_key: import_key,
+                import_row: row["_row"] || (idx + 1),
+                ip_address: request.remote_ip
+              }.compact,
+              created_at: Time.current,
+              updated_at: Time.current
+            }
           else
             skipped += 1
             errors << { row: row["_row"] || (idx + 1), errors: supporter.errors.full_messages }
           end
         end
+
+        # Bulk insert audit logs (much faster than per-row INSERTs)
+        AuditLog.insert_all(audit_records) if audit_records.any?
 
         # Clean up temp file
         cleanup_import_file(import_key) if import_key.present?
@@ -290,22 +308,6 @@ module Api
         Date.parse(str)
       rescue Date::Error, ArgumentError
         nil
-      end
-
-      def log_supporter_create_audit!(supporter, import_key:, row_number:)
-        AuditLog.create!(
-          auditable: supporter,
-          actor_user: current_user,
-          action: "created",
-          changed_data: normalize_changed_data(supporter.saved_changes.except("updated_at")),
-          metadata: {
-            entry_mode: "bulk_import",
-            import_key: import_key,
-            import_row: row_number,
-            ip_address: request.remote_ip,
-            user_agent: request.user_agent
-          }.compact
-        )
       end
 
       def normalize_changed_data(changed_data)

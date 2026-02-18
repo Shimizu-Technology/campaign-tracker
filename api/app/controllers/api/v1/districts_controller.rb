@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Api
   module V1
     class DistrictsController < ApplicationController
@@ -5,7 +7,6 @@ module Api
 
       before_action :authenticate_request
       before_action :load_supporter_counts, only: [ :index, :create, :update, :assign_villages ]
-      before_action :require_coordinator_or_above!, only: [ :index ]
       before_action :require_admin!, only: [ :create, :update, :destroy, :assign_villages ]
 
       # GET /api/v1/districts

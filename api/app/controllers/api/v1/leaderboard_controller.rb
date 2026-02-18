@@ -11,50 +11,13 @@ module Api
       def index
         base_scope = scope_supporters(
           Supporter.active
-            .where("leader_code IS NOT NULL OR entered_by_user_id IS NOT NULL")
-            .includes(:village, :entered_by, referral_code: :assigned_user)
+            .where("leader_code IS NOT NULL OR entered_by_user_id IS NOT NULL OR attribution_method = 'public_signup'")
         )
 
-        grouped = {}
-        totals = {
-          qr_signups: 0,
-          manual_entries: 0,
-          scan_entries: 0,
-          import_entries: 0
-        }
+        # Phase 1: SQL aggregation for counts by attribution owner
+        aggregated = aggregate_by_owner(base_scope)
 
-        # TODO: Refactor to SQL GROUP BY aggregation for better performance at scale
-        # .each (not .find_each) so .limit is respected; loads up to 10K records into memory
-        base_scope.limit(10_000).each do |supporter|
-          attribution = attribution_channel_for(supporter)
-          next unless attribution
-
-          owner_key, owner_data = owner_identity_for(supporter, attribution)
-          next if owner_key.blank?
-
-          grouped[owner_key] ||= {
-            leader_code: owner_data[:leader_code],
-            owner_name: owner_data[:owner_name],
-            assigned_user_name: owner_data[:assigned_user_name],
-            assigned_user_email: owner_data[:assigned_user_email],
-            village_name: owner_data[:village_name],
-            qr_signups: 0,
-            manual_entries: 0,
-            scan_entries: 0,
-            import_entries: 0,
-            total_added: 0,
-            latest_signup_at: nil
-          }
-
-          grouped[owner_key][attribution] += 1
-          grouped[owner_key][:total_added] += 1
-          totals[attribution] += 1
-
-          current_latest = grouped[owner_key][:latest_signup_at]
-          grouped[owner_key][:latest_signup_at] = supporter.created_at if current_latest.nil? || supporter.created_at > current_latest
-        end
-
-        sorted = grouped.values.sort_by { |row| [ -row[:qr_signups], -row[:total_added], row[:owner_name].to_s ] }
+        sorted = aggregated.values.sort_by { |row| [ -row[:qr_signups], -row[:total_added], row[:owner_name].to_s ] }
         leaderboard = sorted.map.with_index do |row, idx|
           {
             rank: idx + 1,
@@ -71,6 +34,13 @@ module Api
             village_name: row[:village_name],
             latest_signup: row[:latest_signup_at]&.iso8601
           }
+        end
+
+        totals = leaderboard.each_with_object(Hash.new(0)) do |row, acc|
+          acc[:qr_signups] += row[:qr_signups]
+          acc[:manual_entries] += row[:manual_entries]
+          acc[:scan_entries] += row[:scan_entries]
+          acc[:import_entries] += row[:import_entries]
         end
 
         total_qr_signups = totals[:qr_signups]
@@ -94,6 +64,104 @@ module Api
       end
 
       private
+
+      # SQL-based aggregation: groups supporters by owner (referral code or entered_by user)
+      # and counts attribution channels via conditional aggregation.
+      def aggregate_by_owner(scope)
+        # Step 1: Get counts grouped by referral_code_id and entered_by_user_id
+        rows = scope
+          .select(
+            "COALESCE(referral_code_id, 0) AS rc_id",
+            "COALESCE(entered_by_user_id, 0) AS entry_user_id",
+            "attribution_method",
+            "COUNT(*) AS cnt",
+            "MAX(supporters.created_at) AS latest_at"
+          )
+          .group("rc_id, entry_user_id, attribution_method")
+
+        # Step 2: Preload referral codes + users for display
+        rc_ids = rows.filter_map { |r| r.rc_id.to_i }.reject(&:zero?).uniq
+        user_ids = rows.filter_map { |r| r.entry_user_id.to_i }.reject(&:zero?).uniq
+
+        referral_codes = ReferralCode.where(id: rc_ids).includes(:assigned_user, :village).index_by(&:id)
+        users = User.where(id: user_ids).index_by(&:id)
+
+        grouped = {}
+        rows.each do |row|
+          rc = referral_codes[row.rc_id.to_i]
+          entry_user = users[row.entry_user_id.to_i]
+          channel = attribution_channel_for_method(row.attribution_method)
+          next unless channel
+
+          owner_key, owner_data = resolve_owner(rc, entry_user, channel)
+          next if owner_key.blank?
+
+          grouped[owner_key] ||= owner_data.merge(
+            qr_signups: 0, manual_entries: 0, scan_entries: 0,
+            import_entries: 0, total_added: 0, latest_signup_at: nil
+          )
+
+          grouped[owner_key][channel] += row.cnt.to_i
+          grouped[owner_key][:total_added] += row.cnt.to_i
+          latest = row.latest_at
+          current = grouped[owner_key][:latest_signup_at]
+          grouped[owner_key][:latest_signup_at] = latest if current.nil? || (latest && latest > current)
+        end
+
+        grouped
+      end
+
+      def resolve_owner(referral_code, entry_user, channel)
+        if channel == :qr_signups && referral_code
+          if referral_code.assigned_user
+            user = referral_code.assigned_user
+            return [
+              "user:#{user.id}",
+              {
+                leader_code: referral_code.code,
+                owner_name: user.name.presence || user.email,
+                assigned_user_name: user.name,
+                assigned_user_email: user.email,
+                village_name: referral_code.village&.name || "Unknown"
+              }
+            ]
+          end
+
+          return [
+            "code:#{referral_code.code}",
+            {
+              leader_code: referral_code.code,
+              owner_name: referral_code.display_name,
+              assigned_user_name: nil,
+              assigned_user_email: nil,
+              village_name: referral_code.village&.name || "Unknown"
+            }
+          ]
+        end
+
+        return [ nil, {} ] unless entry_user
+
+        [
+          "user:#{entry_user.id}",
+          {
+            leader_code: "staff-#{entry_user.id}",
+            owner_name: entry_user.name.presence || entry_user.email,
+            assigned_user_name: entry_user.name,
+            assigned_user_email: entry_user.email,
+            village_name: "Various"
+          }
+        ]
+      end
+
+      def attribution_channel_for_method(method)
+        case method
+        when "qr_self_signup" then :qr_signups
+        when "staff_manual" then :manual_entries
+        when "staff_scan" then :scan_entries
+        when "bulk_import" then :import_entries
+        else nil
+        end
+      end
 
       def attribution_channel_for(supporter)
         case supporter.attribution_method
