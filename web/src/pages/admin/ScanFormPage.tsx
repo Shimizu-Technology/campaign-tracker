@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, Camera, Check, ImagePlus, Loader2, RotateCcw, Upload } from 'lucide-react';
 import { createSupporter, getVillages, scanBatchForm, trackScanBatchTelemetry } from '../../lib/api';
+import { useSession } from '../../hooks/useSession';
 
 interface Village {
   id: number;
@@ -154,7 +155,7 @@ function analyzeRowIssues(row: BatchRow): RowIssue[] {
   }
 
   if (dob && !parseDateInput(dob)) {
-    addIssue('dob_invalid', 'DOB format invalid (use YYYY-MM-DD or MM/DD/YYYY)', 'critical');
+    addIssue('dob_invalid', 'DOB format invalid (use YYYY-MM-DD or MM/DD/YYYY)', 'warning');
   }
 
   if (address && hasStatesideAddressHint(address)) {
@@ -186,11 +187,18 @@ export default function ScanFormPage() {
   const [saveResult, setSaveResult] = useState<SaveResult | null>(null);
   const [saveProgress, setSaveProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
 
+  const { data: sessionData } = useSession();
+  const scopedVillageIds = sessionData?.user?.scoped_village_ids ?? null;
+
   const { data: villagesData } = useQuery({
     queryKey: ['villages'],
     queryFn: getVillages,
   });
-  const villages: Village[] = useMemo(() => villagesData?.villages || [], [villagesData]);
+  const villages: Village[] = useMemo(() => {
+    const all = villagesData?.villages || [];
+    if (!scopedVillageIds) return all;
+    return all.filter((v: Village) => scopedVillageIds.includes(v.id));
+  }, [villagesData, scopedVillageIds]);
 
   const handleFileSelect = async (file: File) => {
     if (!defaultVillageId) {
