@@ -295,10 +295,11 @@ class FormScanner
           next
         end
 
-        if ch == "{"
-          current_start = i if depth.zero?
+        if ch == "{" || ch == "["
+          current_start = i if depth.zero? && ch == "{"
           depth += 1
-        elsif ch == "}"
+        elsif ch == "}" || ch == "]"
+          break if ch == "]" && depth.zero?
           depth -= 1 if depth.positive?
           if depth.zero? && current_start
             object_json = raw[current_start..i]

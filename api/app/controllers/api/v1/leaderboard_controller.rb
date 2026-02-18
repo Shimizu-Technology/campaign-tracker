@@ -71,6 +71,9 @@ module Api
         # Step 1: SQL aggregation. Note: .select with aliases (cnt, latest_at) are accessible
         # as virtual attributes on the returned AR objects. Intentionally merges QR + staff
         # entries under the same user key so each person gets one leaderboard row.
+        # Each supporter has exactly one (referral_code_id, entered_by_user_id, attribution_method)
+        # tuple, so GROUP BY won't double-count. Multiple GROUP BY rows may resolve to the same
+        # owner_key, and their counts are summed via += in the grouped hash.
         rows = scope
           .select(
             "referral_code_id",
