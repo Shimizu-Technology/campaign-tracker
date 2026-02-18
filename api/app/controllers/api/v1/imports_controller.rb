@@ -4,6 +4,7 @@ module Api
   module V1
     class ImportsController < ApplicationController
       include Authenticatable
+      include AuditLoggable
       before_action :authenticate_request
       before_action :require_coordinator_or_above!
 
@@ -141,14 +142,22 @@ module Api
 
         # Village can come from: 1) village_id param (all rows), or 2) per-row village name
         default_village = village_id.present? ? Village.find_by(id: village_id) : nil
+
+        # Enforce village scope for non-admin users
+        if default_village && scoped_village_ids && !scoped_village_ids.include?(default_village.id)
+          return render_api_error(message: "Village not in your assigned scope", status: :forbidden, code: "village_scope_denied")
+        end
         has_per_row_village = rows.any? { |r| r["village"].present? }
 
         unless default_village || has_per_row_village
           return render_api_error(message: "village_id is required (or rows must include village names)", status: :bad_request, code: "missing_village")
         end
 
-        # Pre-load village name → record lookup for per-row matching
-        village_lookup = Village.all.index_by { |v| v.name.downcase.strip } if has_per_row_village
+        # Pre-load village name → record lookup for per-row matching (scoped if user has area restrictions)
+        if has_per_row_village
+          village_scope = scoped_village_ids ? Village.where(id: scoped_village_ids) : Village.all
+          village_lookup = village_scope.index_by { |v| v.name.downcase.strip }
+        end
 
         unless rows.is_a?(Array) && rows.any?
           return render_api_error(message: "No rows to import", status: :bad_request, code: "empty_rows")
@@ -161,6 +170,7 @@ module Api
         created = 0
         skipped = 0
         errors = []
+        audit_records = []
 
         # Partial import: each row saved independently so valid rows aren't blocked by bad ones
         rows.each_with_index do |row, idx|
@@ -195,6 +205,7 @@ module Api
             registered_voter: row["registered_voter"],
             village: row_village,
             source: "bulk_import",
+            attribution_method: "bulk_import",
             status: "active",
             turnout_status: "unknown",
             verification_status: "unverified",
@@ -203,11 +214,28 @@ module Api
 
           if supporter.save
             created += 1
+            audit_records << {
+              auditable_type: "Supporter",
+              auditable_id: supporter.id,
+              actor_user_id: current_user.id,
+              action: "created",
+              changed_data: normalize_changed_data(supporter.saved_changes.except("updated_at")),
+              metadata: {
+                "entry_mode" => "bulk_import",
+                "import_key" => import_key,
+                "import_row" => row["_row"] || (idx + 1),
+                "ip_address" => request.remote_ip
+              }.compact,
+              created_at: Time.current
+            }
           else
             skipped += 1
             errors << { row: row["_row"] || (idx + 1), errors: supporter.errors.full_messages }
           end
         end
+
+        # Bulk insert audit logs (much faster than per-row INSERTs)
+        AuditLog.insert_all(audit_records) if audit_records.any?
 
         # Clean up temp file
         cleanup_import_file(import_key) if import_key.present?
@@ -290,15 +318,8 @@ module Api
         nil
       end
 
-      def log_audit!(record, action:, changed_data:)
-        AuditLog.create!(
-          auditable: record || current_user,
-          auditable_type: record ? record.class.name : "User",
-          actor_user: current_user,
-          action: action,
-          changed_data: changed_data,
-          metadata: { ip_address: request.remote_ip, user_agent: request.user_agent }
-        )
+      def audit_entry_mode
+        "bulk_import"
       end
     end
   end

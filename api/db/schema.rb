@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_17_040000) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_18_072000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -347,6 +347,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_17_040000) do
     t.index ["village_id"], name: "index_quotas_on_village_id"
   end
 
+  create_table "referral_codes", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.bigint "assigned_user_id"
+    t.string "code", null: false
+    t.datetime "created_at", null: false
+    t.bigint "created_by_user_id"
+    t.string "display_name", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "village_id", null: false
+    t.index ["assigned_user_id"], name: "index_referral_codes_on_assigned_user_id"
+    t.index ["code"], name: "index_referral_codes_on_code", unique: true
+    t.index ["created_by_user_id"], name: "index_referral_codes_on_created_by_user_id"
+    t.index ["village_id"], name: "index_referral_codes_on_village_id"
+  end
+
   create_table "sms_blasts", force: :cascade do |t|
     t.datetime "completed_at"
     t.datetime "created_at", null: false
@@ -380,6 +396,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_17_040000) do
   end
 
   create_table "supporters", force: :cascade do |t|
+    t.string "attribution_method", default: "public_signup", null: false
     t.bigint "block_id"
     t.string "contact_number"
     t.datetime "created_at", null: false
@@ -399,6 +416,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_17_040000) do
     t.boolean "potential_duplicate", default: false, null: false
     t.bigint "precinct_id"
     t.string "print_name"
+    t.bigint "referral_code_id"
     t.integer "referred_from_village_id"
     t.boolean "registered_voter"
     t.string "source"
@@ -418,6 +436,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_17_040000) do
     t.index "lower((email)::text)", name: "index_supporters_on_lower_email", where: "(email IS NOT NULL)"
     t.index "lower((print_name)::text) gin_trgm_ops", name: "index_supporters_on_lower_print_name_trgm", using: :gin
     t.index "village_id, lower(TRIM(BOTH FROM first_name)), lower(TRIM(BOTH FROM last_name))", name: "index_supporters_on_village_lower_first_last_name"
+    t.index ["attribution_method"], name: "index_supporters_on_attribution_method"
     t.index ["block_id"], name: "index_supporters_on_block_id"
     t.index ["contact_number"], name: "index_supporters_on_contact_number_trgm", opclass: :gin_trgm_ops, using: :gin
     t.index ["created_at"], name: "index_supporters_on_created_at"
@@ -432,6 +451,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_17_040000) do
     t.index ["precinct_id", "turnout_status"], name: "index_supporters_on_precinct_id_and_turnout_status"
     t.index ["precinct_id"], name: "index_supporters_on_precinct_id"
     t.index ["print_name", "village_id"], name: "index_supporters_on_name_village"
+    t.index ["referral_code_id"], name: "index_supporters_on_referral_code_id"
     t.index ["source"], name: "index_supporters_on_source"
     t.index ["status", "village_id", "motorcade_available"], name: "idx_on_status_village_id_motorcade_available_edb4af7743"
     t.index ["status", "village_id"], name: "index_supporters_on_status_and_village_id"
@@ -512,11 +532,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_17_040000) do
   add_foreign_key "quotas", "campaigns"
   add_foreign_key "quotas", "districts"
   add_foreign_key "quotas", "villages"
+  add_foreign_key "referral_codes", "users", column: "assigned_user_id"
+  add_foreign_key "referral_codes", "users", column: "created_by_user_id"
+  add_foreign_key "referral_codes", "villages"
   add_foreign_key "sms_blasts", "users", column: "initiated_by_user_id"
   add_foreign_key "supporter_contact_attempts", "supporters"
   add_foreign_key "supporter_contact_attempts", "users", column: "recorded_by_user_id"
   add_foreign_key "supporters", "blocks"
   add_foreign_key "supporters", "precincts"
+  add_foreign_key "supporters", "referral_codes"
   add_foreign_key "supporters", "supporters", column: "duplicate_of_id"
   add_foreign_key "supporters", "users", column: "turnout_updated_by_user_id"
   add_foreign_key "supporters", "villages"

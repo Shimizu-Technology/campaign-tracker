@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "cgi"
+
 class UserInviteEmailService
   class << self
     def send_invite(user:, invited_by:)
@@ -49,9 +51,28 @@ class UserInviteEmailService
       role.to_s.tr("_", " ")
     end
 
+    def assignment_context_html(user)
+      if user.assigned_district_id.present?
+        district_name = District.find_by(id: user.assigned_district_id)&.name.presence || "District ##{user.assigned_district_id}"
+        return "<p style=\"margin: 0 0 14px 0; font-size: 14px; color: #374151;\"><strong>Assigned district:</strong> #{escape_html(district_name)}</p>"
+      end
+
+      if user.assigned_village_id.present?
+        village_name = Village.find_by(id: user.assigned_village_id)&.name.presence || "Village ##{user.assigned_village_id}"
+        return "<p style=\"margin: 0 0 14px 0; font-size: 14px; color: #374151;\"><strong>Assigned village:</strong> #{escape_html(village_name)}</p>"
+      end
+
+      ""
+    end
+
+    def escape_html(value)
+      CGI.escapeHTML(value.to_s)
+    end
+
     def invite_html(user:, invited_by:)
-      inviter = invited_by&.name.presence || invited_by&.email.presence || "a campaign admin"
-      role = role_label(user.role).split.map(&:capitalize).join(" ")
+      inviter = escape_html(invited_by&.name.presence || invited_by&.email.presence || "a campaign admin")
+      role = escape_html(role_label(user.role).split.map(&:capitalize).join(" "))
+      assignment_context = assignment_context_html(user)
 
       <<~HTML
         <!doctype html>
@@ -75,9 +96,10 @@ class UserInviteEmailService
                     <tr>
                       <td style="padding: 24px;">
                         <p style="margin: 0 0 12px 0; font-size: 16px;">#{inviter} added you as <strong>#{role}</strong>.</p>
+                        #{assignment_context}
                         <p style="margin: 0 0 16px 0; font-size: 15px; color: #4b5563;">
                           Create your account using this invited email address:
-                          <strong>#{user.email}</strong>
+                          <strong>#{escape_html(user.email)}</strong>
                         </p>
                         <p style="margin: 0 0 16px 0; font-size: 14px; color: #4b5563;">
                           After opening the portal, choose <strong>Sign up</strong> if this is your first time.

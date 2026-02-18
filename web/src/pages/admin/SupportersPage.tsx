@@ -93,7 +93,7 @@ export default function SupportersPage() {
   const [sourceFilter, setSourceFilter] = useState(searchParams.get('source') || '');
   const [optInFilter, setOptInFilter] = useState(searchParams.get('opt_in') || '');
   const [verificationFilter, setVerificationFilter] = useState(searchParams.get('verification_status') || '');
-  const [lifecycleFilter, setLifecycleFilter] = useState(searchParams.get('status') || '');
+  const [lifecycleFilter, setLifecycleFilter] = useState(searchParams.get('status') || 'active');
   const [unassignedPrecinct, setUnassignedPrecinct] = useState(searchParams.get('unassigned_precinct') === 'true');
   const [sortBy, setSortBy] = useState<SortField>(parseSortField(searchParams.get('sort_by')));
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>((searchParams.get('sort_dir') as 'asc' | 'desc') || 'desc');
@@ -106,19 +106,38 @@ export default function SupportersPage() {
 
   const { data: villageData } = useQuery({ queryKey: ['villages'], queryFn: getVillages });
   const villages: VillageOption[] = useMemo(() => villageData?.villages || [], [villageData]);
+  const scopedVillageIds = sessionData?.user?.scoped_village_ids ?? null;
+  const accessibleVillages: VillageOption[] = useMemo(() => {
+    if (scopedVillageIds === null) return villages;
+    const allowed = new Set(scopedVillageIds);
+    return villages.filter((v) => allowed.has(v.id));
+  }, [scopedVillageIds, villages]);
+  const singleScopedVillageId = scopedVillageIds && scopedVillageIds.length === 1 ? String(scopedVillageIds[0]) : '';
+  const effectiveVillageFilter = villageFilter || singleScopedVillageId;
   const villagesById = useMemo(
-    () => new Map(villages.map((v) => [v.id, v])),
-    [villages]
+    () => new Map(accessibleVillages.map((v) => [v.id, v])),
+    [accessibleVillages]
   );
   const selectedVillagePrecincts = useMemo(
-    () => (villageFilter ? villagesById.get(Number(villageFilter))?.precincts || [] : []),
-    [villageFilter, villagesById]
+    () => (effectiveVillageFilter ? villagesById.get(Number(effectiveVillageFilter))?.precincts || [] : []),
+    [effectiveVillageFilter, villagesById]
   );
+
+  useEffect(() => {
+    if (scopedVillageIds === null) return;
+    if (!villageFilter) return;
+    if (scopedVillageIds.includes(Number(villageFilter))) return;
+    queueMicrotask(() => {
+      setVillageFilter('');
+      setPrecinctFilter('');
+      setPage(1);
+    });
+  }, [scopedVillageIds, villageFilter]);
 
   useEffect(() => {
     const params = new URLSearchParams();
     if (debouncedSearch) params.set('search', debouncedSearch);
-    if (villageFilter) params.set('village_id', villageFilter);
+    if (effectiveVillageFilter) params.set('village_id', effectiveVillageFilter);
     if (precinctFilter) params.set('precinct_id', precinctFilter);
     if (sourceFilter) params.set('source', sourceFilter);
     if (optInFilter) params.set('opt_in', optInFilter);
@@ -130,13 +149,13 @@ export default function SupportersPage() {
     params.set('per_page', String(perPage));
     if (returnTo) params.set('return_to', returnTo);
     setSearchParams(params, { replace: true });
-  }, [debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, lifecycleFilter, unassignedPrecinct, sortBy, sortDir, perPage, returnTo, setSearchParams]);
+  }, [debouncedSearch, effectiveVillageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, lifecycleFilter, unassignedPrecinct, sortBy, sortDir, perPage, returnTo, setSearchParams]);
 
   const { data, isFetching } = useQuery<SupportersResponse>({
-    queryKey: ['supporters', debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, lifecycleFilter, unassignedPrecinct, sortBy, sortDir, page, perPage],
+    queryKey: ['supporters', debouncedSearch, effectiveVillageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, lifecycleFilter, unassignedPrecinct, sortBy, sortDir, page, perPage],
     queryFn: () => getSupporters({
       search: debouncedSearch,
-      village_id: villageFilter || undefined,
+      village_id: effectiveVillageFilter || undefined,
       precinct_id: precinctFilter || undefined,
       source: sourceFilter || undefined,
       opt_in_email: optInFilter === 'email' || optInFilter === 'both' ? 'true' : undefined,
@@ -163,7 +182,7 @@ export default function SupportersPage() {
   useEffect(() => {
     const timer = window.setTimeout(() => setVisibleRows(80), 0);
     return () => window.clearTimeout(timer);
-  }, [progressiveRenderingEnabled, page, debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, lifecycleFilter, unassignedPrecinct, sortBy, sortDir, perPage]);
+  }, [progressiveRenderingEnabled, page, debouncedSearch, effectiveVillageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, lifecycleFilter, unassignedPrecinct, sortBy, sortDir, perPage]);
 
   useEffect(() => {
     if (!progressiveRenderingEnabled) return;
@@ -180,10 +199,10 @@ export default function SupportersPage() {
     const totalPages = data.pagination.pages;
     if (page < totalPages) {
       void queryClient.prefetchQuery({
-        queryKey: ['supporters', debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, lifecycleFilter, unassignedPrecinct, sortBy, sortDir, page + 1, perPage],
+        queryKey: ['supporters', debouncedSearch, effectiveVillageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, lifecycleFilter, unassignedPrecinct, sortBy, sortDir, page + 1, perPage],
         queryFn: () => getSupporters({
           search: debouncedSearch,
-          village_id: villageFilter || undefined,
+          village_id: effectiveVillageFilter || undefined,
           precinct_id: precinctFilter || undefined,
           source: sourceFilter || undefined,
           opt_in_email: optInFilter === 'email' || optInFilter === 'both' ? 'true' : undefined,
@@ -198,7 +217,7 @@ export default function SupportersPage() {
         }),
       });
     }
-  }, [data, page, perPage, debouncedSearch, villageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, lifecycleFilter, unassignedPrecinct, sortBy, sortDir, queryClient]);
+  }, [data, page, perPage, debouncedSearch, effectiveVillageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, lifecycleFilter, unassignedPrecinct, sortBy, sortDir, queryClient]);
 
   const assignPrecinctMutation = useMutation({
     mutationFn: ({ supporterId, precinctId }: { supporterId: number; precinctId: number }) =>
@@ -284,7 +303,7 @@ export default function SupportersPage() {
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => exportSupporters({
-                village_id: villageFilter || undefined,
+                village_id: effectiveVillageFilter || undefined,
                 precinct_id: precinctFilter || undefined,
                 source: sourceFilter || undefined,
                 opt_in: optInFilter || undefined,
@@ -324,21 +343,29 @@ export default function SupportersPage() {
               className="w-full pl-10 pr-4 py-3 border border-[var(--border-soft)] rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
             />
           </div>
-          <select
-            value={villageFilter}
-            onChange={e => {
-              setVillageFilter(e.target.value);
-              setPrecinctFilter('');
-              setUnassignedPrecinct(false);
-              setPage(1);
-            }}
-            className="md:col-span-3 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent min-w-0"
-          >
-            <option value="">All Villages</option>
-            {villages.map((v) => (
-              <option key={v.id} value={v.id}>{v.name}</option>
-            ))}
-          </select>
+          {singleScopedVillageId ? (
+            <div className="md:col-span-3 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-bg)] px-3 py-3 text-sm text-[var(--text-secondary)]">
+              Assigned village: <span className="font-medium text-[var(--text-primary)]">{accessibleVillages[0]?.name || `Village #${singleScopedVillageId}`}</span>
+            </div>
+          ) : (
+            <select
+              value={villageFilter}
+              onChange={e => {
+                setVillageFilter(e.target.value);
+                setPrecinctFilter('');
+                setUnassignedPrecinct(false);
+                setPage(1);
+              }}
+              className="md:col-span-3 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent min-w-0"
+            >
+              <option value="">
+                {scopedVillageIds === null ? 'All villages' : 'All accessible villages'}
+              </option>
+              {accessibleVillages.map((v) => (
+                <option key={v.id} value={v.id}>{v.name}</option>
+              ))}
+            </select>
+          )}
           <select
             value={sourceFilter}
             onChange={(e) => {
@@ -392,7 +419,7 @@ export default function SupportersPage() {
             <option value="inactive">Inactive</option>
             <option value="unverified">Legacy unverified</option>
           </select>
-          {villageFilter && (
+          {effectiveVillageFilter && (
             <select
               value={precinctFilter}
               onChange={(e) => {

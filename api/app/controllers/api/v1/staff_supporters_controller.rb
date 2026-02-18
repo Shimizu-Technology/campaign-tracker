@@ -4,13 +4,21 @@ module Api
   module V1
     class StaffSupportersController < ApplicationController
       include Authenticatable
+      include AuditLoggable
       before_action :authenticate_request
       before_action :require_staff_entry_access!
 
       # POST /api/v1/staff/supporters (authenticated staff entry)
       def create
+        # Enforce village scope for non-admin users
+        village_id = staff_supporter_params[:village_id]
+        if village_id.present? && scoped_village_ids && !scoped_village_ids.include?(village_id.to_i)
+          return render json: { errors: [ "Village not in your assigned scope" ] }, status: :forbidden
+        end
+
         supporter = Supporter.new(staff_supporter_params)
         supporter.source = "staff_entry"
+        supporter.attribution_method = "staff_manual"
         supporter.status = "active"
         supporter.entered_by_user_id = current_user.id
 
@@ -25,6 +33,7 @@ module Api
         end
 
         if supporter.save
+          log_audit!(supporter, action: "created", changed_data: supporter.saved_changes.except("updated_at"), normalize: true)
           render json: { supporter: supporter_json(supporter) }, status: :created
         else
           render json: { errors: supporter.errors.full_messages }, status: :unprocessable_entity
@@ -56,6 +65,10 @@ module Api
           status: supporter.status,
           created_at: supporter.created_at&.iso8601
         }
+      end
+
+      def audit_entry_mode
+        "staff_manual_api"
       end
     end
   end

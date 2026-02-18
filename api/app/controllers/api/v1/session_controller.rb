@@ -38,6 +38,8 @@ module Api
             can_access_leaderboard: can_access_leaderboard?,
             can_access_war_room: can_access_war_room?,
             can_access_poll_watcher: can_access_poll_watcher?,
+            can_access_duplicates: can_access_duplicates?,
+            can_access_audit_logs: can_access_audit_logs?,
             manageable_roles: manageable_roles_for_current_user
           }
         }

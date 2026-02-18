@@ -205,6 +205,16 @@ module Authenticatable
     )
   end
 
+  def require_audit_logs_access!
+    return if can_access_audit_logs?
+
+    render_api_error(
+      message: "Audit log access required",
+      status: :forbidden,
+      code: "audit_logs_access_required"
+    )
+  end
+
   def can_manage_users?
     current_user&.admin? || current_user&.coordinator?
   end
@@ -251,6 +261,14 @@ module Authenticatable
 
   def can_access_poll_watcher?
     can_access_war_room?
+  end
+
+  def can_access_duplicates?
+    current_user&.admin? || current_user&.coordinator?
+  end
+
+  def can_access_audit_logs?
+    current_user&.admin? || current_user&.coordinator?
   end
 
   # Returns the village IDs this user is scoped to, or nil for full access

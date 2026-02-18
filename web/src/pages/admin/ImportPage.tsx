@@ -1,6 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { uploadImportPreview, parseImportRows, confirmImport, getVillages } from '../../lib/api';
+import { useSession } from '../../hooks/useSession';
 import { Upload, FileSpreadsheet, ArrowRight, ArrowLeft, Check, AlertTriangle, Loader2 } from 'lucide-react';
 
 // Types
@@ -66,6 +67,8 @@ const FIELD_LABELS: Record<string, string> = {
 };
 
 const IMPORTABLE_FIELDS = ['name', 'first_name', 'last_name', 'contact_number', 'dob', 'email', 'street_address', 'registered_voter', 'village', 'comments'];
+const REQUIRED_MAPPING_FIELDS = ['name', 'first_name', 'last_name'] as const;
+const OPTIONAL_MAPPING_FIELDS = IMPORTABLE_FIELDS.filter((field) => !REQUIRED_MAPPING_FIELDS.includes(field as (typeof REQUIRED_MAPPING_FIELDS)[number]));
 
 export default function ImportPage() {
   const [step, setStep] = useState<Step>('upload');
@@ -81,12 +84,21 @@ export default function ImportPage() {
   const [fileError, setFileError] = useState<string>('');
   const [showConfirm, setShowConfirm] = useState(false);
   const [reviewError, setReviewError] = useState<string>('');
+  const [showOptionalMappings, setShowOptionalMappings] = useState(false);
+  const [showOnlyIssueRows, setShowOnlyIssueRows] = useState(false);
+  const [showOnlyDuplicateRows, setShowOnlyDuplicateRows] = useState(false);
 
   const { data: villagesData } = useQuery({
     queryKey: ['villages'],
     queryFn: getVillages,
   });
-  const villages: Village[] = villagesData?.villages || villagesData || [];
+  const { data: sessionData } = useSession();
+  const scopedVillageIds = sessionData?.user?.scoped_village_ids ?? null;
+  const villages: Village[] = useMemo(() => {
+    const all: Village[] = villagesData?.villages || villagesData || [];
+    if (!scopedVillageIds) return all;
+    return all.filter((v: Village) => scopedVillageIds.includes(v.id));
+  }, [villagesData, scopedVillageIds]);
 
   // Step 1: Upload
   const uploadMutation = useMutation({
@@ -167,8 +179,40 @@ export default function ImportPage() {
   };
 
   const activeRows = rows.filter(r => !r._skip);
+  const hasDuplicateIssue = (row: ParsedRow) => row._issues.some((issue) => issue.toLowerCase().includes('possible duplicate'));
+  const hasMissingPhoneIssue = (row: ParsedRow) => row._issues.some((issue) => issue.toLowerCase().includes('missing phone number'));
+  const hasAutoSplitIssue = (row: ParsedRow) => row._issues.some((issue) => issue.startsWith('Name auto-split'));
+  const rowsWithIssues = activeRows.filter((r) => r._issues.length > 0);
+  const rowsReady = activeRows.filter((r) => r._issues.length === 0);
+  const rowsMissingRequired = activeRows.filter((r) => !r.first_name?.trim() || !r.last_name?.trim());
+  const duplicateWarningCount = activeRows.filter(hasDuplicateIssue).length;
+  const missingPhoneWarningCount = activeRows.filter(hasMissingPhoneIssue).length;
+  const autoSplitWarningCount = activeRows.filter(hasAutoSplitIssue).length;
+  const reviewRows = rows
+    .map((row, index) => ({ row, index }))
+    .filter((entry) => !showOnlyIssueRows || entry.row._issues.length > 0)
+    .filter((entry) => !showOnlyDuplicateRows || hasDuplicateIssue(entry.row));
+  const hasNameMapping = Boolean(columnMapping.name || (columnMapping.first_name && columnMapping.last_name));
+  const hasVillageSource = Boolean(villageId || columnMapping.village);
   const currentSheet = preview?.sheets.find(s => s.index === selectedSheet);
   const rawHeaders = currentSheet?.headers.raw_headers || [];
+
+  const skipRowsMissingRequired = () => {
+    setRows((prev) =>
+      prev.map((row) => {
+        const missingRequired = !row.first_name?.trim() || !row.last_name?.trim();
+        return missingRequired ? { ...row, _skip: true } : row;
+      })
+    );
+  };
+
+  const skipRowsWithDuplicateWarnings = () => {
+    setRows((prev) =>
+      prev.map((row) => (
+        hasDuplicateIssue(row) ? { ...row, _skip: true } : row
+      ))
+    );
+  };
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
@@ -267,16 +311,66 @@ export default function ImportPage() {
         {step === 'map-columns' && currentSheet && (
           <div className="space-y-4">
             <div className="app-card p-4">
+              <h2 className="font-semibold text-[var(--text-primary)] mb-2">Quick checklist</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
+                <div className={`rounded-lg border px-3 py-2 ${hasNameMapping ? 'border-green-200 bg-green-50 text-green-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                  1) Name mapped {hasNameMapping ? '✅' : '⚠️'}
+                </div>
+                <div className={`rounded-lg border px-3 py-2 ${hasVillageSource ? 'border-green-200 bg-green-50 text-green-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                  2) Village source set {hasVillageSource ? '✅' : '⚠️'}
+                </div>
+                <div className="rounded-lg border border-blue-200 bg-blue-50 text-blue-800 px-3 py-2">
+                  3) Continue to review
+                </div>
+              </div>
+            </div>
+
+            {/* Village Selection — moved up for required-first flow */}
+            {!columnMapping.village ? (
+              <div className="app-card p-4">
+                <h2 className="font-semibold text-[var(--text-primary)] mb-1">Assign Village</h2>
+                <p className="text-sm text-[var(--text-secondary)] mb-3">
+                  All imported supporters will be assigned to this village. Or map a "Village" column below to assign per-row.
+                </p>
+                <select
+                  value={villageId}
+                  onChange={(e) => setVillageId(e.target.value)}
+                  className="w-full rounded-lg border border-[var(--border-soft)] px-3 py-2 text-sm"
+                >
+                  <option value="">Select a village...</option>
+                  {villages.map((v: Village) => (
+                    <option key={v.id} value={v.id}>{v.name}</option>
+                  ))}
+                </select>
+                {!hasVillageSource && (
+                  <p className="text-xs text-red-700 mt-2">
+                    Required before continuing: select a village or map a Village column.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-700">
+                Village will be assigned per-row from the <strong>Village</strong> column in your spreadsheet.
+                Rows with unrecognized village names will be flagged as errors.
+              </div>
+            )}
+
+            <div className="app-card p-4">
               <h2 className="font-semibold text-[var(--text-primary)] mb-1">Map Columns</h2>
               <p className="text-sm text-[var(--text-secondary)] mb-4">
-                We auto-detected column mappings from <strong>{currentSheet.name}</strong>. Adjust if needed.
+                Match spreadsheet columns to supporter fields from <strong>{currentSheet.name}</strong>.
               </p>
-              <div className="space-y-3">
-                {IMPORTABLE_FIELDS.map((field) => (
+              <p className="text-sm text-blue-800 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 mb-4">
+                If you map <strong>Full Name</strong>, we automatically split it into <strong>First Name + Last Name</strong> for the database. You can edit any row before import.
+              </p>
+
+              <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-2">Required</h3>
+              <div className="space-y-3 mb-4">
+                {REQUIRED_MAPPING_FIELDS.map((field) => (
                   <div key={field} className="flex items-center gap-3">
                     <label className="w-40 text-sm font-medium text-[var(--text-primary)] text-right">
                       {FIELD_LABELS[field]}
-                      {(field === 'name' || field === 'first_name') && <span className="text-red-500 ml-0.5">*</span>}
+                      <span className="text-red-500 ml-0.5">*</span>
                     </label>
                     <select
                       value={columnMapping[field] || ''}
@@ -286,7 +380,7 @@ export default function ImportPage() {
                       }))}
                       className="flex-1 rounded-lg border border-[var(--border-soft)] px-3 py-1.5 text-sm"
                     >
-                      <option value="">— Skip —</option>
+                      <option value="">Not in this file</option>
                       {rawHeaders.map((h, i) => (
                         <option key={i} value={i + 1}>
                           Column {i < 26 ? String.fromCharCode(65 + i) : `${String.fromCharCode(64 + Math.floor(i / 26))}${String.fromCharCode(65 + (i % 26))}`}: {h || `(column ${i + 1})`}
@@ -296,19 +390,60 @@ export default function ImportPage() {
                   </div>
                 ))}
               </div>
+
+              <button
+                type="button"
+                onClick={() => setShowOptionalMappings((prev) => !prev)}
+                className="text-sm text-[#1B3A6B] hover:underline"
+              >
+                {showOptionalMappings ? 'Hide optional fields' : 'Show optional fields'}
+              </button>
+
+              {showOptionalMappings && (
+                <>
+                  <h3 className="text-sm font-semibold text-[var(--text-primary)] mt-3 mb-2">Optional</h3>
+                  <div className="space-y-3">
+                    {OPTIONAL_MAPPING_FIELDS.map((field) => (
+                      <div key={field} className="flex items-center gap-3">
+                        <label className="w-40 text-sm font-medium text-[var(--text-primary)] text-right">
+                          {FIELD_LABELS[field]}
+                        </label>
+                        <select
+                          value={columnMapping[field] || ''}
+                          onChange={(e) => setColumnMapping(prev => ({
+                            ...prev,
+                            [field]: e.target.value ? Number(e.target.value) : 0
+                          }))}
+                          className="flex-1 rounded-lg border border-[var(--border-soft)] px-3 py-1.5 text-sm"
+                        >
+                          <option value="">Not in this file</option>
+                          {rawHeaders.map((h, i) => (
+                            <option key={i} value={i + 1}>
+                              Column {i < 26 ? String.fromCharCode(65 + i) : `${String.fromCharCode(64 + Math.floor(i / 26))}${String.fromCharCode(65 + (i % 26))}`}: {h || `(column ${i + 1})`}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Sample Preview */}
             {currentSheet && currentSheet.sample_rows.length > 0 && (
               <div className="app-card p-4">
                 <h2 className="font-semibold text-[var(--text-primary)] mb-1">Preview (first {currentSheet.sample_rows.length} rows)</h2>
-                <p className="text-sm text-[var(--text-secondary)] mb-3">Verify your column mappings look correct before parsing all rows.</p>
+                <p className="text-sm text-[var(--text-secondary)] mb-1">Verify your column mappings look correct before parsing all rows.</p>
+                <p className="text-xs text-blue-700 mb-3">
+                  This preview shows raw spreadsheet values. First/Last name splitting happens in the next step.
+                </p>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="border-b text-left text-[var(--text-secondary)] uppercase">
                         {IMPORTABLE_FIELDS.filter(f => columnMapping[f]).map(f => (
-                          <th key={f} className="px-2 py-1">{FIELD_LABELS[f]}</th>
+                          <th key={f} className="px-2 py-1">{f === 'name' ? 'Full Name (raw)' : FIELD_LABELS[f]}</th>
                         ))}
                       </tr>
                     </thead>
@@ -328,31 +463,6 @@ export default function ImportPage() {
               </div>
             )}
 
-            {/* Village Selection — only when no village column is mapped */}
-            {!columnMapping.village ? (
-              <div className="app-card p-4">
-                <h2 className="font-semibold text-[var(--text-primary)] mb-1">Assign Village</h2>
-                <p className="text-sm text-[var(--text-secondary)] mb-3">
-                  All imported supporters will be assigned to this village. Or map a "Village" column above to assign per-row.
-                </p>
-                <select
-                  value={villageId}
-                  onChange={(e) => setVillageId(e.target.value)}
-                  className="w-full rounded-lg border border-[var(--border-soft)] px-3 py-2 text-sm"
-                >
-                  <option value="">Select a village...</option>
-                  {villages.map((v: Village) => (
-                    <option key={v.id} value={v.id}>{v.name}</option>
-                  ))}
-                </select>
-              </div>
-            ) : (
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-700">
-                Village will be assigned per-row from the <strong>Village</strong> column in your spreadsheet.
-                Rows with unrecognized village names will be flagged as errors.
-              </div>
-            )}
-
             <div className="flex items-center justify-between">
               <button onClick={() => preview!.sheets.length > 1 ? setStep('select-sheet') : setStep('upload')}
                 className="flex items-center gap-1 text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
@@ -360,13 +470,13 @@ export default function ImportPage() {
               </button>
               <button
                 onClick={() => parseMutation.mutate()}
-                disabled={parseMutation.isPending || (!villageId && !columnMapping.village) || (!columnMapping.name && !columnMapping.first_name)}
+                disabled={parseMutation.isPending || !hasVillageSource || !hasNameMapping}
                 className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#1B3A6B] text-white rounded-lg hover:bg-[#15305a] disabled:opacity-50"
               >
                 {parseMutation.isPending ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /> Parsing...</>
                 ) : (
-                  <><ArrowRight className="w-4 h-4" /> Parse & Preview</>
+                  <><ArrowRight className="w-4 h-4" /> Continue to Review</>
                 )}
               </button>
             </div>
@@ -390,11 +500,11 @@ export default function ImportPage() {
                   <p className="text-xs text-[var(--text-secondary)]">Total Rows</p>
                 </div>
                 <div className="bg-green-50 rounded-lg p-3">
-                  <p className="text-2xl font-bold text-green-600">{activeRows.filter(r => r._issues.length === 0).length}</p>
+                  <p className="text-2xl font-bold text-green-600">{rowsReady.length}</p>
                   <p className="text-xs text-[var(--text-secondary)]">Ready</p>
                 </div>
                 <div className="bg-amber-50 rounded-lg p-3">
-                  <p className="text-2xl font-bold text-amber-600">{activeRows.filter(r => r._issues.length > 0).length}</p>
+                  <p className="text-2xl font-bold text-amber-600">{rowsWithIssues.length}</p>
                   <p className="text-xs text-[var(--text-secondary)]">Has Issues</p>
                 </div>
                 <div className="bg-[var(--surface-overlay)] rounded-lg p-3">
@@ -410,6 +520,56 @@ export default function ImportPage() {
                 ? <>Village assigned <strong>per-row</strong> from spreadsheet column</>
                 : <>Importing into <strong>{villages.find(v => v.id === Number(villageId))?.name}</strong></>
               } · All records will be <strong>unverified</strong> until staff reviews them.
+            </div>
+
+            <div className="app-card p-3 sm:p-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                  <label className="inline-flex items-center gap-2 text-sm text-[var(--text-primary)]">
+                    <input
+                      type="checkbox"
+                      checked={showOnlyIssueRows}
+                      onChange={(e) => setShowOnlyIssueRows(e.target.checked)}
+                    />
+                    Show only rows with issues
+                  </label>
+                  <label className="inline-flex items-center gap-2 text-sm text-[var(--text-primary)]">
+                    <input
+                      type="checkbox"
+                      checked={showOnlyDuplicateRows}
+                      onChange={(e) => setShowOnlyDuplicateRows(e.target.checked)}
+                    />
+                    Show only possible duplicates
+                  </label>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={skipRowsMissingRequired}
+                    className="text-sm px-3 py-2 rounded-lg border border-amber-200 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                  >
+                    Skip rows missing required fields ({rowsMissingRequired.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={skipRowsWithDuplicateWarnings}
+                    className="text-sm px-3 py-2 rounded-lg border border-orange-200 bg-orange-50 text-orange-800 hover:bg-orange-100"
+                  >
+                    Skip duplicate-flagged rows ({duplicateWarningCount})
+                  </button>
+                </div>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                <span className="rounded-full border border-orange-200 bg-orange-50 text-orange-700 px-2.5 py-1">
+                  Duplicate warnings: {duplicateWarningCount}
+                </span>
+                <span className="rounded-full border border-amber-200 bg-amber-50 text-amber-700 px-2.5 py-1">
+                  Missing phone: {missingPhoneWarningCount}
+                </span>
+                <span className="rounded-full border border-blue-200 bg-blue-50 text-blue-700 px-2.5 py-1">
+                  Name auto-split: {autoSplitWarningCount}
+                </span>
+              </div>
             </div>
 
             {/* Row table */}
@@ -429,25 +589,41 @@ export default function ImportPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map((row, idx) => (
-                    <tr key={idx} className={`border-b border-[var(--border-subtle)] ${row._skip ? 'opacity-40 bg-[var(--surface-bg)]' : row._issues.length > 0 ? 'bg-amber-50' : ''}`}>
+                  {reviewRows.map(({ row, index }) => (
+                    <tr
+                      key={index}
+                      className={`border-b border-[var(--border-subtle)] ${
+                        row._skip
+                          ? 'opacity-40 bg-[var(--surface-bg)]'
+                          : hasAutoSplitIssue(row)
+                            ? 'bg-blue-50'
+                            : row._issues.length > 0
+                              ? 'bg-amber-50'
+                              : ''
+                      }`}
+                    >
                       <td className="px-3 py-2 text-[var(--text-muted)]">{row._row}</td>
                       <td className="px-3 py-2">
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <input
-                            className="font-medium text-[var(--text-primary)] bg-transparent border-b border-transparent hover:border-[var(--border-soft)] focus:border-[#1B3A6B] focus:outline-none w-16 px-0"
+                            className="font-medium text-[var(--text-primary)] bg-transparent border-b border-transparent hover:border-[var(--border-soft)] focus:border-[#1B3A6B] focus:outline-none w-24 px-0"
                             value={row.first_name || ''}
-                            onChange={(e) => updateRow(idx, 'first_name', e.target.value)}
+                            onChange={(e) => updateRow(index, 'first_name', e.target.value)}
                             placeholder="First"
                             disabled={row._skip}
                           />
                           <input
-                            className="font-medium text-[var(--text-primary)] bg-transparent border-b border-transparent hover:border-[var(--border-soft)] focus:border-[#1B3A6B] focus:outline-none w-20 px-0"
+                            className="font-medium text-[var(--text-primary)] bg-transparent border-b border-transparent hover:border-[var(--border-soft)] focus:border-[#1B3A6B] focus:outline-none w-28 px-0"
                             value={row.last_name || ''}
-                            onChange={(e) => updateRow(idx, 'last_name', e.target.value)}
+                            onChange={(e) => updateRow(index, 'last_name', e.target.value)}
                             placeholder="Last"
                             disabled={row._skip}
                           />
+                          {hasAutoSplitIssue(row) && (
+                            <span className="text-[11px] rounded-full border border-blue-200 bg-blue-50 text-blue-700 px-2 py-0.5">
+                              Auto-split name
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="px-3 py-2 text-[var(--text-secondary)] whitespace-nowrap">{row.contact_number}</td>
@@ -481,7 +657,7 @@ export default function ImportPage() {
                       </td>
                       <td className="px-3 py-2">
                         <button
-                          onClick={() => toggleSkip(idx)}
+                          onClick={() => toggleSkip(index)}
                           className={`text-xs px-2 py-1 rounded ${
                             row._skip
                               ? 'bg-[var(--surface-overlay)] text-[var(--text-secondary)] hover:bg-[var(--border-soft)]'
@@ -586,6 +762,11 @@ export default function ImportPage() {
                 : <> into <strong>{villages.find(v => v.id === Number(villageId))?.name}</strong>?</>
               }
             </p>
+            <div className="text-sm rounded-xl border border-[var(--border-soft)] bg-[var(--surface-bg)] p-3 mb-4 space-y-1">
+              <p><strong>Ready rows:</strong> {rowsReady.length}</p>
+              <p><strong>Rows with warnings:</strong> {rowsWithIssues.length}</p>
+              <p><strong>Rows currently skipped:</strong> {rows.filter((r) => r._skip).length}</p>
+            </div>
             <p className="text-sm text-[var(--text-secondary)] mb-6">
               All records will be marked as <strong>unverified</strong> until staff reviews them.
             </p>

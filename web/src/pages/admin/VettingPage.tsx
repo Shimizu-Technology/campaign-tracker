@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSupporters, getVillages, verifySupporter, bulkVerifySupporters, updateSupporter } from '../../lib/api';
 import { Link } from 'react-router-dom';
@@ -37,9 +37,11 @@ export default function VettingPage() {
   const queryClient = useQueryClient();
   const { data: sessionData } = useSession();
 
-  // Village chiefs should default to their village
+  // Scoped users should default to their assigned area.
   const userVillageId = sessionData?.user?.assigned_village_id;
-  const effectiveVillageFilter = villageFilter || (userVillageId ? String(userVillageId) : '');
+  const scopedVillageIds = sessionData?.user?.scoped_village_ids ?? null;
+  const singleScopedVillageId = scopedVillageIds && scopedVillageIds.length === 1 ? String(scopedVillageIds[0]) : '';
+  const effectiveVillageFilter = villageFilter || singleScopedVillageId || (userVillageId ? String(userVillageId) : '');
   const isChief = sessionData?.user?.role === 'village_chief';
   const isLeader = sessionData?.user?.role === 'block_leader';
 
@@ -85,7 +87,17 @@ export default function VettingPage() {
   });
 
   const supporters: Supporter[] = supportersData?.supporters || [];
-  const villages: Village[] = villagesData?.villages || villagesData || [];
+  const villagesAll: Village[] = villagesData?.villages || villagesData || [];
+  const villages: Village[] = scopedVillageIds === null
+    ? villagesAll
+    : villagesAll.filter((v) => scopedVillageIds.includes(v.id));
+
+  useEffect(() => {
+    if (scopedVillageIds === null) return;
+    if (!villageFilter) return;
+    if (scopedVillageIds.includes(Number(villageFilter))) return;
+    queueMicrotask(() => setVillageFilter(''));
+  }, [scopedVillageIds, villageFilter]);
 
   const toggleSelect = (id: number) => {
     setSelectedIds(prev => {
@@ -180,7 +192,7 @@ export default function VettingPage() {
           </select>
         </div>
 
-        {!isChief && !isLeader && (
+        {!isChief && !isLeader && !singleScopedVillageId && (
           <div>
             <label className="text-sm font-medium text-[var(--text-primary)] mr-2">Village:</label>
             <select
@@ -188,7 +200,7 @@ export default function VettingPage() {
               onChange={(e) => { setVillageFilter(e.target.value); setSelectedIds(new Set()); }}
               className="rounded-lg border border-[var(--border-soft)] px-3 py-1.5 text-sm"
             >
-              <option value="">All Villages</option>
+              <option value="">{scopedVillageIds === null ? 'All villages' : 'All accessible villages'}</option>
               {villages.map((v: Village) => (
                 <option key={v.id} value={v.id}>{v.name}</option>
               ))}
@@ -196,9 +208,9 @@ export default function VettingPage() {
           </div>
         )}
 
-        {isChief && userVillageId && (
+        {(isChief || isLeader || singleScopedVillageId) && effectiveVillageFilter && (
           <div className="text-sm text-[var(--text-secondary)]">
-            Showing your village only
+            Showing assigned area only
           </div>
         )}
       </div>

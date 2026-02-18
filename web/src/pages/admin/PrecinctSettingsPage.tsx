@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Save, Search } from 'lucide-react';
 import { getPrecincts, updatePrecinct } from '../../lib/api';
+import { useSession } from '../../hooks/useSession';
 
 interface PrecinctItem {
   id: number;
@@ -38,6 +39,7 @@ interface PrecinctUpdatePayload {
 
 export default function PrecinctSettingsPage() {
   const queryClient = useQueryClient();
+  const { data: sessionData } = useSession();
   const [search, setSearch] = useState('');
   const [villageFilter, setVillageFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -71,6 +73,7 @@ export default function PrecinctSettingsPage() {
   });
 
   const precincts = useMemo(() => data?.precincts || [], [data?.precincts]);
+  const scopedVillageIds = sessionData?.user?.scoped_village_ids ?? null;
   const villageOptions = useMemo(
     () => Array.from(new Set(precincts.map((p) => p.village_name))).sort((a, b) => a.localeCompare(b)),
     [precincts]
@@ -150,7 +153,7 @@ export default function PrecinctSettingsPage() {
             onChange={(e) => setVillageFilter(e.target.value)}
             className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px]"
           >
-            <option value="">All villages</option>
+            <option value="">{scopedVillageIds === null ? 'All villages' : 'All accessible villages'}</option>
             {villageOptions.map((name) => (
               <option key={name} value={name}>{name}</option>
             ))}

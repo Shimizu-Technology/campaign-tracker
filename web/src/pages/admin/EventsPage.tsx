@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getEvents, createEvent, getVillages } from '../../lib/api';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, Calendar, MapPin, Search, Users, X } from 'lucide-react';
+import { useSession } from '../../hooks/useSession';
 
 interface EventForm {
   name: string;
@@ -38,6 +39,7 @@ type EventSortField = 'date' | 'name' | 'event_type' | 'attended_count' | 'show_
 
 export default function EventsPage() {
   const queryClient = useQueryClient();
+  const { data: sessionData } = useSession();
   const [searchParams, setSearchParams] = useSearchParams();
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState<EventForm>({
@@ -63,7 +65,13 @@ export default function EventsPage() {
   });
 
   const events: EventItem[] = useMemo(() => eventsData?.events || [], [eventsData]);
-  const villages: VillageOption[] = villageData?.villages || [];
+  const villagesAll: VillageOption[] = useMemo(() => villageData?.villages || [], [villageData]);
+  const scopedVillageIds = sessionData?.user?.scoped_village_ids ?? null;
+  const villages: VillageOption[] = useMemo(() => {
+    if (scopedVillageIds === null) return villagesAll;
+    const allowed = new Set(scopedVillageIds);
+    return villagesAll.filter((v) => allowed.has(v.id));
+  }, [scopedVillageIds, villagesAll]);
   const filteredEvents = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = events.filter((e) => {
@@ -156,7 +164,7 @@ export default function EventsPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <select value={form.village_id} onChange={e => setForm(f => ({...f, village_id: e.target.value}))}
                   className="px-3 py-2 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)]">
-                  <option value="">All villages</option>
+                  <option value="">{scopedVillageIds === null ? 'All villages' : 'All accessible villages'}</option>
                   {villages.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
                 </select>
                 <input type="number" value={form.quota} onChange={e => setForm(f => ({...f, quota: e.target.value}))}

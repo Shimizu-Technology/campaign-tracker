@@ -484,7 +484,7 @@ export default function WarRoomPage() {
                   {stats.reporting_precincts === 0 ? (
                     <>No reports yet — waiting for poll watchers</>
                   ) : (
-                    <><CheckCircle className="w-5 h-5 mx-auto mb-1 text-green-500" /> All villages showing good turnout</>
+                    <><CheckCircle className="w-5 h-5 mx-auto mb-1 text-green-500" /> All visible villages showing good turnout</>
                   )}
                 </div>
               )}

@@ -65,4 +65,35 @@ class SupporterTest < ActiveSupport::TestCase
 
     assert supporter.valid?
   end
+
+  test "allows blank phone for staff/manual attribution" do
+    supporter = Supporter.new(
+      first_name: "NoPhone",
+      last_name: "Manual",
+      village: @village_one,
+      source: "staff_entry",
+      attribution_method: "staff_manual",
+      turnout_status: "unknown",
+      verification_status: "unverified",
+      status: "active"
+    )
+
+    assert supporter.valid?
+  end
+
+  test "requires phone for public signup attribution" do
+    supporter = Supporter.new(
+      first_name: "NoPhone",
+      last_name: "Public",
+      village: @village_one,
+      source: "qr_signup",
+      attribution_method: "public_signup",
+      turnout_status: "unknown",
+      verification_status: "unverified",
+      status: "active"
+    )
+
+    assert_not supporter.valid?
+    assert_includes supporter.errors[:contact_number], "can't be blank"
+  end
 end

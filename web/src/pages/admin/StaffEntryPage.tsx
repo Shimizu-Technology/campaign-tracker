@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getVillages, createSupporter, scanForm, checkDuplicate } from '../../lib/api';
-import { DEFAULT_GUAM_PHONE_PREFIX } from '../../lib/phone';
+import { useSession } from '../../hooks/useSession';
 import { Check, AlertTriangle, Loader2, Camera, ScanLine } from 'lucide-react';
 
 interface Village {
@@ -41,7 +41,7 @@ type ExtractedScanData = Partial<{
 const emptyForm = {
   first_name: '',
   last_name: '',
-  contact_number: DEFAULT_GUAM_PHONE_PREFIX,
+  contact_number: '',
   email: '',
   dob: '',
   street_address: '',
@@ -63,7 +63,13 @@ export default function StaffEntryPage() {
     queryKey: ['villages'],
     queryFn: getVillages,
   });
-  const villages: Village[] = useMemo(() => villageData?.villages || [], [villageData]);
+  const { data: sessionData } = useSession();
+  const scopedVillageIds = sessionData?.user?.scoped_village_ids ?? null;
+  const villages: Village[] = useMemo(() => {
+    const all = villageData?.villages || [];
+    if (!scopedVillageIds) return all;
+    return all.filter((v: Village) => scopedVillageIds.includes(v.id));
+  }, [villageData, scopedVillageIds]);
   // Duplicate detection
   const [duplicateWarning, setDuplicateWarning] = useState('');
   const dupeTimerRef = useRef<ReturnType<typeof setTimeout>>(null);
@@ -91,6 +97,7 @@ export default function StaffEntryPage() {
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState('');
   const [scannedFields, setScannedFields] = useState<Set<string>>(new Set());
+  const [scanAssistedEntry, setScanAssistedEntry] = useState(false);
 
   const handleScan = async (file: File) => {
     setScanning(true);
@@ -145,6 +152,7 @@ export default function StaffEntryPage() {
 
         setForm(updates);
         setScannedFields(filled);
+        setScanAssistedEntry(true);
       } else {
         setScanError(result.error || 'Could not extract form data');
       }
@@ -157,7 +165,7 @@ export default function StaffEntryPage() {
   };
 
   const submit = useMutation({
-    mutationFn: (data: Record<string, unknown>) => createSupporter(data, undefined, 'staff'),
+    mutationFn: (data: Record<string, unknown>) => createSupporter(data, undefined, 'staff', scanAssistedEntry ? 'scan' : 'manual'),
     onSuccess: () => {
       setSuccessCount(prev => prev + 1);
       setShowSuccess(true);
@@ -167,6 +175,8 @@ export default function StaffEntryPage() {
         ...emptyForm,
         village_id: form.village_id,
       });
+      setScannedFields(new Set());
+      setScanAssistedEntry(false);
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       setTimeout(() => setShowSuccess(false), 2000);
       // Focus name field for next entry
@@ -178,6 +188,7 @@ export default function StaffEntryPage() {
     e.preventDefault();
     submit.mutate({
       ...form,
+      contact_number: form.contact_number.trim() || null,
       village_id: Number(form.village_id),
     });
   };
@@ -326,10 +337,9 @@ export default function StaffEntryPage() {
 
         {/* Phone */}
         <div>
-          <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Contact Number *</label>
+          <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Contact Number (optional)</label>
           <input
             type="tel"
-            required
             value={form.contact_number}
             onChange={e => updateField('contact_number', e.target.value)}
             className={inputClass("contact_number")}

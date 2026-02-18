@@ -10,9 +10,11 @@ module Api
       # GET /api/v1/precincts
       def index
         scope = Precinct.includes(:village).order("villages.name ASC", "precincts.number ASC").joins(:village)
+        scope = scope.where(village_id: scoped_village_ids) if scoped_village_ids
         scope = scope.where(village_id: params[:village_id]) if params[:village_id].present?
         if params[:search].present?
-          q = "%#{params[:search].to_s.downcase.strip}%"
+          sanitized = ActiveRecord::Base.sanitize_sql_like(params[:search].to_s.strip)
+          q = "%#{sanitized.downcase}%"
           scope = scope.where(
             "LOWER(precincts.number) LIKE :q OR LOWER(precincts.alpha_range) LIKE :q OR LOWER(precincts.polling_site) LIKE :q OR LOWER(villages.name) LIKE :q",
             q: q
@@ -44,7 +46,15 @@ module Api
 
       # PATCH /api/v1/precincts/:id
       def update
-        precinct = Precinct.find(params[:id])
+        precinct_scope = scoped_village_ids.nil? ? Precinct.all : Precinct.where(village_id: scoped_village_ids)
+        precinct = precinct_scope.find_by(id: params[:id])
+        unless precinct
+          return render_api_error(
+            message: "Not authorized for this precinct",
+            status: :forbidden,
+            code: "precinct_access_required"
+          )
+        end
         if precinct_params.key?(:registered_voters) && precinct_params[:registered_voters].to_i <= 0
           return render_api_error(
             message: "Registered voters must be greater than 0",

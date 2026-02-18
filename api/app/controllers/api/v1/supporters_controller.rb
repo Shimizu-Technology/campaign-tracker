@@ -10,6 +10,7 @@ module Api
       ALLOWED_SORT_FIELDS = %w[created_at print_name last_name first_name village_name precinct_number source registered_voter].freeze
 
       include Authenticatable
+      include AuditLoggable
       before_action :authenticate_request, only: [ :index, :check_duplicate, :export, :show, :update, :verify, :bulk_verify, :duplicates, :resolve_duplicate, :scan_duplicates ]
       before_action :require_supporter_access!, only: [ :index, :check_duplicate, :export, :show ]
       before_action :require_coordinator_or_above!, only: [ :duplicates, :resolve_duplicate, :scan_duplicates ]
@@ -22,12 +23,22 @@ module Api
           return if performed?
           require_staff_entry_access!
           return if performed?
+
+          # Enforce village scope for staff entries by scoped users
+          village_id = public_supporter_params[:village_id]
+          if village_id.present? && scoped_village_ids && !scoped_village_ids.include?(village_id.to_i)
+            return render json: { errors: [ "Village not in your assigned scope" ] }, status: :forbidden
+          end
         end
 
         supporter = Supporter.new(public_supporter_params)
+        normalized_leader_code = params[:leader_code].to_s.strip.presence
+        referral_code = resolve_referral_code(normalized_leader_code)
         supporter.source = create_source
+        supporter.attribution_method = create_attribution_method(normalized_leader_code)
         supporter.status = "active"
-        supporter.leader_code = params[:leader_code]
+        supporter.leader_code = normalized_leader_code
+        supporter.referral_code = referral_code if referral_code
         supporter.entered_by_user_id = current_user.id if staff_entry_mode? && current_user
 
         # Default unchecked booleans to false (checkboxes send nothing when unchecked)
@@ -41,7 +52,7 @@ module Api
           supporter.status = "unverified" # Flag for review
         end
         if supporter.save
-          log_audit!(supporter, action: "created", changed_data: supporter.saved_changes.except("updated_at"))
+          log_audit!(supporter, action: "created", changed_data: supporter.saved_changes.except("updated_at"), normalize: true, metadata: supporter_audit_metadata(supporter))
 
           # Queue welcome SMS so signup response is not blocked by external API latency.
           if supporter.contact_number.present? && supporter.opt_in_text
@@ -85,7 +96,7 @@ module Api
 
         if supporter.update(updates)
           changes = supporter.saved_changes.except("updated_at")
-          log_audit!(supporter, action: "updated", changed_data: changes) if changes.present?
+          log_audit!(supporter, action: "updated", changed_data: changes, normalize: true) if changes.present?
           CampaignBroadcast.supporter_updated(supporter, action: "updated")
           render json: { supporter: supporter_json(supporter) }
         else
@@ -197,10 +208,11 @@ module Api
 
         if params[:search].present?
           raw = params[:search].to_s.strip
-          name_query = "%#{raw.downcase}%"
+          sanitized = ActiveRecord::Base.sanitize_sql_like(raw)
+          name_query = "%#{sanitized.downcase}%"
           phone_digits = raw.gsub(/\D/, "")
           if phone_digits.present?
-            phone_query = "%#{phone_digits}%"
+            phone_query = "%#{ActiveRecord::Base.sanitize_sql_like(phone_digits)}%"
             supporters = supporters.where(
               "LOWER(print_name) LIKE :name_query OR LOWER(first_name) LIKE :name_query OR LOWER(last_name) LIKE :name_query OR regexp_replace(contact_number, '\\D', '', 'g') LIKE :phone_query",
               name_query: name_query,
@@ -405,10 +417,11 @@ module Api
 
         if params[:search].present?
           raw = params[:search].to_s.strip
-          name_query = "%#{raw.downcase}%"
+          sanitized = ActiveRecord::Base.sanitize_sql_like(raw)
+          name_query = "%#{sanitized.downcase}%"
           phone_digits = raw.gsub(/\D/, "")
           if phone_digits.present?
-            phone_query = "%#{phone_digits}%"
+            phone_query = "%#{ActiveRecord::Base.sanitize_sql_like(phone_digits)}%"
             supporters = supporters.where(
               "LOWER(print_name) LIKE :name_query OR LOWER(first_name) LIKE :name_query OR LOWER(last_name) LIKE :name_query OR regexp_replace(contact_number, '\\D', '', 'g') LIKE :phone_query",
               name_query: name_query,
@@ -443,11 +456,18 @@ module Api
       end
 
       def create_source
-        return "qr_signup" if params[:leader_code].present?
+        return "qr_signup" if params[:leader_code].to_s.strip.present?
         return "staff_entry" if staff_entry_mode?
 
-        # Public non-authenticated signup without leader code.
-        "qr_signup"
+        # Public signup without a leader/referral code.
+        "public_signup"
+      end
+
+      def create_attribution_method(normalized_leader_code)
+        return "qr_self_signup" if normalized_leader_code.present?
+        return params[:entry_channel] == "scan" ? "staff_scan" : "staff_manual" if staff_entry_mode?
+
+        "public_signup"
       end
 
       def staff_entry_mode?
@@ -480,6 +500,9 @@ module Api
           source: supporter.source,
           status: supporter.status,
           leader_code: supporter.leader_code,
+          attribution_method: supporter.attribution_method,
+          referral_code_id: supporter.referral_code_id,
+          referral_display_name: supporter.referral_code&.display_name,
           reliability_score: supporter.reliability_score,
           potential_duplicate: supporter.potential_duplicate,
           duplicate_of_id: supporter.duplicate_of_id,
@@ -515,31 +538,28 @@ module Api
         info
       end
 
-      def log_audit!(supporter, action:, changed_data:)
-        AuditLog.create!(
-          auditable: supporter,
-          actor_user: current_user,
-          action: action,
-          changed_data: normalized_changed_data(changed_data),
-          metadata: {
-            entry_mode: params[:entry_mode],
-            leader_code: params[:leader_code]
-          }.compact
-        )
+      def audit_entry_mode
+        params[:entry_mode]
+      end
+
+      def supporter_audit_metadata(supporter)
+        { leader_code: params[:leader_code], referral_code_id: supporter.referral_code_id }.compact
+      end
+
+      def resolve_referral_code(code)
+        normalized = code.to_s.strip
+        return nil if normalized.blank?
+
+        ReferralCode.find_by(code: normalized)
       end
 
       def supporter_edit_allowed?
         current_user&.admin? || current_user&.coordinator?
       end
 
+      # Alias for backward compatibility with callers
       def normalized_changed_data(changed_data)
-        changed_data.each_with_object({}) do |(field, value), output|
-          if value.is_a?(Array) && value.length == 2
-            output[field] = { from: value[0], to: value[1] }
-          else
-            output[field] = { from: nil, to: value }
-          end
-        end
+        normalize_changed_data(changed_data)
       end
 
       def audit_action_label(action)

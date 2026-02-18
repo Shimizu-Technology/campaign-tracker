@@ -4,6 +4,7 @@ module Api
   module V1
     class SettingsController < ApplicationController
       include Authenticatable
+      include AuditLoggable
       before_action :authenticate_request
       before_action :require_admin!
 
@@ -38,7 +39,10 @@ module Api
         updates[:welcome_sms_template] = template.presence if params.key?(:welcome_sms_template)
         updates[:show_pace] = ActiveModel::Type::Boolean.new.cast(params[:show_pace]) if params.key?(:show_pace)
 
-        campaign.update!(updates) if updates.any?
+        if updates.any?
+          campaign.update!(updates)
+          log_audit!(campaign, action: "settings_updated", changed_data: campaign.saved_changes.except("updated_at"), normalize: true)
+        end
 
         render json: settings_json(campaign)
       end
@@ -58,6 +62,10 @@ module Api
         unless current_user&.admin?
           render_api_error(message: "Admin access required", status: :forbidden, code: "forbidden")
         end
+      end
+
+      def audit_entry_mode
+        "settings"
       end
     end
   end
