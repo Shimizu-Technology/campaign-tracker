@@ -23,6 +23,12 @@ module Api
           return if performed?
           require_staff_entry_access!
           return if performed?
+
+          # Enforce village scope for staff entries by scoped users
+          village_id = public_supporter_params[:village_id]
+          if village_id.present? && scoped_village_ids && !scoped_village_ids.include?(village_id.to_i)
+            return render json: { errors: [ "Village not in your assigned scope" ] }, status: :forbidden
+          end
         end
 
         supporter = Supporter.new(public_supporter_params)
