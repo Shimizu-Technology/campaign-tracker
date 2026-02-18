@@ -202,10 +202,11 @@ module Api
 
         if params[:search].present?
           raw = params[:search].to_s.strip
-          name_query = "%#{raw.downcase}%"
+          sanitized = ActiveRecord::Base.sanitize_sql_like(raw)
+          name_query = "%#{sanitized.downcase}%"
           phone_digits = raw.gsub(/\D/, "")
           if phone_digits.present?
-            phone_query = "%#{phone_digits}%"
+            phone_query = "%#{ActiveRecord::Base.sanitize_sql_like(phone_digits)}%"
             supporters = supporters.where(
               "LOWER(print_name) LIKE :name_query OR LOWER(first_name) LIKE :name_query OR LOWER(last_name) LIKE :name_query OR regexp_replace(contact_number, '\\D', '', 'g') LIKE :phone_query",
               name_query: name_query,
@@ -410,10 +411,11 @@ module Api
 
         if params[:search].present?
           raw = params[:search].to_s.strip
-          name_query = "%#{raw.downcase}%"
+          sanitized = ActiveRecord::Base.sanitize_sql_like(raw)
+          name_query = "%#{sanitized.downcase}%"
           phone_digits = raw.gsub(/\D/, "")
           if phone_digits.present?
-            phone_query = "%#{phone_digits}%"
+            phone_query = "%#{ActiveRecord::Base.sanitize_sql_like(phone_digits)}%"
             supporters = supporters.where(
               "LOWER(print_name) LIKE :name_query OR LOWER(first_name) LIKE :name_query OR LOWER(last_name) LIKE :name_query OR regexp_replace(contact_number, '\\D', '', 'g') LIKE :phone_query",
               name_query: name_query,

@@ -243,7 +243,7 @@ export default function QRCodePage() {
             <div className="flex justify-center mb-6">
               <img
                 src={qrSvgUrl!}
-                alt={`QR Code for ${name}`}
+                alt={`QR Code for ${generatedOwnerName}`}
                 className="w-64 h-64 border rounded-xl p-2"
               />
             </div>
