@@ -68,8 +68,18 @@ module Api
         # Remove villages currently in this district that aren't in the new list
         district.villages.where.not(id: village_ids).update_all(district_id: nil)
 
-        # Assign new villages (pull from other districts if needed)
-        Village.where(id: village_ids).update_all(district_id: district.id) if village_ids.any?
+        # Check for villages already assigned to other districts
+        if village_ids.any?
+          conflicting = Village.where(id: village_ids).where.not(district_id: [ nil, district.id ])
+          if conflicting.any?
+            return render json: {
+              error: "Villages already assigned to other districts: #{conflicting.pluck(:name).join(', ')}. Remove them first.",
+              conflicting_villages: conflicting.pluck(:name)
+            }, status: :unprocessable_entity
+          end
+
+          Village.where(id: village_ids).update_all(district_id: district.id)
+        end
 
         district.reload
         render json: { district: district_json(district) }

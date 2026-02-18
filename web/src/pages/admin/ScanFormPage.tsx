@@ -266,7 +266,8 @@ export default function ScanFormPage() {
         const row = activeRows[i];
         setSaveProgress({ current: i + 1, total: activeRows.length });
 
-        const criticalIssues = analyzeRowIssues(row).filter((issue) => issue.severity === 'critical');
+        const rowIndex = rows.indexOf(row);
+        const criticalIssues = (rowIssuesMatrix[rowIndex] || []).filter((issue) => issue.severity === 'critical');
         if (criticalIssues.length > 0) {
           result.failed += 1;
           result.errors.push({
@@ -307,18 +308,17 @@ export default function ScanFormPage() {
         }
       }
 
-      const issueCounts = rows.reduce<Record<string, number>>((acc, row) => {
-        analyzeRowIssues(row).forEach((issue) => {
+      const issueCounts = rows.reduce<Record<string, number>>((acc, _row, idx) => {
+        (rowIssuesMatrix[idx] || []).forEach((issue) => {
           acc[issue.code] = (acc[issue.code] || 0) + 1;
         });
         return acc;
       }, {});
-      const rowsWithAnyIssues = rows.filter((row) => analyzeRowIssues(row).length > 0).length;
-      const rowsWithCriticalIssues = rows.filter((row) => analyzeRowIssues(row).some((issue) => issue.severity === 'critical')).length;
-      const rowsWithWarningOnly = rows.filter((row) => {
-        const issues = analyzeRowIssues(row);
-        return issues.length > 0 && !issues.some((issue) => issue.severity === 'critical');
-      }).length;
+      const rowsWithAnyIssues = rowIssuesMatrix.filter((issues) => issues.length > 0).length;
+      const rowsWithCriticalIssues = rowIssuesMatrix.filter((issues) => issues.some((issue) => issue.severity === 'critical')).length;
+      const rowsWithWarningOnly = rowIssuesMatrix.filter((issues) =>
+        issues.length > 0 && !issues.some((issue) => issue.severity === 'critical')
+      ).length;
 
       try {
         await trackScanBatchTelemetry({
@@ -397,16 +397,16 @@ export default function ScanFormPage() {
   };
 
   const skipRowsWithCriticalIssues = () => {
-    setRows((prev) => prev.map((row) => (
-      analyzeRowIssues(row).some((issue) => issue.severity === 'critical')
+    setRows((prev) => prev.map((row, idx) => (
+      (rowIssuesMatrix[idx] || []).some((issue) => issue.severity === 'critical')
         ? { ...row, _skip: true }
         : row
     )));
   };
 
   const includeRowsWithoutCriticalIssues = () => {
-    setRows((prev) => prev.map((row) => (
-      analyzeRowIssues(row).some((issue) => issue.severity === 'critical')
+    setRows((prev) => prev.map((row, idx) => (
+      (rowIssuesMatrix[idx] || []).some((issue) => issue.severity === 'critical')
         ? row
         : { ...row, _skip: false }
     )));
