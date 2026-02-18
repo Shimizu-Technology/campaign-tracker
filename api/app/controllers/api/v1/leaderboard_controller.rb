@@ -58,7 +58,11 @@ module Api
             total_added: total_added,
             active_leaders: active_leaders,
             top_leader_signups: top_leader_count,
-            avg_signups_per_leader: active_leaders > 0 ? (total_qr_signups.to_f / active_leaders).round(1) : 0
+            # Only count leaders who actually have QR signups in the denominator
+            avg_signups_per_leader: begin
+              qr_leaders = leaderboard.count { |r| r[:qr_signups] > 0 }
+              qr_leaders > 0 ? (total_qr_signups.to_f / qr_leaders).round(1) : 0
+            end
           }
         }
       end
@@ -101,10 +105,19 @@ module Api
           owner_key, owner_data = resolve_owner(rc, entry_user, channel)
           next if owner_key.blank?
 
-          grouped[owner_key] ||= owner_data.merge(
-            qr_signups: 0, manual_entries: 0, scan_entries: 0,
-            import_entries: 0, total_added: 0, latest_signup_at: nil
-          )
+          if grouped[owner_key].nil?
+            grouped[owner_key] = owner_data.merge(
+              qr_signups: 0, manual_entries: 0, scan_entries: 0,
+              import_entries: 0, total_added: 0, latest_signup_at: nil
+            )
+          else
+            # Prefer QR-derived metadata (real code + village) over staff-derived
+            current = grouped[owner_key]
+            if current[:leader_code]&.start_with?("staff-") && !owner_data[:leader_code]&.start_with?("staff-")
+              current[:leader_code] = owner_data[:leader_code]
+              current[:village_name] = owner_data[:village_name]
+            end
+          end
 
           grouped[owner_key][channel] += row.cnt.to_i
           grouped[owner_key][:total_added] += row.cnt.to_i

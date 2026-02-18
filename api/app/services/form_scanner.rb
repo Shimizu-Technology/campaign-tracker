@@ -393,10 +393,14 @@ class FormScanner
       village = all_villages.find { |v| v.name.downcase == downcased }
       return village.id if village
 
-      # Partial match — require at least 4 chars and prefer starts_with to avoid short-string mismatches
+      # Partial match — require at least 4 chars and prefer starts_with to avoid short-string mismatches.
+      # Also require the query covers at least 40% of the village name to prevent "Rita" matching "Sånta Rita-Sumai".
       if downcased.length >= 4
         village = all_villages.find { |v| v.name.downcase.start_with?(downcased) }
-        village ||= all_villages.find { |v| v.name.downcase.include?(downcased) }
+        village ||= all_villages.find { |v|
+          vname = v.name.downcase
+          vname.include?(downcased) && downcased.length >= (vname.length * 0.4)
+        }
         return village.id if village
       end
 
