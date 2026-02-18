@@ -271,6 +271,7 @@ class FormScanner
       in_string = false
       escape = false
       depth = 0
+      bracket_depth = 0
       current_start = nil
       i = array_start + 1
 
@@ -295,13 +296,17 @@ class FormScanner
           next
         end
 
-        if ch == "{" || ch == "["
-          current_start = i if depth.zero? && ch == "{"
+        if ch == "{"
+          current_start = i if depth.zero?
           depth += 1
-        elsif ch == "}" || ch == "]"
-          break if ch == "]" && depth.zero?
+        elsif ch == "["
+          bracket_depth += 1
+        elsif ch == "]"
+          break if bracket_depth.zero? && depth.zero?
+          bracket_depth -= 1 if bracket_depth.positive?
+        elsif ch == "}"
           depth -= 1 if depth.positive?
-          if depth.zero? && current_start
+          if depth.zero? && bracket_depth.zero? && current_start
             object_json = raw[current_start..i]
             begin
               parsed_object = JSON.parse(object_json)

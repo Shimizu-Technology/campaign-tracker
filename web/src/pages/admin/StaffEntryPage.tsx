@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getVillages, createSupporter, scanForm, checkDuplicate } from '../../lib/api';
+import { useSession } from '../../hooks/useSession';
 import { Check, AlertTriangle, Loader2, Camera, ScanLine } from 'lucide-react';
 
 interface Village {
@@ -62,7 +63,13 @@ export default function StaffEntryPage() {
     queryKey: ['villages'],
     queryFn: getVillages,
   });
-  const villages: Village[] = useMemo(() => villageData?.villages || [], [villageData]);
+  const { data: sessionData } = useSession();
+  const scopedVillageIds = sessionData?.user?.scoped_village_ids ?? null;
+  const villages: Village[] = useMemo(() => {
+    const all = villageData?.villages || [];
+    if (!scopedVillageIds) return all;
+    return all.filter((v: Village) => scopedVillageIds.includes(v.id));
+  }, [villageData, scopedVillageIds]);
   // Duplicate detection
   const [duplicateWarning, setDuplicateWarning] = useState('');
   const dupeTimerRef = useRef<ReturnType<typeof setTimeout>>(null);

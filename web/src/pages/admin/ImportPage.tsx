@@ -1,6 +1,7 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { uploadImportPreview, parseImportRows, confirmImport, getVillages } from '../../lib/api';
+import { useSession } from '../../hooks/useSession';
 import { Upload, FileSpreadsheet, ArrowRight, ArrowLeft, Check, AlertTriangle, Loader2 } from 'lucide-react';
 
 // Types
@@ -91,7 +92,13 @@ export default function ImportPage() {
     queryKey: ['villages'],
     queryFn: getVillages,
   });
-  const villages: Village[] = villagesData?.villages || villagesData || [];
+  const { data: sessionData } = useSession();
+  const scopedVillageIds = sessionData?.user?.scoped_village_ids ?? null;
+  const villages: Village[] = useMemo(() => {
+    const all: Village[] = villagesData?.villages || villagesData || [];
+    if (!scopedVillageIds) return all;
+    return all.filter((v: Village) => scopedVillageIds.includes(v.id));
+  }, [villagesData, scopedVillageIds]);
 
   // Step 1: Upload
   const uploadMutation = useMutation({
