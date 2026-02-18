@@ -34,7 +34,7 @@ class Supporter < ApplicationRecord
   end
   validates :status, inclusion: { in: %w[active inactive duplicate unverified removed] }
   validates :source, inclusion: { in: %w[staff_entry qr_signup referral bulk_import] }, allow_nil: true
-  validates :attribution_method, inclusion: { in: ATTRIBUTION_METHODS }
+  validates :attribution_method, inclusion: { in: ATTRIBUTION_METHODS }, allow_nil: true
   validates :turnout_status, inclusion: { in: TURNOUT_STATUSES }
   validates :turnout_source, inclusion: { in: TURNOUT_SOURCES }, allow_blank: true
   validates :verification_status, inclusion: { in: VERIFICATION_STATUSES }

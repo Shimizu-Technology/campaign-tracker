@@ -19,10 +19,12 @@ class ReferralCode < ApplicationRecord
       return candidate unless exists?(code: candidate)
     end
 
-    loop do
+    100.times do
       candidate = "#{base_prefix}-#{base_suffix}-#{SecureRandom.hex(4).upcase}"
       return candidate unless exists?(code: candidate)
     end
+
+    raise "Unable to generate unique referral code after 120 attempts"
   end
 
   def self.build_prefix(display_name)

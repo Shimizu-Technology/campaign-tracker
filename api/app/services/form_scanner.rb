@@ -184,8 +184,12 @@ class FormScanner
       rows = [ payload_data["fields"] ] if rows.blank? && payload_data.key?("fields")
       rows = [] unless rows.is_a?(Array)
 
-      normalized_rows = rows.first(100).each_with_index.map do |row, idx|
-        normalize_batch_row(row, idx: idx, default_village_id: default_village_id)
+      capped_rows = rows.first(100)
+      village_ids = capped_rows.filter_map { |r| match_village(r["village"].to_s.strip.presence) || default_village_id&.to_i }
+      village_map = Village.where(id: village_ids.uniq).index_by(&:id)
+
+      normalized_rows = capped_rows.each_with_index.map do |row, idx|
+        normalize_batch_row(row, idx: idx, default_village_id: default_village_id, village_map: village_map)
       end
 
       {
@@ -309,7 +313,7 @@ class FormScanner
       rows
     end
 
-    def normalize_batch_row(row, idx:, default_village_id:)
+    def normalize_batch_row(row, idx:, default_village_id:, village_map: {})
       source = row.is_a?(Hash) ? row : {}
       confidence = source["confidence"].is_a?(Hash) ? source["confidence"] : {}
       village_name = source["village"].to_s.strip
@@ -338,7 +342,7 @@ class FormScanner
         "street_address" => source["street_address"].to_s.strip.presence,
         "dob" => source["dob"].to_s.strip.presence,
         "village_id" => village_id,
-        "village_name" => village_id.present? ? Village.find_by(id: village_id)&.name : village_name.presence,
+        "village_name" => village_id.present? ? village_map[village_id]&.name : village_name.presence,
         "registered_voter" => normalize_boolean(source["registered_voter"], fallback: true),
         "yard_sign" => normalize_boolean(source["yard_sign"], fallback: false),
         "motorcade_available" => normalize_boolean(source["motorcade_available"], fallback: false),

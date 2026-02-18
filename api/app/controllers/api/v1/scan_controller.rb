@@ -47,6 +47,14 @@ module Api
           )
         end
 
+        if default_village_id.present? && scoped_village_ids && !scoped_village_ids.include?(default_village_id.to_i)
+          return render_api_error(
+            message: "Village not in your assigned scope",
+            status: :forbidden,
+            code: "village_scope_denied"
+          )
+        end
+
         result = FormScanner.extract_batch(image_data, default_village_id: default_village_id)
 
         if result[:success]
