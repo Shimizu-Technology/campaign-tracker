@@ -15,7 +15,6 @@ module Api
         logs = apply_filters(logs)
 
         page = [ params[:page].to_i, 1 ].max
-        page = 1 if page.zero?
         per_page = (params[:per_page] || 50).to_i.clamp(1, MAX_PER_PAGE)
 
         total = logs.select("audit_logs.id").distinct.count

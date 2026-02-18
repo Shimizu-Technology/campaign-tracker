@@ -27,7 +27,7 @@ module Api
         end
 
         if supporter.save
-          log_audit!(supporter, action: "created", changed_data: supporter.saved_changes.except("updated_at"))
+          log_audit!(supporter, action: "created", changed_data: supporter.saved_changes.except("updated_at"), normalize: true)
           render json: { supporter: supporter_json(supporter) }, status: :created
         else
           render json: { errors: supporter.errors.full_messages }, status: :unprocessable_entity

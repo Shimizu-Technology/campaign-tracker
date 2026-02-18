@@ -10,6 +10,7 @@ module Api
       ALLOWED_SORT_FIELDS = %w[created_at print_name last_name first_name village_name precinct_number source registered_voter].freeze
 
       include Authenticatable
+      include AuditLoggable
       before_action :authenticate_request, only: [ :index, :check_duplicate, :export, :show, :update, :verify, :bulk_verify, :duplicates, :resolve_duplicate, :scan_duplicates ]
       before_action :require_supporter_access!, only: [ :index, :check_duplicate, :export, :show ]
       before_action :require_coordinator_or_above!, only: [ :duplicates, :resolve_duplicate, :scan_duplicates ]
@@ -45,7 +46,7 @@ module Api
           supporter.status = "unverified" # Flag for review
         end
         if supporter.save
-          log_audit!(supporter, action: "created", changed_data: supporter.saved_changes.except("updated_at"))
+          log_audit!(supporter, action: "created", changed_data: supporter.saved_changes.except("updated_at"), normalize: true, metadata: supporter_audit_metadata(supporter))
 
           # Queue welcome SMS so signup response is not blocked by external API latency.
           if supporter.contact_number.present? && supporter.opt_in_text
@@ -89,7 +90,7 @@ module Api
 
         if supporter.update(updates)
           changes = supporter.saved_changes.except("updated_at")
-          log_audit!(supporter, action: "updated", changed_data: changes) if changes.present?
+          log_audit!(supporter, action: "updated", changed_data: changes, normalize: true) if changes.present?
           CampaignBroadcast.supporter_updated(supporter, action: "updated")
           render json: { supporter: supporter_json(supporter) }
         else
@@ -529,18 +530,12 @@ module Api
         info
       end
 
-      def log_audit!(supporter, action:, changed_data:)
-        AuditLog.create!(
-          auditable: supporter,
-          actor_user: current_user,
-          action: action,
-          changed_data: normalized_changed_data(changed_data),
-          metadata: {
-            entry_mode: params[:entry_mode],
-            leader_code: params[:leader_code],
-            referral_code_id: supporter.referral_code_id
-          }.compact
-        )
+      def audit_entry_mode
+        params[:entry_mode]
+      end
+
+      def supporter_audit_metadata(supporter)
+        { leader_code: params[:leader_code], referral_code_id: supporter.referral_code_id }.compact
       end
 
       def resolve_referral_code(code)
@@ -554,14 +549,9 @@ module Api
         current_user&.admin? || current_user&.coordinator?
       end
 
+      # Alias for backward compatibility with callers
       def normalized_changed_data(changed_data)
-        changed_data.each_with_object({}) do |(field, value), output|
-          if value.is_a?(Array) && value.length == 2
-            output[field] = { from: value[0], to: value[1] }
-          else
-            output[field] = { from: nil, to: value }
-          end
-        end
+        normalize_changed_data(changed_data)
       end
 
       def audit_action_label(action)

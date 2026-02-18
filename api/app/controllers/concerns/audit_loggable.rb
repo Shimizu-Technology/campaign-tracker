@@ -9,24 +9,26 @@ module AuditLoggable
   def normalize_changed_data(changed_data)
     changed_data.each_with_object({}) do |(field, value), output|
       if value.is_a?(Array) && value.length == 2
-        output[field] = { from: value[0], to: value[1] }
+        output[field.to_s] = { "from" => value[0], "to" => value[1] }
       else
-        output[field] = { from: nil, to: value }
+        output[field.to_s] = { "from" => nil, "to" => value }
       end
     end
   end
 
   # Unified audit log writer. Override `audit_entry_mode` in controllers for custom entry_mode.
-  def log_audit!(record, action:, changed_data:, entry_mode: nil, metadata: {})
+  # Pass `normalize: true` when changed_data comes from ActiveRecord `saved_changes`.
+  def log_audit!(record, action:, changed_data:, entry_mode: nil, metadata: {}, normalize: false)
     auditable = record || current_user
     auditable_type = record ? record.class.name : "User"
+    data = normalize ? normalize_changed_data(changed_data) : changed_data
 
     AuditLog.create!(
       auditable: auditable,
       auditable_type: auditable_type,
       actor_user: current_user,
       action: action,
-      changed_data: changed_data.is_a?(Hash) && changed_data.values.first.is_a?(Array) ? normalize_changed_data(changed_data) : changed_data,
+      changed_data: data,
       metadata: {
         entry_mode: entry_mode || audit_entry_mode,
         ip_address: request.remote_ip,

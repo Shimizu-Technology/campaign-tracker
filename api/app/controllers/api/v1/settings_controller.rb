@@ -41,7 +41,7 @@ module Api
 
         if updates.any?
           campaign.update!(updates)
-          log_audit!(campaign, action: "settings_updated", changed_data: campaign.saved_changes.except("updated_at"))
+          log_audit!(campaign, action: "settings_updated", changed_data: campaign.saved_changes.except("updated_at"), normalize: true)
         end
 
         render json: settings_json(campaign)
