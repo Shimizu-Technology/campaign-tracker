@@ -10,6 +10,12 @@ module Api
 
       # POST /api/v1/staff/supporters (authenticated staff entry)
       def create
+        # Enforce village scope for non-admin users
+        village_id = staff_supporter_params[:village_id]
+        if village_id.present? && scoped_village_ids && !scoped_village_ids.include?(village_id.to_i)
+          return render json: { errors: [ "Village not in your assigned scope" ] }, status: :forbidden
+        end
+
         supporter = Supporter.new(staff_supporter_params)
         supporter.source = "staff_entry"
         supporter.attribution_method = "staff_manual"

@@ -105,7 +105,7 @@ module Api
 
           grouped[owner_key][channel] += row.cnt.to_i
           grouped[owner_key][:total_added] += row.cnt.to_i
-          latest = row.latest_at
+          latest = row.latest_at.is_a?(String) ? Time.zone.parse(row.latest_at) : row.latest_at
           current = grouped[owner_key][:latest_signup_at]
           grouped[owner_key][:latest_signup_at] = latest if current.nil? || (latest && latest > current)
         end

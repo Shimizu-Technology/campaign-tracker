@@ -70,8 +70,8 @@ class UserInviteEmailService
     end
 
     def invite_html(user:, invited_by:)
-      inviter = invited_by&.name.presence || invited_by&.email.presence || "a campaign admin"
-      role = role_label(user.role).split.map(&:capitalize).join(" ")
+      inviter = escape_html(invited_by&.name.presence || invited_by&.email.presence || "a campaign admin")
+      role = escape_html(role_label(user.role).split.map(&:capitalize).join(" "))
       assignment_context = assignment_context_html(user)
 
       <<~HTML
@@ -99,7 +99,7 @@ class UserInviteEmailService
                         #{assignment_context}
                         <p style="margin: 0 0 16px 0; font-size: 15px; color: #4b5563;">
                           Create your account using this invited email address:
-                          <strong>#{user.email}</strong>
+                          <strong>#{escape_html(user.email)}</strong>
                         </p>
                         <p style="margin: 0 0 16px 0; font-size: 14px; color: #4b5563;">
                           After opening the portal, choose <strong>Sign up</strong> if this is your first time.
