@@ -450,7 +450,7 @@ module Api
         return "qr_signup" if params[:leader_code].to_s.strip.present?
         return "staff_entry" if staff_entry_mode?
 
-        # Public non-authenticated signup without leader code.
+        # Public signup page (same channel as QR, just no leader code attached).
         "qr_signup"
       end
 

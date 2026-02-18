@@ -217,8 +217,7 @@ module Api
                 import_row: row["_row"] || (idx + 1),
                 ip_address: request.remote_ip
               }.compact,
-              created_at: Time.current,
-              updated_at: Time.current
+              created_at: Time.current
             }
           else
             skipped += 1

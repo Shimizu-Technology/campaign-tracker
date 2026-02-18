@@ -34,7 +34,9 @@ class Supporter < ApplicationRecord
   end
   validates :status, inclusion: { in: %w[active inactive duplicate unverified removed] }
   validates :source, inclusion: { in: %w[staff_entry qr_signup referral bulk_import] }, allow_nil: true
-  validates :attribution_method, inclusion: { in: ATTRIBUTION_METHODS }
+  # DB column is NOT NULL with default "public_signup", but allow_nil guards against
+  # in-memory objects that haven't been persisted yet (e.g. during validation checks).
+  validates :attribution_method, inclusion: { in: ATTRIBUTION_METHODS }, allow_nil: true
   validates :turnout_status, inclusion: { in: TURNOUT_STATUSES }
   validates :turnout_source, inclusion: { in: TURNOUT_SOURCES }, allow_blank: true
   validates :verification_status, inclusion: { in: VERIFICATION_STATUSES }

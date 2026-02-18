@@ -38,6 +38,7 @@ interface SaveResult {
   failed: number;
   skipped: number;
   errors: { row: number; message: string }[];
+  failedRows: BatchRow[];
 }
 
 type IssueSeverity = 'critical' | 'warning';
@@ -258,7 +259,7 @@ export default function ScanFormPage() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       const activeRows = rows.filter((row) => !row._skip);
-      const result: SaveResult = { created: 0, failed: 0, skipped: rows.filter((row) => row._skip).length, errors: [] };
+      const result: SaveResult = { created: 0, failed: 0, skipped: rows.filter((row) => row._skip).length, errors: [], failedRows: [] };
       setSaveProgress({ current: 0, total: activeRows.length });
 
       for (let i = 0; i < activeRows.length; i += 1) {
@@ -273,6 +274,7 @@ export default function ScanFormPage() {
             row: row._row,
             message: criticalIssues.map((issue) => issue.message).join('; '),
           });
+          result.failedRows.push(row);
           continue;
         }
 
@@ -304,6 +306,7 @@ export default function ScanFormPage() {
             row: row._row,
             message: errorMessage?.errors?.join(', ') || errorMessage?.message || 'Could not save this row.',
           });
+          result.failedRows.push(row);
         }
       }
 
@@ -753,6 +756,20 @@ export default function ScanFormPage() {
           )}
 
           <div className="flex flex-col sm:flex-row gap-2 justify-center">
+            {saveResult.failedRows.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setRows(saveResult.failedRows.map((row, i) => ({ ...row, _row: i + 1, _skip: false })));
+                  setSaveResult(null);
+                  setPhase('review');
+                }}
+                className="bg-amber-600 text-white px-4 py-2 rounded-xl min-h-[44px] inline-flex items-center justify-center gap-2"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Retry {saveResult.failedRows.length} Failed Row{saveResult.failedRows.length > 1 ? 's' : ''}
+              </button>
+            )}
             <button
               type="button"
               onClick={resetForNextBatch}

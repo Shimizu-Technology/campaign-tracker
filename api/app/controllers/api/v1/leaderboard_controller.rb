@@ -11,7 +11,7 @@ module Api
       def index
         base_scope = scope_supporters(
           Supporter.active
-            .where("leader_code IS NOT NULL OR entered_by_user_id IS NOT NULL OR attribution_method = 'public_signup'")
+            .where("leader_code IS NOT NULL OR entered_by_user_id IS NOT NULL")
         )
 
         # Phase 1: SQL aggregation for counts by attribution owner

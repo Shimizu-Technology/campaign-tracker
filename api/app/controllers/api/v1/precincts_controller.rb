@@ -13,7 +13,8 @@ module Api
         scope = scope.where(village_id: scoped_village_ids) if scoped_village_ids
         scope = scope.where(village_id: params[:village_id]) if params[:village_id].present?
         if params[:search].present?
-          q = "%#{params[:search].to_s.downcase.strip}%"
+          sanitized = ActiveRecord::Base.sanitize_sql_like(params[:search].to_s.strip)
+          q = "%#{sanitized.downcase}%"
           scope = scope.where(
             "LOWER(precincts.number) LIKE :q OR LOWER(precincts.alpha_range) LIKE :q OR LOWER(precincts.polling_site) LIKE :q OR LOWER(villages.name) LIKE :q",
             q: q
