@@ -9,10 +9,19 @@ module AuditLoggable
   def normalize_changed_data(changed_data)
     changed_data.each_with_object({}) do |(field, value), output|
       if value.is_a?(Array) && value.length == 2
-        output[field.to_s] = { "from" => value[0], "to" => value[1] }
+        output[field.to_s] = { "from" => json_safe(value[0]), "to" => json_safe(value[1]) }
       else
-        output[field.to_s] = { "from" => nil, "to" => value }
+        output[field.to_s] = { "from" => nil, "to" => json_safe(value) }
       end
+    end
+  end
+
+  # Ensure values are JSON-serializable (handles TimeWithZone, BigDecimal, etc.)
+  def json_safe(value)
+    case value
+    when ActiveSupport::TimeWithZone, Time, DateTime then value.iso8601
+    when BigDecimal then value.to_f
+    else value
     end
   end
 

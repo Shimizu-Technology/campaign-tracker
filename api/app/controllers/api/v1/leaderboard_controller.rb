@@ -114,6 +114,20 @@ module Api
       end
 
       def resolve_owner(referral_code, entry_user, channel)
+        if channel == :qr_signups && referral_code.nil? && entry_user.nil?
+          # Orphaned QR signup (referral code was deleted) — group under a catch-all
+          return [
+            "orphaned:qr",
+            {
+              leader_code: "unknown",
+              owner_name: "Unlinked QR Signups",
+              assigned_user_name: nil,
+              assigned_user_email: nil,
+              village_name: "Various"
+            }
+          ]
+        end
+
         if channel == :qr_signups && referral_code
           if referral_code.assigned_user
             user = referral_code.assigned_user

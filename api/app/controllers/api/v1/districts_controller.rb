@@ -56,7 +56,8 @@ module Api
         district = District.find(params[:id])
         # Clear assignment for any users assigned to this district
         User.where(assigned_district_id: district.id).update_all(assigned_district_id: nil)
-        # Nullify village associations (don't delete villages)
+        # Explicitly nullify village associations before destroy (don't rely on DB cascade)
+        district.villages.update_all(district_id: nil)
         district.destroy!
         render json: { message: "District deleted" }
       end

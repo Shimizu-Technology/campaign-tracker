@@ -389,9 +389,14 @@ class FormScanner
       village = all_villages.find { |v| v.name.downcase == downcased }
       return village.id if village
 
-      # Partial match
-      village = all_villages.find { |v| v.name.downcase.include?(downcased) }
-      village&.id
+      # Partial match — require at least 4 chars and prefer starts_with to avoid short-string mismatches
+      if downcased.length >= 4
+        village = all_villages.find { |v| v.name.downcase.start_with?(downcased) }
+        village ||= all_villages.find { |v| v.name.downcase.include?(downcased) }
+        return village.id if village
+      end
+
+      nil
     end
 
     # DB-based match (used by single-form extract)
@@ -402,8 +407,11 @@ class FormScanner
       village = Village.find_by("LOWER(name) = ?", name.downcase.strip)
       return village.id if village
 
-      # Try partial match
-      village = Village.where("LOWER(name) LIKE ?", "%#{name.downcase.strip}%").first
+      # Partial match — require minimum length to avoid mismatches
+      sanitized = ActiveRecord::Base.sanitize_sql_like(name.downcase.strip)
+      return nil if sanitized.length < 4
+
+      village = Village.where("LOWER(name) LIKE ?", "%#{sanitized}%").first
       village&.id
     end
   end
