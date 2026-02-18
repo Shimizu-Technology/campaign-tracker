@@ -103,7 +103,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal target_precinct.id, payload.dig("supporter", "precinct_id")
   end
 
-  test "public create sets source to qr_signup without auth header" do
+  test "public create sets source to public_signup without auth header" do
     post "/api/v1/supporters",
       params: {
         supporter: {
@@ -116,7 +116,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :created
     payload = JSON.parse(response.body)
-    assert_equal "qr_signup", payload.dig("supporter", "source")
+    assert_equal "public_signup", payload.dig("supporter", "source")
     assert_equal "public_signup", payload.dig("supporter", "attribution_method")
   end
 

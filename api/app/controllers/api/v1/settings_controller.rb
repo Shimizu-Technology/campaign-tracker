@@ -4,6 +4,7 @@ module Api
   module V1
     class SettingsController < ApplicationController
       include Authenticatable
+      include AuditLoggable
       before_action :authenticate_request
       before_action :require_admin!
 
@@ -75,16 +76,6 @@ module Api
             user_agent: request.user_agent
           }.compact
         )
-      end
-
-      def normalize_changed_data(changed_data)
-        changed_data.each_with_object({}) do |(field, value), output|
-          if value.is_a?(Array) && value.length == 2
-            output[field] = { from: value[0], to: value[1] }
-          else
-            output[field] = { from: nil, to: value }
-          end
-        end
       end
     end
   end

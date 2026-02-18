@@ -450,8 +450,8 @@ module Api
         return "qr_signup" if params[:leader_code].to_s.strip.present?
         return "staff_entry" if staff_entry_mode?
 
-        # Public signup page (same channel as QR, just no leader code attached).
-        "qr_signup"
+        # Public signup without a leader/referral code.
+        "public_signup"
       end
 
       def create_attribution_method(normalized_leader_code)

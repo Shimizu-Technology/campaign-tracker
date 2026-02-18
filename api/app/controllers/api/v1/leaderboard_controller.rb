@@ -12,6 +12,7 @@ module Api
         base_scope = scope_supporters(
           Supporter.active
             .where("leader_code IS NOT NULL OR entered_by_user_id IS NOT NULL")
+            .where.not(attribution_method: "public_signup")
         )
 
         # Phase 1: SQL aggregation for counts by attribution owner
@@ -161,67 +162,6 @@ module Api
         when "bulk_import" then :import_entries
         else nil
         end
-      end
-
-      def attribution_channel_for(supporter)
-        case supporter.attribution_method
-        when "qr_self_signup"
-          :qr_signups
-        when "staff_manual"
-          :manual_entries
-        when "staff_scan"
-          :scan_entries
-        when "bulk_import"
-          :import_entries
-        else
-          nil
-        end
-      end
-
-      def owner_identity_for(supporter, attribution)
-        if attribution == :qr_signups
-          referral = supporter.referral_code
-          if referral&.assigned_user
-            user = referral.assigned_user
-            return [
-              "user:#{user.id}",
-              {
-                leader_code: referral.code,
-                owner_name: user.name.presence || user.email,
-                assigned_user_name: user.name,
-                assigned_user_email: user.email,
-                village_name: referral.village&.name || supporter.village&.name || "Unknown"
-              }
-            ]
-          end
-
-          label = referral&.display_name.presence || supporter.leader_code
-          code = referral&.code.presence || supporter.leader_code
-          return [
-            "code:#{code}",
-            {
-              leader_code: code,
-              owner_name: label,
-              assigned_user_name: nil,
-              assigned_user_email: nil,
-              village_name: referral&.village&.name || supporter.village&.name || "Unknown"
-            }
-          ]
-        end
-
-        entry_user = supporter.entered_by
-        return [ nil, {} ] unless entry_user
-
-        [
-          "user:#{entry_user.id}",
-          {
-            leader_code: supporter.leader_code.presence || "staff-#{entry_user.id}",
-            owner_name: entry_user.name.presence || entry_user.email,
-            assigned_user_name: entry_user.name,
-            assigned_user_email: entry_user.email,
-            village_name: supporter.village&.name || "Unknown"
-          }
-        ]
       end
     end
   end

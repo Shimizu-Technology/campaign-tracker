@@ -171,7 +171,7 @@ export default function QRCodePage() {
                   <option value="">Select a user...</option>
                   {assignees.map((user) => (
                     <option key={user.id} value={user.id}>
-                      {(user.name || user.email)} - {user.role.replace('_', ' ')}
+                      {(user.name || user.email)} - {user.role.replaceAll('_', ' ')}
                     </option>
                   ))}
                 </select>
