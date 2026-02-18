@@ -72,25 +72,25 @@ module Api
         # Step 1: Get counts grouped by referral_code_id and entered_by_user_id
         rows = scope
           .select(
-            "COALESCE(referral_code_id, 0) AS rc_id",
-            "COALESCE(entered_by_user_id, 0) AS entry_user_id",
+            "referral_code_id",
+            "entered_by_user_id",
             "attribution_method",
             "COUNT(*) AS cnt",
             "MAX(supporters.created_at) AS latest_at"
           )
-          .group("rc_id, entry_user_id, attribution_method")
+          .group("referral_code_id, entered_by_user_id, attribution_method")
 
         # Step 2: Preload referral codes + users for display
-        rc_ids = rows.filter_map { |r| r.rc_id.to_i }.reject(&:zero?).uniq
-        user_ids = rows.filter_map { |r| r.entry_user_id.to_i }.reject(&:zero?).uniq
+        rc_ids = rows.filter_map(&:referral_code_id).uniq
+        user_ids = rows.filter_map(&:entered_by_user_id).uniq
 
         referral_codes = ReferralCode.where(id: rc_ids).includes(:assigned_user, :village).index_by(&:id)
         users = User.where(id: user_ids).index_by(&:id)
 
         grouped = {}
         rows.each do |row|
-          rc = referral_codes[row.rc_id.to_i]
-          entry_user = users[row.entry_user_id.to_i]
+          rc = row.referral_code_id ? referral_codes[row.referral_code_id] : nil
+          entry_user = row.entered_by_user_id ? users[row.entered_by_user_id] : nil
           channel = attribution_channel_for_method(row.attribution_method)
           next unless channel
 

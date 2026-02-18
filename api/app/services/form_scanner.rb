@@ -230,7 +230,12 @@ class FormScanner
 
       return { success: false, error: "API error: #{response.code}", raw_response: response.body } unless response.code.to_i == 200
 
-      json = JSON.parse(response.body) rescue {}
+      begin
+        json = JSON.parse(response.body)
+      rescue JSON::ParserError => e
+        Rails.logger.error("[FormScanner] Failed to parse API response: #{e.message}, body: #{response.body.truncate(500)}")
+        return { success: false, error: "Invalid API response format" }
+      end
       content = json.dig("choices", 0, "message", "content")
       if content.blank?
         Rails.logger.error("[FormScanner] Empty response from API")

@@ -18,7 +18,7 @@ module Api
         page = 1 if page.zero?
         per_page = (params[:per_page] || 50).to_i.clamp(1, MAX_PER_PAGE)
 
-        total = logs.count(:all)
+        total = logs.select("audit_logs.id").distinct.count
         paginated_logs = logs.offset((page - 1) * per_page).limit(per_page)
 
         render json: {
