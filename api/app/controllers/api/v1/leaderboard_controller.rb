@@ -178,7 +178,6 @@ module Api
         when "staff_manual" then :manual_entries
         when "staff_scan" then :scan_entries
         when "bulk_import" then :import_entries
-        else nil
         end
       end
     end

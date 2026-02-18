@@ -91,6 +91,7 @@ const AUDIT_VALUE_LABELS: Record<string, Record<string, string>> = {
     staff_entry: 'Staff entry',
     bulk_import: 'Bulk import',
     referral: 'Referral',
+    public_signup: 'Public signup',
   },
   status: {
     active: 'Active',
