@@ -1,4 +1,5 @@
 class Supporter < ApplicationRecord
+  ATTRIBUTION_METHODS = %w[qr_self_signup staff_manual staff_scan bulk_import public_signup].freeze
   TURNOUT_STATUSES = %w[unknown not_yet_voted voted].freeze
   TURNOUT_SOURCES = %w[poll_watcher war_room admin_override].freeze
   VERIFICATION_STATUSES = %w[unverified verified flagged].freeze
@@ -6,6 +7,7 @@ class Supporter < ApplicationRecord
   belongs_to :village
   belongs_to :precinct, optional: true
   belongs_to :block, optional: true
+  belongs_to :referral_code, optional: true
   belongs_to :entered_by, class_name: "User", foreign_key: :entered_by_user_id, optional: true
   belongs_to :turnout_updated_by_user, class_name: "User", optional: true
   belongs_to :verified_by, class_name: "User", foreign_key: :verified_by_user_id, optional: true
@@ -19,7 +21,7 @@ class Supporter < ApplicationRecord
 
   validates :first_name, presence: true
   validates :last_name, presence: true
-  validates :contact_number, presence: true
+  validates :contact_number, presence: true, unless: :phone_optional_entry?
 
   # Keep print_name in sync as "Last, First" for display and backward compatibility
   before_validation :sync_print_name
@@ -32,6 +34,7 @@ class Supporter < ApplicationRecord
   end
   validates :status, inclusion: { in: %w[active inactive duplicate unverified removed] }
   validates :source, inclusion: { in: %w[staff_entry qr_signup referral bulk_import] }, allow_nil: true
+  validates :attribution_method, inclusion: { in: ATTRIBUTION_METHODS }
   validates :turnout_status, inclusion: { in: TURNOUT_STATUSES }
   validates :turnout_source, inclusion: { in: TURNOUT_SOURCES }, allow_blank: true
   validates :verification_status, inclusion: { in: VERIFICATION_STATUSES }
@@ -79,6 +82,11 @@ class Supporter < ApplicationRecord
   end
 
   private
+
+  def phone_optional_entry?
+    # Imports and staff-assisted entries may legitimately lack phone numbers.
+    %w[staff_manual staff_scan bulk_import].include?(attribution_method)
+  end
 
   def sync_print_name
     # If first/last are blank but print_name was provided, auto-split for backward compatibility

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { Mail, Send, Users, Zap, CheckCircle, AlertTriangle, Eye } from 'lucide-react';
 import { getEmailStatus, sendEmailBlast, getVillages } from '../../lib/api';
+import { useSession } from '../../hooks/useSession';
 
 interface EmailBlastResult {
   dry_run?: boolean;
@@ -19,6 +20,7 @@ interface Village {
 }
 
 export default function EmailPage() {
+  const { data: sessionData } = useSession();
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
   const [villageId, setVillageId] = useState('');
@@ -38,7 +40,11 @@ export default function EmailPage() {
     queryFn: getVillages,
   });
 
-  const villages: Village[] = villagesData?.villages || [];
+  const villagesAll: Village[] = villagesData?.villages || [];
+  const scopedVillageIds = sessionData?.user?.scoped_village_ids ?? null;
+  const villages: Village[] = scopedVillageIds === null
+    ? villagesAll
+    : villagesAll.filter((v) => scopedVillageIds.includes(v.id));
 
   const previewMutation = useMutation({
     mutationFn: () =>
@@ -167,7 +173,7 @@ export default function EmailPage() {
                     onChange={(e) => setVillageId(e.target.value)}
                     className="app-select"
                   >
-                    <option value="">All villages</option>
+                    <option value="">{scopedVillageIds === null ? 'All villages' : 'All accessible villages'}</option>
                     {villages.map((v) => (
                       <option key={v.id} value={v.id}>{v.name}</option>
                     ))}

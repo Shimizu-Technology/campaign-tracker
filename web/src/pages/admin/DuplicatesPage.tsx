@@ -1,8 +1,9 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getDuplicates, resolveDuplicate, scanDuplicates, getVillages } from '../../lib/api';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, CheckCircle, Search, ArrowRight, X } from 'lucide-react';
+import { useSession } from '../../hooks/useSession';
 
 interface Supporter {
   id: number;
@@ -85,6 +86,7 @@ function SupporterCard({ supporter, isFullRecord }: { supporter: Supporter | { i
 export default function DuplicatesPage() {
   const [villageFilter, setVillageFilter] = useState<string>('');
   const queryClient = useQueryClient();
+  const { data: sessionData } = useSession();
 
   const { data: dupData, isLoading } = useQuery({
     queryKey: ['duplicates', villageFilter],
@@ -114,7 +116,18 @@ export default function DuplicatesPage() {
 
   const supporters: Supporter[] = useMemo(() => dupData?.supporters || [], [dupData?.supporters]);
   const totalCount: number = dupData?.total_count || 0;
-  const villages: Village[] = villagesData?.villages || villagesData || [];
+  const villagesAll: Village[] = villagesData?.villages || villagesData || [];
+  const scopedVillageIds = sessionData?.user?.scoped_village_ids ?? null;
+  const villages: Village[] = scopedVillageIds === null
+    ? villagesAll
+    : villagesAll.filter((v) => scopedVillageIds.includes(v.id));
+
+  useEffect(() => {
+    if (scopedVillageIds === null) return;
+    if (!villageFilter) return;
+    if (scopedVillageIds.includes(Number(villageFilter))) return;
+    setVillageFilter('');
+  }, [scopedVillageIds, villageFilter]);
 
   // Group duplicates into pairs
   const groups: DuplicateGroup[] = useMemo(() => {
@@ -175,7 +188,7 @@ export default function DuplicatesPage() {
           onChange={(e) => setVillageFilter(e.target.value)}
           className="rounded-xl border border-[var(--border-soft)] px-3 py-2 text-sm min-h-[44px]"
         >
-          <option value="">All Villages</option>
+          <option value="">{scopedVillageIds === null ? 'All villages' : 'All accessible villages'}</option>
           {villages.map((v: Village) => (
             <option key={v.id} value={v.id}>{v.name}</option>
           ))}

@@ -1,12 +1,22 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { QrCode, Copy, Check, Download } from 'lucide-react';
-import api, { getVillages } from '../../lib/api';
+import { getQrCodeAssignees, generateQrCode, getVillages } from '../../lib/api';
 
 interface QRResult {
   code: string;
   signup_url: string;
   qr_svg_url: string;
+  referral_code?: {
+    id: number;
+    code: string;
+    display_name: string;
+    village_id: number;
+    village_name: string;
+    assigned_user_id: number | null;
+    assigned_user_name: string | null;
+    assigned_user_email: string | null;
+  };
 }
 
 interface Village {
@@ -14,22 +24,55 @@ interface Village {
   name: string;
 }
 
+interface AssigneeOption {
+  id: number;
+  name: string | null;
+  email: string;
+  role: string;
+  assigned_village_id: number | null;
+  assigned_district_id: number | null;
+}
+
+type AssignmentMode = 'user' | 'adhoc';
+
 export default function QRCodePage() {
   const apiOrigin = import.meta.env.VITE_API_URL?.replace(/\/$/, '');
-  const [name, setName] = useState('');
+  const [assignmentMode, setAssignmentMode] = useState<AssignmentMode>('user');
+  const [assigneeId, setAssigneeId] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [villageId, setVillageId] = useState('');
   const [generated, setGenerated] = useState<QRResult | null>(null);
   const [copied, setCopied] = useState(false);
 
   const { data: villageData } = useQuery({ queryKey: ['villages'], queryFn: getVillages });
+  const { data: assigneeData } = useQuery({ queryKey: ['qr-assignees'], queryFn: getQrCodeAssignees });
   const villages: Village[] = useMemo(() => villageData?.villages || [], [villageData]);
+  const assignees: AssigneeOption[] = useMemo(() => assigneeData?.users || [], [assigneeData]);
   const selectedVillage = useMemo(
     () => villages.find(v => v.id === Number(villageId)),
     [villages, villageId]
   );
+  const selectedAssignee = useMemo(
+    () => assignees.find((user) => user.id === Number(assigneeId)),
+    [assignees, assigneeId]
+  );
 
   const generate = useMutation({
-    mutationFn: () => api.post('/qr_codes/generate', { name, village: selectedVillage?.name || '' }).then(r => r.data),
+    mutationFn: () => {
+      const payload: Record<string, string | number> = {
+        village_id: Number(villageId),
+      };
+
+      if (assignmentMode === 'user' && assigneeId) {
+        payload.assigned_user_id = Number(assigneeId);
+      }
+
+      if (displayName.trim()) {
+        payload.display_name = displayName.trim();
+      }
+
+      return generateQrCode(payload);
+    },
     onSuccess: (data) => setGenerated(data),
   });
 
@@ -45,6 +88,13 @@ export default function QRCodePage() {
       setTimeout(() => setCopied(false), 2000);
     }
   };
+
+  const generatedOwnerName = generated?.referral_code?.display_name || displayName || selectedAssignee?.name || selectedAssignee?.email || 'Referral owner';
+  const canGenerate = villageId && (
+    assignmentMode === 'user'
+      ? assigneeId
+      : displayName.trim().length > 0
+  );
 
   const qrSvgUrl = generated
     ? (generated.qr_svg_url.startsWith('http')
@@ -73,16 +123,92 @@ export default function QRCodePage() {
           <h2 className="font-semibold text-[var(--text-primary)] mb-4">Generate New QR Code</h2>
           <div className="space-y-3">
             <div>
-              <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Block Leader Name</label>
-              <input
-                type="text"
-                required
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder="Pedro Reyes"
-                className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
-              />
+              <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">Assignment Type</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssignmentMode('user');
+                    setDisplayName(selectedAssignee?.name || selectedAssignee?.email || '');
+                  }}
+                  className={`rounded-xl border px-3 py-2 text-sm text-left transition-colors ${assignmentMode === 'user'
+                    ? 'bg-blue-50 border-blue-300 text-blue-900'
+                    : 'bg-[var(--surface-raised)] border-[var(--border-soft)] text-[var(--text-primary)] hover:bg-[var(--surface-bg)]'
+                  }`}
+                >
+                  Assign to existing user
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAssignmentMode('adhoc');
+                    setAssigneeId('');
+                  }}
+                  className={`rounded-xl border px-3 py-2 text-sm text-left transition-colors ${assignmentMode === 'adhoc'
+                    ? 'bg-blue-50 border-blue-300 text-blue-900'
+                    : 'bg-[var(--surface-raised)] border-[var(--border-soft)] text-[var(--text-primary)] hover:bg-[var(--surface-bg)]'
+                  }`}
+                >
+                  Ad-hoc volunteer code
+                </button>
+              </div>
             </div>
+
+            {assignmentMode === 'user' ? (
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Assigned User</label>
+                <select
+                  required
+                  value={assigneeId}
+                  onChange={(e) => {
+                    const nextId = e.target.value;
+                    setAssigneeId(nextId);
+                    const user = assignees.find((candidate) => String(candidate.id) === nextId);
+                    setDisplayName(user?.name || user?.email || '');
+                  }}
+                  className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent bg-[var(--surface-raised)]"
+                >
+                  <option value="">Select a user...</option>
+                  {assignees.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {(user.name || user.email)} - {user.role.replace('_', ' ')}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-[var(--text-secondary)] mt-1">
+                  Choose a valid staff user for durable referral attribution.
+                </p>
+              </div>
+            ) : (
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Ad-hoc Label</label>
+                <input
+                  type="text"
+                  required
+                  value={displayName}
+                  onChange={e => setDisplayName(e.target.value)}
+                  placeholder="Volunteer Team A"
+                  className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+                />
+                <p className="text-xs text-[var(--text-secondary)] mt-1">
+                  Use this only when the referral owner is not an existing user.
+                </p>
+              </div>
+            )}
+
+            {assignmentMode === 'user' && (
+              <div>
+                <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Display Name (optional override)</label>
+                <input
+                  type="text"
+                  value={displayName}
+                  onChange={e => setDisplayName(e.target.value)}
+                  placeholder="Shown in QR and leaderboard"
+                  className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+                />
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Village</label>
               <select
@@ -99,7 +225,7 @@ export default function QRCodePage() {
             </div>
             <button
               type="submit"
-              disabled={generate.isPending || !name || !villageId}
+              disabled={generate.isPending || !canGenerate}
               className="w-full bg-[#1B3A6B] hover:bg-[#152e55] text-white font-bold py-3 rounded-xl disabled:opacity-50"
             >
               {generate.isPending ? 'Generating...' : 'Generate QR Code'}
@@ -110,8 +236,8 @@ export default function QRCodePage() {
         {/* Generated QR */}
         {generated && (
           <div className="app-card p-6 text-center">
-            <h2 className="font-semibold text-[var(--text-primary)] mb-2">QR Code for {name}</h2>
-            <p className="text-sm text-[var(--text-secondary)] mb-4">Village: {selectedVillage?.name} · Code: {generated.code}</p>
+            <h2 className="font-semibold text-[var(--text-primary)] mb-2">QR Code for {generatedOwnerName}</h2>
+            <p className="text-sm text-[var(--text-secondary)] mb-4">Village: {generated.referral_code?.village_name || selectedVillage?.name} · Code: {generated.code}</p>
 
             {/* QR Image */}
             <div className="flex justify-center mb-6">
@@ -147,7 +273,7 @@ export default function QRCodePage() {
             </div>
 
             <p className="text-xs text-[var(--text-muted)] mt-4">
-              Print this QR code on flyers or display on your phone. When supporters scan it, their signup is attributed to {name}.
+              Print this QR code on flyers or display on your phone. When supporters scan it, their signup is attributed to {generatedOwnerName}.
             </p>
           </div>
         )}

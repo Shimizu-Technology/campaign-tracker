@@ -28,7 +28,7 @@ export default function EventDetailPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">{event.name}</h1>
-            <p className="text-gray-500 text-sm">{event.date} · {event.location} · {event.village_name || 'All villages'}</p>
+            <p className="text-gray-500 text-sm">{event.date} · {event.location} · {event.village_name || 'All accessible villages'}</p>
           </div>
           <Link to={`/admin/events/${id}/checkin`}
             className="app-btn-danger">

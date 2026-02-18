@@ -21,6 +21,7 @@ import {
   ShieldCheck,
   Copy,
   TrendingUp,
+  ScrollText,
   Menu,
   X,
   ExternalLink,
@@ -82,8 +83,9 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
       label: 'Review',
       items: [
         ...(permissions?.can_view_supporters ? [ { to: '/admin/vetting', label: 'Vetting', icon: ShieldCheck, badge: sessionData?.counts?.pending_vetting || 0 } ] : []),
-        ...(permissions?.can_view_supporters ? [ { to: '/admin/duplicates', label: 'Duplicates', icon: Copy } ] : []),
+        ...(permissions?.can_access_duplicates ? [ { to: '/admin/duplicates', label: 'Duplicates', icon: Copy } ] : []),
         ...(permissions?.can_access_leaderboard ? [ { to: '/admin/leaderboard', label: 'Leaderboard', icon: Trophy } ] : []),
+        ...(permissions?.can_access_audit_logs ? [ { to: '/admin/audit-logs', label: 'Activity Log', icon: ScrollText } ] : []),
       ],
     },
     {

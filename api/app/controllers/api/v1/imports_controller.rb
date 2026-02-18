@@ -195,6 +195,7 @@ module Api
             registered_voter: row["registered_voter"],
             village: row_village,
             source: "bulk_import",
+            attribution_method: "bulk_import",
             status: "active",
             turnout_status: "unknown",
             verification_status: "unverified",
@@ -203,6 +204,7 @@ module Api
 
           if supporter.save
             created += 1
+            log_supporter_create_audit!(supporter, import_key: import_key, row_number: row["_row"] || (idx + 1))
           else
             skipped += 1
             errors << { row: row["_row"] || (idx + 1), errors: supporter.errors.full_messages }
@@ -288,6 +290,32 @@ module Api
         Date.parse(str)
       rescue Date::Error, ArgumentError
         nil
+      end
+
+      def log_supporter_create_audit!(supporter, import_key:, row_number:)
+        AuditLog.create!(
+          auditable: supporter,
+          actor_user: current_user,
+          action: "created",
+          changed_data: normalize_changed_data(supporter.saved_changes.except("updated_at")),
+          metadata: {
+            entry_mode: "bulk_import",
+            import_key: import_key,
+            import_row: row_number,
+            ip_address: request.remote_ip,
+            user_agent: request.user_agent
+          }.compact
+        )
+      end
+
+      def normalize_changed_data(changed_data)
+        changed_data.each_with_object({}) do |(field, value), output|
+          if value.is_a?(Array) && value.length == 2
+            output[field] = { from: value[0], to: value[1] }
+          else
+            output[field] = { from: nil, to: value }
+          end
+        end
       end
 
       def log_audit!(record, action:, changed_data:)

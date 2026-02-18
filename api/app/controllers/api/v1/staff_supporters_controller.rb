@@ -11,6 +11,7 @@ module Api
       def create
         supporter = Supporter.new(staff_supporter_params)
         supporter.source = "staff_entry"
+        supporter.attribution_method = "staff_manual"
         supporter.status = "active"
         supporter.entered_by_user_id = current_user.id
 
@@ -25,6 +26,7 @@ module Api
         end
 
         if supporter.save
+          log_audit!(supporter, action: "created", changed_data: supporter.saved_changes.except("updated_at"))
           render json: { supporter: supporter_json(supporter) }, status: :created
         else
           render json: { errors: supporter.errors.full_messages }, status: :unprocessable_entity
@@ -56,6 +58,30 @@ module Api
           status: supporter.status,
           created_at: supporter.created_at&.iso8601
         }
+      end
+
+      def log_audit!(supporter, action:, changed_data:)
+        AuditLog.create!(
+          auditable: supporter,
+          actor_user: current_user,
+          action: action,
+          changed_data: normalize_changed_data(changed_data),
+          metadata: {
+            entry_mode: "staff_manual_api",
+            ip_address: request.remote_ip,
+            user_agent: request.user_agent
+          }.compact
+        )
+      end
+
+      def normalize_changed_data(changed_data)
+        changed_data.each_with_object({}) do |(field, value), output|
+          if value.is_a?(Array) && value.length == 2
+            output[field] = { from: value[0], to: value[1] }
+          else
+            output[field] = { from: nil, to: value }
+          end
+        end
       end
     end
   end

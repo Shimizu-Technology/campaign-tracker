@@ -7,23 +7,35 @@ import { useSession } from '../../hooks/useSession';
 
 interface LeaderboardEntry {
   leader_code: string;
+  owner_name: string;
+  assigned_user_name?: string | null;
+  assigned_user_email?: string | null;
   rank: number;
   signup_count: number;
+  qr_signups: number;
+  manual_entries: number;
+  scan_entries: number;
+  import_entries: number;
+  total_added: number;
   village_name: string;
 }
 
 interface LeaderboardStats {
   total_qr_signups: number;
+  total_manual_entries: number;
+  total_scan_entries: number;
+  total_import_entries: number;
+  total_added: number;
   active_leaders: number;
   avg_signups_per_leader: number;
   top_leader_signups: number;
 }
 
-type LeaderboardSortField = 'rank' | 'leader_code' | 'signup_count' | 'village_name';
-const SORT_FIELDS: LeaderboardSortField[] = ['rank', 'leader_code', 'signup_count', 'village_name'];
+type LeaderboardSortField = 'rank' | 'leader_code' | 'qr_signups' | 'total_added' | 'village_name';
+const SORT_FIELDS: LeaderboardSortField[] = ['rank', 'leader_code', 'qr_signups', 'total_added', 'village_name'];
 
 function parseSortField(value: string | null): LeaderboardSortField {
-  return SORT_FIELDS.includes(value as LeaderboardSortField) ? (value as LeaderboardSortField) : 'signup_count';
+  return SORT_FIELDS.includes(value as LeaderboardSortField) ? (value as LeaderboardSortField) : 'qr_signups';
 }
 
 function rankIcon(rank: number) {
@@ -52,8 +64,13 @@ export default function LeaderboardPage() {
     queryFn: getLeaderboard,
   });
   const leaderboard: LeaderboardEntry[] = useMemo(() => data?.leaderboard || [], [data?.leaderboard]);
+  const scopedVillageIds = sessionData?.user?.scoped_village_ids ?? null;
   const stats: LeaderboardStats = data?.stats || {
     total_qr_signups: 0,
+    total_manual_entries: 0,
+    total_scan_entries: 0,
+    total_import_entries: 0,
+    total_added: 0,
     active_leaders: 0,
     avg_signups_per_leader: 0,
     top_leader_signups: 0,
@@ -68,6 +85,7 @@ export default function LeaderboardPage() {
     const filtered = leaderboard.filter((entry) => {
       const searchHit = q.length === 0 ||
         entry.leader_code.toLowerCase().includes(q) ||
+        entry.owner_name.toLowerCase().includes(q) ||
         entry.village_name.toLowerCase().includes(q);
       const villageHit = villageFilter ? entry.village_name === villageFilter : true;
       return searchHit && villageHit;
@@ -78,7 +96,8 @@ export default function LeaderboardPage() {
       if (sortBy === 'rank') return (a.rank - b.rank) * dir;
       if (sortBy === 'leader_code') return a.leader_code.localeCompare(b.leader_code) * dir;
       if (sortBy === 'village_name') return a.village_name.localeCompare(b.village_name) * dir;
-      return (a.signup_count - b.signup_count) * dir;
+      if (sortBy === 'total_added') return (a.total_added - b.total_added) * dir;
+      return (a.qr_signups - b.qr_signups) * dir;
     });
   }, [leaderboard, search, villageFilter, sortBy, sortDir]);
 
@@ -109,28 +128,42 @@ export default function LeaderboardPage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Block Leader Leaderboard</h1>
-            <p className="text-gray-500 text-sm">Who's bringing in the most supporters?</p>
+            <p className="text-gray-500 text-sm">Ranked by QR referrals with full intake breakdown</p>
           </div>
         </div>
       </div>
 
+      <div className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+        Rankings use <span className="font-semibold">Referred (QR)</span>. Manual, scan, and import totals are shown for operational visibility.
+      </div>
+
       <div>
         {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
           <div className="app-card p-3 text-center">
             <Users className="w-5 h-5 mx-auto text-[var(--text-muted)] mb-1" />
             <div className="text-2xl font-bold text-[var(--text-primary)]">{stats.total_qr_signups}</div>
-            <div className="text-xs text-[var(--text-secondary)]">QR Signups</div>
+            <div className="text-xs text-[var(--text-secondary)]">Referred (QR)</div>
           </div>
           <div className="app-card p-3 text-center">
             <Target className="w-5 h-5 mx-auto text-[var(--text-muted)] mb-1" />
-            <div className="text-2xl font-bold text-[var(--text-primary)]">{stats.active_leaders}</div>
-            <div className="text-xs text-[var(--text-secondary)]">Active Leaders</div>
+            <div className="text-2xl font-bold text-[var(--text-primary)]">{stats.total_manual_entries}</div>
+            <div className="text-xs text-[var(--text-secondary)]">Entered Manually</div>
           </div>
           <div className="app-card p-3 text-center">
             <TrendingUp className="w-5 h-5 mx-auto text-[var(--text-muted)] mb-1" />
-            <div className="text-2xl font-bold text-[var(--text-primary)]">{stats.avg_signups_per_leader}</div>
-            <div className="text-xs text-[var(--text-secondary)]">Avg per Leader</div>
+            <div className="text-2xl font-bold text-[var(--text-primary)]">{stats.total_scan_entries}</div>
+            <div className="text-xs text-[var(--text-secondary)]">Entered via Scan</div>
+          </div>
+          <div className="app-card p-3 text-center">
+            <TrendingUp className="w-5 h-5 mx-auto text-[var(--text-muted)] mb-1" />
+            <div className="text-2xl font-bold text-[var(--text-primary)]">{stats.total_import_entries}</div>
+            <div className="text-xs text-[var(--text-secondary)]">Imported</div>
+          </div>
+          <div className="app-card p-3 text-center">
+            <TrendingUp className="w-5 h-5 mx-auto text-[var(--text-muted)] mb-1" />
+            <div className="text-2xl font-bold text-[var(--text-primary)]">{stats.total_added}</div>
+            <div className="text-xs text-[var(--text-secondary)]">Total Added</div>
           </div>
         </div>
 
@@ -141,7 +174,7 @@ export default function LeaderboardPage() {
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search leader code or village..."
+              placeholder="Search owner, code, or village..."
               className="w-full pl-9 pr-3 py-2 border border-[var(--border-soft)] rounded-xl min-h-[44px]"
             />
           </div>
@@ -150,7 +183,7 @@ export default function LeaderboardPage() {
             onChange={(e) => setVillageFilter(e.target.value)}
             className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px]"
           >
-            <option value="">All villages</option>
+            <option value="">{scopedVillageIds === null ? 'All villages' : 'All accessible villages'}</option>
             {villageOptions.map((village) => (
               <option key={village} value={village}>{village}</option>
             ))}
@@ -164,8 +197,10 @@ export default function LeaderboardPage() {
             }}
             className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px]"
           >
-            <option value="signup_count:desc">Most signups</option>
-            <option value="signup_count:asc">Least signups</option>
+            <option value="qr_signups:desc">Most QR referrals</option>
+            <option value="qr_signups:asc">Least QR referrals</option>
+            <option value="total_added:desc">Most total added</option>
+            <option value="total_added:asc">Least total added</option>
             <option value="rank:asc">Best rank first</option>
             <option value="rank:desc">Lowest rank first</option>
             <option value="leader_code:asc">Leader code A-Z</option>
@@ -176,7 +211,7 @@ export default function LeaderboardPage() {
         </div>
 
         <p className="text-xs text-[var(--text-secondary)] mb-3">
-          Showing {filteredLeaderboard.length} of {leaderboard.length} leaders
+          Showing {filteredLeaderboard.length} of {leaderboard.length} staff/referral owners
         </p>
 
         {/* Leaderboard */}
@@ -191,15 +226,22 @@ export default function LeaderboardPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <span className="font-semibold text-[var(--text-primary)] truncate">
-                      {leader.leader_code}
+                      {leader.owner_name}
                     </span>
                     <span className="text-lg font-bold text-[#1B3A6B] ml-2">
-                      {leader.signup_count}
+                      {leader.total_added}
                     </span>
                   </div>
                   <div className="flex items-center justify-between text-sm text-[var(--text-secondary)]">
-                    <span>{leader.village_name}</span>
-                    <span>signups</span>
+                    <span>{leader.village_name} · {leader.leader_code}</span>
+                    <span>Total added</span>
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+                    <span className="rounded-full bg-amber-100 text-amber-800 px-2 py-0.5">QR: {leader.qr_signups}</span>
+                    <span className="rounded-full bg-blue-100 text-blue-800 px-2 py-0.5">Manual: {leader.manual_entries}</span>
+                    <span className="rounded-full bg-indigo-100 text-indigo-800 px-2 py-0.5">Scan: {leader.scan_entries}</span>
+                    <span className="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5">Import: {leader.import_entries}</span>
+                    <span className="rounded-full bg-gray-200 text-gray-900 px-2 py-0.5 font-semibold">Total: {leader.total_added}</span>
                   </div>
                 </div>
               </div>
@@ -208,7 +250,7 @@ export default function LeaderboardPage() {
                 <div className="mt-2 w-full bg-[var(--surface-overlay)] rounded-full h-1.5">
                   <div
                     className="h-1.5 rounded-full bg-[#1B3A6B] transition-all"
-                    style={{ width: `${(leader.signup_count / stats.top_leader_signups) * 100}%` }}
+                    style={{ width: `${(leader.qr_signups / stats.top_leader_signups) * 100}%` }}
                   />
                 </div>
               )}

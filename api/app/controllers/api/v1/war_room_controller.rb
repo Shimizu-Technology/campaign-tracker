@@ -9,10 +9,24 @@ module Api
 
       # GET /api/v1/war_room
       def index
-        latest_reports = PollReport.today.latest_per_precinct.index_by(&:precinct_id)
-        all_reports_today = PollReport.today.chronological.includes(precinct: :village).limit(20)
+        scoped_ids = scoped_village_ids
+        village_scope = scoped_ids.nil? ? Village.all : Village.where(id: scoped_ids)
+        precinct_scope = scoped_ids.nil? ? Precinct.all : Precinct.where(village_id: scoped_ids)
+        supporter_scope = scoped_ids.nil? ? Supporter.active : Supporter.active.where(village_id: scoped_ids)
 
-        precinct_rows = Precinct.select(:id, :village_id, :registered_voters)
+        precinct_rows = precinct_scope.select(:id, :village_id, :registered_voters)
+        accessible_precinct_ids = precinct_rows.map(&:id)
+
+        latest_reports = PollReport.today
+          .latest_per_precinct
+          .where(precinct_id: accessible_precinct_ids)
+          .index_by(&:precinct_id)
+        all_reports_today = PollReport.today
+          .where(precinct_id: accessible_precinct_ids)
+          .chronological
+          .includes(precinct: :village)
+          .limit(20)
+
         precinct_ids_by_village = Hash.new { |hash, key| hash[key] = [] }
         registered_voters_by_village = Hash.new(0)
         precinct_rows.each do |precinct|
@@ -20,26 +34,26 @@ module Api
           registered_voters_by_village[precinct.village_id] += precinct.registered_voters.to_i
         end
 
-        supporter_counts_by_village = Supporter.active.group(:village_id).count
-        motorcade_counts_by_village = Supporter.active.where(motorcade_available: true).group(:village_id).count
-        not_yet_voted_counts_by_village = Supporter.active.where(turnout_status: "not_yet_voted").group(:village_id).count
+        supporter_counts_by_village = supporter_scope.group(:village_id).count
+        motorcade_counts_by_village = supporter_scope.where(motorcade_available: true).group(:village_id).count
+        not_yet_voted_counts_by_village = supporter_scope.where(turnout_status: "not_yet_voted").group(:village_id).count
         outreach_attempted_counts_by_village = SupporterContactAttempt
           .joins(:supporter)
-          .merge(Supporter.active)
+          .merge(supporter_scope)
           .where(outcome: "attempted")
           .group("supporters.village_id")
           .distinct
           .count(:supporter_id)
         outreach_reached_counts_by_village = SupporterContactAttempt
           .joins(:supporter)
-          .merge(Supporter.active)
+          .merge(supporter_scope)
           .where(outcome: "reached")
           .group("supporters.village_id")
           .distinct
           .count(:supporter_id)
 
         # Village-level aggregation
-        villages = Village.order(:name).map do |village|
+        villages = village_scope.order(:name).map do |village|
           precinct_ids = precinct_ids_by_village[village.id]
           village_reports = latest_reports.values_at(*precinct_ids).compact
           total_registered = registered_voters_by_village[village.id]

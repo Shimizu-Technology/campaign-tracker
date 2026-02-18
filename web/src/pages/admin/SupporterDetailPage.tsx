@@ -37,6 +37,9 @@ interface SupporterDetail {
   duplicate_notes: string | null;
   source: string;
   status: string;
+  leader_code?: string | null;
+  referral_code_id?: number | null;
+  referral_display_name?: string | null;
   created_at: string;
   events_invited_count: number;
   events_attended_count: number;
@@ -69,7 +72,11 @@ const AUDIT_FIELD_LABELS: Record<string, string> = {
   village_id: 'Village ID',
   precinct_id: 'Precinct ID',
   source: 'Source',
+  leader_code: 'Referral code',
   status: 'Status',
+  verification_status: 'Verification status',
+  attribution_method: 'Entry method',
+  referral_code_id: 'Referrer',
   registered_voter: 'Registered voter',
   yard_sign: 'Yard sign',
   motorcade_available: 'Motorcade available',
@@ -78,14 +85,67 @@ const AUDIT_FIELD_LABELS: Record<string, string> = {
   created_at: 'Created at',
 };
 
+const AUDIT_VALUE_LABELS: Record<string, Record<string, string>> = {
+  source: {
+    qr_signup: 'QR signup',
+    staff_entry: 'Staff entry',
+    bulk_import: 'Bulk import',
+    referral: 'Referral',
+  },
+  status: {
+    active: 'Active',
+    inactive: 'Inactive',
+    duplicate: 'Duplicate',
+    unverified: 'Needs review',
+    removed: 'Removed',
+  },
+  verification_status: {
+    unverified: 'Unverified',
+    verified: 'Verified',
+    flagged: 'Flagged',
+  },
+  attribution_method: {
+    qr_self_signup: 'Referred (QR)',
+    staff_manual: 'Entered manually',
+    staff_scan: 'Entered via scan',
+    bulk_import: 'Imported',
+    public_signup: 'Public signup',
+  },
+};
+
+const TECHNICAL_AUDIT_FIELDS = new Set([ 'id', 'normalized_phone' ]);
+const PRIMARY_AUDIT_FIELD_ORDER = [
+  'verification_status',
+  'status',
+  'attribution_method',
+  'source',
+  'village_id',
+  'precinct_id',
+  'first_name',
+  'last_name',
+  'print_name',
+  'contact_number',
+  'email',
+  'street_address',
+  'registered_voter',
+  'yard_sign',
+  'motorcade_available',
+  'opt_in_text',
+  'opt_in_email',
+  'dob',
+];
+
 function humanizeRole(role?: string) {
   return role ? role.replaceAll('_', ' ') : 'public/system';
 }
 
-function humanizeAuditValue(value: unknown) {
+function humanizeAuditValue(value: unknown, field?: string) {
   if (value === null || value === undefined || value === '') return 'empty';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
   if (typeof value === 'string') {
+    if (field && AUDIT_VALUE_LABELS[field]?.[value]) {
+      return AUDIT_VALUE_LABELS[field][value];
+    }
     if (value.includes('T') && !Number.isNaN(new Date(value).getTime())) return formatDateTime(value);
     if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
       const parsed = new Date(`${value}T00:00:00`);
@@ -97,9 +157,14 @@ function humanizeAuditValue(value: unknown) {
         }).format(parsed);
       }
     }
+    if (value.includes('_')) return value.replaceAll('_', ' ');
   }
 
   return String(value);
+}
+
+function auditFieldLabel(field: string) {
+  return AUDIT_FIELD_LABELS[field] || field.replaceAll('_', ' ');
 }
 
 export default function SupporterDetailPage() {
@@ -121,6 +186,14 @@ export default function SupporterDetailPage() {
   const permissions: SupporterPermissions | undefined = data?.permissions;
   const auditLogs: AuditLogItem[] = data?.audit_logs || [];
   const villages: VillageOption[] = useMemo(() => villagesData?.villages || [], [villagesData]);
+  const villageNameById = useMemo(
+    () => new Map(villages.map((village) => [ village.id, village.name ])),
+    [villages]
+  );
+  const precinctNameById = useMemo(
+    () => new Map(villages.flatMap((village) => village.precincts.map((precinct) => [ precinct.id, `${village.name} · ${precinct.number}` ]))),
+    [villages]
+  );
 
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<Partial<SupporterDetail> | null>(null);
@@ -409,90 +482,116 @@ export default function SupporterDetailPage() {
 
         <section className="app-card p-4">
           <h2 className="font-semibold text-[var(--text-primary)] mb-2">Verification</h2>
-          <div className="flex items-center gap-3 flex-wrap">
-            <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${
-              supporter.verification_status === 'verified' ? 'bg-green-100 text-green-600' :
-              supporter.verification_status === 'flagged' ? 'bg-red-100 text-red-600' :
-              'bg-yellow-100 text-yellow-700'
-            }`}>
-              {supporter.verification_status === 'verified' ? 'Verified' :
-               supporter.verification_status === 'flagged' ? 'Flagged' : 'Unverified'}
-            </span>
-            {canEdit && supporter.verification_status !== 'verified' && (
-              <button
-                onClick={async () => {
-                  try {
-                    await verifySupporter(supporter.id, 'verified');
-                    refetch();
-                  } catch {
-                    alert('Failed to verify supporter. You may not have permission.');
-                  }
-                }}
-                className="px-3 py-1 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700"
-              >
-                Mark Verified
-              </button>
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-[var(--text-secondary)]">Current status:</span>
+              <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-semibold ${
+                supporter.verification_status === 'verified' ? 'bg-green-100 text-green-700' :
+                supporter.verification_status === 'flagged' ? 'bg-red-100 text-red-700' :
+                'bg-yellow-100 text-yellow-800'
+              }`}>
+                {supporter.verification_status === 'verified' ? 'Verified' :
+                 supporter.verification_status === 'flagged' ? 'Flagged' : 'Unverified'}
+              </span>
+              {supporter.status === 'removed' && (
+                <span className="inline-block px-3 py-1.5 rounded-full text-sm font-semibold bg-gray-200 text-gray-700">
+                  Removed
+                </span>
+              )}
+            </div>
+
+            {canEdit && (
+              <>
+                <p className="text-sm text-[var(--text-secondary)]">Change verification:</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={supporter.verification_status === 'verified'}
+                    onClick={async () => {
+                      try {
+                        await verifySupporter(supporter.id, 'verified');
+                        refetch();
+                      } catch {
+                        alert('Failed to verify supporter. You may not have permission.');
+                      }
+                    }}
+                    className="min-h-[40px] px-3.5 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Set Verified
+                  </button>
+                  <button
+                    type="button"
+                    disabled={supporter.verification_status === 'flagged'}
+                    onClick={async () => {
+                      try {
+                        await verifySupporter(supporter.id, 'flagged');
+                        refetch();
+                      } catch {
+                        alert('Failed to flag supporter. You may not have permission.');
+                      }
+                    }}
+                    className="min-h-[40px] px-3.5 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Set Flagged
+                  </button>
+                  <button
+                    type="button"
+                    disabled={supporter.verification_status === 'unverified'}
+                    onClick={async () => {
+                      try {
+                        await verifySupporter(supporter.id, 'unverified');
+                        refetch();
+                      } catch {
+                        alert('Failed to reset verification. You may not have permission.');
+                      }
+                    }}
+                    className="min-h-[40px] px-3.5 py-2 border border-[var(--border-soft)] text-[var(--text-primary)] text-sm font-medium rounded-lg hover:bg-[var(--surface-bg)] disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Reset Verification
+                  </button>
+                </div>
+
+                <div className="pt-1">
+                  {supporter.status !== 'removed' ? (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        if (!window.confirm('Remove this supporter? They will be excluded from all counts but kept in the audit log.')) return;
+                        try {
+                          await updateSupporter(supporter.id, { status: 'removed' });
+                          refetch();
+                        } catch {
+                          alert('Failed to remove supporter.');
+                        }
+                      }}
+                      className="min-h-[40px] px-3.5 py-2 bg-red-50 border border-red-300 text-red-700 text-sm font-medium rounded-lg hover:bg-red-100"
+                    >
+                      Remove from active list
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          await updateSupporter(supporter.id, { status: 'active' });
+                          refetch();
+                        } catch {
+                          alert('Failed to restore supporter.');
+                        }
+                      }}
+                      className="min-h-[40px] px-3.5 py-2 bg-blue-50 border border-blue-300 text-blue-700 text-sm font-medium rounded-lg hover:bg-blue-100"
+                    >
+                      Restore to active list
+                    </button>
+                  )}
+                </div>
+              </>
             )}
-            {canEdit && supporter.verification_status !== 'flagged' && (
-              <button
-                onClick={async () => {
-                  try {
-                    await verifySupporter(supporter.id, 'flagged');
-                    refetch();
-                  } catch {
-                    alert('Failed to flag supporter. You may not have permission.');
-                  }
-                }}
-                className="px-3 py-1 bg-red-600 text-white text-sm rounded-lg hover:bg-red-700"
-              >
-                Flag
-              </button>
-            )}
-            {canEdit && supporter.verification_status !== 'unverified' && (
-              <button
-                onClick={async () => {
-                  try {
-                    await verifySupporter(supporter.id, 'unverified');
-                    refetch();
-                  } catch {
-                    alert('Failed to reset verification. You may not have permission.');
-                  }
-                }}
-                className="px-3 py-1 border border-[var(--border-soft)] text-[var(--text-primary)] text-sm rounded-lg hover:bg-[var(--surface-bg)]"
-              >
-                Reset
-              </button>
-            )}
-            {canEdit && supporter.status !== 'removed' && (
-              <button
-                onClick={async () => {
-                  if (!window.confirm('Remove this supporter? They will be excluded from all counts but kept in the audit log.')) return;
-                  try {
-                    await updateSupporter(supporter.id, { status: 'removed' });
-                    refetch();
-                  } catch {
-                    alert('Failed to remove supporter.');
-                  }
-                }}
-                className="px-3 py-1 bg-red-50 border border-red-200 text-red-600 text-sm rounded-lg hover:bg-red-100"
-              >
-                Remove
-              </button>
-            )}
-            {canEdit && supporter.status === 'removed' && (
-              <button
-                onClick={async () => {
-                  try {
-                    await updateSupporter(supporter.id, { status: 'active' });
-                    refetch();
-                  } catch {
-                    alert('Failed to restore supporter.');
-                  }
-                }}
-                className="px-3 py-1 bg-blue-50 border border-blue-200 text-blue-600 text-sm rounded-lg hover:bg-blue-100"
-              >
-                Restore
-              </button>
+
+            {canEdit && (
+              <p className="text-xs text-[var(--text-secondary)]">
+                Only one verification status can be active at a time.
+              </p>
             )}
           </div>
           {supporter.verified_at && (
@@ -521,46 +620,123 @@ export default function SupporterDetailPage() {
         </section>
 
         <section className="app-card p-4">
-          <details>
-            <summary className="cursor-pointer font-semibold text-[var(--text-primary)]">
-              Audit History ({auditLogs.length})
-            </summary>
-            <p className="text-xs text-[var(--text-secondary)] mt-1">Shows what changed, who changed it, and when.</p>
-            {auditLogs.length === 0 ? (
-              <p className="text-sm text-[var(--text-secondary)] mt-3">No changes logged yet.</p>
-            ) : (
-              <div className="space-y-2 mt-3">
-                {auditLogs.map((log) => {
-                  const changedFields = Object.entries(log.changed_data || {});
-                  return (
-                    <details key={log.id} className="border rounded-xl p-3">
-                      <summary className="cursor-pointer">
-                        <div className="text-sm font-medium text-[var(--text-primary)] inline">
-                          {log.action_label || log.action} by {log.actor_name || 'System/Public'}
+          <div className="mb-3">
+            <h2 className="font-semibold text-[var(--text-primary)]">Audit History ({auditLogs.length})</h2>
+            <p className="text-sm text-[var(--text-secondary)] mt-1">
+              Clear timeline of who changed this supporter, when it changed, and exactly what changed.
+            </p>
+          </div>
+          {auditLogs.length === 0 ? (
+            <p className="text-sm text-[var(--text-secondary)]">No changes logged yet.</p>
+          ) : (
+            <div className="space-y-3">
+              {auditLogs.map((log) => {
+                const changedFields = Object.entries(log.changed_data || {});
+                const sortedChangedFields = [ ...changedFields ].sort(([a], [b]) => {
+                  const aIdx = PRIMARY_AUDIT_FIELD_ORDER.indexOf(a);
+                  const bIdx = PRIMARY_AUDIT_FIELD_ORDER.indexOf(b);
+                  const normalizedA = aIdx === -1 ? Number.MAX_SAFE_INTEGER : aIdx;
+                  const normalizedB = bIdx === -1 ? Number.MAX_SAFE_INTEGER : bIdx;
+                  return normalizedA - normalizedB;
+                });
+                const primaryChanges = sortedChangedFields.filter(([field]) => !TECHNICAL_AUDIT_FIELDS.has(field));
+                const technicalChanges = sortedChangedFields.filter(([field]) => TECHNICAL_AUDIT_FIELDS.has(field));
+                const actionLabel = (log.action_label || log.action || 'Updated').replaceAll('_', ' ');
+                const actorLabel = log.actor_name || 'System/Public';
+
+                const renderAuditValue = (field: string, value: unknown) => {
+                  if (value === null || value === undefined || value === '') return 'empty';
+                  if (field === 'referral_code_id') {
+                    const numericValue = Number(value);
+                    if (
+                      supporter.referral_code_id &&
+                      Number.isFinite(numericValue) &&
+                      numericValue === supporter.referral_code_id
+                    ) {
+                      const name = supporter.referral_display_name || 'Unknown referrer';
+                      const code = supporter.leader_code;
+                      return code ? `${name} (${code})` : name;
+                    }
+                    return `Referral #${numericValue}`;
+                  }
+                  if (field === 'leader_code') {
+                    const codeValue = String(value);
+                    if (supporter.leader_code && codeValue === supporter.leader_code && supporter.referral_display_name) {
+                      return `${supporter.referral_display_name} (${codeValue})`;
+                    }
+                    return codeValue;
+                  }
+                  if (field === 'village_id') {
+                    const mapped = villageNameById.get(Number(value));
+                    if (mapped) return mapped;
+                  }
+                  if (field === 'precinct_id') {
+                    const mapped = precinctNameById.get(Number(value));
+                    if (mapped) return mapped;
+                  }
+                  return humanizeAuditValue(value, field);
+                };
+
+                return (
+                  <details key={log.id} className="border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] group">
+                    <summary className="cursor-pointer list-none p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-base font-semibold text-[var(--text-primary)]">{actionLabel}</p>
+                          <p className="text-sm text-[var(--text-secondary)]">
+                            Changed by <span className="font-medium text-[var(--text-primary)]">{actorLabel}</span> ({humanizeRole(log.actor_role)}) on {formatDateTime(log.created_at)}
+                          </p>
+                          {primaryChanges.length > 0 && (
+                            <p className="text-sm text-[var(--text-secondary)] mt-1">
+                              {auditFieldLabel(primaryChanges[0][0])}
+                              {primaryChanges.length > 1 ? ` + ${primaryChanges.length - 1} more` : ''}
+                            </p>
+                          )}
                         </div>
-                        <div className="text-xs text-[var(--text-secondary)]">
-                          {humanizeRole(log.actor_role)} · {formatDateTime(log.created_at)}
-                          {changedFields.length > 0 ? ` · ${changedFields.length} field${changedFields.length === 1 ? '' : 's'} changed` : ''}
-                        </div>
-                      </summary>
-                      {changedFields.length > 0 && (
-                        <div className="mt-2 space-y-1">
-                          {changedFields.map(([field, diff]) => (
-                            <div key={field} className="text-xs text-[var(--text-primary)]">
-                              <span className="font-medium">{AUDIT_FIELD_LABELS[field] || field.replaceAll('_', ' ')}:</span>{' '}
-                              <span className="text-[var(--text-secondary)]">{humanizeAuditValue(diff.from)}</span>
-                              {' -> '}
-                              <span>{humanizeAuditValue(diff.to)}</span>
+                        <span className="text-xs rounded-full bg-[var(--surface-bg)] px-2 py-1 text-[var(--text-secondary)]">
+                          {changedFields.length} change{changedFields.length === 1 ? '' : 's'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-[var(--text-muted)] mt-2">Tap to expand details</p>
+                    </summary>
+
+                    <div className="px-4 pb-4 border-t border-[var(--border-soft)]">
+                      {primaryChanges.length > 0 ? (
+                        <div className="mt-3 space-y-2">
+                          {primaryChanges.map(([field, diff]) => (
+                            <div key={field} className="rounded-lg border border-[var(--border-soft)] bg-white px-3 py-2.5">
+                              <p className="text-sm font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{auditFieldLabel(field)}</p>
+                              <div className="mt-1.5 flex flex-wrap items-center gap-2 text-base">
+                                <span className="rounded-md bg-gray-200 text-gray-900 px-2.5 py-1">{renderAuditValue(field, diff.from)}</span>
+                                <span className="text-[var(--text-secondary)] font-medium">to</span>
+                                <span className="rounded-md bg-blue-200 text-blue-900 px-2.5 py-1 font-medium">{renderAuditValue(field, diff.to)}</span>
+                              </div>
                             </div>
                           ))}
                         </div>
+                      ) : (
+                        <p className="text-sm text-[var(--text-secondary)] mt-3">No user-facing field changes captured for this action.</p>
                       )}
-                    </details>
-                  );
-                })}
-              </div>
-            )}
-          </details>
+
+                      {technicalChanges.length > 0 && (
+                        <details className="mt-3">
+                          <summary className="cursor-pointer text-xs text-[var(--text-secondary)]">Show system details</summary>
+                          <div className="mt-2 space-y-1">
+                            {technicalChanges.map(([field, diff]) => (
+                              <p key={field} className="text-xs text-[var(--text-secondary)]">
+                                <span className="font-medium">{auditFieldLabel(field)}:</span>{' '}
+                                {renderAuditValue(field, diff.from)} {'->'} {renderAuditValue(field, diff.to)}
+                              </p>
+                            ))}
+                          </div>
+                        </details>
+                      )}
+                    </div>
+                  </details>
+                );
+              })}
+            </div>
+          )}
         </section>
       </div>
     </div>

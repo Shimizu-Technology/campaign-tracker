@@ -751,7 +751,7 @@ export default function PollWatcherPage() {
             onChange={e => setFilterVillage(e.target.value)}
             className="px-3 py-2 border border-[var(--border-soft)] rounded-xl text-sm bg-[var(--surface-raised)] min-h-[44px]"
           >
-            <option value="">All Villages ({stats.total_precincts} precincts)</option>
+            <option value="">All accessible villages ({stats.total_precincts} precincts)</option>
             {villages.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.name} ({v.reporting_count}/{v.total_precincts} reporting)

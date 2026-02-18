@@ -34,6 +34,7 @@ const DuplicatesPage = lazy(() => import('./pages/admin/DuplicatesPage'));
 const ImportPage = lazy(() => import('./pages/admin/ImportPage'));
 const VettingPage = lazy(() => import('./pages/admin/VettingPage'));
 const ScanFormPage = lazy(() => import('./pages/admin/ScanFormPage'));
+const AuditLogsPage = lazy(() => import('./pages/admin/AuditLogsPage'));
 
 function LazyFallback() {
   return (
@@ -61,13 +62,17 @@ function PermissionRoute({
     | 'can_manage_users'
     | 'can_manage_configuration'
     | 'can_send_sms'
+    | 'can_send_email'
+    | 'can_edit_supporters'
     | 'can_view_supporters'
     | 'can_create_staff_supporters'
     | 'can_access_events'
     | 'can_access_qr'
     | 'can_access_leaderboard'
     | 'can_access_war_room'
-    | 'can_access_poll_watcher';
+    | 'can_access_poll_watcher'
+    | 'can_access_duplicates'
+    | 'can_access_audit_logs';
   children: React.ReactNode;
 }) {
   const { data, isLoading } = useSession();
@@ -168,7 +173,7 @@ export default function App() {
             path="/admin/duplicates"
             element={
               <AdminRoute>
-                <PermissionRoute permission="can_view_supporters">
+                <PermissionRoute permission="can_access_duplicates">
                   <DuplicatesPage />
                 </PermissionRoute>
               </AdminRoute>
@@ -330,6 +335,16 @@ export default function App() {
               <AdminRoute>
                 <PermissionRoute permission="can_manage_configuration">
                   <PrecinctSettingsPage />
+                </PermissionRoute>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/audit-logs"
+            element={
+              <AdminRoute>
+                <PermissionRoute permission="can_access_audit_logs">
+                  <AuditLogsPage />
                 </PermissionRoute>
               </AdminRoute>
             }

@@ -117,6 +117,32 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_response :created
     payload = JSON.parse(response.body)
     assert_equal "qr_signup", payload.dig("supporter", "source")
+    assert_equal "public_signup", payload.dig("supporter", "attribution_method")
+  end
+
+  test "public create links supporter to referral code when leader code is present" do
+    referral = ReferralCode.create!(
+      code: "AB-CHA-1234",
+      display_name: "Alyssa Blas",
+      village: @village
+    )
+
+    post "/api/v1/supporters?leader_code=#{referral.code}",
+      params: {
+        supporter: {
+          first_name: "Referred", last_name: "Signup", print_name: "Referred Signup",
+          contact_number: "6715558002",
+          village_id: @village.id,
+          registered_voter: true
+        }
+      }
+
+    assert_response :created
+    payload = JSON.parse(response.body)
+    assert_equal referral.code, payload.dig("supporter", "leader_code")
+    assert_equal referral.id, payload.dig("supporter", "referral_code_id")
+    assert_equal "Alyssa Blas", payload.dig("supporter", "referral_display_name")
+    assert_equal "qr_self_signup", payload.dig("supporter", "attribution_method")
   end
 
   test "create with staff entry mode sets source to staff_entry and entered_by user" do
@@ -141,7 +167,32 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_response :created
     payload = JSON.parse(response.body)
     assert_equal "staff_entry", payload.dig("supporter", "source")
+    assert_equal "staff_manual", payload.dig("supporter", "attribution_method")
     assert_equal staff_user.id, Supporter.find(payload.dig("supporter", "id")).entered_by_user_id
+  end
+
+  test "create with staff scan entry mode sets scan attribution" do
+    staff_user = User.create!(
+      clerk_id: "clerk-staff-scan",
+      email: "staff-scan@example.com",
+      name: "Staff Scan User",
+      role: "block_leader"
+    )
+
+    post "/api/v1/supporters?entry_mode=staff&entry_channel=scan",
+      params: {
+        supporter: {
+          first_name: "Scan", last_name: "Signup", print_name: "Scan Signup",
+          contact_number: "6715558003",
+          village_id: @village.id,
+          registered_voter: true
+        }
+      },
+      headers: auth_headers(staff_user)
+
+    assert_response :created
+    payload = JSON.parse(response.body)
+    assert_equal "staff_scan", payload.dig("supporter", "attribution_method")
   end
 
   test "index can filter by precinct and unassigned precinct" do

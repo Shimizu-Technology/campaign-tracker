@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { Mail, Pencil, Plus, Save, Search, Trash2, Users, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Mail, Pencil, Plus, Save, Search, Trash2, Users, X } from 'lucide-react';
 import { createUser, deleteUser, getDistricts, getUsers, getVillages, resendUserInvite, updateUser } from '../../lib/api';
 import { useSession } from '../../hooks/useSession';
 
@@ -92,6 +92,81 @@ const ROLE_GUIDE: RoleGuideRow[] = [
   },
 ];
 
+type PermissionKey =
+  | 'can_manage_users'
+  | 'can_manage_configuration'
+  | 'can_send_sms'
+  | 'can_send_email'
+  | 'can_edit_supporters'
+  | 'can_view_supporters'
+  | 'can_create_staff_supporters'
+  | 'can_access_events'
+  | 'can_access_qr'
+  | 'can_access_leaderboard'
+  | 'can_access_war_room'
+  | 'can_access_poll_watcher'
+  | 'can_access_duplicates'
+  | 'can_access_audit_logs';
+
+const PERMISSION_KEYS: PermissionKey[] = [
+  'can_manage_users',
+  'can_manage_configuration',
+  'can_send_sms',
+  'can_send_email',
+  'can_edit_supporters',
+  'can_view_supporters',
+  'can_create_staff_supporters',
+  'can_access_events',
+  'can_access_qr',
+  'can_access_leaderboard',
+  'can_access_war_room',
+  'can_access_poll_watcher',
+  'can_access_duplicates',
+  'can_access_audit_logs',
+];
+
+const PERMISSION_LABELS: Record<PermissionKey, string> = {
+  can_manage_users: 'Manage users',
+  can_manage_configuration: 'Manage configuration',
+  can_send_sms: 'Send SMS',
+  can_send_email: 'Send email',
+  can_edit_supporters: 'Edit supporters',
+  can_view_supporters: 'View supporters',
+  can_create_staff_supporters: 'Create staff supporters',
+  can_access_events: 'Events',
+  can_access_qr: 'QR tools',
+  can_access_leaderboard: 'Leaderboard',
+  can_access_war_room: 'War Room',
+  can_access_poll_watcher: 'Poll Watcher',
+  can_access_duplicates: 'Duplicates review',
+  can_access_audit_logs: 'Activity log',
+};
+
+const ROLE_PERMISSION_MAP: Record<string, PermissionKey[]> = {
+  campaign_admin: PERMISSION_KEYS,
+  district_coordinator: PERMISSION_KEYS,
+  village_chief: [
+    'can_view_supporters',
+    'can_create_staff_supporters',
+    'can_access_events',
+    'can_access_qr',
+    'can_access_leaderboard',
+    'can_access_war_room',
+    'can_access_poll_watcher',
+  ],
+  block_leader: [
+    'can_view_supporters',
+    'can_create_staff_supporters',
+    'can_access_events',
+    'can_access_qr',
+    'can_access_leaderboard',
+  ],
+  poll_watcher: [
+    'can_access_war_room',
+    'can_access_poll_watcher',
+  ],
+};
+
 function roleLabel(role: string) {
   return role.replaceAll('_', ' ');
 }
@@ -173,6 +248,64 @@ function assignmentLabel(
   return 'No area assigned';
 }
 
+function roleHasPermission(role: string, permission: PermissionKey): boolean {
+  return (ROLE_PERMISSION_MAP[role] || []).includes(permission);
+}
+
+function roleScopeRule(role: string): string {
+  if (role === 'campaign_admin') return 'Scope rule: full access to all villages';
+  if (role === 'district_coordinator') return 'Scope rule: assigned district (or all villages if no district assigned)';
+  return 'Scope rule: assigned village only';
+}
+
+function scopeLabelForRole(
+  role: string,
+  assignedDistrictId: number | null,
+  assignedVillageId: number | null,
+  villages: VillageOption[],
+  districts: DistrictOption[]
+): string {
+  if (role === 'campaign_admin') return 'Scope: all villages';
+  if (role === 'district_coordinator') {
+    if (!assignedDistrictId) return 'Scope: all villages (no district assigned)';
+    const district = districts.find((d) => d.id === assignedDistrictId);
+    return `Scope: assigned district (${district?.name || `District #${assignedDistrictId}`})`;
+  }
+
+  if (!assignedVillageId) return 'Scope: no village assigned (no scoped data)';
+  const village = villages.find((v) => v.id === assignedVillageId);
+  return `Scope: assigned village (${village?.name || `Village #${assignedVillageId}`})`;
+}
+
+function RolePermissionChips({ role }: { role: string }) {
+  const allowedCount = PERMISSION_KEYS.filter((permission) => roleHasPermission(role, permission)).length;
+
+  return (
+    <div className="rounded-lg border border-[var(--border-soft)] bg-[var(--surface-bg)] p-2.5">
+      <p className="text-xs text-[var(--text-secondary)] mb-2">
+        {roleScopeRule(role)} · {allowedCount} of {PERMISSION_KEYS.length} permissions enabled
+      </p>
+      <div className="flex flex-wrap gap-1.5">
+        {PERMISSION_KEYS.map((permission) => {
+          const allowed = roleHasPermission(role, permission);
+          return (
+            <span
+              key={permission}
+              className={`text-[11px] px-2 py-1 rounded-full border ${
+                allowed
+                  ? 'bg-green-50 border-green-200 text-green-700'
+                  : 'bg-gray-100 border-gray-200 text-gray-500'
+              }`}
+            >
+              {allowed ? 'Can' : "Can't"} {PERMISSION_LABELS[permission]}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 type UserSortField = 'name' | 'email' | 'role' | 'created_at';
 const SORT_FIELDS: UserSortField[] = ['name', 'email', 'role', 'created_at'];
 
@@ -218,6 +351,7 @@ export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState(searchParams.get('role') || '');
   const [sortBy, setSortBy] = useState<UserSortField>(parseSortField(searchParams.get('sort_by')));
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>((searchParams.get('sort_dir') as 'asc' | 'desc') || 'asc');
+  const [expandedRoles, setExpandedRoles] = useState<Set<string>>(new Set());
 
   const roles = useMemo(() => data?.roles || [], [data]);
   const users = useMemo(() => data?.users || [], [data]);
@@ -383,8 +517,30 @@ export default function UsersPage() {
     setSortDir(field === 'created_at' ? 'desc' : 'asc');
   };
 
+  const toggleRoleExpanded = (role: string) => {
+    setExpandedRoles((prev) => {
+      const next = new Set(prev);
+      if (next.has(role)) {
+        next.delete(role);
+      } else {
+        next.add(role);
+      }
+      return next;
+    });
+  };
+
+  const expandAllRoles = () => {
+    setExpandedRoles(new Set(ROLE_GUIDE.map((row) => row.role)));
+  };
+
+  const collapseAllRoles = () => {
+    setExpandedRoles(new Set());
+  };
+
+  const allRolesExpanded = expandedRoles.size === ROLE_GUIDE.length;
+
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <div className="p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-5 sm:space-y-6">
       <div>
         <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
           <Users className="w-5 h-5 text-[#1B3A6B]" /> User Management
@@ -440,7 +596,7 @@ export default function UsersPage() {
             type="button"
             onClick={() => createMutation.mutate()}
             disabled={!newEmail || createMutation.isPending || (roleAssignmentType(newRole) === 'village' && !newAssignedVillageId) || (roleAssignmentType(newRole) === 'district' && !newAssignedDistrictId)}
-            className="mt-3 bg-[#1B3A6B] text-white px-4 py-2 rounded-xl min-h-[44px] text-sm font-medium flex items-center gap-2 disabled:opacity-50"
+            className="mt-3 w-full sm:w-auto bg-[#1B3A6B] text-white px-4 py-2 rounded-xl min-h-[44px] text-sm font-medium inline-flex items-center justify-center gap-2 disabled:opacity-50"
           >
             <Plus className="w-4 h-4" /> {createMutation.isPending ? 'Adding...' : 'Add User'}
           </button>
@@ -459,19 +615,54 @@ export default function UsersPage() {
           <details>
             <summary className="cursor-pointer px-4 py-3 border-b bg-[var(--surface-bg)]">
               <h2 className="app-section-title text-lg inline">Role Matrix</h2>
-              <p className="text-xs text-[var(--text-secondary)] mt-1">Reference guide for what each campaign role is intended to do.</p>
+              <p className="text-xs text-[var(--text-secondary)] mt-1">Reference guide for each role. Expand a row for exact access details.</p>
             </summary>
+            <div className="px-4 py-2.5 border-b bg-[var(--surface-raised)] flex items-center justify-end gap-2">
+              {!allRolesExpanded ? (
+                <button
+                  type="button"
+                  onClick={expandAllRoles}
+                  className="text-xs text-[#1B3A6B] border border-[#c8d2ea] bg-white hover:bg-[#f4f7ff] rounded-lg px-2.5 py-1.5"
+                >
+                  Expand all
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={collapseAllRoles}
+                  className="text-xs text-[#1B3A6B] border border-[#c8d2ea] bg-white hover:bg-[#f4f7ff] rounded-lg px-2.5 py-1.5"
+                >
+                  Collapse all
+                </button>
+              )}
+            </div>
             <div className="md:hidden divide-y">
-              {ROLE_GUIDE.map((row) => (
-                <div key={row.role} className="p-4 space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold text-[var(--text-primary)]">{roleLabel(row.role)}</span>
-                    <span className="text-xs app-chip bg-[var(--surface-overlay)] text-[var(--text-primary)]">{row.level}</span>
+              {ROLE_GUIDE.map((row) => {
+                const isExpanded = expandedRoles.has(row.role);
+                return (
+                  <div key={row.role} className="p-4 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-semibold text-[var(--text-primary)]">{roleLabel(row.role)}</span>
+                      <span className="text-xs app-chip bg-[var(--surface-overlay)] text-[var(--text-primary)]">{row.level}</span>
+                    </div>
+                    <p className="text-xs text-[var(--text-secondary)]">{row.who}</p>
+                    <p className="text-xs text-[var(--text-primary)]">{row.can}</p>
+                    <button
+                      type="button"
+                      onClick={() => toggleRoleExpanded(row.role)}
+                      className="mt-2 inline-flex items-center gap-1.5 text-sm text-[#1B3A6B] min-h-[40px]"
+                    >
+                      {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                      {isExpanded ? 'Hide exact access' : 'View exact access'}
+                    </button>
+                    {isExpanded && (
+                      <div className="mt-2">
+                        <RolePermissionChips role={row.role} />
+                      </div>
+                    )}
                   </div>
-                  <p className="text-xs text-[var(--text-secondary)]">{row.who}</p>
-                  <p className="text-xs text-[var(--text-primary)]">{row.can}</p>
-                </div>
-              ))}
+                );
+              })}
             </div>
             <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-sm">
@@ -481,17 +672,40 @@ export default function UsersPage() {
                     <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Hierarchy</th>
                     <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Typical User</th>
                     <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Primary Permissions</th>
+                    <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Access Details</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {ROLE_GUIDE.map((row) => (
-                    <tr key={row.role} className="border-b">
-                      <td className="px-4 py-3 text-[var(--text-primary)] font-medium">{roleLabel(row.role)}</td>
-                      <td className="px-4 py-3 text-[var(--text-secondary)]">{row.level}</td>
-                      <td className="px-4 py-3 text-[var(--text-secondary)]">{row.who}</td>
-                      <td className="px-4 py-3 text-[var(--text-primary)]">{row.can}</td>
-                    </tr>
-                  ))}
+                  {ROLE_GUIDE.map((row) => {
+                    const isExpanded = expandedRoles.has(row.role);
+                    return (
+                      <Fragment key={row.role}>
+                        <tr className={isExpanded ? 'bg-[var(--surface-raised)]' : 'border-b'}>
+                          <td className="px-4 py-3 text-[var(--text-primary)] font-medium">{roleLabel(row.role)}</td>
+                          <td className="px-4 py-3 text-[var(--text-secondary)]">{row.level}</td>
+                          <td className="px-4 py-3 text-[var(--text-secondary)]">{row.who}</td>
+                          <td className="px-4 py-3 text-[var(--text-primary)]">{row.can}</td>
+                          <td className="px-4 py-3">
+                            <button
+                              type="button"
+                              onClick={() => toggleRoleExpanded(row.role)}
+                              className="inline-flex items-center gap-1.5 text-xs font-medium text-[#1B3A6B] hover:text-[#152e55]"
+                            >
+                              {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                              {isExpanded ? 'Collapse' : 'Expand'}
+                            </button>
+                          </td>
+                        </tr>
+                        {isExpanded && (
+                          <tr className="border-b bg-[var(--surface-raised)]">
+                            <td colSpan={5} className="px-4 pb-4">
+                              <RolePermissionChips role={row.role} />
+                            </td>
+                          </tr>
+                        )}
+                      </Fragment>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -638,7 +852,7 @@ export default function UsersPage() {
                               districts={districts}
                             />
                           )}
-                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <div className="grid grid-cols-2 gap-2">
                             <button
                               type="button"
                               disabled={!changed || updateMutation.isPending}
@@ -658,7 +872,7 @@ export default function UsersPage() {
                               type="button"
                               disabled={resendInviteMutation.isPending}
                               onClick={() => resendInviteMutation.mutate(user.id)}
-                              className="bg-[var(--surface-raised)] border border-[var(--border-soft)] text-[var(--text-primary)] px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center justify-center gap-1 disabled:opacity-50"
+                              className="col-span-2 bg-[var(--surface-raised)] border border-[var(--border-soft)] text-[var(--text-primary)] px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center justify-center gap-1 disabled:opacity-50"
                             >
                               <Mail className="w-3.5 h-3.5" /> Resend
                             </button>
@@ -675,8 +889,31 @@ export default function UsersPage() {
                                 {assignmentLabel(user, villages, districts)}
                               </p>
                             )}
+                            <p className="text-xs text-[var(--text-muted)] mt-1">
+                              {scopeLabelForRole(user.role, user.assigned_district_id, user.assigned_village_id, villages, districts)}
+                            </p>
+                            <details className="mt-2">
+                              <summary className="cursor-pointer text-xs text-[#1B3A6B]">View detailed access</summary>
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {PERMISSION_KEYS.map((permission) => {
+                                  const allowed = roleHasPermission(user.role, permission);
+                                  return (
+                                    <span
+                                      key={permission}
+                                      className={`text-[11px] px-2 py-1 rounded-full border ${
+                                        allowed
+                                          ? 'bg-green-50 border-green-200 text-green-700'
+                                          : 'bg-gray-100 border-gray-200 text-gray-500'
+                                      }`}
+                                    >
+                                      {allowed ? 'Can' : "Can't"} {PERMISSION_LABELS[permission]}
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            </details>
                           </div>
-                          <div className="grid grid-cols-3 gap-2">
+                          <div className="grid grid-cols-2 gap-2">
                             <button
                               type="button"
                               onClick={() => startEdit(user)}
@@ -700,7 +937,7 @@ export default function UsersPage() {
                                   if (!window.confirm(`Remove ${user.name || user.email}? They will lose access to the app.`)) return;
                                   deleteMutation.mutate(user.id);
                                 }}
-                                className="bg-red-50 border border-red-200 text-red-600 px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center justify-center gap-1 disabled:opacity-50"
+                                className="col-span-2 bg-red-50 border border-red-200 text-red-600 px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center justify-center gap-1 disabled:opacity-50"
                               >
                                 <Trash2 className="w-3.5 h-3.5" /> Remove
                               </button>
@@ -819,9 +1056,37 @@ export default function UsersPage() {
                                 <span className="text-xs text-[var(--text-muted)]">Full access</span>
                               )
                             ) : (
-                              <span className={`text-xs ${user.assigned_village_id || user.assigned_district_id ? 'text-[var(--text-secondary)]' : roleAssignmentType(user.role) === 'none' ? 'text-[var(--text-muted)]' : 'text-amber-600'}`}>
-                                {assignmentLabel(user, villages, districts) || 'Full access'}
-                              </span>
+                              <div className="space-y-1">
+                                <span className={`block text-xs ${user.assigned_village_id || user.assigned_district_id ? 'text-[var(--text-secondary)]' : roleAssignmentType(user.role) === 'none' ? 'text-[var(--text-muted)]' : 'text-amber-600'}`}>
+                                  {assignmentLabel(user, villages, districts) || 'Full access'}
+                                </span>
+                                <span className="block text-[11px] text-[var(--text-muted)]">
+                                  {scopeLabelForRole(user.role, user.assigned_district_id, user.assigned_village_id, villages, districts)}
+                                </span>
+                                <div className="flex flex-wrap gap-1">
+                                  {[
+                                    'can_view_supporters',
+                                    'can_access_poll_watcher',
+                                    'can_access_war_room',
+                                    'can_access_duplicates',
+                                  ].map((permission) => {
+                                    const key = permission as PermissionKey;
+                                    const allowed = roleHasPermission(user.role, key);
+                                    return (
+                                      <span
+                                        key={key}
+                                        className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                                          allowed
+                                            ? 'bg-green-50 border-green-200 text-green-700'
+                                            : 'bg-gray-100 border-gray-200 text-gray-500'
+                                        }`}
+                                      >
+                                        {allowed ? 'Can' : "Can't"} {PERMISSION_LABELS[key]}
+                                      </span>
+                                    );
+                                  })}
+                                </div>
+                              </div>
                             )}
                           </td>
                           <td className="px-4 py-3">

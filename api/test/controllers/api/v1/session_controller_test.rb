@@ -24,6 +24,7 @@ class Api::V1::SessionControllerTest < ActionDispatch::IntegrationTest
     assert_equal true, payload.dig("permissions", "can_manage_users")
     assert_equal true, payload.dig("permissions", "can_send_sms")
     assert_equal true, payload.dig("permissions", "can_access_events")
+    assert_equal true, payload.dig("permissions", "can_access_audit_logs")
   end
 
   test "poll watcher session permissions are restricted to election-day tools" do
@@ -35,5 +36,6 @@ class Api::V1::SessionControllerTest < ActionDispatch::IntegrationTest
     assert_equal false, payload.dig("permissions", "can_view_supporters")
     assert_equal true, payload.dig("permissions", "can_access_poll_watcher")
     assert_equal true, payload.dig("permissions", "can_access_war_room")
+    assert_equal false, payload.dig("permissions", "can_access_audit_logs")
   end
 end

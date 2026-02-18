@@ -35,6 +35,7 @@ Rails.application.routes.draw do
       end
       resources :quotas, only: [ :index, :update ], param: :village_id
       resources :precincts, only: [ :index, :update ]
+      resources :audit_logs, only: [ :index ]
 
       # Authenticated staff
       namespace :staff do
@@ -61,6 +62,7 @@ Rails.application.routes.draw do
           get :info
         end
         collection do
+          get :assignees
           post :generate
         end
       end
@@ -72,6 +74,8 @@ Rails.application.routes.draw do
 
       # Form Scanner (OCR)
       post "scan", to: "scan#create"
+      post "scan/batch", to: "scan#batch"
+      post "scan/telemetry", to: "scan#telemetry"
 
       # SMS
       get "sms/status", to: "sms#status"

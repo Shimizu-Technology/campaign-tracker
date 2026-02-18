@@ -39,12 +39,19 @@ export const updateVillageQuota = (villageId: number, targetCount: number, chang
 export const getPrecincts = (params?: QueryParams) => api.get('/precincts', { params }).then(r => r.data);
 export const updatePrecinct = (id: number, data: JsonRecord) =>
   api.patch(`/precincts/${id}`, { precinct: data }).then(r => r.data);
+export const getAuditLogs = (params?: QueryParams) => api.get('/audit_logs', { params }).then(r => r.data);
 
 // Supporters
-export const createSupporter = (data: JsonRecord, leaderCode?: string, entryMode?: 'staff') => {
+export const createSupporter = (
+  data: JsonRecord,
+  leaderCode?: string,
+  entryMode?: 'staff',
+  entryChannel?: 'manual' | 'scan'
+) => {
   const params = new URLSearchParams();
   if (leaderCode) params.set('leader_code', leaderCode);
   if (entryMode === 'staff') params.set('entry_mode', 'staff');
+  if (entryMode === 'staff' && entryChannel) params.set('entry_channel', entryChannel);
   const query = params.toString();
   return api.post(`/supporters${query ? `?${query}` : ''}`, { supporter: data }).then(r => r.data);
 };
@@ -89,6 +96,8 @@ export const exportSupporters = (params?: QueryParams) =>
 
 // Leaderboard
 export const getLeaderboard = () => api.get('/leaderboard').then(r => r.data);
+export const getQrCodeAssignees = () => api.get('/qr_codes/assignees').then(r => r.data);
+export const generateQrCode = (data: JsonRecord) => api.post('/qr_codes/generate', data).then(r => r.data);
 
 // Events
 export const getEvents = (params?: QueryParams) => api.get('/events', { params }).then(r => r.data);
@@ -116,6 +125,10 @@ export const createStrikeListContactAttempt = (supporterId: number, data: JsonRe
 // Form Scanner (OCR)
 export const scanForm = (image: string) =>
   api.post('/scan', { image }).then(r => r.data);
+export const scanBatchForm = (image: string, defaultVillageId: number) =>
+  api.post('/scan/batch', { image, default_village_id: defaultVillageId }).then(r => r.data);
+export const trackScanBatchTelemetry = (telemetry: JsonRecord) =>
+  api.post('/scan/telemetry', { telemetry }).then(r => r.data);
 
 // SMS
 export const getSmsStatus = () => api.get('/sms/status').then(r => r.data);

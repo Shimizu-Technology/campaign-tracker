@@ -27,7 +27,15 @@ module Api
 
       # GET /api/v1/villages/:id
       def show
-        village = Village.includes(:precincts, :blocks).find(params[:id])
+        scoped_villages = scoped_village_ids.nil? ? Village.all : Village.where(id: scoped_village_ids)
+        village = scoped_villages.includes(:precincts, :blocks).find_by(id: params[:id])
+        unless village
+          return render_api_error(
+            message: "Not authorized for this village",
+            status: :forbidden,
+            code: "village_access_required"
+          )
+        end
         campaign = Campaign.active.first
 
         quota = village.quotas.where(campaign: campaign).first

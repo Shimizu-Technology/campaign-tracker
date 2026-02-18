@@ -25,9 +25,13 @@ module Api
         end
 
         supporter = Supporter.new(public_supporter_params)
+        normalized_leader_code = params[:leader_code].to_s.strip.presence
+        referral_code = resolve_referral_code(normalized_leader_code)
         supporter.source = create_source
+        supporter.attribution_method = create_attribution_method(normalized_leader_code)
         supporter.status = "active"
-        supporter.leader_code = params[:leader_code]
+        supporter.leader_code = normalized_leader_code
+        supporter.referral_code = referral_code if referral_code
         supporter.entered_by_user_id = current_user.id if staff_entry_mode? && current_user
 
         # Default unchecked booleans to false (checkboxes send nothing when unchecked)
@@ -443,11 +447,18 @@ module Api
       end
 
       def create_source
-        return "qr_signup" if params[:leader_code].present?
+        return "qr_signup" if params[:leader_code].to_s.strip.present?
         return "staff_entry" if staff_entry_mode?
 
         # Public non-authenticated signup without leader code.
         "qr_signup"
+      end
+
+      def create_attribution_method(normalized_leader_code)
+        return "qr_self_signup" if normalized_leader_code.present?
+        return params[:entry_channel] == "scan" ? "staff_scan" : "staff_manual" if staff_entry_mode?
+
+        "public_signup"
       end
 
       def staff_entry_mode?
@@ -480,6 +491,9 @@ module Api
           source: supporter.source,
           status: supporter.status,
           leader_code: supporter.leader_code,
+          attribution_method: supporter.attribution_method,
+          referral_code_id: supporter.referral_code_id,
+          referral_display_name: supporter.referral_code&.display_name,
           reliability_score: supporter.reliability_score,
           potential_duplicate: supporter.potential_duplicate,
           duplicate_of_id: supporter.duplicate_of_id,
@@ -523,9 +537,17 @@ module Api
           changed_data: normalized_changed_data(changed_data),
           metadata: {
             entry_mode: params[:entry_mode],
-            leader_code: params[:leader_code]
+            leader_code: params[:leader_code],
+            referral_code_id: supporter.referral_code_id
           }.compact
         )
+      end
+
+      def resolve_referral_code(code)
+        normalized = code.to_s.strip
+        return nil if normalized.blank?
+
+        ReferralCode.find_by(code: normalized)
       end
 
       def supporter_edit_allowed?

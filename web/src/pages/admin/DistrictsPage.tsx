@@ -7,6 +7,7 @@ import {
   getDistricts,
   updateDistrict,
 } from '../../lib/api';
+import { useSession } from '../../hooks/useSession';
 import {
   ChevronDown,
   ChevronUp,
@@ -42,6 +43,7 @@ interface DistrictsResponse {
 
 export default function DistrictsPage() {
   const queryClient = useQueryClient();
+  const { data: sessionData } = useSession();
   const { data, isLoading } = useQuery<DistrictsResponse>({
     queryKey: ['districts'],
     queryFn: getDistricts,
@@ -58,6 +60,7 @@ export default function DistrictsPage() {
 
   const districts = data?.districts || [];
   const unassignedVillages = data?.unassigned_villages || [];
+  const canManageDistricts = sessionData?.user?.role === 'campaign_admin';
 
   // All villages for assignment UI
   const allVillages = [
@@ -128,36 +131,44 @@ export default function DistrictsPage() {
       </div>
 
       {/* Create district */}
-      <section className="app-card p-4">
-        <h2 className="app-section-title text-lg mb-2">Create District</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <input
-            type="text"
-            value={newName}
-            onChange={(e) => setNewName(e.target.value)}
-            placeholder="District name (e.g. North, Central, South)"
-            className="border border-[var(--border-soft)] rounded-xl px-3 py-2 md:col-span-2 min-h-[44px]"
-          />
-          <input
-            type="text"
-            value={newDescription}
-            onChange={(e) => setNewDescription(e.target.value)}
-            placeholder="Description (optional)"
-            className="border border-[var(--border-soft)] rounded-xl px-3 py-2 min-h-[44px]"
-          />
-        </div>
-        <button
-          type="button"
-          onClick={() => createMutation.mutate()}
-          disabled={!newName.trim() || createMutation.isPending}
-          className="mt-3 bg-[#1B3A6B] text-white px-4 py-2 rounded-xl min-h-[44px] text-sm font-medium flex items-center gap-2 disabled:opacity-50"
-        >
-          <Plus className="w-4 h-4" /> {createMutation.isPending ? 'Creating...' : 'Create District'}
-        </button>
-        {createMutation.isError && (
-          <p className="text-sm text-red-600 mt-2">Could not create district. Check name and try again.</p>
-        )}
-      </section>
+      {canManageDistricts ? (
+        <section className="app-card p-4">
+          <h2 className="app-section-title text-lg mb-2">Create District</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <input
+              type="text"
+              value={newName}
+              onChange={(e) => setNewName(e.target.value)}
+              placeholder="District name (e.g. North, Central, South)"
+              className="border border-[var(--border-soft)] rounded-xl px-3 py-2 md:col-span-2 min-h-[44px]"
+            />
+            <input
+              type="text"
+              value={newDescription}
+              onChange={(e) => setNewDescription(e.target.value)}
+              placeholder="Description (optional)"
+              className="border border-[var(--border-soft)] rounded-xl px-3 py-2 min-h-[44px]"
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => createMutation.mutate()}
+            disabled={!newName.trim() || createMutation.isPending}
+            className="mt-3 bg-[#1B3A6B] text-white px-4 py-2 rounded-xl min-h-[44px] text-sm font-medium flex items-center gap-2 disabled:opacity-50"
+          >
+            <Plus className="w-4 h-4" /> {createMutation.isPending ? 'Creating...' : 'Create District'}
+          </button>
+          {createMutation.isError && (
+            <p className="text-sm text-red-600 mt-2">Could not create district. Check name and try again.</p>
+          )}
+        </section>
+      ) : (
+        <section className="app-card p-4">
+          <p className="text-sm text-[var(--text-secondary)]">
+            District structure is read-only for your role.
+          </p>
+        </section>
+      )}
 
       {/* Districts list */}
       {isLoading ? (
@@ -207,33 +218,35 @@ export default function DistrictsPage() {
                 {isExpanded && (
                   <div className="px-4 pb-4 border-t border-[var(--border-soft)] pt-3 space-y-3">
                     {/* Action buttons */}
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        type="button"
-                        onClick={() => startEdit(district)}
-                        className="text-xs px-3 py-1.5 rounded-lg border border-[var(--border-soft)] text-[var(--text-secondary)] hover:bg-[var(--surface-bg)] flex items-center gap-1"
-                      >
-                        <Pencil className="w-3 h-3" /> Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => startAssign(district)}
-                        className="text-xs px-3 py-1.5 rounded-lg border border-[var(--border-soft)] text-[var(--text-secondary)] hover:bg-[var(--surface-bg)] flex items-center gap-1"
-                      >
-                        <MapPin className="w-3 h-3" /> Assign Villages
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!window.confirm(`Delete district "${district.name}"? Villages will be unassigned but not deleted.`)) return;
-                          deleteMutation.mutate(district.id);
-                        }}
-                        disabled={deleteMutation.isPending}
-                        className="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 flex items-center gap-1 disabled:opacity-50"
-                      >
-                        <Trash2 className="w-3 h-3" /> Delete
-                      </button>
-                    </div>
+                    {canManageDistricts && (
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => startEdit(district)}
+                          className="text-xs px-3 py-1.5 rounded-lg border border-[var(--border-soft)] text-[var(--text-secondary)] hover:bg-[var(--surface-bg)] flex items-center gap-1"
+                        >
+                          <Pencil className="w-3 h-3" /> Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => startAssign(district)}
+                          className="text-xs px-3 py-1.5 rounded-lg border border-[var(--border-soft)] text-[var(--text-secondary)] hover:bg-[var(--surface-bg)] flex items-center gap-1"
+                        >
+                          <MapPin className="w-3 h-3" /> Assign Villages
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!window.confirm(`Delete district "${district.name}"? Villages will be unassigned but not deleted.`)) return;
+                            deleteMutation.mutate(district.id);
+                          }}
+                          disabled={deleteMutation.isPending}
+                          className="text-xs px-3 py-1.5 rounded-lg border border-red-200 text-red-600 hover:bg-red-50 flex items-center gap-1 disabled:opacity-50"
+                        >
+                          <Trash2 className="w-3 h-3" /> Delete
+                        </button>
+                      </div>
+                    )}
 
                     {/* Edit form */}
                     {isEditing && (

@@ -28,6 +28,8 @@ export interface SessionResponse {
     can_access_leaderboard: boolean;
     can_access_war_room: boolean;
     can_access_poll_watcher: boolean;
+    can_access_duplicates: boolean;
+    can_access_audit_logs: boolean;
     manageable_roles: string[];
   };
 }

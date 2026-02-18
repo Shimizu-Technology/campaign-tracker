@@ -38,7 +38,10 @@ module Api
         updates[:welcome_sms_template] = template.presence if params.key?(:welcome_sms_template)
         updates[:show_pace] = ActiveModel::Type::Boolean.new.cast(params[:show_pace]) if params.key?(:show_pace)
 
-        campaign.update!(updates) if updates.any?
+        if updates.any?
+          campaign.update!(updates)
+          log_audit!(campaign, action: "settings_updated", changed_data: campaign.saved_changes.except("updated_at"))
+        end
 
         render json: settings_json(campaign)
       end
@@ -57,6 +60,30 @@ module Api
       def require_admin!
         unless current_user&.admin?
           render_api_error(message: "Admin access required", status: :forbidden, code: "forbidden")
+        end
+      end
+
+      def log_audit!(record, action:, changed_data:)
+        AuditLog.create!(
+          auditable: record,
+          actor_user: current_user,
+          action: action,
+          changed_data: normalize_changed_data(changed_data),
+          metadata: {
+            entry_mode: "settings",
+            ip_address: request.remote_ip,
+            user_agent: request.user_agent
+          }.compact
+        )
+      end
+
+      def normalize_changed_data(changed_data)
+        changed_data.each_with_object({}) do |(field, value), output|
+          if value.is_a?(Array) && value.length == 2
+            output[field] = { from: value[0], to: value[1] }
+          else
+            output[field] = { from: nil, to: value }
+          end
         end
       end
     end
