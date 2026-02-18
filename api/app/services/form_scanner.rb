@@ -342,6 +342,8 @@ class FormScanner
         "registered_voter" => normalize_boolean(source["registered_voter"], fallback: true),
         "yard_sign" => normalize_boolean(source["yard_sign"], fallback: false),
         "motorcade_available" => normalize_boolean(source["motorcade_available"], fallback: false),
+        "opt_in_text" => normalize_boolean(source["opt_in_text"], fallback: false),
+        "opt_in_email" => normalize_boolean(source["opt_in_email"], fallback: false),
         "confidence" => confidence
       }
     end

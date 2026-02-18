@@ -23,7 +23,8 @@ module Api
           import_entries: 0
         }
 
-        base_scope.find_each do |supporter|
+        # TODO: Refactor to SQL GROUP BY aggregation for better performance at scale
+        base_scope.limit(10_000).find_each do |supporter|
           attribution = attribution_channel_for(supporter)
           next unless attribution
 

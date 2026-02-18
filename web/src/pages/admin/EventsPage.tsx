@@ -65,7 +65,7 @@ export default function EventsPage() {
   });
 
   const events: EventItem[] = useMemo(() => eventsData?.events || [], [eventsData]);
-  const villagesAll: VillageOption[] = villageData?.villages || [];
+  const villagesAll: VillageOption[] = useMemo(() => villageData?.villages || [], [villageData]);
   const scopedVillageIds = sessionData?.user?.scoped_village_ids ?? null;
   const villages: VillageOption[] = useMemo(() => {
     if (scopedVillageIds === null) return villagesAll;

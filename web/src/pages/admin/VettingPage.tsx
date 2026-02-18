@@ -96,7 +96,7 @@ export default function VettingPage() {
     if (scopedVillageIds === null) return;
     if (!villageFilter) return;
     if (scopedVillageIds.includes(Number(villageFilter))) return;
-    setVillageFilter('');
+    queueMicrotask(() => setVillageFilter(''));
   }, [scopedVillageIds, villageFilter]);
 
   const toggleSelect = (id: number) => {

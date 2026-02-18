@@ -23,10 +23,10 @@ module Api
 
         render json: {
           audit_logs: serialize_logs(logs),
-          filters: {
+          filters: page <= 1 ? {
             actions: AuditLog.distinct.order(:action).pluck(:action),
             auditable_types: AuditLog.distinct.order(:auditable_type).pluck(:auditable_type).compact
-          },
+          } : nil,
           pagination: {
             page: page,
             per_page: per_page,

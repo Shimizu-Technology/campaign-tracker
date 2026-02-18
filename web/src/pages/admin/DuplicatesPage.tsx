@@ -126,7 +126,7 @@ export default function DuplicatesPage() {
     if (scopedVillageIds === null) return;
     if (!villageFilter) return;
     if (scopedVillageIds.includes(Number(villageFilter))) return;
-    setVillageFilter('');
+    queueMicrotask(() => setVillageFilter(''));
   }, [scopedVillageIds, villageFilter]);
 
   // Group duplicates into pairs

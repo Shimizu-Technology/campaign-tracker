@@ -152,6 +152,7 @@ module Api
         district_ids = Village.where(id: ids).where.not(district_id: nil).distinct.pluck(:district_id)
         scope.where(assigned_village_id: ids)
              .or(scope.where(assigned_district_id: district_ids))
+             .or(scope.where(role: "campaign_admin"))
       end
 
       def referral_code_json(referral_code)
@@ -183,7 +184,7 @@ module Api
         end
 
         if assigned_user.assigned_village_id.present? && assigned_user.assigned_village_id != village.id
-          return render_api_error(
+          render_api_error(
             message: "Assigned user is not scoped to the selected village",
             status: :unprocessable_entity,
             code: "assigned_user_village_mismatch"

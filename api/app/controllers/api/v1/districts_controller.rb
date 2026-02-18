@@ -84,6 +84,7 @@ module Api
       # Batch load supporter counts to avoid N+1 queries
       def load_supporter_counts
         @supporter_counts = Supporter.active.group(:village_id).count
+        @registered_voter_counts = Precinct.group(:village_id).sum(:registered_voters)
       end
 
       def district_json(district)
@@ -93,7 +94,7 @@ module Api
           description: district.description,
           villages: district.villages.sort_by(&:name).map { |v| village_summary(v) },
           supporter_count: district.village_ids.sum { |vid| @supporter_counts.fetch(vid, 0) },
-          registered_voters: district.villages.joins(:precincts).sum("precincts.registered_voters")
+          registered_voters: district.village_ids.sum { |vid| @registered_voter_counts.fetch(vid, 0) }
         }
       end
 

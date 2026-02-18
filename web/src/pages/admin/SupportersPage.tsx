@@ -127,9 +127,11 @@ export default function SupportersPage() {
     if (scopedVillageIds === null) return;
     if (!villageFilter) return;
     if (scopedVillageIds.includes(Number(villageFilter))) return;
-    setVillageFilter('');
-    setPrecinctFilter('');
-    setPage(1);
+    queueMicrotask(() => {
+      setVillageFilter('');
+      setPrecinctFilter('');
+      setPage(1);
+    });
   }, [scopedVillageIds, villageFilter]);
 
   useEffect(() => {
