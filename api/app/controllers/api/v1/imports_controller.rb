@@ -213,10 +213,10 @@ module Api
               action: "created",
               changed_data: normalize_changed_data(supporter.saved_changes.except("updated_at")),
               metadata: {
-                entry_mode: "bulk_import",
-                import_key: import_key,
-                import_row: row["_row"] || (idx + 1),
-                ip_address: request.remote_ip
+                "entry_mode" => "bulk_import",
+                "import_key" => import_key,
+                "import_row" => row["_row"] || (idx + 1),
+                "ip_address" => request.remote_ip
               }.compact,
               created_at: Time.current
             }

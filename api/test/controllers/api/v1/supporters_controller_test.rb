@@ -150,7 +150,8 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
       clerk_id: "clerk-staff-entry",
       email: "staff-entry@example.com",
       name: "Staff Entry User",
-      role: "block_leader"
+      role: "block_leader",
+      assigned_village_id: @village.id
     )
 
     post "/api/v1/supporters?entry_mode=staff",
@@ -176,7 +177,8 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
       clerk_id: "clerk-staff-scan",
       email: "staff-scan@example.com",
       name: "Staff Scan User",
-      role: "block_leader"
+      role: "block_leader",
+      assigned_village_id: @village.id
     )
 
     post "/api/v1/supporters?entry_mode=staff&entry_channel=scan",

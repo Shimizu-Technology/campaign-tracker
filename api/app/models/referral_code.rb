@@ -24,7 +24,7 @@ class ReferralCode < ApplicationRecord
     existing = where(code: candidates).pluck(:code).to_set
     candidates.each { |c| return c unless existing.include?(c) }
 
-    raise "Unable to generate unique referral code after 70 attempts"
+    raise "Unable to generate unique referral code after 70 attempts (prefix: #{base_prefix}, suffix: #{base_suffix})"
   end
 
   def self.build_prefix(display_name)

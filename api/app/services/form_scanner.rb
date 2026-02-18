@@ -311,8 +311,6 @@ class FormScanner
             end
             current_start = nil
           end
-        elsif ch == "]"
-          break if depth.zero?
         end
 
         i += 1
