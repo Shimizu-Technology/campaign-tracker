@@ -15,4 +15,28 @@ module AuditLoggable
       end
     end
   end
+
+  # Unified audit log writer. Override `audit_entry_mode` in controllers for custom entry_mode.
+  def log_audit!(record, action:, changed_data:, entry_mode: nil, metadata: {})
+    auditable = record || current_user
+    auditable_type = record ? record.class.name : "User"
+
+    AuditLog.create!(
+      auditable: auditable,
+      auditable_type: auditable_type,
+      actor_user: current_user,
+      action: action,
+      changed_data: changed_data.is_a?(Hash) && changed_data.values.first.is_a?(Array) ? normalize_changed_data(changed_data) : changed_data,
+      metadata: {
+        entry_mode: entry_mode || audit_entry_mode,
+        ip_address: request.remote_ip,
+        user_agent: request.user_agent
+      }.compact.merge(metadata)
+    )
+  end
+
+  # Override in controllers for controller-specific entry_mode
+  def audit_entry_mode
+    nil
+  end
 end

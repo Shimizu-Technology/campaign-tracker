@@ -310,15 +310,8 @@ module Api
         nil
       end
 
-      def log_audit!(record, action:, changed_data:)
-        AuditLog.create!(
-          auditable: record || current_user,
-          auditable_type: record ? record.class.name : "User",
-          actor_user: current_user,
-          action: action,
-          changed_data: changed_data,
-          metadata: { ip_address: request.remote_ip, user_agent: request.user_agent }
-        )
+      def audit_entry_mode
+        "bulk_import"
       end
     end
   end

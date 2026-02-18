@@ -21,7 +21,7 @@ Related references:
 1. Run RBAC checklist first (highest risk for silent regressions)
 2. Run core flow regression second
 3. Run stabilization checklist whenever auth/session/cable behavior changes
-3. Record failures with:
+4. Record failures with:
    - role/account used
    - exact route and action
    - expected vs actual

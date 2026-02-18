@@ -61,18 +61,8 @@ module Api
         }
       end
 
-      def log_audit!(supporter, action:, changed_data:)
-        AuditLog.create!(
-          auditable: supporter,
-          actor_user: current_user,
-          action: action,
-          changed_data: normalize_changed_data(changed_data),
-          metadata: {
-            entry_mode: "staff_manual_api",
-            ip_address: request.remote_ip,
-            user_agent: request.user_agent
-          }.compact
-        )
+      def audit_entry_mode
+        "staff_manual_api"
       end
     end
   end
