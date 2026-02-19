@@ -142,6 +142,7 @@ const PERMISSION_LABELS: Record<PermissionKey, string> = {
   can_access_audit_logs: 'Activity log',
 };
 
+// Keep in sync with api/app/controllers/concerns/authenticatable.rb — permission_map_for(role)
 const ROLE_PERMISSION_MAP: Record<string, PermissionKey[]> = {
   campaign_admin: PERMISSION_KEYS,
   district_coordinator: PERMISSION_KEYS,

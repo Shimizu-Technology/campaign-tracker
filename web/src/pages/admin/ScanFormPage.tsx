@@ -264,6 +264,9 @@ export default function ScanFormPage() {
     }
   };
 
+  // Declared before saveMutation so the closure captures a stable reference
+  const rowIssuesMatrix = useMemo(() => rows.map((row) => analyzeRowIssues(row)), [rows]);
+
   const saveMutation = useMutation({
     mutationFn: async () => {
       const activeRows = rows.filter((row) => !row._skip);
@@ -362,8 +365,6 @@ export default function ScanFormPage() {
 
   const [showIssuesOnly, setShowIssuesOnly] = useState(false);
 
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
-  const rowIssuesMatrix = useMemo(() => rows.map((row) => analyzeRowIssues(row)), [rows]);
   const rowsWithAnyIssues = rowIssuesMatrix.filter((issues) => issues.length > 0).length;
   const rowsWithCriticalIssues = rowIssuesMatrix.filter((issues) => issues.some((issue) => issue.severity === 'critical')).length;
   const rowsWithWarningOnly = rowIssuesMatrix.filter((issues) =>
