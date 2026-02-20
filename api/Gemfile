@@ -59,6 +59,6 @@ gem "dotenv-rails", groups: [ :development, :test ]
 gem "resend", "~> 1.0"
 
 # Excel/spreadsheet parsing for bulk import
-gem "roo", "~> 2.10"
+gem "roo", "~> 3.0"
 
 gem "caxlsx", "~> 4.1"
