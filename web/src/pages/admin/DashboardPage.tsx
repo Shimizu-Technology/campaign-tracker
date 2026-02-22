@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { getDashboard } from '../../lib/api';
+import { getDashboard, getSprintGoals } from '../../lib/api';
 import { Link } from 'react-router-dom';
-import { Users, MapPin, TrendingUp, BarChart3 } from 'lucide-react';
+import { Users, MapPin, TrendingUp, BarChart3, Target, Calendar } from 'lucide-react';
 import DashboardSkeleton from '../../components/DashboardSkeleton';
 
 interface VillageData {
@@ -77,6 +77,14 @@ function paceLabel(diff: number, status: string) {
 }
 
 export default function DashboardPage() {
+  const { data: sprintGoals } = useQuery<Array<{
+    id: number; title: string; village_name: string | null; target_count: number;
+    current_count: number; end_date: string; progress_percentage: number;
+  }>>({
+    queryKey: ['sprint_goals', 'active'],
+    queryFn: () => getSprintGoals({ status: 'active' }),
+  });
+
   const { data, isLoading, isError } = useQuery<DashboardPayload>({
     queryKey: ['dashboard'],
     queryFn: getDashboard,
@@ -207,6 +215,48 @@ export default function DashboardPage() {
           />
         </div>
       </div>
+
+      {/* Sprint Goals */}
+      {sprintGoals && sprintGoals.length > 0 && (
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-bold text-[var(--text-primary)] tracking-tight flex items-center gap-2">
+              <Target className="w-5 h-5 text-[var(--text-muted)]" />
+              Sprint Goals
+            </h2>
+            <Link to="/admin/sprint-goals" className="text-xs font-medium text-blue-400 hover:text-blue-300">
+              View all
+            </Link>
+          </div>
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {sprintGoals.map((goal) => {
+              const daysLeft = Math.ceil((new Date(goal.end_date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+              const pct = goal.progress_percentage;
+              const barColor = pct >= 75 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-500';
+              const textColor = pct >= 75 ? 'text-emerald-400' : pct >= 50 ? 'text-amber-400' : 'text-red-400';
+              return (
+                <div key={goal.id} className="app-card p-4">
+                  <h3 className="font-semibold text-[var(--text-primary)] text-sm mb-1 truncate">{goal.title}</h3>
+                  <div className="flex items-center gap-2 text-[11px] text-[var(--text-muted)] mb-2">
+                    <span>{goal.village_name || 'Campaign-wide'}</span>
+                    <span className="flex items-center gap-0.5">
+                      <Calendar className="w-3 h-3" />
+                      {daysLeft < 0 ? 'Expired' : daysLeft === 0 ? 'Last day' : `${daysLeft}d left`}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm mb-1">
+                    <span className="text-[var(--text-secondary)] tabular-nums">{goal.current_count} / {goal.target_count}</span>
+                    <span className={`font-semibold tabular-nums ${textColor}`}>{pct}%</span>
+                  </div>
+                  <div className="w-full bg-[var(--surface-overlay)] rounded-full h-2 overflow-hidden">
+                    <div className={`h-2 rounded-full transition-all duration-500 ${barColor}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Village Grid */}
       <div className="mb-5">

@@ -69,6 +69,10 @@ export const resolveDuplicate = (id: number, resolution: string, mergeIntoId?: n
   api.patch(`/supporters/${id}/resolve_duplicate`, { resolution, merge_into_id: mergeIntoId }).then(r => r.data);
 export const scanDuplicates = () =>
   api.post('/supporters/scan_duplicates').then(r => r.data);
+export const getOutreachSupporters = (params?: QueryParams) =>
+  api.get('/supporters/outreach', { params }).then(r => r.data);
+export const updateOutreachStatus = (id: number, data: JsonRecord) =>
+  api.patch(`/supporters/${id}/outreach_status`, data).then(r => r.data);
 // Import
 export const uploadImportPreview = (file: File) => {
   const form = new FormData();
@@ -157,5 +161,12 @@ export const deleteUser = (id: number) => api.delete(`/users/${id}`).then(r => r
 // Settings
 export const getSettings = () => api.get('/settings').then(r => r.data);
 export const updateSettings = (data: JsonRecord) => api.patch('/settings', data).then(r => r.data);
+
+// Sprint Goals
+export const getSprintGoals = (params?: QueryParams) => api.get('/sprint_goals', { params }).then(r => r.data);
+export const createSprintGoal = (data: JsonRecord) => api.post('/sprint_goals', { sprint_goal: data }).then(r => r.data);
+export const updateSprintGoal = (id: number, data: JsonRecord) =>
+  api.patch(`/sprint_goals/${id}`, { sprint_goal: data }).then(r => r.data);
+export const deleteSprintGoal = (id: number) => api.delete(`/sprint_goals/${id}`).then(r => r.data);
 
 export default api;

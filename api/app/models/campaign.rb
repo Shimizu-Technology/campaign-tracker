@@ -2,6 +2,7 @@ class Campaign < ApplicationRecord
   has_many :districts, dependent: :destroy
   has_many :quotas, dependent: :destroy
   has_many :events, dependent: :destroy
+  has_many :sprint_goals, dependent: :destroy
 
   validates :name, presence: true
   validates :election_year, presence: true
