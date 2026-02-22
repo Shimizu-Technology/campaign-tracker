@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
 import { AlertTriangle, Pencil, Save, UserRound, X } from 'lucide-react';
-import { getSupporter, getVillages, updateSupporter, verifySupporter } from '../../lib/api';
+import { getSupporter, getVillages, updateSupporter, verifySupporter, updateOutreachStatus } from '../../lib/api';
 import { formatDateTime } from '../../lib/datetime';
 
 interface VillageOption {
@@ -35,6 +35,9 @@ interface SupporterDetail {
   potential_duplicate: boolean;
   duplicate_of_id: number | null;
   duplicate_notes: string | null;
+  registration_outreach_status: string | null;
+  registration_outreach_notes: string | null;
+  registration_outreach_date: string | null;
   source: string;
   status: string;
   leader_code?: string | null;
@@ -600,6 +603,86 @@ export default function SupporterDetailPage() {
               Last updated: {formatDateTime(supporter.verified_at)}
             </p>
           )}
+        </section>
+
+        <section className="app-card p-4">
+          <h2 className="font-semibold text-[var(--text-primary)] mb-2">Voter Registration Outreach</h2>
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-[var(--text-secondary)]">Registered voter:</span>
+              <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-semibold ${
+                supporter.registered_voter ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-800'
+              }`}>
+                {supporter.registered_voter ? 'Yes' : 'No'}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-[var(--text-secondary)]">Outreach status:</span>
+              {canEdit ? (
+                <select
+                  value={supporter.registration_outreach_status || ''}
+                  onChange={async (e) => {
+                    if (e.target.value) {
+                      try {
+                        await updateOutreachStatus(supporter.id, { registration_outreach_status: e.target.value });
+                        refetch();
+                      } catch {
+                        alert('Failed to update outreach status.');
+                      }
+                    }
+                  }}
+                  className="border border-[var(--border-soft)] rounded-xl px-3 py-2 text-sm bg-[var(--surface-raised)]"
+                >
+                  <option value="">Not contacted</option>
+                  <option value="contacted">Contacted</option>
+                  <option value="registered">Registered</option>
+                  <option value="declined">Declined</option>
+                </select>
+              ) : (
+                <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-semibold ${
+                  supporter.registration_outreach_status === 'registered' ? 'bg-green-100 text-green-700' :
+                  supporter.registration_outreach_status === 'contacted' ? 'bg-blue-100 text-blue-700' :
+                  supporter.registration_outreach_status === 'declined' ? 'bg-red-100 text-red-700' :
+                  'bg-gray-100 text-gray-600'
+                }`}>
+                  {supporter.registration_outreach_status ? supporter.registration_outreach_status.charAt(0).toUpperCase() + supporter.registration_outreach_status.slice(1) : 'Not contacted'}
+                </span>
+              )}
+            </div>
+            {canEdit && (
+              <div>
+                <label className="text-sm text-[var(--text-secondary)] block mb-1">Outreach notes</label>
+                <textarea
+                  defaultValue={supporter.registration_outreach_notes || ''}
+                  onBlur={async (e) => {
+                    const newNotes = e.target.value;
+                    if (newNotes !== (supporter.registration_outreach_notes || '')) {
+                      try {
+                        await updateOutreachStatus(supporter.id, { registration_outreach_notes: newNotes });
+                        refetch();
+                      } catch {
+                        alert('Failed to save outreach notes.');
+                      }
+                    }
+                  }}
+                  rows={2}
+                  className="w-full border border-[var(--border-soft)] rounded-xl px-3 py-2 text-sm"
+                  placeholder="Notes about outreach attempts..."
+                />
+              </div>
+            )}
+            {!canEdit && supporter.registration_outreach_notes && (
+              <div>
+                <span className="text-sm text-[var(--text-secondary)]">Notes:</span>
+                <p className="text-sm text-[var(--text-primary)] mt-1">{supporter.registration_outreach_notes}</p>
+              </div>
+            )}
+            {supporter.registration_outreach_date && (
+              <p className="text-xs text-[var(--text-muted)]">
+                Last outreach: {formatDateTime(supporter.registration_outreach_date)}
+              </p>
+            )}
+          </div>
         </section>
 
         <section className="app-card p-4">

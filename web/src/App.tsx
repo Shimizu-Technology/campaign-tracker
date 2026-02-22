@@ -35,6 +35,7 @@ const ImportPage = lazy(() => import('./pages/admin/ImportPage'));
 const VettingPage = lazy(() => import('./pages/admin/VettingPage'));
 const ScanFormPage = lazy(() => import('./pages/admin/ScanFormPage'));
 const AuditLogsPage = lazy(() => import('./pages/admin/AuditLogsPage'));
+const OutreachPage = lazy(() => import('./pages/admin/OutreachPage'));
 
 function LazyFallback() {
   return (
@@ -335,6 +336,16 @@ export default function App() {
               <AdminRoute>
                 <PermissionRoute permission="can_manage_configuration">
                   <PrecinctSettingsPage />
+                </PermissionRoute>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/outreach"
+            element={
+              <AdminRoute>
+                <PermissionRoute permission="can_view_supporters">
+                  <OutreachPage />
                 </PermissionRoute>
               </AdminRoute>
             }
