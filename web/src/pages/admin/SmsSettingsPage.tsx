@@ -70,7 +70,7 @@ export default function SmsSettingsPage() {
         {/* Welcome SMS Template */}
         <div className="app-card p-6 space-y-4">
           <div className="flex items-center gap-2">
-            <MessageSquare className="w-5 h-5 text-[#1B3A6B]" />
+            <MessageSquare className="w-5 h-5 text-primary" />
             <h2 className="text-lg font-semibold text-[var(--text-primary)]">Welcome SMS Template</h2>
           </div>
           <p className="text-sm text-[var(--text-secondary)]">
@@ -105,7 +105,7 @@ export default function SmsSettingsPage() {
               onChange={(e) => setTemplate(e.target.value)}
               rows={4}
               maxLength={320}
-              className="w-full border border-[var(--border-soft)] rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent resize-none"
+              className="w-full border border-[var(--border-soft)] rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
               placeholder="Enter your welcome SMS template..."
             />
             <div className="flex justify-between mt-1">
@@ -134,7 +134,7 @@ export default function SmsSettingsPage() {
             <button
               onClick={() => saveMutation.mutate(displayTemplate)}
               disabled={saveMutation.isPending || !hasChanges}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1B3A6B] text-white rounded-lg hover:bg-[#15305a] disabled:opacity-50 text-sm font-medium"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-lg hover:bg-[#15305a] disabled:opacity-50 text-sm font-medium"
             >
               <Save className="w-4 h-4" />
               {saveMutation.isPending ? 'Saving...' : 'Save Template'}

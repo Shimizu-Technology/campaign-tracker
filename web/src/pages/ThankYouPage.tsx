@@ -19,9 +19,9 @@ function FacebookIcon({ className }: { className?: string }) {
 
 export default function ThankYouPage() {
   return (
-    <div className="min-h-screen bg-linear-to-br from-[#1B3A6B] to-[#0f2340] text-white flex items-center justify-center px-4">
+    <div className="min-h-screen bg-linear-to-br from-primary to-primary-dark text-white flex items-center justify-center px-4">
       <div className="text-center max-w-md rounded-2xl border border-white/10 bg-white/5 backdrop-blur px-6 py-10">
-        <Heart className="w-16 h-16 mx-auto mb-5 text-[#C41E3A]" />
+        <Heart className="w-16 h-16 mx-auto mb-5 text-cta" />
         <h1 className="text-4xl font-bold tracking-tight mb-3">
           Si Yu'os Ma'åse!
         </h1>

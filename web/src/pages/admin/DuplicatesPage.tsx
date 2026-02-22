@@ -55,7 +55,7 @@ function SupporterCard({ supporter, isFullRecord }: { supporter: Supporter | { i
     const s = supporter as { id: number; name: string; contact_number: string };
     return (
       <div className="flex-1 min-w-0 p-4 bg-[var(--surface-bg)] rounded-xl">
-        <Link to={`/admin/supporters/${s.id}`} className="font-medium text-[#1B3A6B] hover:underline">
+        <Link to={`/admin/supporters/${s.id}`} className="font-medium text-primary hover:underline">
           {s.name}
         </Link>
         <p className="text-sm text-[var(--text-secondary)] mt-1">{s.contact_number}</p>
@@ -68,7 +68,7 @@ function SupporterCard({ supporter, isFullRecord }: { supporter: Supporter | { i
   return (
     <div className="flex-1 min-w-0 p-4 bg-[var(--surface-bg)] rounded-xl">
       <div className="flex items-center gap-2 mb-2">
-        <Link to={`/admin/supporters/${s.id}`} className="font-semibold text-[#1B3A6B] hover:underline">
+        <Link to={`/admin/supporters/${s.id}`} className="font-semibold text-primary hover:underline">
           {s.first_name} {s.last_name}
         </Link>
         {verificationBadge(s.verification_status)}
@@ -173,7 +173,7 @@ export default function DuplicatesPage() {
         <button
           onClick={() => scanMutation.mutate()}
           disabled={scanMutation.isPending}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-[#1B3A6B] text-white rounded-xl min-h-[44px] hover:bg-[#15305a] disabled:opacity-50"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-xl min-h-[44px] hover:bg-[#15305a] disabled:opacity-50"
         >
           <Search className="w-4 h-4" />
           {scanMutation.isPending ? 'Scanning...' : 'Scan for Duplicates'}
@@ -261,7 +261,7 @@ export default function DuplicatesPage() {
                             resolveMutation.mutate({ id: matchIsFullRecord ? match!.id : s.duplicate_of_id!, resolution: 'merge', mergeIntoId: s.id });
                           }}
                           disabled={resolveMutation.isPending}
-                          className="inline-flex items-center gap-1 px-3 py-2 text-sm bg-[#1B3A6B] text-white rounded-xl min-h-[44px] hover:bg-[#15305a]"
+                          className="inline-flex items-center gap-1 px-3 py-2 text-sm bg-primary text-white rounded-xl min-h-[44px] hover:bg-[#15305a]"
                         >
                           Keep Left
                         </button>
@@ -271,7 +271,7 @@ export default function DuplicatesPage() {
                             resolveMutation.mutate({ id: s.id, resolution: 'merge', mergeIntoId: s.duplicate_of_id! });
                           }}
                           disabled={resolveMutation.isPending}
-                          className="inline-flex items-center gap-1 px-3 py-2 text-sm bg-[#C41E3A] text-white rounded-xl min-h-[44px] hover:bg-[#a3182f]"
+                          className="inline-flex items-center gap-1 px-3 py-2 text-sm bg-cta text-white rounded-xl min-h-[44px] hover:bg-[#a3182f]"
                         >
                           Keep Right
                         </button>

@@ -224,7 +224,7 @@ export default function AuditLogsPage() {
                     else next.add(log.id);
                     return next;
                   })}
-                  className="text-sm text-[#1B3A6B] hover:underline"
+                  className="text-sm text-primary hover:underline"
                 >
                   {expandedIds.has(log.id) ? 'Hide details' : 'Show details'}
                 </button>

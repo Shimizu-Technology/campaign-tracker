@@ -187,7 +187,7 @@ function AuthorizedContent({ children }: { children: React.ReactNode }) {
 
   if (sessionState === 'unauthorized') {
     return (
-      <div className="min-h-screen bg-linear-to-br from-[#1B3A6B] to-[#0f2340] flex items-center justify-center">
+      <div className="min-h-screen bg-linear-to-br from-primary to-primary-dark flex items-center justify-center">
         <div className="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full mx-4 text-center">
           <div className="text-5xl mb-4">🚫</div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
@@ -196,7 +196,7 @@ function AuthorizedContent({ children }: { children: React.ReactNode }) {
           </p>
           <button
             onClick={() => signOut({ redirectUrl: '/admin' })}
-            className="w-full bg-[#1B3A6B] hover:bg-[#152e55] text-white font-bold py-3 rounded-xl text-lg transition-all"
+            className="w-full bg-primary hover:bg-primary-dark text-white font-bold py-3 rounded-xl text-lg transition-all"
           >
             Sign Out &amp; Switch Account
           </button>
@@ -233,12 +233,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         )}
       </SignedIn>
       <SignedOut>
-        <div className="min-h-screen bg-linear-to-br from-[#1B3A6B] to-[#0f2340] flex items-center justify-center">
+        <div className="min-h-screen bg-linear-to-br from-primary to-primary-dark flex items-center justify-center">
           <div className="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full mx-4 text-center">
             <h1 className="text-2xl font-bold text-gray-900 mb-2">Campaign Tracker</h1>
             <p className="text-gray-500 mb-6">Sign in to access the staff dashboard</p>
             <SignInButton mode="modal">
-              <button className="w-full bg-[#1B3A6B] hover:bg-[#152e55] text-white font-bold py-3 rounded-xl text-lg transition-all">
+              <button className="w-full bg-primary hover:bg-primary-dark text-white font-bold py-3 rounded-xl text-lg transition-all">
                 Sign In
               </button>
             </SignInButton>
@@ -247,7 +247,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             </p>
             <Link
               to="/"
-              className="mt-4 inline-flex items-center justify-center text-sm text-[#1B3A6B] hover:text-[#152e55] font-medium"
+              className="mt-4 inline-flex items-center justify-center text-sm text-primary hover:text-primary-dark font-medium"
             >
               Back to Home
             </Link>

@@ -53,7 +53,7 @@ export default function VillageDetailPage() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
-          <MapPin className="w-6 h-6 text-[#1B3A6B]" /> {v.name}
+          <MapPin className="w-6 h-6 text-primary" /> {v.name}
         </h1>
         <p className="text-gray-500 text-sm">{v.region} · {v.registered_voters.toLocaleString()} registered voters (GEC Jan 2026)</p>
       </div>

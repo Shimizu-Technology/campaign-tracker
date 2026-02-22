@@ -136,7 +136,7 @@ export default function SmsPage() {
               onClick={() => setActiveTab(key)}
               className={`flex items-center justify-center gap-2 px-4 py-2 min-h-[44px] rounded-xl text-sm font-medium transition-all ${
                 activeTab === key
-                  ? 'bg-[#1B3A6B] text-white shadow-sm'
+                  ? 'bg-primary text-white shadow-sm'
                   : 'bg-[var(--surface-raised)] text-[var(--text-secondary)] border hover:bg-[var(--surface-bg)]'
               }`}
             >
@@ -217,7 +217,7 @@ function BlastTab() {
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Type your message to supporters..."
-          className="w-full border border-[var(--border-soft)] rounded-xl p-3 h-32 text-sm resize-none focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+          className="w-full border border-[var(--border-soft)] rounded-xl p-3 h-32 text-sm resize-none focus:ring-2 focus:ring-primary focus:border-transparent"
           maxLength={480}
         />
         <div className="flex justify-between text-xs text-[var(--text-muted)] mt-1">
@@ -234,7 +234,7 @@ function BlastTab() {
               type="checkbox"
               checked={filters.motorcade}
               onChange={(e) => setFilters(f => ({ ...f, motorcade: e.target.checked }))}
-              className="rounded border-[var(--border-soft)] text-[#1B3A6B] focus:ring-[#1B3A6B]"
+              className="rounded border-[var(--border-soft)] text-primary focus:ring-primary"
             />
             Motorcade available only
           </label>
@@ -243,7 +243,7 @@ function BlastTab() {
               type="checkbox"
               checked={filters.registered}
               onChange={(e) => setFilters(f => ({ ...f, registered: e.target.checked }))}
-              className="rounded border-[var(--border-soft)] text-[#1B3A6B] focus:ring-[#1B3A6B]"
+              className="rounded border-[var(--border-soft)] text-primary focus:ring-primary"
             />
             Registered voters only
           </label>
@@ -252,7 +252,7 @@ function BlastTab() {
               type="checkbox"
               checked={filters.yardSign}
               onChange={(e) => setFilters(f => ({ ...f, yardSign: e.target.checked }))}
-              className="rounded border-[var(--border-soft)] text-[#1B3A6B] focus:ring-[#1B3A6B]"
+              className="rounded border-[var(--border-soft)] text-primary focus:ring-primary"
             />
             Yard sign supporters only
           </label>
@@ -263,7 +263,7 @@ function BlastTab() {
         <button
           onClick={() => dryRunMutation.mutate()}
           disabled={!message.trim() || dryRunMutation.isPending || (activeBlastId !== null && !blastProgress?.finished)}
-          className="flex-1 bg-[var(--surface-raised)] border border-[#1B3A6B] text-[#1B3A6B] py-3 rounded-xl font-semibold text-sm hover:bg-blue-50 disabled:opacity-50 transition-all"
+          className="flex-1 bg-[var(--surface-raised)] border border-primary text-primary py-3 rounded-xl font-semibold text-sm hover:bg-blue-50 disabled:opacity-50 transition-all"
         >
           {dryRunMutation.isPending ? 'Counting...' : 'Preview (Dry Run)'}
         </button>
@@ -274,7 +274,7 @@ function BlastTab() {
             }
           }}
           disabled={!message.trim() || sendMutation.isPending || (activeBlastId !== null && !blastProgress?.finished)}
-          className="flex-1 bg-[#C41E3A] text-white py-3 rounded-xl font-semibold text-sm hover:bg-red-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+          className="flex-1 bg-cta text-white py-3 rounded-xl font-semibold text-sm hover:bg-red-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
         >
           <Send className="w-4 h-4" />
           {sendMutation.isPending ? 'Sending...' : 'Send Blast'}
@@ -302,7 +302,7 @@ function BlastTab() {
           </div>
           <div className="w-full bg-[var(--surface-overlay)] rounded-full h-3 mb-2">
             <div
-              className="bg-[#1B3A6B] h-3 rounded-full transition-all duration-500"
+              className="bg-primary h-3 rounded-full transition-all duration-500"
               style={{ width: `${blastProgress.progress_pct}%` }}
             />
           </div>
@@ -394,7 +394,7 @@ function EventTab({ events }: { events: EventItem[] }) {
             <select
               value={selectedEvent}
               onChange={(e) => setSelectedEvent(e.target.value)}
-              className="w-full border border-[var(--border-soft)] rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#1B3A6B]"
+              className="w-full border border-[var(--border-soft)] rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-primary"
             >
               <option value="">Select an event...</option>
               {events.map((event) => (
@@ -418,7 +418,7 @@ function EventTab({ events }: { events: EventItem[] }) {
                   onClick={() => setNotifyType(key)}
                   className={`py-2 min-h-[44px] rounded-xl text-sm font-medium border transition-all ${
                     notifyType === key
-                      ? 'bg-[#1B3A6B] text-white border-[#1B3A6B]'
+                      ? 'bg-primary text-white border-primary'
                       : 'bg-[var(--surface-raised)] text-[var(--text-secondary)] hover:bg-[var(--surface-bg)]'
                   }`}
                 >
@@ -437,7 +437,7 @@ function EventTab({ events }: { events: EventItem[] }) {
           }
         }}
         disabled={!selectedEvent || mutation.isPending}
-        className="w-full bg-[#1B3A6B] text-white py-3 rounded-xl font-semibold text-sm hover:bg-blue-900 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+        className="w-full bg-primary text-white py-3 rounded-xl font-semibold text-sm hover:bg-blue-900 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
       >
         <Send className="w-4 h-4" />
         {mutation.isPending ? 'Sending...' : 'Send Notifications'}
@@ -480,7 +480,7 @@ function TestTab() {
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="+1671XXXXXXX"
-              className="w-full border border-[var(--border-soft)] rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-[#1B3A6B]"
+              className="w-full border border-[var(--border-soft)] rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-primary"
             />
           </div>
           <div>
@@ -488,7 +488,7 @@ function TestTab() {
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}
-              className="w-full border border-[var(--border-soft)] rounded-xl p-3 h-24 text-sm resize-none focus:ring-2 focus:ring-[#1B3A6B]"
+              className="w-full border border-[var(--border-soft)] rounded-xl p-3 h-24 text-sm resize-none focus:ring-2 focus:ring-primary"
             />
           </div>
         </div>
@@ -497,7 +497,7 @@ function TestTab() {
       <button
         onClick={() => mutation.mutate()}
         disabled={!phone.trim() || !message.trim() || mutation.isPending}
-        className="w-full bg-[#1B3A6B] text-white py-3 rounded-xl font-semibold text-sm hover:bg-blue-900 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+        className="w-full bg-primary text-white py-3 rounded-xl font-semibold text-sm hover:bg-blue-900 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
       >
         <Send className="w-4 h-4" />
         {mutation.isPending ? 'Sending...' : 'Send Test'}

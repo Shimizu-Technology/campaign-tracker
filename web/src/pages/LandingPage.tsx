@@ -29,7 +29,7 @@ export default function LandingPage() {
   const totalSupporters = data?.total_supporters || 0;
 
   return (
-    <div className="min-h-screen flex flex-col bg-linear-to-br from-[#1B3A6B] to-[#0f2340] text-white">
+    <div className="min-h-screen flex flex-col bg-linear-to-br from-primary to-primary-dark text-white">
       {/* Main Content */}
       <div className="flex-1 max-w-5xl mx-auto px-4 py-8 md:py-12 w-full">
         {/* Header */}
@@ -48,6 +48,7 @@ export default function LandingPage() {
 
         {/* Hero */}
         <div className="text-center mb-12 md:mb-16">
+          <img src="/logo-placeholder.svg" alt="Josh &amp; Tina 2026" className="h-14 md:h-20 mx-auto mb-6" />
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-4">
             Josh & Tina 2026
           </h1>
@@ -71,7 +72,7 @@ export default function LandingPage() {
         <div className="text-center mb-12">
           <Link
             to="/signup"
-            className="inline-block bg-[#C41E3A] hover:bg-[#a01830] text-white text-lg font-semibold px-10 py-4 rounded-2xl shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl"
+            className="inline-block bg-cta hover:bg-cta-hover text-white text-lg font-semibold px-10 py-4 rounded-2xl shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl"
           >
             Sign Up to Support Josh & Tina
           </Link>

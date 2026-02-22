@@ -173,7 +173,7 @@ export default function EventsPage() {
               <textarea value={form.description} onChange={e => setForm(f => ({...f, description: e.target.value}))}
                 className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl" rows={2} placeholder="Description (optional)" />
               <button type="submit" disabled={create.isPending}
-                className="w-full bg-[#1B3A6B] hover:bg-[#152e55] text-white font-bold py-3 rounded-xl">
+                className="w-full bg-primary hover:bg-primary-dark text-white font-bold py-3 rounded-xl">
                 {create.isPending ? 'Creating...' : 'Create Event'}
               </button>
             </form>
