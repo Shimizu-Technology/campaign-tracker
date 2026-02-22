@@ -39,6 +39,10 @@ module Api
         updates[:welcome_sms_template] = template.presence if params.key?(:welcome_sms_template)
         updates[:show_pace] = ActiveModel::Type::Boolean.new.cast(params[:show_pace]) if params.key?(:show_pace)
 
+        [:instagram_url, :facebook_url, :tiktok_url, :twitter_url].each do |field|
+          updates[field] = params[field].presence if params.key?(field)
+        end
+
         if updates.any?
           campaign.update!(updates)
           log_audit!(campaign, action: "settings_updated", changed_data: campaign.saved_changes.except("updated_at"), normalize: true)
@@ -54,7 +58,11 @@ module Api
           welcome_sms_template: campaign.welcome_sms_template || SmsService::DEFAULT_WELCOME_TEMPLATE,
           welcome_sms_preview: SmsService.preview_welcome_template(campaign.welcome_sms_template),
           available_variables: SmsService::WELCOME_TEMPLATE_VARIABLES,
-          show_pace: campaign.show_pace
+          show_pace: campaign.show_pace,
+          instagram_url: campaign.instagram_url,
+          facebook_url: campaign.facebook_url,
+          tiktok_url: campaign.tiktok_url,
+          twitter_url: campaign.twitter_url
         }
       end
 

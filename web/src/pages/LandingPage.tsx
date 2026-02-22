@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Users, BarChart3, CalendarHeart, Heart } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { getStats } from '../lib/api';
+import { getStats, getCampaignInfo } from '../lib/api';
 
 function InstagramIcon({ className }: { className?: string }) {
   return (
@@ -24,6 +24,12 @@ export default function LandingPage() {
     queryKey: ['stats'],
     queryFn: getStats,
     staleTime: 60_000,
+  });
+
+  const { data: campaignInfo } = useQuery({
+    queryKey: ['campaignInfo'],
+    queryFn: getCampaignInfo,
+    staleTime: 300_000,
   });
 
   const totalSupporters = data?.total_supporters || 0;
@@ -131,11 +137,13 @@ export default function LandingPage() {
             </div>
 
             {/* Social */}
+            {(campaignInfo?.instagram_url || campaignInfo?.facebook_url || campaignInfo?.tiktok_url || campaignInfo?.twitter_url) && (
             <div>
               <h4 className="text-[11px] font-semibold text-blue-300/80 uppercase tracking-[0.08em] mb-3">Connect</h4>
               <div className="flex items-center gap-4">
+                {campaignInfo?.instagram_url && (
                 <a
-                  href="https://www.instagram.com/joshandtina2026"
+                  href={campaignInfo.instagram_url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 text-blue-200 hover:text-white transition-colors"
@@ -143,8 +151,10 @@ export default function LandingPage() {
                   <InstagramIcon className="w-4 h-4" />
                   Instagram
                 </a>
+                )}
+                {campaignInfo?.facebook_url && (
                 <a
-                  href="https://www.facebook.com/joshandtina2026"
+                  href={campaignInfo.facebook_url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 text-blue-200 hover:text-white transition-colors"
@@ -152,8 +162,10 @@ export default function LandingPage() {
                   <FacebookIcon className="w-4 h-4" />
                   Facebook
                 </a>
+                )}
               </div>
             </div>
+            )}
 
             {/* Mailing */}
             <div>
