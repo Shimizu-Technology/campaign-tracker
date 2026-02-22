@@ -173,16 +173,17 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         ))}
       </div>
 
-      {/* Home link */}
-      <div className="px-3 pb-2">
-        <Link
-          to="/"
-          onClick={() => setSidebarOpen(false)}
-          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all duration-150"
+      {/* View Public Site */}
+      <div className="mt-auto border-t border-gray-200 pt-3 px-3 pb-4">
+        <a
+          href="/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-all duration-150"
         >
           <ExternalLink className="w-4 h-4 shrink-0 text-gray-400" />
-          <span className="truncate">Public Site</span>
-        </Link>
+          <span>View Public Site</span>
+        </a>
       </div>
 
       {/* User */}
