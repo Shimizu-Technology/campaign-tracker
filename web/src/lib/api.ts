@@ -111,6 +111,10 @@ export const checkInAttendee = (eventId: number, supporterId: number) =>
   api.post(`/events/${eventId}/check_in`, { supporter_id: supporterId }).then(r => r.data);
 export const getEventAttendees = (eventId: number, search?: string) =>
   api.get(`/events/${eventId}/attendees`, { params: { search } }).then(r => r.data);
+export const sendEventSms = (eventId: number, data: { message: string; dry_run?: string }) =>
+  api.post(`/events/${eventId}/send_sms`, data).then(r => r.data);
+export const sendEventEmail = (eventId: number, data: { subject: string; body: string; dry_run?: string }) =>
+  api.post(`/events/${eventId}/send_email`, data).then(r => r.data);
 
 // War Room
 export const getWarRoom = () => api.get('/war_room').then(r => r.data);
@@ -168,5 +172,8 @@ export const createSprintGoal = (data: JsonRecord) => api.post('/sprint_goals', 
 export const updateSprintGoal = (id: number, data: JsonRecord) =>
   api.patch(`/sprint_goals/${id}`, { sprint_goal: data }).then(r => r.data);
 export const deleteSprintGoal = (id: number) => api.delete(`/sprint_goals/${id}`).then(r => r.data);
+
+// Campaign Info (public)
+export const getCampaignInfo = () => api.get('/campaign_info').then(r => r.data);
 
 export default api;

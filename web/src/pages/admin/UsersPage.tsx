@@ -543,7 +543,7 @@ export default function UsersPage() {
     <div className="p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-5 sm:space-y-6">
       <div>
         <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-          <Users className="w-5 h-5 text-[#1B3A6B]" /> User Management
+          <Users className="w-5 h-5 text-primary" /> User Management
         </h1>
         <p className="text-gray-500 text-sm">Authorized managers can invite users and assign allowed campaign roles.</p>
       </div>
@@ -596,7 +596,7 @@ export default function UsersPage() {
             type="button"
             onClick={() => createMutation.mutate()}
             disabled={!newEmail || createMutation.isPending || (roleAssignmentType(newRole) === 'village' && !newAssignedVillageId) || (roleAssignmentType(newRole) === 'district' && !newAssignedDistrictId)}
-            className="mt-3 w-full sm:w-auto bg-[#1B3A6B] text-white px-4 py-2 rounded-xl min-h-[44px] text-sm font-medium inline-flex items-center justify-center gap-2 disabled:opacity-50"
+            className="mt-3 w-full sm:w-auto bg-primary text-white px-4 py-2 rounded-xl min-h-[44px] text-sm font-medium inline-flex items-center justify-center gap-2 disabled:opacity-50"
           >
             <Plus className="w-4 h-4" /> {createMutation.isPending ? 'Adding...' : 'Add User'}
           </button>
@@ -622,7 +622,7 @@ export default function UsersPage() {
                 <button
                   type="button"
                   onClick={expandAllRoles}
-                  className="text-xs text-[#1B3A6B] border border-[#c8d2ea] bg-white hover:bg-[#f4f7ff] rounded-lg px-2.5 py-1.5"
+                  className="text-xs text-primary border border-primary/30 bg-white hover:bg-primary/5 rounded-lg px-2.5 py-1.5"
                 >
                   Expand all
                 </button>
@@ -630,7 +630,7 @@ export default function UsersPage() {
                 <button
                   type="button"
                   onClick={collapseAllRoles}
-                  className="text-xs text-[#1B3A6B] border border-[#c8d2ea] bg-white hover:bg-[#f4f7ff] rounded-lg px-2.5 py-1.5"
+                  className="text-xs text-primary border border-primary/30 bg-white hover:bg-primary/5 rounded-lg px-2.5 py-1.5"
                 >
                   Collapse all
                 </button>
@@ -650,7 +650,7 @@ export default function UsersPage() {
                     <button
                       type="button"
                       onClick={() => toggleRoleExpanded(row.role)}
-                      className="mt-2 inline-flex items-center gap-1.5 text-sm text-[#1B3A6B] min-h-[40px]"
+                      className="mt-2 inline-flex items-center gap-1.5 text-sm text-primary min-h-[40px]"
                     >
                       {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                       {isExpanded ? 'Hide exact access' : 'View exact access'}
@@ -689,7 +689,7 @@ export default function UsersPage() {
                             <button
                               type="button"
                               onClick={() => toggleRoleExpanded(row.role)}
-                              className="inline-flex items-center gap-1.5 text-xs font-medium text-[#1B3A6B] hover:text-[#152e55]"
+                              className="inline-flex items-center gap-1.5 text-xs font-medium text-primary hover:text-primary-dark"
                             >
                               {isExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                               {isExpanded ? 'Collapse' : 'Expand'}
@@ -729,7 +729,7 @@ export default function UsersPage() {
                   type="button"
                   onClick={() => refetch()}
                   disabled={isFetching}
-                  className="bg-[#1B3A6B] text-white px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium disabled:opacity-50"
+                  className="bg-primary text-white px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium disabled:opacity-50"
                 >
                   {isFetching ? 'Retrying...' : 'Retry'}
                 </button>
@@ -857,7 +857,7 @@ export default function UsersPage() {
                               type="button"
                               disabled={!changed || updateMutation.isPending}
                               onClick={() => updateMutation.mutate({ id: user.id, payload: draft })}
-                              className="bg-[#1B3A6B] text-white px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center justify-center gap-1 disabled:opacity-50"
+                              className="bg-primary text-white px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center justify-center gap-1 disabled:opacity-50"
                             >
                               <Save className="w-3.5 h-3.5" /> Save
                             </button>
@@ -893,7 +893,7 @@ export default function UsersPage() {
                               {scopeLabelForRole(user.role, user.assigned_district_id, user.assigned_village_id, villages, districts)}
                             </p>
                             <details className="mt-2">
-                              <summary className="cursor-pointer text-xs text-[#1B3A6B]">View detailed access</summary>
+                              <summary className="cursor-pointer text-xs text-primary">View detailed access</summary>
                               <div className="mt-2 flex flex-wrap gap-1.5">
                                 {PERMISSION_KEYS.map((permission) => {
                                   const allowed = roleHasPermission(user.role, permission);
@@ -917,7 +917,7 @@ export default function UsersPage() {
                             <button
                               type="button"
                               onClick={() => startEdit(user)}
-                              className="bg-[#1B3A6B] text-white px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center justify-center gap-1"
+                              className="bg-primary text-white px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center justify-center gap-1"
                             >
                               <Pencil className="w-3.5 h-3.5" /> Edit
                             </button>
@@ -1097,7 +1097,7 @@ export default function UsersPage() {
                                     type="button"
                                     disabled={!changed || updateMutation.isPending}
                                     onClick={() => updateMutation.mutate({ id: user.id, payload: draft })}
-                                    className="bg-[#1B3A6B] text-white px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1 disabled:opacity-50"
+                                    className="bg-primary text-white px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1 disabled:opacity-50"
                                   >
                                     <Save className="w-3.5 h-3.5" /> Save
                                   </button>
@@ -1113,7 +1113,7 @@ export default function UsersPage() {
                                 <button
                                   type="button"
                                   onClick={() => startEdit(user)}
-                                  className="bg-[#1B3A6B] text-white px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1"
+                                  className="bg-primary text-white px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1"
                                 >
                                   <Pencil className="w-3.5 h-3.5" /> Edit
                                 </button>

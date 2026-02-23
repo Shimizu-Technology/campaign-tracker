@@ -11,8 +11,8 @@ module Api
 
       include Authenticatable
       include AuditLoggable
-      before_action :authenticate_request, only: [ :index, :check_duplicate, :export, :show, :update, :verify, :bulk_verify, :duplicates, :resolve_duplicate, :scan_duplicates ]
-      before_action :require_supporter_access!, only: [ :index, :check_duplicate, :export, :show ]
+      before_action :authenticate_request, only: [ :index, :check_duplicate, :export, :show, :update, :verify, :bulk_verify, :duplicates, :resolve_duplicate, :scan_duplicates, :outreach, :outreach_status ]
+      before_action :require_supporter_access!, only: [ :index, :check_duplicate, :export, :show, :outreach, :outreach_status ]
       before_action :require_coordinator_or_above!, only: [ :duplicates, :resolve_duplicate, :scan_duplicates ]
       before_action :require_chief_or_above!, only: [ :verify, :bulk_verify ]
 
@@ -392,6 +392,90 @@ module Api
         render json: { message: "Duplicate #{action == 'merge' ? 'merged' : 'dismissed'}", supporter: supporter_json(supporter.reload) }
       end
 
+      # GET /api/v1/supporters/outreach
+      def outreach
+        supporters = scope_supporters(Supporter.includes(:village, :precinct))
+                       .where("registered_voter IS NULL OR registered_voter = ?", false)
+                       .where(status: "active")
+
+        if params[:outreach_status].present?
+          supporters = supporters.where(registration_outreach_status: params[:outreach_status])
+        end
+
+        if params[:village_id].present?
+          supporters = supporters.where(village_id: params[:village_id])
+        end
+
+        if params[:search].present?
+          raw = params[:search].to_s.strip
+          sanitized = ActiveRecord::Base.sanitize_sql_like(raw)
+          name_query = "%#{sanitized.downcase}%"
+          supporters = supporters.where(
+            "LOWER(print_name) LIKE :q OR LOWER(first_name) LIKE :q OR LOWER(last_name) LIKE :q",
+            q: name_query
+          )
+        end
+
+        supporters = supporters.order(created_at: :desc)
+
+        page = [ (params[:page] || 1).to_i, 1 ].max
+        per_page = (params[:per_page] || 50).to_i.clamp(1, MAX_PER_PAGE)
+        total = supporters.count
+
+        base_scope = scope_supporters(Supporter)
+                       .where("registered_voter IS NULL OR registered_voter = ?", false)
+                       .where(status: "active")
+        counts = {
+          total: base_scope.count,
+          not_contacted: base_scope.where(registration_outreach_status: nil).count,
+          contacted: base_scope.where(registration_outreach_status: "contacted").count,
+          registered: base_scope.where(registration_outreach_status: "registered").count,
+          declined: base_scope.where(registration_outreach_status: "declined").count
+        }
+
+        supporters = supporters.offset((page - 1) * per_page).limit(per_page)
+
+        render json: {
+          supporters: supporters.map { |s| outreach_json(s) },
+          counts: counts,
+          pagination: { page: page, per_page: per_page, total: total, pages: (total.to_f / per_page).ceil }
+        }
+      end
+
+      # PATCH /api/v1/supporters/:id/outreach_status
+      def outreach_status
+        supporter = scope_supporters(Supporter).find(params[:id])
+        allowed_statuses = %w[contacted registered declined]
+
+        updates = {}
+        if params[:registration_outreach_status].present?
+          unless allowed_statuses.include?(params[:registration_outreach_status])
+            return render_api_error(
+              message: "Invalid outreach status. Must be: #{allowed_statuses.join(', ')}",
+              status: :unprocessable_entity,
+              code: "invalid_outreach_status"
+            )
+          end
+          updates[:registration_outreach_status] = params[:registration_outreach_status]
+          updates[:registration_outreach_date] = Time.current
+          updates[:registered_voter] = true if params[:registration_outreach_status] == "registered"
+        end
+
+        updates[:registration_outreach_notes] = params[:registration_outreach_notes] if params.key?(:registration_outreach_notes)
+
+        if supporter.update(updates)
+          changes = supporter.saved_changes.except("updated_at")
+          log_audit!(supporter, action: "outreach_updated", changed_data: changes, normalize: true) if changes.present?
+          render json: { supporter: outreach_json(supporter) }
+        else
+          render_api_error(
+            message: supporter.errors.full_messages.join(", "),
+            status: :unprocessable_entity,
+            code: "outreach_update_failed"
+          )
+        end
+      end
+
       # POST /api/v1/supporters/scan_duplicates
       def scan_duplicates
         count = DuplicateDetector.scan_all!
@@ -507,6 +591,29 @@ module Api
           potential_duplicate: supporter.potential_duplicate,
           duplicate_of_id: supporter.duplicate_of_id,
           duplicate_notes: supporter.duplicate_notes,
+          registration_outreach_status: supporter.registration_outreach_status,
+          registration_outreach_notes: supporter.registration_outreach_notes,
+          registration_outreach_date: supporter.registration_outreach_date&.iso8601,
+          created_at: supporter.created_at&.iso8601
+        }
+      end
+
+      def outreach_json(supporter)
+        {
+          id: supporter.id,
+          first_name: supporter.first_name,
+          last_name: supporter.last_name,
+          print_name: supporter.print_name,
+          contact_number: supporter.contact_number,
+          email: supporter.email,
+          village_id: supporter.village_id,
+          village_name: supporter.village&.name,
+          precinct_number: supporter.precinct&.number,
+          registered_voter: supporter.registered_voter,
+          registration_outreach_status: supporter.registration_outreach_status,
+          registration_outreach_notes: supporter.registration_outreach_notes,
+          registration_outreach_date: supporter.registration_outreach_date&.iso8601,
+          status: supporter.status,
           created_at: supporter.created_at&.iso8601
         }
       end

@@ -166,7 +166,7 @@ export default function QRCodePage() {
                     const user = assignees.find((candidate) => String(candidate.id) === nextId);
                     setDisplayName(user?.name || user?.email || '');
                   }}
-                  className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent bg-[var(--surface-raised)]"
+                  className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent bg-[var(--surface-raised)]"
                 >
                   <option value="">Select a user...</option>
                   {assignees.map((user) => (
@@ -188,7 +188,7 @@ export default function QRCodePage() {
                   value={displayName}
                   onChange={e => setDisplayName(e.target.value)}
                   placeholder="Volunteer Team A"
-                  className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+                  className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
                 <p className="text-xs text-[var(--text-secondary)] mt-1">
                   Use this only when the referral owner is not an existing user.
@@ -204,7 +204,7 @@ export default function QRCodePage() {
                   value={displayName}
                   onChange={e => setDisplayName(e.target.value)}
                   placeholder="Shown in QR and leaderboard"
-                  className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+                  className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
               </div>
             )}
@@ -215,7 +215,7 @@ export default function QRCodePage() {
                 required
                 value={villageId}
                 onChange={e => setVillageId(e.target.value)}
-                className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent bg-[var(--surface-raised)]"
+                className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl focus:ring-2 focus:ring-primary focus:border-transparent bg-[var(--surface-raised)]"
               >
                 <option value="">Select a village...</option>
                 {villages.map((v) => (
@@ -226,7 +226,7 @@ export default function QRCodePage() {
             <button
               type="submit"
               disabled={generate.isPending || !canGenerate}
-              className="w-full bg-[#1B3A6B] hover:bg-[#152e55] text-white font-bold py-3 rounded-xl disabled:opacity-50"
+              className="w-full bg-primary hover:bg-primary-dark text-white font-bold py-3 rounded-xl disabled:opacity-50"
             >
               {generate.isPending ? 'Generating...' : 'Generate QR Code'}
             </button>
@@ -251,7 +251,7 @@ export default function QRCodePage() {
             {/* Signup URL */}
             <div className="bg-[var(--surface-bg)] rounded-xl p-3 mb-4">
               <p className="text-xs text-[var(--text-secondary)] mb-1">Signup Link</p>
-              <p className="text-sm text-[#1B3A6B] font-mono break-all">{generated.signup_url}</p>
+              <p className="text-sm text-primary font-mono break-all">{generated.signup_url}</p>
             </div>
 
             {/* Actions */}
@@ -266,7 +266,7 @@ export default function QRCodePage() {
               <a
                 href={qrSvgUrl!}
                 download={`qr-${generated.code}.svg`}
-                className="flex-1 flex items-center justify-center gap-2 bg-[#1B3A6B] text-white rounded-xl py-2 px-4 hover:bg-[#152e55] text-sm font-medium"
+                className="flex-1 flex items-center justify-center gap-2 bg-primary text-white rounded-xl py-2 px-4 hover:bg-primary-dark text-sm font-medium"
               >
                 <Download className="w-4 h-4" /> Download SVG
               </a>

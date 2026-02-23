@@ -113,7 +113,7 @@ export default function PrecinctSettingsPage() {
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="bg-[#1B3A6B] text-white px-4 py-2 rounded-xl min-h-[44px]"
+            className="bg-primary text-white px-4 py-2 rounded-xl min-h-[44px]"
           >
             Retry
           </button>
@@ -238,7 +238,7 @@ export default function PrecinctSettingsPage() {
                             checked={draft.active}
                             disabled={disableDeactivate}
                             onChange={(e) => setDraftByPrecinct((prev) => ({ ...prev, [row.id]: { ...draft, active: e.target.checked } }))}
-                            className="rounded border-[var(--border-soft)] text-[#1B3A6B]"
+                            className="rounded border-[var(--border-soft)] text-primary"
                           />
                           {draft.active ? 'Active' : 'Inactive'}
                         </label>
@@ -283,7 +283,7 @@ export default function PrecinctSettingsPage() {
                               },
                             });
                           }}
-                          className="bg-[#1B3A6B] text-white px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1 disabled:opacity-50"
+                          className="bg-primary text-white px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1 disabled:opacity-50"
                         >
                           <Save className="w-3.5 h-3.5" /> Save
                         </button>

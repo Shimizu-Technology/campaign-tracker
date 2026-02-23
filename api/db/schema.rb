@@ -10,7 +10,8 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_22_142142) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_23_081800) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_23_081800) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -42,6 +43,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_22_142142) do
     t.datetime "created_at", null: false
     t.string "election_type"
     t.integer "election_year"
+    t.string "facebook_url"
+    t.string "instagram_url"
     t.string "logo_url"
     t.string "name"
     t.string "party"
@@ -50,6 +53,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_22_142142) do
     t.boolean "show_pace", default: false, null: false
     t.date "started_at"
     t.string "status"
+    t.string "tiktok_url"
+    t.string "twitter_url"
     t.datetime "updated_at", null: false
     t.text "welcome_sms_template"
     t.index ["status"], name: "index_campaigns_on_status"
@@ -436,6 +441,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_22_142142) do
     t.bigint "referral_code_id"
     t.integer "referred_from_village_id"
     t.boolean "registered_voter"
+    t.datetime "registration_outreach_date"
+    t.text "registration_outreach_notes"
+    t.string "registration_outreach_status"
     t.string "source"
     t.string "status"
     t.string "street_address"

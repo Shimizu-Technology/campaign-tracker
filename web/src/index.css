@@ -1,10 +1,29 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Sora:wght@600;700;800&display=swap');
 @import "tailwindcss";
 
+@theme {
+  --color-primary: #1B3A6B;
+  --color-primary-light: #2A4A7B;
+  --color-primary-dark: #0F2A5B;
+  --color-accent: #C5A55A;
+  --color-accent-light: #D4B76A;
+  --color-cta: #C41E3A;
+  --color-cta-hover: #a01830;
+}
+
 :root {
-  /* Brand */
-  --campaign-blue: #1B3A6B;
-  --campaign-red: #C41E3A;
+  /* Brand — update these to change the entire theme */
+  --color-primary: #1B3A6B;
+  --color-primary-light: #2A4A7B;
+  --color-primary-dark: #0F2A5B;
+  --color-accent: #C5A55A;
+  --color-accent-light: #D4B76A;
+  --color-cta: #C41E3A;
+  --color-cta-hover: #a01830;
+
+  /* Legacy aliases */
+  --campaign-blue: var(--color-primary);
+  --campaign-red: var(--color-cta);
 
   /* Light theme surfaces */
   --surface-bg: #f3f4f6;

@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Users, BarChart3, CalendarHeart, Heart } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { getStats } from '../lib/api';
+import { getStats, getCampaignInfo } from '../lib/api';
 
 function InstagramIcon({ className }: { className?: string }) {
   return (
@@ -26,10 +26,16 @@ export default function LandingPage() {
     staleTime: 60_000,
   });
 
+  const { data: campaignInfo } = useQuery({
+    queryKey: ['campaignInfo'],
+    queryFn: getCampaignInfo,
+    staleTime: 300_000,
+  });
+
   const totalSupporters = data?.total_supporters || 0;
 
   return (
-    <div className="min-h-screen flex flex-col bg-linear-to-br from-[#1B3A6B] to-[#0f2340] text-white">
+    <div className="min-h-screen flex flex-col bg-linear-to-br from-primary to-primary-dark text-white">
       {/* Main Content */}
       <div className="flex-1 max-w-5xl mx-auto px-4 py-8 md:py-12 w-full">
         {/* Header */}
@@ -48,6 +54,7 @@ export default function LandingPage() {
 
         {/* Hero */}
         <div className="text-center mb-12 md:mb-16">
+          <img src="/logo-placeholder.svg" alt="Josh &amp; Tina 2026" className="h-14 md:h-20 mx-auto mb-6" />
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-4">
             Josh & Tina 2026
           </h1>
@@ -71,7 +78,7 @@ export default function LandingPage() {
         <div className="text-center mb-12">
           <Link
             to="/signup"
-            className="inline-block bg-[#C41E3A] hover:bg-[#a01830] text-white text-lg font-semibold px-10 py-4 rounded-2xl shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl"
+            className="inline-block bg-cta hover:bg-cta-hover text-white text-lg font-semibold px-10 py-4 rounded-2xl shadow-lg transition-all hover:-translate-y-0.5 hover:shadow-xl"
           >
             Sign Up to Support Josh & Tina
           </Link>
@@ -131,11 +138,13 @@ export default function LandingPage() {
             </div>
 
             {/* Social */}
+            {(campaignInfo?.instagram_url || campaignInfo?.facebook_url || campaignInfo?.tiktok_url || campaignInfo?.twitter_url) && (
             <div>
               <h4 className="text-[11px] font-semibold text-blue-300/80 uppercase tracking-[0.08em] mb-3">Connect</h4>
               <div className="flex items-center gap-4">
+                {campaignInfo?.instagram_url && (
                 <a
-                  href="https://www.instagram.com/joshandtina2026"
+                  href={campaignInfo.instagram_url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 text-blue-200 hover:text-white transition-colors"
@@ -143,8 +152,10 @@ export default function LandingPage() {
                   <InstagramIcon className="w-4 h-4" />
                   Instagram
                 </a>
+                )}
+                {campaignInfo?.facebook_url && (
                 <a
-                  href="https://www.facebook.com/joshandtina2026"
+                  href={campaignInfo.facebook_url}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 text-blue-200 hover:text-white transition-colors"
@@ -152,8 +163,10 @@ export default function LandingPage() {
                   <FacebookIcon className="w-4 h-4" />
                   Facebook
                 </a>
+                )}
               </div>
             </div>
+            )}
 
             {/* Mailing */}
             <div>
