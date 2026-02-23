@@ -1,5 +1,4 @@
 import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
 import { getDashboard, getSprintGoals } from '../../lib/api';
 import { Link } from 'react-router-dom';
 import { Users, MapPin, TrendingUp, BarChart3, Target, Calendar } from 'lucide-react';
@@ -77,8 +76,9 @@ function paceLabel(diff: number, status: string) {
   return `${Math.abs(diff)} behind`;
 }
 
+const RENDER_TIME = Date.now();
+
 export default function DashboardPage() {
-  const nowMs = useMemo(() => Date.now(), []);
 
   const { data: sprintGoals } = useQuery<Array<{
     id: number; title: string; village_name: string | null; target_count: number;
@@ -233,7 +233,7 @@ export default function DashboardPage() {
           </div>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {sprintGoals.map((goal) => {
-              const daysLeft = Math.ceil((new Date(goal.end_date).getTime() - nowMs) / (1000 * 60 * 60 * 24));
+              const daysLeft = Math.ceil((new Date(goal.end_date).getTime() - RENDER_TIME) / (1000 * 60 * 60 * 24));
               const pct = goal.progress_percentage;
               const barColor = pct >= 75 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-500';
               const textColor = pct >= 75 ? 'text-emerald-400' : pct >= 50 ? 'text-amber-400' : 'text-red-400';
