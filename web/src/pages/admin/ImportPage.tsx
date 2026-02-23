@@ -224,7 +224,7 @@ export default function ImportPage() {
             <span key={s} className={`flex items-center gap-1 ${step === s ? 'text-gray-900 font-medium' : ''}`}>
               {i > 0 && <span className="mx-1 text-gray-300">→</span>}
               <span className={`w-5 h-5 rounded-full text-xs flex items-center justify-center ${
-                step === s ? 'bg-[#1B3A6B] text-white' : 'bg-gray-200 text-gray-500'
+                step === s ? 'bg-primary text-white' : 'bg-gray-200 text-gray-500'
               }`}>{i + 1}</span>
               {s === 'upload' ? 'Upload' : s === 'select-sheet' ? 'Sheet' : s === 'map-columns' ? 'Columns' : s === 'review' ? 'Review' : 'Done'}
             </span>
@@ -241,12 +241,12 @@ export default function ImportPage() {
               onDragLeave={() => setDragActive(false)}
               onDrop={handleDrop}
               className={`border-2 border-dashed rounded-2xl p-12 text-center transition-colors ${
-                dragActive ? 'border-[#1B3A6B] bg-blue-50' : 'border-[var(--border-soft)] bg-[var(--surface-raised)]'
+                dragActive ? 'border-primary bg-blue-50' : 'border-[var(--border-soft)] bg-[var(--surface-raised)]'
               }`}
             >
               {uploadMutation.isPending ? (
                 <div className="flex flex-col items-center gap-3">
-                  <Loader2 className="w-10 h-10 text-[#1B3A6B] animate-spin" />
+                  <Loader2 className="w-10 h-10 text-primary animate-spin" />
                   <p className="text-[var(--text-secondary)]">Parsing spreadsheet...</p>
                 </div>
               ) : (
@@ -254,7 +254,7 @@ export default function ImportPage() {
                   <FileSpreadsheet className="w-12 h-12 text-[var(--text-muted)] mx-auto mb-4" />
                   <p className="text-lg font-medium text-[var(--text-primary)] mb-2">Drop your spreadsheet here</p>
                   <p className="text-sm text-[var(--text-secondary)] mb-4">Supports .xlsx and .csv files</p>
-                  <label className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#1B3A6B] text-white rounded-lg hover:bg-[#15305a] cursor-pointer">
+                  <label className="inline-flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-[#15305a] cursor-pointer">
                     <Upload className="w-4 h-4" />
                     Choose File
                     <input
@@ -288,7 +288,7 @@ export default function ImportPage() {
                   <button
                     key={sheet.index}
                     onClick={() => selectSheet(sheet)}
-                    className="w-full text-left p-4 border border-[var(--border-soft)] rounded-xl hover:border-[#1B3A6B] hover:bg-blue-50 transition-colors"
+                    className="w-full text-left p-4 border border-[var(--border-soft)] rounded-xl hover:border-primary hover:bg-blue-50 transition-colors"
                   >
                     <div className="flex items-center justify-between">
                       <div>
@@ -394,7 +394,7 @@ export default function ImportPage() {
               <button
                 type="button"
                 onClick={() => setShowOptionalMappings((prev) => !prev)}
-                className="text-sm text-[#1B3A6B] hover:underline"
+                className="text-sm text-primary hover:underline"
               >
                 {showOptionalMappings ? 'Hide optional fields' : 'Show optional fields'}
               </button>
@@ -471,7 +471,7 @@ export default function ImportPage() {
               <button
                 onClick={() => parseMutation.mutate()}
                 disabled={parseMutation.isPending || !hasVillageSource || !hasNameMapping}
-                className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#1B3A6B] text-white rounded-lg hover:bg-[#15305a] disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-[#15305a] disabled:opacity-50"
               >
                 {parseMutation.isPending ? (
                   <><Loader2 className="w-4 h-4 animate-spin" /> Parsing...</>
@@ -606,14 +606,14 @@ export default function ImportPage() {
                       <td className="px-3 py-2">
                         <div className="flex items-center gap-2 flex-wrap">
                           <input
-                            className="font-medium text-[var(--text-primary)] bg-transparent border-b border-transparent hover:border-[var(--border-soft)] focus:border-[#1B3A6B] focus:outline-none w-24 px-0"
+                            className="font-medium text-[var(--text-primary)] bg-transparent border-b border-transparent hover:border-[var(--border-soft)] focus:border-primary focus:outline-none w-24 px-0"
                             value={row.first_name || ''}
                             onChange={(e) => updateRow(index, 'first_name', e.target.value)}
                             placeholder="First"
                             disabled={row._skip}
                           />
                           <input
-                            className="font-medium text-[var(--text-primary)] bg-transparent border-b border-transparent hover:border-[var(--border-soft)] focus:border-[#1B3A6B] focus:outline-none w-28 px-0"
+                            className="font-medium text-[var(--text-primary)] bg-transparent border-b border-transparent hover:border-[var(--border-soft)] focus:border-primary focus:outline-none w-28 px-0"
                             value={row.last_name || ''}
                             onChange={(e) => updateRow(index, 'last_name', e.target.value)}
                             placeholder="Last"
@@ -741,7 +741,7 @@ export default function ImportPage() {
               </button>
               <a
                 href="/admin/supporters"
-                className="inline-flex items-center gap-2 px-6 py-2.5 bg-[#1B3A6B] text-white rounded-lg hover:bg-[#15305a]"
+                className="inline-flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-[#15305a]"
               >
                 View Supporters
               </a>

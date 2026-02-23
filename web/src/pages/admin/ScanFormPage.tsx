@@ -460,9 +460,9 @@ export default function ScanFormPage() {
             type="button"
             disabled={!defaultVillageId}
             onClick={() => fileInputRef.current?.click()}
-            className="w-full bg-[var(--surface-raised)] rounded-2xl border-2 border-dashed border-[var(--border-soft)] hover:border-[#1B3A6B] hover:bg-blue-50 transition-all p-8 sm:p-12 flex flex-col items-center gap-4 disabled:opacity-50"
+            className="w-full bg-[var(--surface-raised)] rounded-2xl border-2 border-dashed border-[var(--border-soft)] hover:border-primary hover:bg-blue-50 transition-all p-8 sm:p-12 flex flex-col items-center gap-4 disabled:opacity-50"
           >
-            <div className="w-20 h-20 rounded-full bg-[#1B3A6B] flex items-center justify-center">
+            <div className="w-20 h-20 rounded-full bg-primary flex items-center justify-center">
               <Camera className="w-10 h-10 text-white" />
             </div>
             <div className="text-center">
@@ -516,7 +516,7 @@ export default function ScanFormPage() {
             </div>
           )}
           <div className="flex flex-col items-center gap-3 py-8">
-            <Loader2 className="w-12 h-12 text-[#1B3A6B] animate-spin" />
+            <Loader2 className="w-12 h-12 text-primary animate-spin" />
             <p className="text-lg font-semibold text-[var(--text-primary)]">Extracting supporter rows...</p>
             <p className="text-sm text-[var(--text-secondary)]">This can take a few seconds for full-page OCR.</p>
           </div>
@@ -727,7 +727,7 @@ export default function ScanFormPage() {
               type="button"
               disabled={saveMutation.isPending || activeRows.length === 0 || activeCriticalRows > 0}
               onClick={() => saveMutation.mutate()}
-              className="bg-[#C41E3A] hover:bg-[#a01830] text-white font-semibold px-4 py-2 rounded-xl min-h-[44px] inline-flex items-center justify-center gap-2 disabled:opacity-50"
+              className="bg-cta hover:bg-cta-hover text-white font-semibold px-4 py-2 rounded-xl min-h-[44px] inline-flex items-center justify-center gap-2 disabled:opacity-50"
             >
               {saveMutation.isPending ? (
                 <>
@@ -781,7 +781,7 @@ export default function ScanFormPage() {
             <button
               type="button"
               onClick={resetForNextBatch}
-              className="bg-[#1B3A6B] text-white px-4 py-2 rounded-xl min-h-[44px] inline-flex items-center justify-center gap-2"
+              className="bg-primary text-white px-4 py-2 rounded-xl min-h-[44px] inline-flex items-center justify-center gap-2"
             >
               <Camera className="w-4 h-4" />
               Scan another page
@@ -797,7 +797,7 @@ export default function ScanFormPage() {
       )}
 
       <div className="pt-1 text-center">
-        <Link to="/admin/supporters/new" className="text-sm text-[#1B3A6B] hover:underline">
+        <Link to="/admin/supporters/new" className="text-sm text-primary hover:underline">
           Need single-person entry? Use manual staff form instead.
         </Link>
       </div>

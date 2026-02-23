@@ -20,11 +20,13 @@ Rails.application.routes.draw do
         member do
           patch :verify
           patch :resolve_duplicate
+          patch :outreach_status
         end
         collection do
           get :check_duplicate
           get :export
           get :duplicates
+          get :outreach
           post :bulk_verify
           post :scan_duplicates
         end

@@ -107,7 +107,7 @@ export default function QuotaSettingsPage() {
           <button
             type="button"
             onClick={() => window.location.reload()}
-            className="bg-[#1B3A6B] text-white px-4 py-2 rounded-xl min-h-[44px]"
+            className="bg-primary text-white px-4 py-2 rounded-xl min-h-[44px]"
           >
             Retry
           </button>
@@ -120,7 +120,7 @@ export default function QuotaSettingsPage() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       <div>
         <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-          <Target className="w-5 h-5 text-[#1B3A6B]" /> Quota Settings
+          <Target className="w-5 h-5 text-primary" /> Quota Settings
         </h1>
         <p className="text-gray-500 text-sm">
           Set per-village supporter targets. Voter counts come from GEC precinct data (edit on Precinct Settings).
@@ -148,7 +148,7 @@ export default function QuotaSettingsPage() {
             disabled={paceMutation.isPending}
             onClick={() => paceMutation.mutate(!(settings?.show_pace ?? false))}
             className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-              settings?.show_pace ? 'bg-[#1B3A6B]' : 'bg-gray-300'
+              settings?.show_pace ? 'bg-primary' : 'bg-gray-300'
             } ${paceMutation.isPending ? 'opacity-50' : ''}`}
           >
             <span
@@ -230,7 +230,7 @@ export default function QuotaSettingsPage() {
                           if (!window.confirm(`Update quota target for ${row.village_name} to ${candidate.toLocaleString()}?`)) return;
                           mutation.mutate({ villageId: row.village_id, targetCount: candidate });
                         }}
-                        className="bg-[#1B3A6B] text-white px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1 disabled:opacity-50"
+                        className="bg-primary text-white px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1 disabled:opacity-50"
                       >
                         <Save className="w-3.5 h-3.5" /> Save
                       </button>

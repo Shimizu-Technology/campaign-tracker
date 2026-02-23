@@ -96,7 +96,7 @@ export default function EmailPage() {
       <div>
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-            <Mail className="w-5 h-5 text-[#1B3A6B]" />
+            <Mail className="w-5 h-5 text-primary" />
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Email Center</h1>
@@ -128,7 +128,7 @@ export default function EmailPage() {
         {/* Compose Form */}
         <div className="app-card p-5 mb-4">
           <h2 className="text-lg font-bold text-[var(--text-primary)] mb-4 flex items-center gap-2">
-            <Send className="w-5 h-5 text-[#1B3A6B]" /> Compose Email Blast
+            <Send className="w-5 h-5 text-primary" /> Compose Email Blast
           </h2>
 
           <div className="space-y-4">
@@ -269,7 +269,7 @@ export default function EmailPage() {
             <div className="space-y-3">
               <div className="flex items-center gap-4">
                 <div className="text-center">
-                  <p className="text-3xl font-bold text-[#1B3A6B]">{previewResult.recipient_count || 0}</p>
+                  <p className="text-3xl font-bold text-primary">{previewResult.recipient_count || 0}</p>
                   <p className="text-xs text-[var(--text-secondary)]">recipients</p>
                 </div>
                 <div className="flex-1 text-sm text-[var(--text-secondary)]">

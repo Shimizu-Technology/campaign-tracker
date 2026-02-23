@@ -70,7 +70,7 @@ export default function SignupPage() {
   return (
     <div className="min-h-screen bg-[#f5f7fb]">
       {/* Header */}
-      <div className="bg-[#1B3A6B] text-white py-6 px-4">
+      <div className="bg-primary text-white py-6 px-4">
         <div className="max-w-lg mx-auto">
           <Link to="/" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-2 min-h-[44px]">
             <ArrowLeft className="w-4 h-4" /> Back
@@ -83,7 +83,7 @@ export default function SignupPage() {
       {/* Leader code banner */}
       {leaderCode && (
         <div className="max-w-lg mx-auto px-4 mt-4">
-          <div className="bg-blue-50 border border-blue-200 text-[#1B3A6B] px-4 py-3 rounded-lg text-sm font-medium text-center">
+          <div className="bg-blue-50 border border-blue-200 text-primary px-4 py-3 rounded-lg text-sm font-medium text-center">
             You were invited by a campaign supporter.
           </div>
         </div>
@@ -104,7 +104,7 @@ export default function SignupPage() {
               required
               value={form.first_name}
               onChange={e => updateField('first_name', e.target.value)}
-              className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+              className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               placeholder="Juan"
             />
           </div>
@@ -115,7 +115,7 @@ export default function SignupPage() {
               required
               value={form.last_name}
               onChange={e => updateField('last_name', e.target.value)}
-              className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+              className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               placeholder="dela Cruz"
             />
           </div>
@@ -129,7 +129,7 @@ export default function SignupPage() {
             required
             value={form.contact_number}
             onChange={e => updateField('contact_number', e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-primary focus:border-transparent"
             placeholder="+1671XXXXXXX"
           />
         </div>
@@ -141,7 +141,7 @@ export default function SignupPage() {
             required
             value={form.village_id}
             onChange={e => updateField('village_id', e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent bg-white"
+            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white"
           >
             <option value="">Select your village</option>
             {villages.map(v => (
@@ -157,7 +157,7 @@ export default function SignupPage() {
             type="text"
             value={form.street_address}
             onChange={e => updateField('street_address', e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-primary focus:border-transparent"
             placeholder="123 Marine Corps Dr"
           />
         </div>
@@ -169,7 +169,7 @@ export default function SignupPage() {
             type="email"
             value={form.email}
             onChange={e => updateField('email', e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-primary focus:border-transparent"
             placeholder="juan@example.com"
           />
         </div>
@@ -181,7 +181,7 @@ export default function SignupPage() {
             type="date"
             value={form.dob}
             onChange={e => updateField('dob', e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-primary focus:border-transparent"
           />
         </div>
 
@@ -192,7 +192,7 @@ export default function SignupPage() {
             id="registered_voter"
             checked={form.registered_voter}
             onChange={e => updateField('registered_voter', e.target.checked)}
-            className="w-5 h-5 text-[#1B3A6B] rounded shrink-0"
+            className="w-5 h-5 text-primary rounded shrink-0"
           />
           <span className="text-gray-700">I am a registered voter</span>
         </label>
@@ -204,7 +204,7 @@ export default function SignupPage() {
             id="yard_sign"
             checked={form.yard_sign}
             onChange={e => updateField('yard_sign', e.target.checked)}
-            className="w-5 h-5 text-[#1B3A6B] rounded shrink-0"
+            className="w-5 h-5 text-primary rounded shrink-0"
           />
           <span className="text-gray-700">I'll put a yard sign up</span>
         </label>
@@ -216,7 +216,7 @@ export default function SignupPage() {
             id="motorcade"
             checked={form.motorcade_available}
             onChange={e => updateField('motorcade_available', e.target.checked)}
-            className="w-5 h-5 text-[#1B3A6B] rounded shrink-0"
+            className="w-5 h-5 text-primary rounded shrink-0"
           />
           <span className="text-gray-700">I'll join motorcades</span>
         </label>
@@ -230,7 +230,7 @@ export default function SignupPage() {
               id="opt_in_text"
               checked={form.opt_in_text}
               onChange={e => updateField('opt_in_text', e.target.checked)}
-              className="w-5 h-5 text-[#1B3A6B] rounded shrink-0"
+              className="w-5 h-5 text-primary rounded shrink-0"
             />
             <span className="text-gray-700">Send me text updates</span>
           </label>
@@ -240,7 +240,7 @@ export default function SignupPage() {
               id="opt_in_email"
               checked={form.opt_in_email}
               onChange={e => updateField('opt_in_email', e.target.checked)}
-              className="w-5 h-5 text-[#1B3A6B] rounded shrink-0"
+              className="w-5 h-5 text-primary rounded shrink-0"
             />
             <span className="text-gray-700">Send me email updates</span>
           </label>
@@ -260,7 +260,7 @@ export default function SignupPage() {
           <button
             type="submit"
             disabled={signup.isPending}
-            className="w-full bg-[#C41E3A] hover:bg-[#a01830] text-white font-bold py-4 rounded-2xl text-lg shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full bg-cta hover:bg-cta-hover text-white font-bold py-4 rounded-2xl text-lg shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {signup.isPending ? (
               <>

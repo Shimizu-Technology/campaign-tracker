@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_22_140539) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_23_081800) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -384,6 +384,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_22_140539) do
     t.index ["status"], name: "index_sms_blasts_on_status"
   end
 
+  create_table "sprint_goals", force: :cascade do |t|
+    t.bigint "campaign_id", null: false
+    t.datetime "created_at", null: false
+    t.integer "current_count", default: 0
+    t.date "end_date", null: false
+    t.string "period_type", default: "custom"
+    t.date "start_date", null: false
+    t.string "status", default: "active"
+    t.integer "target_count", null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "village_id"
+    t.index ["campaign_id", "status"], name: "index_sprint_goals_on_campaign_id_and_status"
+    t.index ["campaign_id"], name: "index_sprint_goals_on_campaign_id"
+    t.index ["village_id"], name: "index_sprint_goals_on_village_id"
+  end
+
   create_table "supporter_contact_attempts", force: :cascade do |t|
     t.string "channel", null: false
     t.datetime "created_at", null: false
@@ -423,6 +440,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_22_140539) do
     t.bigint "referral_code_id"
     t.integer "referred_from_village_id"
     t.boolean "registered_voter"
+    t.datetime "registration_outreach_date"
+    t.text "registration_outreach_notes"
+    t.string "registration_outreach_status"
     t.string "source"
     t.string "status"
     t.string "street_address"
@@ -540,6 +560,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_22_140539) do
   add_foreign_key "referral_codes", "users", column: "created_by_user_id"
   add_foreign_key "referral_codes", "villages"
   add_foreign_key "sms_blasts", "users", column: "initiated_by_user_id"
+  add_foreign_key "sprint_goals", "campaigns"
+  add_foreign_key "sprint_goals", "villages"
   add_foreign_key "supporter_contact_attempts", "supporters"
   add_foreign_key "supporter_contact_attempts", "users", column: "recorded_by_user_id"
   add_foreign_key "supporters", "blocks"

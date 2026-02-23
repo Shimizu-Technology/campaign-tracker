@@ -228,7 +228,7 @@ export default function LeaderboardPage() {
                     <span className="font-semibold text-[var(--text-primary)] truncate">
                       {leader.owner_name}
                     </span>
-                    <span className="text-lg font-bold text-[#1B3A6B] ml-2">
+                    <span className="text-lg font-bold text-primary ml-2">
                       {leader.total_added}
                     </span>
                   </div>
@@ -249,7 +249,7 @@ export default function LeaderboardPage() {
               {stats.top_leader_signups > 0 && (
                 <div className="mt-2 w-full bg-[var(--surface-overlay)] rounded-full h-1.5">
                   <div
-                    className="h-1.5 rounded-full bg-[#1B3A6B] transition-all"
+                    className="h-1.5 rounded-full bg-primary transition-all"
                     style={{ width: `${(leader.qr_signups / stats.top_leader_signups) * 100}%` }}
                   />
                 </div>
@@ -266,7 +266,7 @@ export default function LeaderboardPage() {
 
         {sessionData?.permissions?.can_access_qr && (
           <div className="mt-6 text-center">
-            <Link to="/admin/qr" className="text-[#1B3A6B] hover:underline text-sm font-medium">
+            <Link to="/admin/qr" className="text-primary hover:underline text-sm font-medium">
               Generate QR Codes →
             </Link>
           </div>

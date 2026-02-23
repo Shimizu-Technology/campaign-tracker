@@ -69,6 +69,10 @@ export const resolveDuplicate = (id: number, resolution: string, mergeIntoId?: n
   api.patch(`/supporters/${id}/resolve_duplicate`, { resolution, merge_into_id: mergeIntoId }).then(r => r.data);
 export const scanDuplicates = () =>
   api.post('/supporters/scan_duplicates').then(r => r.data);
+export const getOutreachSupporters = (params?: QueryParams) =>
+  api.get('/supporters/outreach', { params }).then(r => r.data);
+export const updateOutreachStatus = (id: number, data: JsonRecord) =>
+  api.patch(`/supporters/${id}/outreach_status`, data).then(r => r.data);
 // Import
 export const uploadImportPreview = (file: File) => {
   const form = new FormData();

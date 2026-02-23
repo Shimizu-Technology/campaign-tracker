@@ -7,6 +7,7 @@ import { useRealtimeToast } from '../hooks/useRealtimeToast';
 import {
   LayoutDashboard,
   Users,
+  ClipboardCheck,
   ClipboardPlus,
   CalendarPlus,
   Camera,
@@ -74,6 +75,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     {
       label: 'Outreach',
       items: [
+        ...(permissions?.can_view_supporters ? [ { to: '/admin/outreach', label: 'Voter Outreach', icon: ClipboardCheck } ] : []),
         ...(permissions?.can_send_sms ? [ { to: '/admin/sms', label: 'SMS Blasts', icon: MessageSquare } ] : []),
         ...(permissions?.can_send_email ? [ { to: '/admin/email', label: 'Email Blasts', icon: Mail } ] : []),
         ...(permissions?.can_access_qr ? [ { to: '/admin/qr', label: 'QR Codes', icon: QrCode } ] : []),
@@ -130,7 +132,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         onClick={() => setSidebarOpen(false)}
         className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 ${
           active
-            ? 'bg-[#1B3A6B] text-white shadow-sm'
+            ? 'bg-primary text-white shadow-sm'
             : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
         }`}
       >
@@ -150,10 +152,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
       {/* Brand */}
       <div className="px-5 pt-6 pb-5">
         <Link to="/admin" className="block group" onClick={() => setSidebarOpen(false)}>
-          <h1 className="text-[15px] font-bold text-gray-900 tracking-tight group-hover:text-[#1B3A6B] transition-colors">
-            {campaignName}
-          </h1>
-          <p className="text-[11px] text-gray-400 mt-1 font-medium">
+          <img src="/logo-placeholder.svg" alt="Josh &amp; Tina 2026" className="h-8 mb-2" />
+          <p className="text-[11px] text-gray-400 font-medium">
             Campaign Tracker
           </p>
         </Link>
@@ -173,16 +173,17 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         ))}
       </div>
 
-      {/* Home link */}
-      <div className="px-3 pb-2">
-        <Link
-          to="/"
-          onClick={() => setSidebarOpen(false)}
-          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-all duration-150"
+      {/* View Public Site */}
+      <div className="mt-auto border-t border-gray-200 pt-3 px-3 pb-4">
+        <a
+          href="/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-all duration-150"
         >
           <ExternalLink className="w-4 h-4 shrink-0 text-gray-400" />
-          <span className="truncate">Public Site</span>
-        </Link>
+          <span>View Public Site</span>
+        </a>
       </div>
 
       {/* User */}
