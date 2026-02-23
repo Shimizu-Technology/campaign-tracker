@@ -39,7 +39,7 @@ module Api
         updates[:welcome_sms_template] = template.presence if params.key?(:welcome_sms_template)
         updates[:show_pace] = ActiveModel::Type::Boolean.new.cast(params[:show_pace]) if params.key?(:show_pace)
 
-        [:instagram_url, :facebook_url, :tiktok_url, :twitter_url].each do |field|
+        [ :instagram_url, :facebook_url, :tiktok_url, :twitter_url ].each do |field|
           updates[field] = params[field].presence if params.key?(field)
         end
 
