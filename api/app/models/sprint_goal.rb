@@ -20,7 +20,7 @@ class SprintGoal < ApplicationRecord
 
   def progress_percentage
     return 0 if target_count.zero?
-    [(current_count * 100.0 / target_count).round(1), 100.0].min
+    [ (current_count * 100.0 / target_count).round(1), 100.0 ].min
   end
 
   private

@@ -7,7 +7,7 @@ module Api
       include AuditLoggable
       before_action :authenticate_request
       before_action :require_configuration_access!
-      before_action :set_sprint_goal, only: [:update, :destroy]
+      before_action :set_sprint_goal, only: [ :update, :destroy ]
 
       # GET /api/v1/sprint_goals
       def index
