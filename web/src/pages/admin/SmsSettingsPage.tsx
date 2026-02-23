@@ -1,18 +1,29 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSettings, updateSettings } from '../../lib/api';
-import { Save, RotateCcw, MessageSquare, Info } from 'lucide-react';
+import { Save, RotateCcw, MessageSquare, Info, Globe } from 'lucide-react';
 
 interface SettingsData {
   welcome_sms_template: string;
   welcome_sms_preview: string;
   available_variables: string[];
+  instagram_url: string | null;
+  facebook_url: string | null;
+  tiktok_url: string | null;
+  twitter_url: string | null;
 }
 
 export default function SmsSettingsPage() {
   const queryClient = useQueryClient();
   const [template, setTemplate] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [socialLinks, setSocialLinks] = useState<{
+    instagram_url: string;
+    facebook_url: string;
+    tiktok_url: string;
+    twitter_url: string;
+  } | null>(null);
+  const [socialSaved, setSocialSaved] = useState(false);
 
   const { data: settings, isLoading } = useQuery<SettingsData>({
     queryKey: ['settings'],
@@ -42,6 +53,30 @@ export default function SmsSettingsPage() {
     },
   });
 
+  const displaySocial = {
+    instagram_url: socialLinks?.instagram_url ?? settings?.instagram_url ?? '',
+    facebook_url: socialLinks?.facebook_url ?? settings?.facebook_url ?? '',
+    tiktok_url: socialLinks?.tiktok_url ?? settings?.tiktok_url ?? '',
+    twitter_url: socialLinks?.twitter_url ?? settings?.twitter_url ?? '',
+  };
+
+  const hasSocialChanges = socialLinks !== null && settings && (
+    socialLinks.instagram_url !== (settings.instagram_url ?? '') ||
+    socialLinks.facebook_url !== (settings.facebook_url ?? '') ||
+    socialLinks.tiktok_url !== (settings.tiktok_url ?? '') ||
+    socialLinks.twitter_url !== (settings.twitter_url ?? '')
+  );
+
+  const saveSocialMutation = useMutation({
+    mutationFn: (data: typeof displaySocial) => updateSettings(data),
+    onSuccess: (data: SettingsData) => {
+      queryClient.setQueryData(['settings'], data);
+      setSocialLinks(null);
+      setSocialSaved(true);
+      setTimeout(() => setSocialSaved(false), 3000);
+    },
+  });
+
   const charCount = displayTemplate.length;
   const smsSegments = charCount <= 160 ? 1 : Math.ceil(charCount / 153);
   const hasChanges = template !== null && settings && template !== settings.welcome_sms_template;
@@ -63,7 +98,7 @@ export default function SmsSettingsPage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto space-y-6">
       <div>
-        <h1 className="text-lg font-bold text-gray-900">SMS Settings</h1>
+        <h1 className="text-lg font-bold text-gray-900">Settings</h1>
       </div>
 
       <div className="space-y-6">
@@ -155,6 +190,61 @@ export default function SmsSettingsPage() {
           {saveMutation.isError && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600 text-sm">
               {(saveMutation.error as Error)?.message || 'Failed to save. Please try again.'}
+            </div>
+          )}
+        </div>
+
+        {/* Social Media Links */}
+        <div className="app-card p-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <Globe className="w-5 h-5 text-[#1B3A6B]" />
+            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Social Media Links</h2>
+          </div>
+          <p className="text-sm text-[var(--text-secondary)]">
+            These links appear on the public landing page and thank-you page. Leave blank to hide a link.
+          </p>
+
+          <div className="space-y-3">
+            {([
+              { key: 'instagram_url' as const, label: 'Instagram URL', placeholder: 'https://www.instagram.com/yourpage' },
+              { key: 'facebook_url' as const, label: 'Facebook URL', placeholder: 'https://www.facebook.com/yourpage' },
+              { key: 'tiktok_url' as const, label: 'TikTok URL', placeholder: 'https://www.tiktok.com/@yourpage' },
+              { key: 'twitter_url' as const, label: 'X (Twitter) URL', placeholder: 'https://x.com/yourhandle' },
+            ]).map(({ key, label, placeholder }) => (
+              <div key={key}>
+                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">{label}</label>
+                <input
+                  type="url"
+                  value={displaySocial[key]}
+                  onChange={(e) => setSocialLinks((prev) => ({
+                    ...displaySocial,
+                    ...prev,
+                    [key]: e.target.value,
+                  }))}
+                  placeholder={placeholder}
+                  className="w-full border border-[var(--border-soft)] rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-3 pt-2">
+            <button
+              onClick={() => saveSocialMutation.mutate(displaySocial)}
+              disabled={saveSocialMutation.isPending || !hasSocialChanges}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1B3A6B] text-white rounded-lg hover:bg-[#15305a] disabled:opacity-50 text-sm font-medium"
+            >
+              <Save className="w-4 h-4" />
+              {saveSocialMutation.isPending ? 'Saving...' : 'Save Links'}
+            </button>
+            {socialSaved && (
+              <span className="text-sm text-green-600 font-medium">Saved!</span>
+            )}
+          </div>
+
+          {saveSocialMutation.isError && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600 text-sm">
+              {(saveSocialMutation.error as Error)?.message || 'Failed to save. Please try again.'}
             </div>
           )}
         </div>

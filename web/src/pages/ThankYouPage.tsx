@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Heart, ArrowLeft } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { getCampaignInfo } from '../lib/api';
 
 function InstagramIcon({ className }: { className?: string }) {
   return (
@@ -18,6 +20,12 @@ function FacebookIcon({ className }: { className?: string }) {
 }
 
 export default function ThankYouPage() {
+  const { data: campaignInfo } = useQuery({
+    queryKey: ['campaignInfo'],
+    queryFn: getCampaignInfo,
+    staleTime: 300_000,
+  });
+
   return (
     <div className="min-h-screen bg-linear-to-br from-primary to-primary-dark text-white flex items-center justify-center px-4">
       <div className="text-center max-w-md rounded-2xl border border-white/10 bg-white/5 backdrop-blur px-6 py-10">
@@ -33,11 +41,13 @@ export default function ThankYouPage() {
         </p>
 
         {/* Social Media CTA */}
+        {(campaignInfo?.instagram_url || campaignInfo?.facebook_url || campaignInfo?.tiktok_url || campaignInfo?.twitter_url) && (
         <div className="mb-8">
           <p className="text-sm text-blue-300 mb-3">Follow the campaign</p>
           <div className="flex items-center justify-center gap-4">
+            {campaignInfo?.instagram_url && (
             <a
-              href="https://www.instagram.com/joshandtina2026"
+              href={campaignInfo.instagram_url}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors min-h-[44px]"
@@ -45,8 +55,10 @@ export default function ThankYouPage() {
               <InstagramIcon className="w-5 h-5" />
               Instagram
             </a>
+            )}
+            {campaignInfo?.facebook_url && (
             <a
-              href="https://www.facebook.com/joshandtina2026"
+              href={campaignInfo.facebook_url}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors min-h-[44px]"
@@ -54,8 +66,10 @@ export default function ThankYouPage() {
               <FacebookIcon className="w-5 h-5" />
               Facebook
             </a>
+            )}
           </div>
         </div>
+        )}
 
         <Link
           to="/"
