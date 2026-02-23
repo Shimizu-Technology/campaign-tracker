@@ -5,6 +5,7 @@ Rails.application.routes.draw do
   namespace :api do
     namespace :v1 do
       # Public
+      get "campaign_info", to: "campaign_info#show"
       get "session", to: "session#show"
       get "dashboard", to: "dashboard#show"
       get "stats", to: "dashboard#stats"
@@ -96,6 +97,8 @@ Rails.application.routes.draw do
         member do
           post :check_in
           get :attendees
+          post :send_sms
+          post :send_email
         end
       end
     end

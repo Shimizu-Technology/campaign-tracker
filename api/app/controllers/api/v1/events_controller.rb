@@ -73,6 +73,94 @@ module Api
         }
       end
 
+      # POST /api/v1/events/:id/send_sms
+      # Send SMS to all RSVPs with phone numbers
+      def send_sms
+        unless can_send_sms?
+          return render_api_error(message: "SMS permission required", status: :forbidden, code: "sms_permission_required")
+        end
+
+        event = Event.find(params[:id])
+        message = params[:message]
+
+        if message.blank?
+          return render_api_error(message: "Message is required", status: :unprocessable_entity, code: "message_required")
+        end
+
+        supporters = Supporter.joins(:event_rsvps)
+                              .where(event_rsvps: { event_id: event.id })
+                              .where.not(contact_number: [ nil, "" ])
+                              .where("TRIM(supporters.contact_number) != ''")
+                              .distinct
+
+        count = supporters.count
+
+        if params[:dry_run] == "true"
+          return render json: { dry_run: true, recipient_count: count, message: message }
+        end
+
+        sent = 0
+        failed = 0
+        errors = []
+
+        supporters.find_each do |supporter|
+          result = ClicksendClient.send_sms(to: supporter.contact_number, body: message)
+          if result[:success]
+            sent += 1
+          else
+            failed += 1
+            errors << "#{supporter.contact_number}: #{result[:error]}" if errors.length < 10
+          end
+        end
+
+        AuditLog.create!(
+          auditable: event,
+          actor_user: current_user,
+          action: "event_sms_blast",
+          details: { message: message.truncate(200), sent: sent, failed: failed }
+        )
+
+        render json: { sent: sent, failed: failed, errors: errors, total: count }
+      end
+
+      # POST /api/v1/events/:id/send_email
+      # Send email to all RSVPs with email addresses
+      def send_email
+        unless can_send_email?
+          return render_api_error(message: "Email permission required", status: :forbidden, code: "email_permission_required")
+        end
+
+        event = Event.find(params[:id])
+        subject = params[:subject]
+        body = params[:body]
+
+        if subject.blank? || body.blank?
+          return render_api_error(message: "Subject and body are required", status: :unprocessable_entity, code: "email_content_required")
+        end
+
+        supporters = Supporter.joins(:event_rsvps)
+                              .where(event_rsvps: { event_id: event.id })
+                              .where.not(email: [ nil, "" ])
+                              .distinct
+
+        count = supporters.count
+
+        if params[:dry_run] == "true"
+          return render json: { dry_run: true, recipient_count: count, subject: subject }
+        end
+
+        result = SupporterEmailService.send_blast(subject: subject, body_html: body, supporters: supporters)
+
+        AuditLog.create!(
+          auditable: event,
+          actor_user: current_user,
+          action: "event_email_blast",
+          details: { subject: subject.truncate(200), sent: result[:sent], failed: result[:failed] }
+        )
+
+        render json: { sent: result[:sent], failed: result[:failed], errors: result[:errors], total: count }
+      end
+
       # GET /api/v1/events/:id/attendees
       def attendees
         event = Event.find(params[:id])
