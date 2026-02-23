@@ -72,7 +72,9 @@ module Api
               {
                 id: b.id,
                 name: b.name,
-                supporter_count: b.supporters.active.count
+                verified_count: b.supporters.active.verified.count,
+                total_count: b.supporters.active.count,
+                supporter_count: b.supporters.active.verified.count
               }
             }
           }
