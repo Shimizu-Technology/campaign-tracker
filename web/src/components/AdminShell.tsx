@@ -7,6 +7,7 @@ import { useRealtimeToast } from '../hooks/useRealtimeToast';
 import {
   LayoutDashboard,
   Users,
+  ClipboardCheck,
   ClipboardPlus,
   CalendarPlus,
   Camera,
@@ -74,6 +75,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     {
       label: 'Outreach',
       items: [
+        ...(permissions?.can_view_supporters ? [ { to: '/admin/outreach', label: 'Voter Outreach', icon: ClipboardCheck } ] : []),
         ...(permissions?.can_send_sms ? [ { to: '/admin/sms', label: 'SMS Blasts', icon: MessageSquare } ] : []),
         ...(permissions?.can_send_email ? [ { to: '/admin/email', label: 'Email Blasts', icon: Mail } ] : []),
         ...(permissions?.can_access_qr ? [ { to: '/admin/qr', label: 'QR Codes', icon: QrCode } ] : []),
