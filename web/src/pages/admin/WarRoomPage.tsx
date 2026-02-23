@@ -195,7 +195,7 @@ export default function WarRoomPage() {
           <AlertTriangle className="w-12 h-12 text-red-500 mx-auto mb-4 opacity-70" />
           <h2 className="text-xl font-bold text-gray-900 mb-2">Can't connect to server</h2>
           <p className="text-gray-500 mb-4">Check your connection and try again.</p>
-          <button onClick={() => window.location.reload()} className="bg-[#1B3A6B] text-white px-4 py-2 rounded-lg hover:bg-[#152e55]">
+          <button onClick={() => window.location.reload()} className="bg-primary text-white px-4 py-2 rounded-lg hover:bg-primary-dark">
             Retry
           </button>
         </div>
@@ -242,7 +242,7 @@ export default function WarRoomPage() {
         </div>
         <div className="flex items-center gap-4 text-sm">
           {sessionData?.permissions?.can_access_poll_watcher && (
-            <Link to="/admin/poll-watcher" className="text-[#1B3A6B] hover:text-[#152e55] min-h-[44px] px-2 flex items-center gap-1 font-medium">
+            <Link to="/admin/poll-watcher" className="text-primary hover:text-primary-dark min-h-[44px] px-2 flex items-center gap-1 font-medium">
               <Eye className="w-4 h-4" /> Poll Watcher
             </Link>
           )}
@@ -270,7 +270,7 @@ export default function WarRoomPage() {
             <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
               <MapPin className="w-3.5 h-3.5" /> REPORTING
             </div>
-            <div className="text-3xl font-bold text-[#1B3A6B]">
+            <div className="text-3xl font-bold text-primary">
               {stats.reporting_precincts}/{stats.total_precincts}
             </div>
             <div className="text-xs text-gray-400">{stats.reporting_pct}% of precincts</div>
@@ -308,7 +308,7 @@ export default function WarRoomPage() {
             <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
               <Phone className="w-3.5 h-3.5" /> ATTEMPTED
             </div>
-            <div className="text-2xl font-bold text-[#1B3A6B]">
+            <div className="text-2xl font-bold text-primary">
               {stats.total_outreach_attempted.toLocaleString()}
             </div>
             <div className="text-xs text-gray-400">supporters contacted</div>
@@ -429,7 +429,7 @@ export default function WarRoomPage() {
                 {sessionData?.permissions?.can_access_poll_watcher && (
                   <Link
                     to="/admin/poll-watcher"
-                    className="text-xs font-medium text-[#1B3A6B] hover:text-[#152e55] underline underline-offset-2"
+                    className="text-xs font-medium text-primary hover:text-primary-dark underline underline-offset-2"
                   >
                     View list
                   </Link>

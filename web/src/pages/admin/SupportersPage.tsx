@@ -268,7 +268,7 @@ export default function SupportersPage() {
           type="button"
           disabled={!pendingValue || isSaving}
           onClick={() => assignPrecinctMutation.mutate({ supporterId: supporter.id, precinctId: Number(pendingValue) })}
-          className="px-3 py-2 rounded-xl min-h-[44px] bg-[#1B3A6B] text-white text-sm disabled:opacity-50"
+          className="px-3 py-2 rounded-xl min-h-[44px] bg-primary text-white text-sm disabled:opacity-50"
         >
           Save
         </button>
@@ -340,7 +340,7 @@ export default function SupportersPage() {
               value={search}
               onChange={e => { setSearch(e.target.value); setPage(1); }}
               placeholder="Search by name or phone..."
-              className="w-full pl-10 pr-4 py-3 border border-[var(--border-soft)] rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+              className="w-full pl-10 pr-4 py-3 border border-[var(--border-soft)] rounded-xl text-lg focus:ring-2 focus:ring-primary focus:border-transparent"
             />
           </div>
           {singleScopedVillageId ? (
@@ -356,7 +356,7 @@ export default function SupportersPage() {
                 setUnassignedPrecinct(false);
                 setPage(1);
               }}
-              className="md:col-span-3 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent min-w-0"
+              className="md:col-span-3 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-primary focus:border-transparent min-w-0"
             >
               <option value="">
                 {scopedVillageIds === null ? 'All villages' : 'All accessible villages'}
@@ -372,7 +372,7 @@ export default function SupportersPage() {
               setSourceFilter(e.target.value);
               setPage(1);
             }}
-            className="md:col-span-2 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent min-w-0"
+            className="md:col-span-2 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-primary focus:border-transparent min-w-0"
           >
             <option value="">All sources</option>
             <option value="qr_signup">Public signup</option>
@@ -384,7 +384,7 @@ export default function SupportersPage() {
               setOptInFilter(e.target.value);
               setPage(1);
             }}
-            className="md:col-span-2 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent min-w-0"
+            className="md:col-span-2 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-primary focus:border-transparent min-w-0"
           >
             <option value="">All opt-in</option>
             <option value="text">Opted in: Text</option>
@@ -397,7 +397,7 @@ export default function SupportersPage() {
               setVerificationFilter(e.target.value);
               setPage(1);
             }}
-            className="md:col-span-2 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent min-w-0"
+            className="md:col-span-2 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-primary focus:border-transparent min-w-0"
           >
             <option value="">All verification</option>
             <option value="unverified">Unverified</option>
@@ -410,7 +410,7 @@ export default function SupportersPage() {
               setLifecycleFilter(e.target.value);
               setPage(1);
             }}
-            className="md:col-span-2 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent min-w-0"
+            className="md:col-span-2 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-primary focus:border-transparent min-w-0"
           >
             <option value="">All lifecycle</option>
             <option value="active">Active</option>
@@ -427,7 +427,7 @@ export default function SupportersPage() {
                 if (e.target.value) setUnassignedPrecinct(false);
                 setPage(1);
               }}
-              className="md:col-span-2 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent min-w-0"
+              className="md:col-span-2 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-primary focus:border-transparent min-w-0"
             >
               <option value="">All precincts</option>
               {selectedVillagePrecincts.map((p) => (
@@ -443,7 +443,7 @@ export default function SupportersPage() {
               setSortDir(dir);
               setPage(1);
             }}
-            className="md:col-span-2 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent min-w-0"
+            className="md:col-span-2 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-primary focus:border-transparent min-w-0"
           >
             <option value="created_at:desc">Newest first</option>
             <option value="created_at:asc">Oldest first</option>
@@ -462,7 +462,7 @@ export default function SupportersPage() {
                 if (checked) setPrecinctFilter('');
                 setPage(1);
               }}
-              className="rounded border-[var(--border-soft)] text-[#1B3A6B] focus:ring-[#1B3A6B]"
+              className="rounded border-[var(--border-soft)] text-primary focus:ring-primary"
             />
             Unassigned precinct
           </label>

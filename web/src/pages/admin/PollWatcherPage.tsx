@@ -323,7 +323,7 @@ export default function PollWatcherPage() {
               onClick={() => setTurnoutDraftBySupporter((prev) => ({ ...prev, [supporter.id]: option.value }))}
               className={`min-h-[44px] rounded-xl border text-xs font-semibold ${
                 selectedTurnoutStatus === option.value
-                  ? 'border-[#1B3A6B] bg-blue-50 text-[#1B3A6B]'
+                  ? 'border-primary bg-blue-50 text-primary'
                   : 'border-[var(--border-soft)] text-[var(--text-secondary)]'
               }`}
               disabled={turnoutMutation.isPending || contactAttemptMutation.isPending}
@@ -353,7 +353,7 @@ export default function PollWatcherPage() {
             type="button"
             onClick={() => turnoutMutation.mutate({ supporterId: supporter.id, turnoutStatus: selectedTurnoutStatus })}
             disabled={!hasPendingTurnoutChange || turnoutMutation.isPending}
-            className="min-h-[40px] rounded-xl bg-[#1B3A6B] text-white text-xs font-semibold px-3 disabled:opacity-40"
+            className="min-h-[40px] rounded-xl bg-primary text-white text-xs font-semibold px-3 disabled:opacity-40"
           >
             Save Turnout
           </button>
@@ -586,7 +586,7 @@ export default function PollWatcherPage() {
                           onClick={() => setActiveSupporterId(supporter.id)}
                           className={`w-full text-left border rounded-xl p-3 transition-colors ${
                             activeSupporterId === supporter.id
-                              ? 'border-[#1B3A6B] bg-blue-50'
+                              ? 'border-primary bg-blue-50'
                               : 'border-[var(--border-soft)] bg-[var(--surface-raised)] hover:bg-[var(--surface-bg)]'
                           }`}
                         >
@@ -681,7 +681,7 @@ export default function PollWatcherPage() {
                       onClick={() => setReportType(value)}
                       className={`p-2 min-h-[44px] rounded-xl border text-sm font-medium text-left flex items-center gap-2 ${
                         reportType === value
-                          ? 'border-[#1B3A6B] bg-blue-50 text-[#1B3A6B]'
+                          ? 'border-primary bg-blue-50 text-primary'
                           : 'border-[var(--border-soft)] text-[var(--text-secondary)] hover:bg-[var(--surface-bg)]'
                       }`}
                     >
@@ -699,7 +699,7 @@ export default function PollWatcherPage() {
                     value={voterCount}
                     onChange={e => setVoterCount(e.target.value)}
                     placeholder="Enter count"
-                    className="w-full px-4 py-3 border border-[var(--border-soft)] rounded-xl text-lg focus:ring-2 focus:ring-[#1B3A6B]"
+                    className="w-full px-4 py-3 border border-[var(--border-soft)] rounded-xl text-lg focus:ring-2 focus:ring-primary"
                     min="0"
                     autoFocus
                     required
@@ -712,7 +712,7 @@ export default function PollWatcherPage() {
                     value={notes}
                     onChange={e => setNotes(e.target.value)}
                     placeholder="Any issues, observations..."
-                    className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl text-sm focus:ring-2 focus:ring-[#1B3A6B]"
+                    className="w-full px-3 py-2 border border-[var(--border-soft)] rounded-xl text-sm focus:ring-2 focus:ring-primary"
                     rows={2}
                   />
                 </div>
@@ -720,7 +720,7 @@ export default function PollWatcherPage() {
                 <button
                   type="submit"
                   disabled={reportMutation.isPending || !voterCount}
-                  className="w-full bg-[#1B3A6B] hover:bg-[#152e55] text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full bg-primary hover:bg-primary-dark text-white font-bold py-3 rounded-xl flex items-center justify-center gap-2 disabled:opacity-50"
                 >
                   <Send className="w-4 h-4" />
                   {reportMutation.isPending ? 'Submitting...' : 'Submit Report'}
@@ -804,7 +804,7 @@ export default function PollWatcherPage() {
                   onClick={() => handleSelectPrecinct(p)}
                   className={`w-full text-left rounded-xl border p-3 min-h-[44px] transition-all ${
                     selectedPrecinct?.id === p.id
-                      ? 'border-[#1B3A6B] bg-blue-50 ring-2 ring-[#1B3A6B]/20'
+                      ? 'border-primary bg-blue-50 ring-2 ring-primary/20'
                       : p.reporting
                         ? 'border-green-200 bg-green-50 hover:shadow-sm'
                         : 'border-[var(--border-soft)] bg-[var(--surface-raised)] hover:shadow-sm'

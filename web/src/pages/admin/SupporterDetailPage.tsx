@@ -286,7 +286,7 @@ export default function SupporterDetailPage() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
-          <UserRound className="w-5 h-5 text-[#1B3A6B]" /> {supporter.first_name} {supporter.last_name}
+          <UserRound className="w-5 h-5 text-primary" /> {supporter.first_name} {supporter.last_name}
         </h1>
         <p className="text-gray-500 text-sm">
           Signed up {formatDateTime(supporter.created_at)} · {supporter.source === 'qr_signup' ? 'Public Signup' : 'Staff Entry'}
@@ -320,7 +320,7 @@ export default function SupporterDetailPage() {
               {supporter.duplicate_of_id && (
                 <Link
                   to={`/admin/supporters/${supporter.duplicate_of_id}`}
-                  className="text-sm text-[#1B3A6B] hover:underline mt-1 inline-block"
+                  className="text-sm text-primary hover:underline mt-1 inline-block"
                 >
                   View possible match →
                 </Link>
@@ -355,7 +355,7 @@ export default function SupporterDetailPage() {
                   type="button"
                   onClick={() => saveMutation.mutate(currentForm as Record<string, unknown>)}
                   disabled={saveMutation.isPending}
-                  className="bg-[#1B3A6B] text-white px-4 py-2 min-h-[44px] rounded-xl text-sm font-medium flex items-center gap-2 disabled:opacity-50"
+                  className="bg-primary text-white px-4 py-2 min-h-[44px] rounded-xl text-sm font-medium flex items-center gap-2 disabled:opacity-50"
                 >
                   <Save className="w-4 h-4" /> {saveMutation.isPending ? 'Saving...' : 'Save Changes'}
                 </button>

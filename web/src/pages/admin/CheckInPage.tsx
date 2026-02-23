@@ -112,7 +112,7 @@ export default function CheckInPage() {
               <button
                 onClick={() => checkIn.mutate(a.supporter_id)}
                 disabled={checkIn.isPending}
-                className="bg-[#1B3A6B] hover:bg-[#152e55] text-white px-4 py-2 min-h-[44px] rounded-xl font-medium text-sm flex items-center gap-1"
+                className="bg-primary hover:bg-primary-dark text-white px-4 py-2 min-h-[44px] rounded-xl font-medium text-sm flex items-center gap-1"
               >
                 {checkIn.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Check In'}
               </button>

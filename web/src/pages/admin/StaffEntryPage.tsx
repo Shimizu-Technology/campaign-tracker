@@ -200,7 +200,7 @@ export default function StaffEntryPage() {
   };
 
   const inputClass = (field: string) =>
-    `w-full px-3 py-3 border rounded-lg text-lg focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent ${
+    `w-full px-3 py-3 border rounded-lg text-lg focus:ring-2 focus:ring-primary focus:border-transparent ${
       scannedFields.has(field) ? 'border-blue-400 bg-blue-50 ring-2 ring-blue-200' : 'border-[var(--border-soft)]'
     }`;
 
@@ -385,15 +385,15 @@ export default function StaffEntryPage() {
         {/* Checkboxes */}
         <div className="space-y-3 py-2">
           <label className="flex items-center gap-3">
-            <input type="checkbox" checked={form.registered_voter} onChange={e => updateField('registered_voter', e.target.checked)} className="w-5 h-5 rounded text-[#1B3A6B]" />
+            <input type="checkbox" checked={form.registered_voter} onChange={e => updateField('registered_voter', e.target.checked)} className="w-5 h-5 rounded text-primary" />
             <span className="text-[var(--text-primary)]">Registered Voter</span>
           </label>
           <label className="flex items-center gap-3">
-            <input type="checkbox" checked={form.yard_sign} onChange={e => updateField('yard_sign', e.target.checked)} className="w-5 h-5 rounded text-[#1B3A6B]" />
+            <input type="checkbox" checked={form.yard_sign} onChange={e => updateField('yard_sign', e.target.checked)} className="w-5 h-5 rounded text-primary" />
             <span className="text-[var(--text-primary)]">Yard Sign</span>
           </label>
           <label className="flex items-center gap-3">
-            <input type="checkbox" checked={form.motorcade_available} onChange={e => updateField('motorcade_available', e.target.checked)} className="w-5 h-5 rounded text-[#1B3A6B]" />
+            <input type="checkbox" checked={form.motorcade_available} onChange={e => updateField('motorcade_available', e.target.checked)} className="w-5 h-5 rounded text-primary" />
             <span className="text-[var(--text-primary)]">Available for Motorcade</span>
           </label>
         </div>
@@ -402,11 +402,11 @@ export default function StaffEntryPage() {
         <div className="border-t border-[var(--border-soft)] pt-3 space-y-2">
           <p className="text-sm font-medium text-[var(--text-primary)]">Communication Opt-In</p>
           <label className="flex items-center gap-3">
-            <input type="checkbox" checked={form.opt_in_text} onChange={e => updateField('opt_in_text', e.target.checked)} className="w-5 h-5 rounded text-[#1B3A6B]" />
+            <input type="checkbox" checked={form.opt_in_text} onChange={e => updateField('opt_in_text', e.target.checked)} className="w-5 h-5 rounded text-primary" />
             <span className="text-[var(--text-primary)]">Text Updates</span>
           </label>
           <label className="flex items-center gap-3">
-            <input type="checkbox" checked={form.opt_in_email} onChange={e => updateField('opt_in_email', e.target.checked)} className="w-5 h-5 rounded text-[#1B3A6B]" />
+            <input type="checkbox" checked={form.opt_in_email} onChange={e => updateField('opt_in_email', e.target.checked)} className="w-5 h-5 rounded text-primary" />
             <span className="text-[var(--text-primary)]">Email Updates</span>
           </label>
           <p className="text-xs text-[var(--text-muted)]">Supporter consents to receive campaign communications.</p>
@@ -416,7 +416,7 @@ export default function StaffEntryPage() {
         <button
           type="submit"
           disabled={submit.isPending}
-          className="w-full bg-[#C41E3A] hover:bg-[#a01830] text-white font-bold py-4 rounded-xl text-lg shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+          className="w-full bg-cta hover:bg-cta-hover text-white font-bold py-4 rounded-xl text-lg shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
         >
           {submit.isPending ? (
             <><Loader2 className="w-5 h-5 animate-spin" /> Saving...</>

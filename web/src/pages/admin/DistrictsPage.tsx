@@ -123,7 +123,7 @@ export default function DistrictsPage() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       <div>
         <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-          <MapPin className="w-5 h-5 text-[#1B3A6B]" /> District Management
+          <MapPin className="w-5 h-5 text-primary" /> District Management
         </h1>
         <p className="text-gray-500 text-sm">
           Organize villages into districts for coordinator-level management. District coordinators see all villages in their assigned district.
@@ -154,7 +154,7 @@ export default function DistrictsPage() {
             type="button"
             onClick={() => createMutation.mutate()}
             disabled={!newName.trim() || createMutation.isPending}
-            className="mt-3 bg-[#1B3A6B] text-white px-4 py-2 rounded-xl min-h-[44px] text-sm font-medium flex items-center gap-2 disabled:opacity-50"
+            className="mt-3 bg-primary text-white px-4 py-2 rounded-xl min-h-[44px] text-sm font-medium flex items-center gap-2 disabled:opacity-50"
           >
             <Plus className="w-4 h-4" /> {createMutation.isPending ? 'Creating...' : 'Create District'}
           </button>
@@ -270,7 +270,7 @@ export default function DistrictsPage() {
                             type="button"
                             onClick={() => updateMutation.mutate(district.id)}
                             disabled={!editName.trim() || updateMutation.isPending}
-                            className="bg-[#1B3A6B] text-white px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1 disabled:opacity-50"
+                            className="bg-primary text-white px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1 disabled:opacity-50"
                           >
                             <Save className="w-3.5 h-3.5" /> Save
                           </button>
@@ -316,7 +316,7 @@ export default function DistrictsPage() {
                             type="button"
                             onClick={() => assignMutation.mutate(district.id)}
                             disabled={assignMutation.isPending}
-                            className="bg-[#1B3A6B] text-white px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1 disabled:opacity-50"
+                            className="bg-primary text-white px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1 disabled:opacity-50"
                           >
                             <Save className="w-3.5 h-3.5" /> {assignMutation.isPending ? 'Saving...' : `Save (${selectedVillageIds.length} villages)`}
                           </button>

@@ -138,7 +138,7 @@ export default function VettingPage() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-[var(--text-primary)] flex items-center gap-2">
-            <ShieldCheck className="w-7 h-7 text-[#1B3A6B]" />
+            <ShieldCheck className="w-7 h-7 text-primary" />
             Vetting Queue
           </h1>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
@@ -238,7 +238,7 @@ export default function VettingPage() {
               type="checkbox"
               checked={selectedIds.size === supporters.length && supporters.length > 0}
               onChange={toggleSelectAll}
-              className="w-4 h-4 rounded border-[var(--border-soft)] text-[#1B3A6B] focus:ring-[#1B3A6B]"
+              className="w-4 h-4 rounded border-[var(--border-soft)] text-primary focus:ring-primary"
             />
             <span className="text-sm text-[var(--text-secondary)]">Select all</span>
           </div>
@@ -253,7 +253,7 @@ export default function VettingPage() {
                     type="checkbox"
                     checked={selectedIds.has(s.id)}
                     onChange={() => toggleSelect(s.id)}
-                    className="mt-1 w-4 h-4 rounded border-[var(--border-soft)] text-[#1B3A6B] focus:ring-[#1B3A6B]"
+                    className="mt-1 w-4 h-4 rounded border-[var(--border-soft)] text-primary focus:ring-primary"
                   />
 
                   {/* Main content */}
@@ -261,7 +261,7 @@ export default function VettingPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <Link
                         to={`/admin/supporters/${s.id}`}
-                        className="font-medium text-[#1B3A6B] hover:underline"
+                        className="font-medium text-primary hover:underline"
                       >
                         {s.first_name} {s.last_name}
                       </Link>
@@ -283,7 +283,7 @@ export default function VettingPage() {
                         {s.duplicate_of_id && (
                           <span>
                             {' — '}
-                            <Link to={`/admin/supporters/${s.duplicate_of_id}`} className="text-[#1B3A6B] hover:underline">
+                            <Link to={`/admin/supporters/${s.duplicate_of_id}`} className="text-primary hover:underline">
                               View match #{s.duplicate_of_id}
                             </Link>
                           </span>
