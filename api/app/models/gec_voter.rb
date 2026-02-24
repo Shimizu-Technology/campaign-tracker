@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class GecVoter < ApplicationRecord
-  STATUSES = %w[active removed transferred].freeze
+  STATUSES = %w[active removed].freeze
 
   belongs_to :village, optional: true
   belongs_to :removal_detected_by_import, class_name: "GecImport", optional: true
@@ -16,7 +16,7 @@ class GecVoter < ApplicationRecord
 
   scope :active, -> { where(status: "active") }
   scope :removed, -> { where(status: "removed") }
-  scope :transferred, -> { where(status: "transferred") }
+  scope :transferred, -> { where.not(previous_village_name: nil) }
   scope :for_list_date, ->(date) { where(gec_list_date: date) }
   scope :with_ambiguous_dob, -> { where(dob_ambiguous: true) }
   scope :recently_removed, -> { removed.where("removed_at > ?", 60.days.ago) }
