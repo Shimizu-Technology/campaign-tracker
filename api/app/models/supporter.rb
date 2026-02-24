@@ -28,6 +28,7 @@ class Supporter < ApplicationRecord
   before_validation :auto_assign_precinct, on: :create
   before_save :set_normalized_phone
   after_create :check_for_duplicates
+  after_create :auto_vet_against_gec
 
   def display_name
     [ first_name, last_name ].compact_blank.join(" ")
@@ -154,6 +155,13 @@ class Supporter < ApplicationRecord
     DuplicateDetector.flag_if_duplicate!(self)
   rescue StandardError => e
     Rails.logger.warn("Duplicate detection failed for supporter #{id}: #{e.message}")
+  end
+
+  def auto_vet_against_gec
+    result = GecVettingService.new(self).call
+    Rails.logger.info("GEC vetting for supporter #{id}: #{result.status} — #{result.details}")
+  rescue StandardError => e
+    Rails.logger.warn("GEC vetting failed for supporter #{id}: #{e.message}")
   end
 
   # Class method so DuplicateDetector can also use it
