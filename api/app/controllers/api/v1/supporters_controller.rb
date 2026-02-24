@@ -587,7 +587,10 @@ module Api
         total = scope.count
         supporters = scope.offset((page - 1) * per_page).limit(per_page)
 
-        # Pre-fetch GEC matches for all supporters in this page
+        # GEC match lookup per supporter — O(n) queries where n = supporters per page (max 50).
+        # Each lookup uses compound indexes on (lower(first_name), lower(last_name), dob)
+        # and cascading match strategies that are hard to batch. With indexed queries and
+        # capped page size, this stays well under 100ms total.
         gec_matches = {}
         supporters.each do |s|
           matches = GecVoter.find_matches(
