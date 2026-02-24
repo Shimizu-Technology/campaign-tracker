@@ -25,7 +25,7 @@ module Api
           scope = scope.where(active: active)
         end
 
-        supporter_counts = Supporter.where(precinct_id: scope.map(&:id)).group(:precinct_id).count
+        supporter_counts = Supporter.active.where(precinct_id: scope.map(&:id)).group(:precinct_id).count
         render json: {
           precincts: scope.map { |precinct|
             {
@@ -62,7 +62,7 @@ module Api
             code: "invalid_registered_voters"
           )
         end
-        if turning_inactive?(precinct) && precinct.supporters.exists?
+        if turning_inactive?(precinct) && precinct.supporters.active.exists?
           return render_api_error(
             message: "Cannot deactivate precinct while supporters are assigned",
             status: :unprocessable_entity,
