@@ -26,9 +26,9 @@ module Api
             pending_vetting: scope_supporters(Supporter.active.unverified).count,
             flagged_supporters: scope_supporters(Supporter.active.flagged).count,
             public_signups_pending: scope_supporters(Supporter.active.public_signups).count,
-            quota_eligible: scope_supporters(Supporter.active.quota_eligible).count,
-            current_period: current_period_summary
+            quota_eligible: scope_supporters(Supporter.active.quota_eligible).count
           },
+          current_period: current_period_summary,
           permissions: {
             can_manage_users: can_manage_users?,
             can_manage_configuration: can_manage_configuration?,
