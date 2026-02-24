@@ -40,12 +40,42 @@ class ReportGenerator
     Date.current.strftime("%m-%d-%Y")
   end
 
+  # Build a lookup hash of GEC voters keyed by [lowercase_first, lowercase_last, dob]
+  # to avoid N+1 queries in support list generation.
+  def build_gec_lookup(supporters)
+    return {} if supporters.empty?
+
+    # Collect unique name+dob combos
+    keys = supporters.filter_map do |s|
+      next unless s.first_name.present? && s.last_name.present? && s.dob.present?
+      [ s.first_name.downcase.strip, s.last_name.downcase.strip, s.dob ]
+    end.uniq
+
+    return {} if keys.empty?
+
+    # Batch query
+    lookup = {}
+    GecVoter.active.find_each do |gv|
+      key = [ gv.first_name.downcase.strip, gv.last_name.downcase.strip, gv.dob ]
+      lookup[key] ||= gv
+    end
+    lookup
+  end
+
+  def lookup_gec_voter(gec_lookup, supporter)
+    return nil unless supporter.first_name.present? && supporter.last_name.present? && supporter.dob.present?
+    gec_lookup[[ supporter.first_name.downcase.strip, supporter.last_name.downcase.strip, supporter.dob ]]
+  end
+
   # ── Support List ──────────────────────────────────────────────
   # All vetted (verified) supporters, grouped by village
   def generate_support_list
-    scope = Supporter.active.quota_eligible.includes(:village, :precinct)
+    scope = Supporter.active.quota_eligible.includes(:village, :precinct, :entered_by)
     scope = scope.where(village_id: @village_id) if @village_id.present?
     scope = scope.order("villages.name", :last_name, :first_name)
+
+    all_supporters = scope.to_a
+    gec_lookup = build_gec_lookup(all_supporters)
 
     package = Axlsx::Package.new
     wb = package.workbook
@@ -54,28 +84,24 @@ class ReportGenerator
                 "Submitted By", "Verification Status" ]
 
     if @village_id.present?
-      # Single village — one sheet
       village = Village.find(@village_id)
-      supporters = scope.to_a
-      add_support_sheet(wb, village.name, headers, supporters)
+      add_support_sheet(wb, village.name, headers, all_supporters, gec_lookup)
     else
-      # All villages — one sheet per village
-      grouped = scope.group_by { |s| s.village&.name || "Unknown" }
+      grouped = all_supporters.group_by { |s| s.village&.name || "Unknown" }
       grouped.sort_by { |name, _| name }.each do |village_name, supporters|
-        add_support_sheet(wb, village_name, headers, supporters)
+        add_support_sheet(wb, village_name, headers, supporters, gec_lookup)
       end
     end
 
     { package: package, filename: "support-list-#{date_today}.xlsx" }
   end
 
-  def add_support_sheet(workbook, sheet_name, headers, supporters)
-    # Excel sheet names max 31 chars
+  def add_support_sheet(workbook, sheet_name, headers, supporters, gec_lookup)
     safe_name = sheet_name.to_s[0..30]
     workbook.add_worksheet(name: safe_name) do |sheet|
       sheet.add_row headers, style: header_style(workbook)
       supporters.each do |s|
-        gec_match = find_gec_voter(s)
+        gec_match = lookup_gec_voter(gec_lookup, s)
         sheet.add_row [
           s.last_name, s.first_name, s.dob&.strftime("%m/%d/%Y"),
           s.contact_number, s.street_address,
@@ -97,7 +123,7 @@ class ReportGenerator
     return empty_report("purge-list", "No GEC data available") unless current_date
 
     purged = GecVoter.where(status: "removed")
-    purged = purged.joins(:village).where(village_id: @village_id) if @village_id.present?
+    purged = purged.left_joins(:village).where(village_id: @village_id) if @village_id.present?
     purged = purged.order(:village_name, :last_name, :first_name)
 
     package = Axlsx::Package.new
@@ -125,9 +151,13 @@ class ReportGenerator
   # Supporters whose GEC village doesn't match their submission village
   def generate_transfer_list
     scope = Supporter.active.where.not(referred_from_village_id: nil)
-      .includes(:village)
+      .includes(:village, :entered_by)
     scope = scope.where(village_id: @village_id) if @village_id.present?
     scope = scope.order(:last_name, :first_name)
+
+    # Pre-load referred villages to avoid N+1
+    referred_village_ids = scope.pluck(:referred_from_village_id).compact.uniq
+    village_lookup = Village.where(id: referred_village_ids).index_by(&:id)
 
     package = Axlsx::Package.new
     wb = package.workbook
@@ -138,7 +168,7 @@ class ReportGenerator
     wb.add_worksheet(name: "Transfer List") do |sheet|
       sheet.add_row headers, style: header_style(wb)
       scope.each do |s|
-        actual_village = Village.find_by(id: s.referred_from_village_id)
+        actual_village = village_lookup[s.referred_from_village_id]
         sheet.add_row [
           s.last_name, s.first_name, s.dob&.strftime("%m/%d/%Y"),
           s.contact_number,
@@ -158,10 +188,13 @@ class ReportGenerator
   # Same as transfer but from the receiving village's perspective
   def generate_referral_list
     scope = Supporter.active.where.not(referred_from_village_id: nil)
-      .includes(:village)
-    # For referral list, filter by the ACTUAL village (where they're registered)
+      .includes(:village, :entered_by)
     scope = scope.where(referred_from_village_id: @village_id) if @village_id.present?
     scope = scope.order(:last_name, :first_name)
+
+    # Pre-load referred villages
+    referred_village_ids = scope.pluck(:referred_from_village_id).compact.uniq
+    village_lookup = Village.where(id: referred_village_ids).index_by(&:id)
 
     package = Axlsx::Package.new
     wb = package.workbook
@@ -172,7 +205,7 @@ class ReportGenerator
     wb.add_worksheet(name: "Referral List") do |sheet|
       sheet.add_row headers, style: header_style(wb)
       scope.each do |s|
-        actual_village = Village.find_by(id: s.referred_from_village_id)
+        actual_village = village_lookup[s.referred_from_village_id]
         sheet.add_row [
           s.last_name, s.first_name, s.dob&.strftime("%m/%d/%Y"),
           s.contact_number,
@@ -195,6 +228,7 @@ class ReportGenerator
     villages = villages.where(id: @village_id) if @village_id.present?
 
     campaign = @campaign_id ? Campaign.find(@campaign_id) : Campaign.active.first
+    village_ids = villages.pluck(:id)
 
     package = Axlsx::Package.new
     wb = package.workbook
@@ -207,6 +241,10 @@ class ReportGenerator
 
       grand_target = 0
       grand_eligible = 0
+      grand_verified = 0
+      grand_total = 0
+      grand_public = 0
+      grand_unregistered = 0
 
       villages.each do |v|
         target = campaign ? Quota.where(campaign_id: campaign.id, village_id: v.id).sum(:target_count) : 0
@@ -220,19 +258,20 @@ class ReportGenerator
 
         grand_target += target
         grand_eligible += quota_eligible
+        grand_verified += verified
+        grand_total += total
+        grand_public += public_count
+        grand_unregistered += unregistered
 
         sheet.add_row [ v.name, target, quota_eligible, verified, total,
                         public_count, unregistered, pct, status ]
       end
 
-      # Grand total row
+      # Grand total row — uses accumulated values (respects village_id filter)
       grand_pct = grand_target.positive? ? (grand_eligible * 100.0 / grand_target).round(1) : 0
       total_style = wb.styles.add_style(b: true, border: { style: :thin, color: "000000" })
       sheet.add_row [ "TOTAL", grand_target, grand_eligible,
-                      Supporter.active.verified.count,
-                      Supporter.active.count,
-                      Supporter.active.public_signups.count,
-                      Supporter.active.where(registered_voter: false).count,
+                      grand_verified, grand_total, grand_public, grand_unregistered,
                       grand_pct,
                       grand_pct >= 100 ? "Complete" : "In Progress" ],
                     style: total_style
@@ -244,17 +283,6 @@ class ReportGenerator
   end
 
   # ── Helpers ───────────────────────────────────────────────────
-
-  def find_gec_voter(supporter)
-    return nil unless supporter.first_name.present? && supporter.last_name.present?
-
-    GecVoter.active
-      .where("LOWER(first_name) = ? AND LOWER(last_name) = ?",
-             supporter.first_name.downcase.strip,
-             supporter.last_name.downcase.strip)
-      .where(dob: supporter.dob)
-      .first
-  end
 
   def empty_report(name, message)
     package = Axlsx::Package.new
