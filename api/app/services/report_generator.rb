@@ -45,17 +45,12 @@ class ReportGenerator
   def build_gec_lookup(supporters)
     return {} if supporters.empty?
 
-    # Collect unique name+dob combos
-    keys = supporters.filter_map do |s|
-      next unless s.first_name.present? && s.last_name.present? && s.dob.present?
-      [ s.first_name.downcase.strip, s.last_name.downcase.strip, s.dob ]
-    end.uniq
+    # Filter GEC query to only matching DOBs (avoids loading entire voter table)
+    dobs = supporters.filter_map(&:dob).uniq
+    return {} if dobs.empty?
 
-    return {} if keys.empty?
-
-    # Batch query
     lookup = {}
-    GecVoter.active.find_each do |gv|
+    GecVoter.active.where(dob: dobs).find_each do |gv|
       key = [ gv.first_name.downcase.strip, gv.last_name.downcase.strip, gv.dob ]
       lookup[key] ||= gv
     end
@@ -228,7 +223,15 @@ class ReportGenerator
     villages = villages.where(id: @village_id) if @village_id.present?
 
     campaign = @campaign_id ? (Campaign.find_by(id: @campaign_id) || raise(ArgumentError, "Campaign not found")) : Campaign.active.first
-    village_ids = villages.pluck(:id)
+    village_ids = villages.map(&:id)
+
+    # Pre-fetch all counts in bulk (single query each instead of N per village)
+    quota_targets = campaign ? Quota.where(campaign_id: campaign.id, village_id: village_ids).group(:village_id).sum(:target_count) : {}
+    eligible_counts = Supporter.active.quota_eligible.where(village_id: village_ids).group(:village_id).count
+    verified_counts = Supporter.active.verified.where(village_id: village_ids).group(:village_id).count
+    total_counts = Supporter.active.where(village_id: village_ids).group(:village_id).count
+    public_counts = Supporter.active.public_signups.where(village_id: village_ids).group(:village_id).count
+    unreg_counts = Supporter.active.where(village_id: village_ids, registered_voter: false).group(:village_id).count
 
     package = Axlsx::Package.new
     wb = package.workbook
@@ -247,12 +250,12 @@ class ReportGenerator
       grand_unregistered = 0
 
       villages.each do |v|
-        target = campaign ? Quota.where(campaign_id: campaign.id, village_id: v.id).sum(:target_count) : 0
-        quota_eligible = Supporter.active.quota_eligible.where(village_id: v.id).count
-        verified = Supporter.active.verified.where(village_id: v.id).count
-        total = Supporter.active.where(village_id: v.id).count
-        public_count = Supporter.active.public_signups.where(village_id: v.id).count
-        unregistered = Supporter.active.where(village_id: v.id, registered_voter: false).count
+        target = quota_targets[v.id] || 0
+        quota_eligible = eligible_counts[v.id] || 0
+        verified = verified_counts[v.id] || 0
+        total = total_counts[v.id] || 0
+        public_count = public_counts[v.id] || 0
+        unregistered = unreg_counts[v.id] || 0
         pct = target.positive? ? (quota_eligible * 100.0 / target).round(1) : 0
         status = pct >= 100 ? "Complete" : pct >= 75 ? "On Track" : pct >= 50 ? "Behind" : "Critical"
 

@@ -33,6 +33,7 @@ module Api
         begin
           result = generator.generate
         rescue => e
+          Rails.logger.error("Report generation failed: #{e.message}\n#{e.backtrace&.first(10)&.join("\n")}")
           return render_api_error(
             message: "Report generation failed: #{e.message}",
             status: :internal_server_error,
