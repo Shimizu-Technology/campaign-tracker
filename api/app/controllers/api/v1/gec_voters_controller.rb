@@ -14,8 +14,8 @@ module Api
         scope = GecVoter.active
 
         scope = scope.where("LOWER(village_name) = ?", params[:village].downcase.strip) if params[:village].present?
-        scope = scope.where("LOWER(last_name) LIKE ?", "#{params[:last_name].downcase.strip}%") if params[:last_name].present?
-        scope = scope.where("LOWER(first_name) LIKE ?", "#{params[:first_name].downcase.strip}%") if params[:first_name].present?
+        scope = scope.where("LOWER(last_name) LIKE ?", "#{ActiveRecord::Base.sanitize_sql_like(params[:last_name].downcase.strip)}%") if params[:last_name].present?
+        scope = scope.where("LOWER(first_name) LIKE ?", "#{ActiveRecord::Base.sanitize_sql_like(params[:first_name].downcase.strip)}%") if params[:first_name].present?
 
         if params[:list_date].present?
           list_date = Date.parse(params[:list_date]) rescue nil
@@ -127,7 +127,15 @@ module Api
           sheet_name: params[:sheet_name]
         )
 
-        preview_data = service.preview(limit: (params[:limit] || 20).to_i)
+        begin
+          preview_data = service.preview(limit: (params[:limit] || 20).to_i)
+        rescue => e
+          return render_api_error(
+            message: "Failed to parse file: #{e.message}",
+            status: :unprocessable_entity,
+            code: "parse_error"
+          )
+        end
 
         render json: {
           sheets: preview_data[:sheets],
