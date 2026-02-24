@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { getDashboard, getGecStats, getReportsList } from '../../lib/api';
+import { getDashboard, getGecStats, getReportsList, getCurrentCycle } from '../../lib/api';
 import { useSession } from '../../hooks/useSession';
 import {
   ShieldCheck,
@@ -21,6 +21,7 @@ export default function TeamDashboardPage() {
   const { data: dashboard, isLoading: dashLoading } = useQuery({ queryKey: ['dashboard'], queryFn: getDashboard });
   const { data: gecStats } = useQuery({ queryKey: ['gec-stats'], queryFn: getGecStats });
   const { data: reportsInfo } = useQuery({ queryKey: ['reports-list'], queryFn: getReportsList });
+  const { data: cycleData } = useQuery({ queryKey: ['current-cycle'], queryFn: getCurrentCycle });
 
   const counts = session?.counts;
   const summary = dashboard?.summary;
@@ -80,6 +81,40 @@ export default function TeamDashboardPage() {
           detail="All sources"
         />
       </div>
+
+      {/* Current Quota Period */}
+      {cycleData?.current_period && (() => {
+        const p = cycleData.current_period;
+        const pct = p.quota_target > 0 ? Math.round((p.eligible_count / p.quota_target) * 100) : 0;
+        return (
+          <div className={`rounded-xl border p-5 ${p.overdue ? 'bg-red-50 border-red-200' : p.due_soon ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'}`}>
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-700">{p.name} Quota</h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Due {new Date(p.due_date).toLocaleDateString()}
+                  {p.overdue && <span className="text-red-600 font-semibold ml-1">OVERDUE</span>}
+                  {p.due_soon && !p.overdue && <span className="text-amber-600 font-semibold ml-1">({p.days_until_due} days left)</span>}
+                </p>
+              </div>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-gray-900">{(p.eligible_count || 0).toLocaleString()}</div>
+                <div className="text-xs text-gray-400">of {(p.quota_target || 0).toLocaleString()} target</div>
+              </div>
+            </div>
+            <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-green-500' : pct >= 75 ? 'bg-blue-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-400'}`}
+                style={{ width: `${Math.min(pct, 100)}%` }}
+              />
+            </div>
+            <div className="flex justify-between mt-1.5 text-[10px] text-gray-400">
+              <span>{pct}% complete</span>
+              <span>{((p.quota_target || 0) - (p.eligible_count || 0)).toLocaleString()} remaining</span>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Quick Actions */}
       <div>

@@ -6,6 +6,7 @@ class Village < ApplicationRecord
   has_many :blocks, dependent: :destroy
   has_many :supporters, dependent: :destroy
   has_many :quotas, dependent: :destroy
+  has_many :village_quotas, dependent: :destroy
   has_many :events, dependent: :nullify
   has_many :referral_codes, dependent: :destroy
 
