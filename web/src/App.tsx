@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Link, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AdminLayout from './components/AdminLayout';
+import TeamLayout from './components/TeamLayout';
 import { useSession } from './hooks/useSession';
 import { Shield } from 'lucide-react';
 
@@ -36,6 +37,13 @@ const VettingPage = lazy(() => import('./pages/admin/VettingPage'));
 const ScanFormPage = lazy(() => import('./pages/admin/ScanFormPage'));
 const AuditLogsPage = lazy(() => import('./pages/admin/AuditLogsPage'));
 const OutreachPage = lazy(() => import('./pages/admin/OutreachPage'));
+
+// Team (data team) pages
+const TeamDashboardPage = lazy(() => import('./pages/team/TeamDashboardPage'));
+const TeamVettingPage = lazy(() => import('./pages/team/TeamVettingPage'));
+const TeamReportsPage = lazy(() => import('./pages/team/TeamReportsPage'));
+const TeamPublicReviewPage = lazy(() => import('./pages/team/TeamPublicReviewPage'));
+const TeamGecPage = lazy(() => import('./pages/team/TeamGecPage'));
 
 function LazyFallback() {
   return (
@@ -360,6 +368,18 @@ export default function App() {
               </AdminRoute>
             }
           />
+          {/* Team (Data Team) routes */}
+          <Route path="/team" element={<TeamLayout><TeamDashboardPage /></TeamLayout>} />
+          <Route path="/team/supporters" element={<TeamLayout><SupportersPage /></TeamLayout>} />
+          <Route path="/team/vetting" element={<TeamLayout><TeamVettingPage /></TeamLayout>} />
+          <Route path="/team/reports" element={<TeamLayout><TeamReportsPage /></TeamLayout>} />
+          <Route path="/team/public-review" element={<TeamLayout><TeamPublicReviewPage /></TeamLayout>} />
+          <Route path="/team/gec" element={<TeamLayout><TeamGecPage /></TeamLayout>} />
+          <Route path="/team/scan" element={<TeamLayout><ScanFormPage /></TeamLayout>} />
+          <Route path="/team/entry" element={<TeamLayout><StaffEntryPage /></TeamLayout>} />
+          <Route path="/team/import" element={<TeamLayout><ImportPage /></TeamLayout>} />
+          <Route path="/team/duplicates" element={<TeamLayout><DuplicatesPage /></TeamLayout>} />
+          <Route path="/team/audit-logs" element={<TeamLayout><AuditLogsPage /></TeamLayout>} />
         </Routes>
         </Suspense>
       </BrowserRouter>

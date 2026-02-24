@@ -29,6 +29,7 @@ Rails.application.routes.draw do
           get :duplicates
           get :outreach
           get :public_review
+          get :vetting_queue
           post :bulk_verify
           post :scan_duplicates
         end

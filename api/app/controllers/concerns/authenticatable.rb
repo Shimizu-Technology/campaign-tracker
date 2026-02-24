@@ -116,7 +116,7 @@ module Authenticatable
   end
 
   def require_coordinator_or_above!
-    unless current_user&.admin? || current_user&.coordinator?
+    unless current_user&.admin? || current_user&.data_team? || current_user&.coordinator?
       render_api_error(
         message: "Coordinator access required",
         status: :forbidden,
@@ -126,7 +126,7 @@ module Authenticatable
   end
 
   def require_chief_or_above!
-    unless current_user&.admin? || current_user&.coordinator? || current_user&.chief?
+    unless current_user&.admin? || current_user&.data_team? || current_user&.coordinator? || current_user&.chief?
       render_api_error(
         message: "Village chief access required",
         status: :forbidden,
@@ -220,23 +220,23 @@ module Authenticatable
   end
 
   def can_manage_configuration?
-    current_user&.admin? || current_user&.coordinator?
+    current_user&.admin?
   end
 
   def can_send_sms?
-    current_user&.admin? || current_user&.coordinator?
+    current_user&.admin? || current_user&.data_team? || current_user&.coordinator?
   end
 
   def can_send_email?
-    current_user&.admin? || current_user&.coordinator?
+    current_user&.admin? || current_user&.data_team? || current_user&.coordinator?
   end
 
   def can_edit_supporters?
-    current_user&.admin? || current_user&.coordinator?
+    current_user&.admin? || current_user&.data_team? || current_user&.coordinator?
   end
 
   def can_view_supporters?
-    current_user&.admin? || current_user&.coordinator? || current_user&.chief? || current_user&.leader?
+    current_user&.admin? || current_user&.data_team? || current_user&.coordinator? || current_user&.chief? || current_user&.leader?
   end
 
   def can_create_staff_supporters?
@@ -264,11 +264,11 @@ module Authenticatable
   end
 
   def can_access_duplicates?
-    current_user&.admin? || current_user&.coordinator?
+    current_user&.admin? || current_user&.data_team? || current_user&.coordinator?
   end
 
   def can_access_audit_logs?
-    current_user&.admin? || current_user&.coordinator?
+    current_user&.admin? || current_user&.data_team? || current_user&.coordinator?
   end
 
   # Returns the village IDs this user is scoped to, or nil for full access
@@ -277,7 +277,7 @@ module Authenticatable
   end
 
   def compute_scoped_village_ids
-    return nil if current_user&.admin? || (current_user&.coordinator? && current_user.assigned_district_id.blank?)
+    return nil if current_user&.admin? || current_user&.data_team? || (current_user&.coordinator? && current_user.assigned_district_id.blank?)
 
     if current_user&.coordinator? && current_user.assigned_district_id.present?
       Village.where(district_id: current_user.assigned_district_id).pluck(:id)

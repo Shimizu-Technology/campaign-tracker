@@ -23,7 +23,10 @@ module Api
             scoped_village_ids: scoped_village_ids
           },
           counts: {
-            pending_vetting: scope_supporters(Supporter.active.unverified).count
+            pending_vetting: scope_supporters(Supporter.active.unverified).count,
+            flagged_supporters: scope_supporters(Supporter.active.flagged).count,
+            public_signups_pending: Supporter.active.public_signups.count,
+            quota_eligible: scope_supporters(Supporter.active.quota_eligible).count
           },
           permissions: {
             can_manage_users: can_manage_users?,
@@ -40,6 +43,12 @@ module Api
             can_access_poll_watcher: can_access_poll_watcher?,
             can_access_duplicates: can_access_duplicates?,
             can_access_audit_logs: can_access_audit_logs?,
+            can_access_data_team: current_user.admin? || current_user.data_team?,
+            can_access_reports: current_user.admin? || current_user.data_team? || current_user.coordinator?,
+            can_upload_gec: current_user.admin? || current_user.data_team?,
+            can_bulk_vet: current_user.admin? || current_user.data_team?,
+            can_review_public: current_user.admin? || current_user.data_team? || current_user.coordinator?,
+            default_route: current_user.data_team? ? "/team" : "/admin",
             manageable_roles: manageable_roles_for_current_user
           }
         }
