@@ -77,6 +77,10 @@ Rails.application.routes.draw do
       post "imports/parse", to: "imports#parse"
       post "imports/confirm", to: "imports#confirm"
 
+      # Reports (Excel export)
+      get "reports", to: "reports#index"
+      get "reports/:report_type", to: "reports#show"
+
       # GEC Voter List
       resources :gec_voters, only: [ :index ] do
         collection do
