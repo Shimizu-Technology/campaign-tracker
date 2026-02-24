@@ -1,6 +1,6 @@
 import { SignedIn, SignedOut, SignInButton, useAuth, useClerk } from '@clerk/clerk-react';
-import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
+import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import api, { getSession } from '../lib/api';
 import TeamShell from './TeamShell';
@@ -39,9 +39,8 @@ export default function TeamLayout({ children }: { children: React.ReactNode }) 
   const { getToken } = useAuth();
   const { session } = useClerk();
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
   const interceptorRef = useRef<number | null>(null);
-  const [ready, setReady] = useState(false);
+  const readyRef = useRef(false);
 
   useEffect(() => {
     // Install Axios request interceptor for auth
@@ -78,7 +77,7 @@ export default function TeamLayout({ children }: { children: React.ReactNode }) 
       (error) => Promise.reject(error),
     );
 
-    setReady(true);
+    readyRef.current = true;
 
     return () => {
       if (interceptorRef.current !== null) {
@@ -89,10 +88,8 @@ export default function TeamLayout({ children }: { children: React.ReactNode }) 
 
   // Pre-fetch session data
   useEffect(() => {
-    if (ready) {
-      queryClient.prefetchQuery({ queryKey: ['session'], queryFn: getSession });
-    }
-  }, [ready, queryClient]);
+    queryClient.prefetchQuery({ queryKey: ['session'], queryFn: getSession });
+  }, [queryClient]);
 
   return (
     <>

@@ -4,10 +4,8 @@ import { getGecStats, getGecImports, uploadGecList, bulkVetSupporters } from '..
 import {
   Database,
   Upload,
-  CheckCircle,
   AlertTriangle,
   Loader2,
-  FileSpreadsheet,
   RefreshCw,
   Calendar,
 } from 'lucide-react';

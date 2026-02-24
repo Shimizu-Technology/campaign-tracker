@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useQuery, useMutation } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { getReportsList, getVillages, downloadReport } from '../../lib/api';
 import {
   FileSpreadsheet,
@@ -33,7 +33,7 @@ export default function TeamReportsPage() {
   const [selectedVillage, setSelectedVillage] = useState('');
   const [downloadingReport, setDownloadingReport] = useState<string | null>(null);
 
-  const { data: reportsList, isLoading } = useQuery({ queryKey: ['reports-list'], queryFn: getReportsList });
+  const { data: reportsList } = useQuery({ queryKey: ['reports-list'], queryFn: getReportsList });
   const { data: villages } = useQuery({ queryKey: ['villages'], queryFn: getVillages });
 
   const handleDownload = async (reportType: string) => {

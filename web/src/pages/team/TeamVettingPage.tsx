@@ -5,13 +5,11 @@ import { Link } from 'react-router-dom';
 import {
   CheckCircle,
   XCircle,
-  AlertTriangle,
   ShieldCheck,
   MapPin,
   ChevronDown,
   ChevronUp,
   Search,
-  Filter,
 } from 'lucide-react';
 
 type VettingFilter = 'all' | 'flagged' | 'unverified' | 'unregistered' | 'referral';
@@ -56,7 +54,7 @@ export default function TeamVettingPage() {
 
   const toggleSelect = (id: number) => {
     const next = new Set(selectedIds);
-    next.has(id) ? next.delete(id) : next.add(id);
+    if (next.has(id)) { next.delete(id); } else { next.add(id); }
     setSelectedIds(next);
   };
 
@@ -306,7 +304,7 @@ export default function TeamVettingPage() {
   );
 }
 
-function FilterBadge({ active, onClick, label, count, color = 'gray' }: {
+function FilterBadge({ active, onClick, label, count }: {
   active: boolean;
   onClick: () => void;
   label: string;

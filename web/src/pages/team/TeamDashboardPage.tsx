@@ -12,7 +12,6 @@ import {
   Database,
   AlertTriangle,
   CheckCircle,
-  XCircle,
   TrendingUp,
   Users,
 } from 'lucide-react';
