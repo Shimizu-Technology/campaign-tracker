@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_24_080000) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_24_080001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -247,6 +247,44 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_080000) do
     t.index ["event_type"], name: "index_events_on_event_type"
     t.index ["status"], name: "index_events_on_status"
     t.index ["village_id"], name: "index_events_on_village_id"
+  end
+
+  create_table "gec_imports", force: :cascade do |t|
+    t.integer "ambiguous_dob_count", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.string "filename", null: false
+    t.date "gec_list_date", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.integer "new_records", default: 0, null: false
+    t.integer "removed_records", default: 0, null: false
+    t.string "status", default: "pending", null: false
+    t.integer "total_records", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.integer "updated_records", default: 0, null: false
+    t.bigint "uploaded_by_user_id"
+    t.index ["gec_list_date"], name: "index_gec_imports_on_gec_list_date"
+    t.index ["uploaded_by_user_id"], name: "index_gec_imports_on_uploaded_by_user_id"
+  end
+
+  create_table "gec_voters", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.date "dob"
+    t.boolean "dob_ambiguous", default: false, null: false
+    t.string "first_name", null: false
+    t.date "gec_list_date", null: false
+    t.datetime "imported_at", null: false
+    t.string "last_name", null: false
+    t.string "status", default: "active", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "village_id"
+    t.string "village_name", null: false
+    t.string "voter_registration_number"
+    t.index ["gec_list_date"], name: "index_gec_voters_on_gec_list_date"
+    t.index ["last_name", "first_name", "dob"], name: "index_gec_voters_on_name_and_dob"
+    t.index ["village_id", "last_name"], name: "index_gec_voters_on_village_and_last_name"
+    t.index ["village_id"], name: "index_gec_voters_on_village_id"
+    t.index ["village_name"], name: "index_gec_voters_on_village_name"
+    t.index ["voter_registration_number"], name: "index_gec_voters_on_voter_registration_number"
   end
 
   create_table "pay_periods", force: :cascade do |t|
@@ -547,6 +585,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_080000) do
   add_foreign_key "event_rsvps", "supporters"
   add_foreign_key "events", "campaigns"
   add_foreign_key "events", "villages"
+  add_foreign_key "gec_imports", "users", column: "uploaded_by_user_id"
+  add_foreign_key "gec_voters", "villages"
   add_foreign_key "pay_periods", "companies"
   add_foreign_key "payroll_items", "employees"
   add_foreign_key "payroll_items", "pay_periods"

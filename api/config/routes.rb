@@ -75,6 +75,17 @@ Rails.application.routes.draw do
       post "imports/parse", to: "imports#parse"
       post "imports/confirm", to: "imports#confirm"
 
+      # GEC Voter List
+      resources :gec_voters, only: [ :index ] do
+        collection do
+          get :stats
+          get :imports
+          post :upload
+          post :preview
+          post :match
+        end
+      end
+
       # Form Scanner (OCR)
       post "scan", to: "scan#create"
       post "scan/batch", to: "scan#batch"
