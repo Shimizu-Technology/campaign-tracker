@@ -43,6 +43,29 @@ class Api::V1::PrecinctsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "coordinator can list precincts" do
+    Supporter.create!(
+      first_name: "Active", last_name: "Linked", print_name: "Active Linked",
+      contact_number: "671-555-0110",
+      village: @village,
+      precinct: @precinct,
+      status: "active",
+      source: "staff_entry",
+      registered_voter: true,
+      yard_sign: false,
+      motorcade_available: false
+    )
+    Supporter.create!(
+      first_name: "Removed", last_name: "Linked", print_name: "Removed Linked",
+      contact_number: "671-555-0111",
+      village: @village,
+      precinct: @precinct,
+      status: "removed",
+      source: "staff_entry",
+      registered_voter: true,
+      yard_sign: false,
+      motorcade_available: false
+    )
+
     get "/api/v1/precincts", headers: auth_headers(@coordinator)
 
     assert_response :success
@@ -50,6 +73,7 @@ class Api::V1::PrecinctsControllerTest < ActionDispatch::IntegrationTest
     row = payload["precincts"].find { |p| p["id"] == @precinct.id }
     assert_not_nil row
     assert_equal "Tamuning", row["village_name"]
+    assert_equal 1, row["linked_supporters_count"]
   end
 
   test "admin can update precinct metadata and audit is written" do
@@ -93,6 +117,27 @@ class Api::V1::PrecinctsControllerTest < ActionDispatch::IntegrationTest
     payload = JSON.parse(response.body)
     assert_equal "precinct_in_use", payload["code"]
     assert @precinct.reload.active
+  end
+
+  test "can deactivate precinct when only non-active supporters are assigned" do
+    Supporter.create!(
+      first_name: "Removed", last_name: "Person", print_name: "Removed Person",
+      contact_number: "671-555-0102",
+      village: @village,
+      precinct: @precinct,
+      status: "removed",
+      source: "staff_entry",
+      registered_voter: true,
+      yard_sign: false,
+      motorcade_available: false
+    )
+
+    patch "/api/v1/precincts/#{@precinct.id}",
+      params: { precinct: { active: false } },
+      headers: auth_headers(@admin)
+
+    assert_response :success
+    assert_equal false, @precinct.reload.active
   end
 
   test "invalid registered voters is rejected for precinct update" do

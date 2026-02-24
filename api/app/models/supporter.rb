@@ -54,6 +54,14 @@ class Supporter < ApplicationRecord
   scope :potential_duplicates_only, -> { where(potential_duplicate: true) }
   scope :today, -> { where("supporters.created_at >= ?", Time.current.beginning_of_day) }
   scope :this_week, -> { where("supporters.created_at >= ?", Time.current.beginning_of_week) }
+  # Verification-time windows for vetted metrics.
+  # Fallback to created_at for legacy verified rows missing verified_at.
+  scope :verified_today, -> {
+    verified.where("COALESCE(supporters.verified_at, supporters.created_at) >= ?", Time.current.beginning_of_day)
+  }
+  scope :verified_this_week, -> {
+    verified.where("COALESCE(supporters.verified_at, supporters.created_at) >= ?", Time.current.beginning_of_week)
+  }
 
   def self.potential_duplicates(name, village_id, first_name: nil, last_name: nil)
     return none if village_id.blank?

@@ -22,6 +22,9 @@ interface VillageDetail {
   name: string;
   region: string;
   registered_voters: number;
+  verified_count?: number;
+  total_count?: number;
+  unverified_count?: number;
   supporter_count: number;
   quota_target: number;
   unassigned_precinct_count: number;
@@ -46,7 +49,9 @@ export default function VillageDetailPage() {
   const v: VillageDetail | undefined = data?.village;
   if (!v) return <div className="p-8 text-center text-[var(--text-muted)]">Village not found</div>;
 
-  const pct = v.quota_target > 0 ? ((v.supporter_count / v.quota_target) * 100).toFixed(1) : '0';
+  const verified = v.verified_count ?? v.supporter_count;
+  const unverified = v.unverified_count ?? 0;
+  const pct = v.quota_target > 0 ? ((verified / v.quota_target) * 100).toFixed(1) : '0';
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
@@ -62,7 +67,17 @@ export default function VillageDetailPage() {
         {/* Progress */}
         <div className="app-card p-6 mb-6">
           <div className="flex justify-between items-center mb-2">
-            <span className="text-lg font-semibold">{v.supporter_count} / {v.quota_target} supporters</span>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-semibold">{verified} / {v.quota_target} verified supporters</span>
+              {unverified > 0 && (
+                <Link
+                  to={`/admin/vetting?village_id=${id}`}
+                  className="text-sm text-amber-600 hover:text-amber-700"
+                >
+                  +{unverified} pending
+                </Link>
+              )}
+            </div>
             <span className="text-lg font-bold">{pct}%</span>
           </div>
           <div className="w-full bg-[var(--surface-overlay)] rounded-full h-4">
@@ -74,9 +89,9 @@ export default function VillageDetailPage() {
           <div className="flex items-start gap-2 mt-3 text-xs text-[var(--text-secondary)]">
             <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
             <p>
-              <strong>Supporters</strong> are people who signed up through our campaign.{' '}
-              <strong>Registered voters</strong> ({v.registered_voters.toLocaleString()}) is the total voter count from the Guam Election Commission (Jan 2026).{' '}
-              The quota target ({v.quota_target.toLocaleString()}) is the number of supporters we aim to reach in this village.
+              Only <strong>verified supporters</strong> count toward the quota goal.{' '}
+              Unverified supporters are in the <Link to="/admin/vetting" className="text-primary underline">vetting queue</Link> until approved.{' '}
+              <strong>Registered voters</strong> ({v.registered_voters.toLocaleString()}) is the total voter count from the Guam Election Commission (Jan 2026).
             </p>
           </div>
         </div>

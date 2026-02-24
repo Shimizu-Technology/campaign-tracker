@@ -95,7 +95,8 @@ module Api
 
       # Batch load supporter counts to avoid N+1 queries
       def load_supporter_counts
-        @supporter_counts = Supporter.active.group(:village_id).count
+        @verified_counts = Supporter.active.verified.group(:village_id).count
+        @total_counts = Supporter.active.group(:village_id).count
         @registered_voter_counts = Precinct.group(:village_id).sum(:registered_voters)
       end
 
@@ -105,7 +106,9 @@ module Api
           name: district.name,
           description: district.description,
           villages: district.villages.sort_by(&:name).map { |v| village_summary(v) },
-          supporter_count: district.village_ids.sum { |vid| @supporter_counts.fetch(vid, 0) },
+          verified_count: district.village_ids.sum { |vid| @verified_counts.fetch(vid, 0) },
+          total_count: district.village_ids.sum { |vid| @total_counts.fetch(vid, 0) },
+          supporter_count: district.village_ids.sum { |vid| @verified_counts.fetch(vid, 0) },
           registered_voters: district.village_ids.sum { |vid| @registered_voter_counts.fetch(vid, 0) }
         }
       end
@@ -114,7 +117,9 @@ module Api
         {
           id: village.id,
           name: village.name,
-          supporter_count: @supporter_counts.fetch(village.id, 0),
+          verified_count: @verified_counts.fetch(village.id, 0),
+          total_count: @total_counts.fetch(village.id, 0),
+          supporter_count: @verified_counts.fetch(village.id, 0),
           registered_voters: @registered_voter_counts.fetch(village.id, 0)
         }
       end

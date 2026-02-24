@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getDashboard } from '../../lib/api';
 import { Link } from 'react-router-dom';
-import { Users, MapPin, TrendingUp, BarChart3 } from 'lucide-react';
+import { TrendingUp, BarChart3, ShieldCheck, AlertTriangle, Layers } from 'lucide-react';
 import DashboardSkeleton from '../../components/DashboardSkeleton';
 
 interface VillageData {
@@ -9,9 +9,14 @@ interface VillageData {
   name: string;
   region: string;
   registered_voters: number;
+  verified_count: number;
+  total_count: number;
+  unverified_count: number;
   supporter_count: number;
   today_count: number;
+  today_total_count: number;
   week_count: number;
+  week_total_count: number;
   quota_target: number;
   quota_percentage: number;
   status: 'on_track' | 'behind' | 'critical';
@@ -22,14 +27,18 @@ interface VillageData {
 }
 
 interface DashboardSummary {
+  verified_supporters: number;
   total_supporters: number;
+  unverified_supporters: number;
   total_target: number;
   total_percentage: number;
   total_registered_voters: number;
   total_villages: number;
   total_precincts: number;
   today_signups: number;
+  today_total_signups: number;
   week_signups: number;
+  week_total_signups: number;
   status: 'on_track' | 'behind' | 'critical';
   pace_expected: number;
   pace_diff: number;
@@ -110,14 +119,18 @@ export default function DashboardPage() {
 
   const summarySource = data.summary || data.stats || {};
   const summary: DashboardSummary = {
+    verified_supporters: Number(summarySource.verified_supporters || 0),
     total_supporters: Number(summarySource.total_supporters || 0),
+    unverified_supporters: Number(summarySource.unverified_supporters || 0),
     total_target: Number(summarySource.total_target || 0),
     total_percentage: Number(summarySource.total_percentage || 0),
     total_registered_voters: Number(summarySource.total_registered_voters || 0),
     total_villages: Number(summarySource.total_villages || 0),
     total_precincts: Number(summarySource.total_precincts || 0),
     today_signups: Number(summarySource.today_signups || 0),
+    today_total_signups: Number(summarySource.today_total_signups || 0),
     week_signups: Number(summarySource.week_signups || 0),
+    week_total_signups: Number(summarySource.week_total_signups || 0),
     status: (summarySource.status as DashboardSummary['status']) || 'critical',
     pace_expected: Number(summarySource.pace_expected || 0),
     pace_diff: Number(summarySource.pace_diff || 0),
@@ -129,14 +142,23 @@ export default function DashboardPage() {
 
   const statCards = [
     {
-      label: 'Total Supporters',
-      value: summary.total_supporters.toLocaleString(),
+      label: 'Verified Supporters',
+      value: summary.verified_supporters.toLocaleString(),
       sub: `of ${summary.total_target.toLocaleString()} goal`,
-      icon: Users,
+      icon: ShieldCheck,
       iconBg: 'bg-blue-50',
-      iconColor: 'text-blue-400',
+      iconColor: 'text-blue-500',
     },
-    ...(showPace ? [ {
+    ...(summary.unverified_supporters > 0 ? [{
+      label: 'Pending Vetting',
+      value: summary.unverified_supporters.toLocaleString(),
+      sub: `${summary.total_supporters.toLocaleString()} total collected`,
+      icon: AlertTriangle,
+      iconBg: 'bg-amber-50',
+      iconColor: 'text-amber-500',
+      link: '/admin/vetting',
+    }] : []),
+    ...(showPace ? [{
       label: 'Pace',
       value: paceLabel(summary.pace_diff, summary.pace_status),
       sub: summary.pace_weekly_needed > 0 ? `${summary.pace_weekly_needed}/week needed` : `${summary.total_percentage}% complete`,
@@ -144,22 +166,22 @@ export default function DashboardPage() {
       icon: TrendingUp,
       iconBg: summary.pace_status === 'ahead' || summary.pace_status === 'complete' ? 'bg-green-50' : summary.pace_status === 'slightly_behind' ? 'bg-amber-50' : 'bg-red-50',
       iconColor: paceColor(summary.pace_status),
-    } ] : []),
+    }] : []),
+    {
+      label: 'Total Collected',
+      value: summary.total_supporters.toLocaleString(),
+      sub: `${summary.verified_supporters.toLocaleString()} verified + ${summary.unverified_supporters.toLocaleString()} pending`,
+      icon: Layers,
+      iconBg: 'bg-teal-500/10',
+      iconColor: 'text-teal-400',
+    },
     {
       label: 'Today',
       value: String(summary.today_signups),
-      sub: `${summary.week_signups} this week`,
+      sub: `${summary.week_signups} this week (verified)`,
       icon: BarChart3,
       iconBg: 'bg-violet-500/10',
       iconColor: 'text-violet-400',
-    },
-    {
-      label: 'Coverage',
-      value: String(summary.total_villages),
-      sub: `${summary.total_precincts} precincts`,
-      icon: MapPin,
-      iconBg: 'bg-teal-500/10',
-      iconColor: 'text-teal-400',
     },
   ];
 
@@ -172,11 +194,11 @@ export default function DashboardPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 auto-rows-fr gap-4 mb-8">
         {statCards.map((card) => {
           const Icon = card.icon;
-          return (
-            <div key={card.label} className="app-card app-card-hover p-5">
+          const cardContent = (
+            <div className={`app-card p-5 h-full flex flex-col ${('link' in card) ? 'app-card-hover cursor-pointer' : ''}`}>
               <div className="flex items-center gap-3 mb-3">
                 <div className={`w-9 h-9 rounded-xl ${card.iconBg} flex items-center justify-center`}>
                   <Icon className={`w-[18px] h-[18px] ${card.iconColor}`} />
@@ -184,20 +206,27 @@ export default function DashboardPage() {
                 <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">{card.label}</span>
               </div>
               <div className="text-3xl font-bold text-[var(--text-primary)] tracking-tight tabular-nums">{card.value}</div>
-              <div className={`text-sm mt-1 font-medium ${card.subColor || 'text-[var(--text-secondary)]'}`}>
+              <div className={`text-sm mt-1 font-medium min-h-[2.75rem] leading-snug ${'subColor' in card && card.subColor ? card.subColor : 'text-[var(--text-secondary)]'}`}>
                 {card.sub}
               </div>
             </div>
           );
+          if ('link' in card && card.link) {
+            return <Link key={card.label} to={card.link as string} className="block h-full">{cardContent}</Link>;
+          }
+          return <div key={card.label} className="h-full">{cardContent}</div>;
         })}
       </div>
 
       {/* Overall Progress Bar */}
       <div className="app-card p-5 mb-8">
         <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-semibold text-[var(--text-primary)]">Island-Wide Progress</span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-[var(--text-primary)]">Island-Wide Progress</span>
+            <span className="text-xs text-[var(--text-muted)]">(verified only)</span>
+          </div>
           <span className="text-sm text-[var(--text-secondary)] font-medium tabular-nums">
-            {summary.total_supporters.toLocaleString()} / {summary.total_target.toLocaleString()}
+            {summary.verified_supporters.toLocaleString()} / {summary.total_target.toLocaleString()}
           </span>
         </div>
         <div className="w-full bg-[var(--surface-overlay)] rounded-full h-3 overflow-hidden">
@@ -206,6 +235,11 @@ export default function DashboardPage() {
             style={{ width: `${Math.min(summary.total_percentage, 100)}%` }}
           />
         </div>
+        {summary.unverified_supporters > 0 && (
+          <p className="text-xs text-[var(--text-muted)] mt-2">
+            {summary.unverified_supporters.toLocaleString()} additional supporters pending vetting
+          </p>
+        )}
       </div>
 
       {/* Village Grid */}
@@ -214,45 +248,58 @@ export default function DashboardPage() {
         <p className="text-sm text-[var(--text-secondary)] mt-0.5">{villages.length} villages across the island</p>
       </div>
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {villages.map((v: VillageData) => (
-          <Link
-            key={v.id}
-            to={`/admin/villages/${v.id}`}
-            className="group block app-card app-card-hover p-4"
-          >
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-[var(--text-primary)] group-hover:text-blue-400 transition-colors text-[15px]">
-                {v.name}
-              </h3>
-              <span className="text-[11px] text-[var(--text-muted)] font-medium uppercase tracking-wider">{v.region}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm mb-2.5">
-              <span className="text-[var(--text-secondary)] font-medium tabular-nums">{v.supporter_count} / {v.quota_target}</span>
-              <span className={`font-semibold tabular-nums ${statusTextColor(v.status)}`}>{v.quota_percentage}%</span>
-            </div>
-            <div className="w-full bg-[var(--surface-overlay)] rounded-full h-2 overflow-hidden">
-              <div
-                className={`h-2 rounded-full transition-all duration-500 ${statusBarColor(v.status)}`}
-                style={{ width: `${Math.min(v.quota_percentage, 100)}%` }}
-              />
-            </div>
-            <div className="mt-2.5 flex justify-between text-[11px] text-[var(--text-muted)]">
-              {showPace ? (
-                <>
-                  <span className={`font-medium ${paceColor(v.pace_status)}`}>
-                    {paceLabel(v.pace_diff, v.pace_status)}
+        {villages.map((v: VillageData) => {
+          const verified = v.verified_count ?? v.supporter_count ?? 0;
+          const unverified = v.unverified_count ?? 0;
+          return (
+            <Link
+              key={v.id}
+              to={`/admin/villages/${v.id}`}
+              className="group block app-card app-card-hover p-4"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-semibold text-[var(--text-primary)] group-hover:text-blue-400 transition-colors text-[15px]">
+                  {v.name}
+                </h3>
+                <span className="text-[11px] text-[var(--text-muted)] font-medium uppercase tracking-wider">{v.region}</span>
+              </div>
+              <div className="flex items-center justify-between text-sm mb-2.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[var(--text-secondary)] font-medium tabular-nums">
+                    {verified} / {v.quota_target}
                   </span>
-                  {v.pace_weekly_needed > 0 && (
-                    <span>{v.pace_weekly_needed}/wk needed</span>
+                  {unverified > 0 && (
+                    <span className="text-xs text-amber-500 tabular-nums" title={`${unverified} pending vetting`}>
+                      (+{unverified})
+                    </span>
                   )}
-                </>
-              ) : (
-                <span>{v.registered_voters.toLocaleString()} registered voters</span>
-              )}
-              {v.today_count > 0 && <span className="text-emerald-600 font-medium">+{v.today_count} today</span>}
-            </div>
-          </Link>
-        ))}
+                </div>
+                <span className={`font-semibold tabular-nums ${statusTextColor(v.status)}`}>{v.quota_percentage}%</span>
+              </div>
+              <div className="w-full bg-[var(--surface-overlay)] rounded-full h-2 overflow-hidden">
+                <div
+                  className={`h-2 rounded-full transition-all duration-500 ${statusBarColor(v.status)}`}
+                  style={{ width: `${Math.min(v.quota_percentage, 100)}%` }}
+                />
+              </div>
+              <div className="mt-2.5 flex justify-between text-[11px] text-[var(--text-muted)]">
+                {showPace ? (
+                  <>
+                    <span className={`font-medium ${paceColor(v.pace_status)}`}>
+                      {paceLabel(v.pace_diff, v.pace_status)}
+                    </span>
+                    {v.pace_weekly_needed > 0 && (
+                      <span>{v.pace_weekly_needed}/wk needed</span>
+                    )}
+                  </>
+                ) : (
+                  <span>{v.registered_voters.toLocaleString()} registered voters</span>
+                )}
+                {v.today_count > 0 && <span className="text-emerald-600 font-medium">+{v.today_count} today</span>}
+              </div>
+            </Link>
+          );
+        })}
       </div>
     </div>
   );

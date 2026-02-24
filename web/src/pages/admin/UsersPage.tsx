@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { ChevronDown, ChevronRight, Mail, Pencil, Plus, Save, Search, Trash2, Users, X } from 'lucide-react';
+import { ChevronDown, ChevronRight, Mail, Pencil, Plus, Save, Search, Trash2, Users, X, Check } from 'lucide-react';
 import { createUser, deleteUser, getDistricts, getUsers, getVillages, resendUserInvite, updateUser } from '../../lib/api';
 import { useSession } from '../../hooks/useSession';
 
@@ -253,6 +253,46 @@ function roleHasPermission(role: string, permission: PermissionKey): boolean {
   return (ROLE_PERMISSION_MAP[role] || []).includes(permission);
 }
 
+function RolePermissionsDisclosure({ role }: { role: string }) {
+  const allowed = PERMISSION_KEYS.filter((permission) => roleHasPermission(role, permission));
+  const restricted = PERMISSION_KEYS.filter((permission) => !roleHasPermission(role, permission));
+
+  return (
+    <details className="mt-1.5 group">
+      <summary className="cursor-pointer list-none inline-flex items-center gap-1 text-[11px] text-primary hover:text-primary/80">
+        <ChevronRight className="w-3 h-3 transition-transform group-open:rotate-90" />
+        <span>Access details ({allowed.length}/{PERMISSION_KEYS.length})</span>
+      </summary>
+      <div className="mt-2 rounded-lg border border-[var(--border-soft)] bg-[var(--surface-raised)] p-2.5">
+        <div className="grid gap-2 sm:grid-cols-2">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-700 mb-1.5">Allowed</p>
+            <div className="space-y-1">
+              {allowed.map((permission) => (
+                <div key={permission} className="inline-flex w-full items-center gap-1.5 rounded-md bg-emerald-50 px-2 py-1 text-[10px] text-emerald-800 border border-emerald-200">
+                  <Check className="w-3 h-3 shrink-0" />
+                  <span>{PERMISSION_LABELS[permission]}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--text-muted)] mb-1.5">Restricted</p>
+            <div className="space-y-1">
+              {restricted.map((permission) => (
+                <div key={permission} className="inline-flex w-full items-center gap-1.5 rounded-md bg-gray-100 px-2 py-1 text-[10px] text-gray-600 border border-gray-200">
+                  <X className="w-3 h-3 shrink-0" />
+                  <span>{PERMISSION_LABELS[permission]}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </details>
+  );
+}
+
 function roleScopeRule(role: string): string {
   if (role === 'campaign_admin') return 'Scope rule: full access to all villages';
   if (role === 'district_coordinator') return 'Scope rule: assigned district (or all villages if no district assigned)';
@@ -353,6 +393,7 @@ export default function UsersPage() {
   const [sortBy, setSortBy] = useState<UserSortField>(parseSortField(searchParams.get('sort_by')));
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>((searchParams.get('sort_dir') as 'asc' | 'desc') || 'asc');
   const [expandedRoles, setExpandedRoles] = useState<Set<string>>(new Set());
+  const [expandedUserPermissions, setExpandedUserPermissions] = useState<Set<number>>(new Set());
 
   const roles = useMemo(() => data?.roles || [], [data]);
   const users = useMemo(() => data?.users || [], [data]);
@@ -488,6 +529,21 @@ export default function UsersPage() {
     setDraftByUser((prev) => {
       const next = { ...prev };
       delete next[userId];
+      return next;
+    });
+    setExpandedUserPermissions((prev) => {
+      if (!prev.has(userId)) return prev;
+      const next = new Set(prev);
+      next.delete(userId);
+      return next;
+    });
+  };
+
+  const toggleUserPermissions = (userId: number) => {
+    setExpandedUserPermissions((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
       return next;
     });
   };
@@ -893,26 +949,7 @@ export default function UsersPage() {
                             <p className="text-xs text-[var(--text-muted)] mt-1">
                               {scopeLabelForRole(user.role, user.assigned_district_id, user.assigned_village_id, villages, districts)}
                             </p>
-                            <details className="mt-2">
-                              <summary className="cursor-pointer text-xs text-primary">View detailed access</summary>
-                              <div className="mt-2 flex flex-wrap gap-1.5">
-                                {PERMISSION_KEYS.map((permission) => {
-                                  const allowed = roleHasPermission(user.role, permission);
-                                  return (
-                                    <span
-                                      key={permission}
-                                      className={`text-[11px] px-2 py-1 rounded-full border ${
-                                        allowed
-                                          ? 'bg-green-50 border-green-200 text-green-700'
-                                          : 'bg-gray-100 border-gray-200 text-gray-500'
-                                      }`}
-                                    >
-                                      {allowed ? 'Can' : "Can't"} {PERMISSION_LABELS[permission]}
-                                    </span>
-                                  );
-                                })}
-                              </div>
-                            </details>
+                            <RolePermissionsDisclosure role={user.role} />
                           </div>
                           <div className="grid grid-cols-2 gap-2">
                             <button
@@ -976,173 +1013,168 @@ export default function UsersPage() {
                       const isEditing = Boolean(draftByUser[user.id]);
                       const draft = getDraft(user);
                       const changed = hasChanges(user, draft);
+                      const isPermissionsExpanded = expandedUserPermissions.has(user.id);
 
                       return (
-                        <tr key={user.id} className="border-b">
-                          <td className="px-4 py-3 text-[var(--text-primary)]">
-                            {isEditing ? (
-                              <div className="flex gap-2">
-                                <input
-                                  type="text"
-                                  value={draft.firstName}
-                                  onChange={(e) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, firstName: e.target.value } }))}
-                                  placeholder="First"
-                                  className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px] w-full"
-                                />
-                                <input
-                                  type="text"
-                                  value={draft.lastName}
-                                  onChange={(e) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, lastName: e.target.value } }))}
-                                  placeholder="Last"
-                                  className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px] w-full"
-                                />
-                              </div>
-                            ) : (
-                              user.name || '—'
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-[var(--text-secondary)]">
-                            {isEditing ? (
-                              <input
-                                type="email"
-                                value={draft.email}
-                                onChange={(e) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, email: e.target.value } }))}
-                                className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px] w-full"
-                              />
-                            ) : (
-                              user.email
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            {isEditing ? (
-                              <select
-                                value={draft.role}
-                                onChange={(e) => {
-                                  const newRole = e.target.value;
-                                  const oldType = roleAssignmentType(draft.role);
-                                  const newType = roleAssignmentType(newRole);
-                                  setDraftByUser((prev) => ({
-                                    ...prev,
-                                    [user.id]: {
-                                      ...draft,
-                                      role: newRole,
-                                      assigned_village_id: newType === oldType ? draft.assigned_village_id : null,
-                                      assigned_district_id: newType === oldType ? draft.assigned_district_id : null,
-                                    },
-                                  }));
-                                }}
-                                className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px]"
-                              >
-                                {roles.map((role) => (
-                                  <option key={role} value={role}>{roleLabel(role)}</option>
-                                ))}
-                              </select>
-                            ) : (
-                              roleLabel(user.role)
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            {isEditing ? (
-                              roleAssignmentType(draft.role) !== 'none' ? (
-                                <AssignmentDropdown
-                                  role={draft.role}
-                                  villageId={draft.assigned_village_id}
-                                  districtId={draft.assigned_district_id}
-                                  onVillageChange={(id) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, assigned_village_id: id } }))}
-                                  onDistrictChange={(id) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, assigned_district_id: id } }))}
-                                  villages={villages}
-                                  districts={districts}
-                                />
-                              ) : (
-                                <span className="text-xs text-[var(--text-muted)]">Full access</span>
-                              )
-                            ) : (
-                              <div className="space-y-1">
-                                <span className={`block text-xs ${user.assigned_village_id || user.assigned_district_id ? 'text-[var(--text-secondary)]' : roleAssignmentType(user.role) === 'none' ? 'text-[var(--text-muted)]' : 'text-amber-600'}`}>
-                                  {assignmentLabel(user, villages, districts) || 'Full access'}
-                                </span>
-                                <span className="block text-[11px] text-[var(--text-muted)]">
-                                  {scopeLabelForRole(user.role, user.assigned_district_id, user.assigned_village_id, villages, districts)}
-                                </span>
-                                <div className="flex flex-wrap gap-1">
-                                  {[
-                                    'can_view_supporters',
-                                    'can_access_poll_watcher',
-                                    'can_access_war_room',
-                                    'can_access_duplicates',
-                                  ].map((permission) => {
-                                    const key = permission as PermissionKey;
-                                    const allowed = roleHasPermission(user.role, key);
-                                    return (
-                                      <span
-                                        key={key}
-                                        className={`text-[10px] px-1.5 py-0.5 rounded border ${
-                                          allowed
-                                            ? 'bg-green-50 border-green-200 text-green-700'
-                                            : 'bg-gray-100 border-gray-200 text-gray-500'
-                                        }`}
-                                      >
-                                        {allowed ? 'Can' : "Can't"} {PERMISSION_LABELS[key]}
-                                      </span>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            )}
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
+                        <Fragment key={user.id}>
+                          <tr className="border-b">
+                            <td className="px-4 py-3 text-[var(--text-primary)]">
                               {isEditing ? (
-                                <>
-                                  <button
-                                    type="button"
-                                    disabled={!changed || updateMutation.isPending}
-                                    onClick={() => updateMutation.mutate({ id: user.id, payload: draft })}
-                                    className="bg-primary text-white px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1 disabled:opacity-50"
-                                  >
-                                    <Save className="w-3.5 h-3.5" /> Save
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => cancelEdit(user.id)}
-                                    className="bg-[var(--surface-raised)] border border-[var(--border-soft)] text-[var(--text-primary)] px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1"
-                                  >
-                                    <X className="w-3.5 h-3.5" /> Cancel
-                                  </button>
-                                </>
+                                <div className="flex gap-2">
+                                  <input
+                                    type="text"
+                                    value={draft.firstName}
+                                    onChange={(e) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, firstName: e.target.value } }))}
+                                    placeholder="First"
+                                    className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px] w-full"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={draft.lastName}
+                                    onChange={(e) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, lastName: e.target.value } }))}
+                                    placeholder="Last"
+                                    className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px] w-full"
+                                  />
+                                </div>
                               ) : (
-                                <button
-                                  type="button"
-                                  onClick={() => startEdit(user)}
-                                  className="bg-primary text-white px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1"
-                                >
-                                  <Pencil className="w-3.5 h-3.5" /> Edit
-                                </button>
+                                user.name || '—'
                               )}
-                              <button
-                                type="button"
-                                disabled={resendInviteMutation.isPending}
-                                onClick={() => resendInviteMutation.mutate(user.id)}
-                                className="bg-[var(--surface-raised)] border border-[var(--border-soft)] text-[var(--text-primary)] px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1 disabled:opacity-50"
-                              >
-                                <Mail className="w-3.5 h-3.5" /> Resend
-                              </button>
-                              {user.id !== currentUserId && (
-                                <button
-                                  type="button"
-                                  disabled={deleteMutation.isPending}
-                                  onClick={() => {
-                                    if (!window.confirm(`Remove ${user.name || user.email}? They will lose access to the app.`)) return;
-                                    deleteMutation.mutate(user.id);
+                            </td>
+                            <td className="px-4 py-3 text-[var(--text-secondary)]">
+                              {isEditing ? (
+                                <input
+                                  type="email"
+                                  value={draft.email}
+                                  onChange={(e) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, email: e.target.value } }))}
+                                  className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px] w-full"
+                                />
+                              ) : (
+                                user.email
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              {isEditing ? (
+                                <select
+                                  value={draft.role}
+                                  onChange={(e) => {
+                                    const newRole = e.target.value;
+                                    const oldType = roleAssignmentType(draft.role);
+                                    const newType = roleAssignmentType(newRole);
+                                    setDraftByUser((prev) => ({
+                                      ...prev,
+                                      [user.id]: {
+                                        ...draft,
+                                        role: newRole,
+                                        assigned_village_id: newType === oldType ? draft.assigned_village_id : null,
+                                        assigned_district_id: newType === oldType ? draft.assigned_district_id : null,
+                                      },
+                                    }));
                                   }}
-                                  className="bg-red-50 border border-red-200 text-red-600 px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1 disabled:opacity-50"
+                                  className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] min-h-[44px]"
                                 >
-                                  <Trash2 className="w-3.5 h-3.5" /> Remove
-                                </button>
+                                  {roles.map((role) => (
+                                    <option key={role} value={role}>{roleLabel(role)}</option>
+                                  ))}
+                                </select>
+                              ) : (
+                                roleLabel(user.role)
                               )}
-                            </div>
-                          </td>
-                        </tr>
+                            </td>
+                            <td className="px-4 py-3">
+                              {isEditing ? (
+                                roleAssignmentType(draft.role) !== 'none' ? (
+                                  <AssignmentDropdown
+                                    role={draft.role}
+                                    villageId={draft.assigned_village_id}
+                                    districtId={draft.assigned_district_id}
+                                    onVillageChange={(id) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, assigned_village_id: id } }))}
+                                    onDistrictChange={(id) => setDraftByUser((prev) => ({ ...prev, [user.id]: { ...draft, assigned_district_id: id } }))}
+                                    villages={villages}
+                                    districts={districts}
+                                  />
+                                ) : (
+                                  <span className="text-xs text-[var(--text-muted)]">Full access</span>
+                                )
+                              ) : (
+                                <div>
+                                  <span className={`block text-xs font-medium ${user.assigned_village_id || user.assigned_district_id ? 'text-[var(--text-primary)]' : roleAssignmentType(user.role) === 'none' ? 'text-[var(--text-muted)]' : 'text-amber-600'}`}>
+                                    {assignmentLabel(user, villages, districts) || 'Full access'}
+                                  </span>
+                                  <span className="block text-[11px] text-[var(--text-muted)] mt-0.5">
+                                    {scopeLabelForRole(user.role, user.assigned_district_id, user.assigned_village_id, villages, districts)}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleUserPermissions(user.id)}
+                                    className="mt-1 inline-flex items-center gap-1 text-[11px] text-primary hover:text-primary/80"
+                                  >
+                                    {isPermissionsExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                                    <span>Access details ({PERMISSION_KEYS.filter((permission) => roleHasPermission(user.role, permission)).length}/{PERMISSION_KEYS.length})</span>
+                                  </button>
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                {isEditing ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      disabled={!changed || updateMutation.isPending}
+                                      onClick={() => updateMutation.mutate({ id: user.id, payload: draft })}
+                                      className="bg-primary text-white px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1 disabled:opacity-50"
+                                    >
+                                      <Save className="w-3.5 h-3.5" /> Save
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => cancelEdit(user.id)}
+                                      className="bg-[var(--surface-raised)] border border-[var(--border-soft)] text-[var(--text-primary)] px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1"
+                                    >
+                                      <X className="w-3.5 h-3.5" /> Cancel
+                                    </button>
+                                  </>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => startEdit(user)}
+                                    className="bg-primary text-white px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" /> Edit
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  disabled={resendInviteMutation.isPending}
+                                  onClick={() => resendInviteMutation.mutate(user.id)}
+                                  className="bg-[var(--surface-raised)] border border-[var(--border-soft)] text-[var(--text-primary)] px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1 disabled:opacity-50"
+                                >
+                                  <Mail className="w-3.5 h-3.5" /> Resend
+                                </button>
+                                {user.id !== currentUserId && (
+                                  <button
+                                    type="button"
+                                    disabled={deleteMutation.isPending}
+                                    onClick={() => {
+                                      if (!window.confirm(`Remove ${user.name || user.email}? They will lose access to the app.`)) return;
+                                      deleteMutation.mutate(user.id);
+                                    }}
+                                    className="bg-red-50 border border-red-200 text-red-600 px-3 py-2 rounded-xl min-h-[44px] text-xs font-medium flex items-center gap-1 disabled:opacity-50"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" /> Remove
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                          {!isEditing && isPermissionsExpanded && (
+                            <tr className="border-b bg-[var(--surface-raised)]">
+                              <td colSpan={5} className="px-4 py-3">
+                                <RolePermissionChips role={user.role} />
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
                       );
                     })}
                     {filteredUsers.length === 0 && (

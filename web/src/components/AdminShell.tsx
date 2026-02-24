@@ -25,7 +25,8 @@ import {
   ScrollText,
   Menu,
   X,
-  ExternalLink,
+  Home,
+  Settings,
 } from 'lucide-react';
 
 interface NavItem {
@@ -103,6 +104,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         ...(permissions?.can_manage_configuration ? [ { to: '/admin/districts', label: 'Districts', icon: MapPin } ] : []),
         ...(permissions?.can_manage_configuration ? [ { to: '/admin/quotas', label: 'Quotas', icon: Target } ] : []),
         ...(permissions?.can_manage_configuration ? [ { to: '/admin/precincts', label: 'Precincts', icon: MapPin } ] : []),
+        ...(permissions?.can_manage_configuration ? [ { to: '/admin/sms/settings', label: 'Campaign Settings', icon: Settings } ] : []),
       ],
     },
   ].filter(g => g.items.length > 0);
@@ -175,15 +177,13 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
       {/* View Public Site */}
       <div className="mt-auto border-t border-gray-200 pt-3 px-3 pb-4">
-        <a
-          href="/"
-          target="_blank"
-          rel="noopener noreferrer"
+        <Link
+          to="/"
           className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-all duration-150"
         >
-          <ExternalLink className="w-4 h-4 shrink-0 text-gray-400" />
+          <Home className="w-4 h-4 shrink-0 text-gray-400" />
           <span>View Public Site</span>
-        </a>
+        </Link>
       </div>
 
       {/* User */}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSupporters, getVillages, verifySupporter, bulkVerifySupporters, updateSupporter } from '../../lib/api';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useSession } from '../../hooks/useSession';
 import { CheckCircle, XCircle, AlertTriangle, ShieldCheck, ClipboardList, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 
@@ -30,7 +30,9 @@ interface Village {
 }
 
 export default function VettingPage() {
-  const [villageFilter, setVillageFilter] = useState<string>('');
+  const [searchParams] = useSearchParams();
+  const initialVillageFilter = searchParams.get('village_id') || '';
+  const [villageFilter, setVillageFilter] = useState<string>(initialVillageFilter);
   const [statusFilter, setStatusFilter] = useState<string>('unverified');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -41,7 +43,8 @@ export default function VettingPage() {
   const userVillageId = sessionData?.user?.assigned_village_id;
   const scopedVillageIds = sessionData?.user?.scoped_village_ids ?? null;
   const singleScopedVillageId = scopedVillageIds && scopedVillageIds.length === 1 ? String(scopedVillageIds[0]) : '';
-  const effectiveVillageFilter = villageFilter || singleScopedVillageId || (userVillageId ? String(userVillageId) : '');
+  const forcedVillageFilter = singleScopedVillageId || (userVillageId ? String(userVillageId) : '');
+  const effectiveVillageFilter = forcedVillageFilter || villageFilter;
   const isChief = sessionData?.user?.role === 'village_chief';
   const isLeader = sessionData?.user?.role === 'block_leader';
 
