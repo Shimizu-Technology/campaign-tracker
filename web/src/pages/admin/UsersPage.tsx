@@ -1057,36 +1057,13 @@ export default function UsersPage() {
                                 <span className="text-xs text-[var(--text-muted)]">Full access</span>
                               )
                             ) : (
-                              <div className="space-y-1">
-                                <span className={`block text-xs ${user.assigned_village_id || user.assigned_district_id ? 'text-[var(--text-secondary)]' : roleAssignmentType(user.role) === 'none' ? 'text-[var(--text-muted)]' : 'text-amber-600'}`}>
+                              <div>
+                                <span className={`block text-xs font-medium ${user.assigned_village_id || user.assigned_district_id ? 'text-[var(--text-primary)]' : roleAssignmentType(user.role) === 'none' ? 'text-[var(--text-muted)]' : 'text-amber-600'}`}>
                                   {assignmentLabel(user, villages, districts) || 'Full access'}
                                 </span>
-                                <span className="block text-[11px] text-[var(--text-muted)]">
+                                <span className="block text-[11px] text-[var(--text-muted)] mt-0.5">
                                   {scopeLabelForRole(user.role, user.assigned_district_id, user.assigned_village_id, villages, districts)}
                                 </span>
-                                <div className="flex flex-wrap gap-1">
-                                  {[
-                                    'can_view_supporters',
-                                    'can_access_poll_watcher',
-                                    'can_access_war_room',
-                                    'can_access_duplicates',
-                                  ].map((permission) => {
-                                    const key = permission as PermissionKey;
-                                    const allowed = roleHasPermission(user.role, key);
-                                    return (
-                                      <span
-                                        key={key}
-                                        className={`text-[10px] px-1.5 py-0.5 rounded border ${
-                                          allowed
-                                            ? 'bg-green-50 border-green-200 text-green-700'
-                                            : 'bg-gray-100 border-gray-200 text-gray-500'
-                                        }`}
-                                      >
-                                        {allowed ? 'Can' : "Can't"} {PERMISSION_LABELS[key]}
-                                      </span>
-                                    );
-                                  })}
-                                </div>
                               </div>
                             )}
                           </td>

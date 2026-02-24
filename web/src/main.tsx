@@ -16,8 +16,8 @@ const posthogHost = import.meta.env.VITE_PUBLIC_POSTHOG_HOST
 
 const posthogOptions = {
   api_host: posthogHost,
-  defaults: '2026-01-30',
-} as const
+  person_profiles: 'identified_only' as const,
+}
 
 const app = (
   <StrictMode>
