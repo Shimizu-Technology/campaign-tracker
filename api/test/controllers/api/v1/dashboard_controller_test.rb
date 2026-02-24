@@ -77,4 +77,40 @@ class Api::V1::DashboardControllerTest < ActionDispatch::IntegrationTest
     # Quota percentage based on verified only: 2/100 = 2.0%
     assert_equal 2.0, village["quota_percentage"]
   end
+
+  test "scoped user sees island-wide summary with scoped village list" do
+    other_village = Village.create!(name: "Other Village", region: "North")
+    Precinct.create!(number: "O1", village: other_village)
+    Quota.create!(village: other_village, campaign: @campaign, period: "quarterly", target_count: 50, target_date: Date.current)
+    Supporter.create!(
+      first_name: "Supporter", last_name: "Four", print_name: "Supporter Four",
+      contact_number: "6715551003",
+      village: other_village,
+      source: "staff_entry",
+      status: "active",
+      verification_status: "verified",
+      verified_at: Time.current
+    )
+
+    scoped_user = User.create!(
+      clerk_id: "clerk-dashboard-scoped-user",
+      email: "dashboard-scoped-user@example.com",
+      name: "Dashboard Scoped User",
+      role: "block_leader",
+      assigned_village_id: @village.id
+    )
+
+    get "/api/v1/dashboard", headers: auth_headers(scoped_user)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+
+    # Summary remains island-wide.
+    assert_equal 4, payload.dig("summary", "total_supporters")
+    assert_equal 3, payload.dig("summary", "verified_supporters")
+
+    # Village cards are scoped to the assigned village.
+    assert_equal 1, payload["villages"].size
+    assert_equal @village.id, payload["villages"][0]["id"]
+  end
 end

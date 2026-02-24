@@ -1,8 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { getDashboard } from '../../lib/api';
 import { Link } from 'react-router-dom';
-import { TrendingUp, BarChart3, ShieldCheck, AlertTriangle, Layers } from 'lucide-react';
+import { TrendingUp, BarChart3, ShieldCheck, AlertTriangle, Layers, Users } from 'lucide-react';
 import DashboardSkeleton from '../../components/DashboardSkeleton';
+import { useSession } from '../../hooks/useSession';
 
 interface VillageData {
   id: number;
@@ -86,6 +87,7 @@ function paceLabel(diff: number, status: string) {
 }
 
 export default function DashboardPage() {
+  const { data: sessionData } = useSession();
   const { data, isLoading, isError } = useQuery<DashboardPayload>({
     queryKey: ['dashboard'],
     queryFn: getDashboard,
@@ -139,6 +141,8 @@ export default function DashboardPage() {
   };
   const villages = Array.isArray(data.villages) ? data.villages : [];
   const showPace = data.campaign?.show_pace === true;
+  const scopedVillageIds = sessionData?.user?.scoped_village_ids ?? null;
+  const hasScopedVillageView = scopedVillageIds !== null;
 
   const statCards = [
     {
@@ -240,12 +244,21 @@ export default function DashboardPage() {
             {summary.unverified_supporters.toLocaleString()} additional supporters pending vetting
           </p>
         )}
+        {hasScopedVillageView && (
+          <p className="text-xs text-[var(--text-muted)] mt-1">
+            Top metrics are island-wide; village cards below are limited to your assigned area.
+          </p>
+        )}
       </div>
 
       {/* Village Grid */}
       <div className="mb-5">
         <h2 className="text-lg font-bold text-[var(--text-primary)] tracking-tight">Village Progress</h2>
-        <p className="text-sm text-[var(--text-secondary)] mt-0.5">{villages.length} villages across the island</p>
+        <p className="text-sm text-[var(--text-secondary)] mt-0.5">
+          {hasScopedVillageView
+            ? `Showing ${villages.length} village${villages.length === 1 ? '' : 's'} in your assigned area`
+            : `${villages.length} villages across the island`}
+        </p>
       </div>
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {villages.map((v: VillageData) => {
@@ -258,7 +271,10 @@ export default function DashboardPage() {
               className="group block app-card app-card-hover p-4"
             >
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-semibold text-[var(--text-primary)] group-hover:text-blue-400 transition-colors text-[15px]">
+                <h3
+                  className="font-semibold text-[var(--text-primary)] group-hover:text-blue-400 transition-colors text-sm leading-snug pr-2 break-words"
+                  title={v.name}
+                >
                   {v.name}
                 </h3>
                 <span className="text-[11px] text-[var(--text-muted)] font-medium uppercase tracking-wider">{v.region}</span>
