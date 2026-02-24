@@ -18,19 +18,21 @@ module Api
         scope = scope.where("LOWER(first_name) LIKE ?", "#{params[:first_name].downcase.strip}%") if params[:first_name].present?
 
         if params[:list_date].present?
-          scope = scope.for_list_date(Date.parse(params[:list_date]))
+          list_date = Date.parse(params[:list_date]) rescue nil
+          return render_api_error(message: "Invalid date format for list_date", status: :unprocessable_entity, code: "invalid_date") unless list_date
+          scope = scope.for_list_date(list_date)
         end
 
         scope = scope.order(:village_name, :last_name, :first_name)
 
         # Paginate
         page = (params[:page] || 1).to_i
-        per_page = [(params[:per_page] || 50).to_i, 200].min
+        per_page = [ (params[:per_page] || 50).to_i, 200 ].min
         total = scope.count
         voters = scope.offset((page - 1) * per_page).limit(per_page)
 
         render json: {
-          gec_voters: voters.as_json(only: [:id, :first_name, :last_name, :dob, :village_name, :village_id, :voter_registration_number, :status, :dob_ambiguous, :gec_list_date]),
+          gec_voters: voters.as_json(only: [ :id, :first_name, :last_name, :dob, :village_name, :village_id, :voter_registration_number, :status, :dob_ambiguous, :gec_list_date ]),
           pagination: { page: page, per_page: per_page, total: total, total_pages: (total.to_f / per_page).ceil }
         }
       end
@@ -49,7 +51,7 @@ module Api
         render json: {
           total_voters: GecVoter.active.count,
           latest_list_date: latest_date,
-          latest_import: latest_import&.as_json(only: [:id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :ambiguous_dob_count, :status, :created_at]),
+          latest_import: latest_import&.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :ambiguous_dob_count, :status, :created_at ]),
           villages: village_counts.map { |name, count| { name: name, count: count } },
           ambiguous_dob_count: GecVoter.active.with_ambiguous_dob.count
         }
@@ -75,7 +77,8 @@ module Api
           )
         end
 
-        gec_list_date = Date.parse(params[:gec_list_date])
+        gec_list_date = Date.parse(params[:gec_list_date]) rescue nil
+        return render_api_error(message: "Invalid date format for gec_list_date", status: :unprocessable_entity, code: "invalid_date") unless gec_list_date
         sheet_name = params[:sheet_name]
 
         service = GecImportService.new(
@@ -92,7 +95,7 @@ module Api
 
           render json: {
             message: "GEC voter list imported successfully",
-            import: result.gec_import.as_json(only: [:id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :ambiguous_dob_count, :status]),
+            import: result.gec_import.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :ambiguous_dob_count, :status ]),
             stats: result.stats,
             errors: result.errors.first(20)
           }, status: :created
@@ -141,7 +144,7 @@ module Api
         imports = GecImport.latest.limit(20)
 
         render json: {
-          imports: imports.as_json(only: [:id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :ambiguous_dob_count, :status, :created_at])
+          imports: imports.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :ambiguous_dob_count, :status, :created_at ])
         }
       end
 
@@ -151,14 +154,14 @@ module Api
         matches = GecVoter.find_matches(
           first_name: params[:first_name],
           last_name: params[:last_name],
-          dob: params[:dob].present? ? Date.parse(params[:dob]) : nil,
+          dob: params[:dob].present? ? (Date.parse(params[:dob]) rescue nil) : nil,
           village_name: params[:village_name]
         )
 
         render json: {
           matches: matches.map do |m|
             {
-              gec_voter: m[:gec_voter].as_json(only: [:id, :first_name, :last_name, :dob, :village_name, :voter_registration_number]),
+              gec_voter: m[:gec_voter].as_json(only: [ :id, :first_name, :last_name, :dob, :village_name, :voter_registration_number ]),
               confidence: m[:confidence],
               match_type: m[:match_type]
             }

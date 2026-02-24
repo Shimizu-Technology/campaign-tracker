@@ -135,5 +135,4 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     json = JSON.parse(response.body)
     assert json["imports"].any?
   end
-
 end

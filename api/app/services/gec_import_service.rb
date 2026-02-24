@@ -8,11 +8,11 @@ class GecImportService
 
   # Column name aliases to handle different GEC Excel formats
   COLUMN_ALIASES = {
-    "first_name" => ["first_name", "first name", "fname", "given_name", "given name"],
-    "last_name" => ["last_name", "last name", "lname", "surname", "family_name", "family name"],
-    "dob" => ["dob", "date_of_birth", "date of birth", "birth_date", "birth date", "birthday"],
-    "village" => ["village", "municipality", "district", "precinct_village", "voting_district"],
-    "voter_registration_number" => ["voter_registration_number", "voter_reg", "registration_number", "reg_no", "reg_number", "vrn"]
+    "first_name" => [ "first_name", "first name", "fname", "given_name", "given name" ],
+    "last_name" => [ "last_name", "last name", "lname", "surname", "family_name", "family name" ],
+    "dob" => [ "dob", "date_of_birth", "date of birth", "birth_date", "birth date", "birthday" ],
+    "village" => [ "village", "municipality", "district", "precinct_village", "voting_district" ],
+    "voter_registration_number" => [ "voter_registration_number", "voter_reg", "registration_number", "reg_no", "reg_number", "vrn" ]
   }.freeze
 
   Result = Struct.new(:success, :gec_import, :errors, :stats, keyword_init: true)
@@ -66,7 +66,7 @@ class GecImportService
       Result.new(success: true, gec_import: gec_import, errors: @errors, stats: @stats)
     rescue => e
       gec_import.update!(status: "failed", metadata: { error: e.message })
-      Result.new(success: false, gec_import: gec_import, errors: [e.message], stats: @stats)
+      Result.new(success: false, gec_import: gec_import, errors: [ e.message ], stats: @stats)
     end
   end
 
@@ -79,7 +79,7 @@ class GecImportService
     column_map = build_column_map(headers)
     sheets = spreadsheet.sheets
 
-    rows = (2..[sheet.last_row, limit + 1].min).map do |i|
+    rows = (2..[ sheet.last_row, limit + 1 ].min).map do |i|
       raw = sheet.row(i)
       parse_row(raw, column_map)
     end
@@ -186,7 +186,7 @@ class GecImportService
   # When PDF→Excel conversion happens, month and day sometimes swap.
   # If both values are ≤ 12, we can't tell which is correct → flag as ambiguous.
   def parse_dob(value)
-    return [nil, false] if value.blank?
+    return [ nil, false ] if value.blank?
 
     date = case value
     when Date, DateTime, Time
@@ -216,12 +216,12 @@ class GecImportService
       end
     end
 
-    return [nil, false] if date.nil?
+    return [ nil, false ] if date.nil?
 
     # DOB ambiguity check: if both month and day ≤ 12, we can't be sure
     # the PDF→Excel conversion didn't swap them
     ambiguous = date.month <= 12 && date.day <= 12 && date.month != date.day
 
-    [date, ambiguous]
+    [ date, ambiguous ]
   end
 end

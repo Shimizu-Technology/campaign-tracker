@@ -9,10 +9,10 @@ class GecImportServiceTest < ActiveSupport::TestCase
 
   test "parses Excel file and creates GEC voters" do
     file = create_test_excel([
-      ["First Name", "Last Name", "Date of Birth", "Village", "Reg No"],
-      ["Juan", "Cruz", Date.new(1985, 3, 15), "Barrigada", "VR001"],
-      ["Maria", "Santos", Date.new(1990, 6, 20), "Barrigada", "VR002"],
-      ["Pedro", "Reyes", Date.new(1975, 11, 8), "Dededo", "VR003"]
+      [ "First Name", "Last Name", "Date of Birth", "Village", "Reg No" ],
+      [ "Juan", "Cruz", Date.new(1985, 3, 15), "Barrigada", "VR001" ],
+      [ "Maria", "Santos", Date.new(1990, 6, 20), "Barrigada", "VR002" ],
+      [ "Pedro", "Reyes", Date.new(1975, 11, 8), "Dededo", "VR003" ]
     ])
 
     service = GecImportService.new(
@@ -45,8 +45,8 @@ class GecImportServiceTest < ActiveSupport::TestCase
     )
 
     file = create_test_excel([
-      ["First Name", "Last Name", "Date of Birth", "Village", "Reg No"],
-      ["Juan", "Cruz", Date.new(1985, 3, 15), "Barrigada", "VR001-NEW"]
+      [ "First Name", "Last Name", "Date of Birth", "Village", "Reg No" ],
+      [ "Juan", "Cruz", Date.new(1985, 3, 15), "Barrigada", "VR001-NEW" ]
     ])
 
     service = GecImportService.new(
@@ -69,9 +69,9 @@ class GecImportServiceTest < ActiveSupport::TestCase
   test "detects ambiguous DOB" do
     # March 5 — both month (3) and day (5) are ≤ 12, could be May 3
     file = create_test_excel([
-      ["First Name", "Last Name", "Date of Birth", "Village"],
-      ["Ana", "Flores", Date.new(1988, 3, 5), "Barrigada"],
-      ["Ben", "Torres", Date.new(1992, 6, 25), "Barrigada"]
+      [ "First Name", "Last Name", "Date of Birth", "Village" ],
+      [ "Ana", "Flores", Date.new(1988, 3, 5), "Barrigada" ],
+      [ "Ben", "Torres", Date.new(1992, 6, 25), "Barrigada" ]
     ])
 
     service = GecImportService.new(
@@ -92,10 +92,10 @@ class GecImportServiceTest < ActiveSupport::TestCase
 
   test "skips rows with missing required fields" do
     file = create_test_excel([
-      ["First Name", "Last Name", "Village"],
-      ["Juan", "Cruz", "Barrigada"],
-      ["", "Santos", "Barrigada"],
-      ["Pedro", "", "Barrigada"]
+      [ "First Name", "Last Name", "Village" ],
+      [ "Juan", "Cruz", "Barrigada" ],
+      [ "", "Santos", "Barrigada" ],
+      [ "Pedro", "", "Barrigada" ]
     ])
 
     service = GecImportService.new(
@@ -112,9 +112,9 @@ class GecImportServiceTest < ActiveSupport::TestCase
 
   test "preview returns sample data without importing" do
     file = create_test_excel([
-      ["First Name", "Last Name", "Date of Birth", "Village"],
-      ["Juan", "Cruz", Date.new(1985, 3, 15), "Barrigada"],
-      ["Maria", "Santos", Date.new(1990, 6, 20), "Barrigada"]
+      [ "First Name", "Last Name", "Date of Birth", "Village" ],
+      [ "Juan", "Cruz", Date.new(1985, 3, 15), "Barrigada" ],
+      [ "Maria", "Santos", Date.new(1990, 6, 20), "Barrigada" ]
     ])
 
     service = GecImportService.new(
@@ -132,8 +132,8 @@ class GecImportServiceTest < ActiveSupport::TestCase
 
   test "creates GecImport record" do
     file = create_test_excel([
-      ["First Name", "Last Name", "Village"],
-      ["Juan", "Cruz", "Barrigada"]
+      [ "First Name", "Last Name", "Village" ],
+      [ "Juan", "Cruz", "Barrigada" ]
     ])
 
     service = GecImportService.new(
@@ -154,7 +154,7 @@ class GecImportServiceTest < ActiveSupport::TestCase
   private
 
   def create_test_excel(rows)
-    file = Tempfile.new(["gec_test", ".xlsx"])
+    file = Tempfile.new([ "gec_test", ".xlsx" ])
     package = Axlsx::Package.new
     package.workbook.add_worksheet(name: "Voters") do |sheet|
       rows.each { |row| sheet.add_row(row) }
