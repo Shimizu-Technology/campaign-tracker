@@ -21,12 +21,14 @@ Rails.application.routes.draw do
           patch :verify
           patch :resolve_duplicate
           patch :outreach_status
+          patch :accept_to_quota
         end
         collection do
           get :check_duplicate
           get :export
           get :duplicates
           get :outreach
+          get :public_review
           post :bulk_verify
           post :scan_duplicates
         end

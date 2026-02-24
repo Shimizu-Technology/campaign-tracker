@@ -50,6 +50,13 @@ class Supporter < ApplicationRecord
   scope :unverified, -> { where(verification_status: "unverified") }
   scope :flagged, -> { where(verification_status: "flagged") }
   scope :registered_voters, -> { where(registered_voter: true) }
+
+  # Pipeline separation: team input (quota-eligible) vs public signups (supplemental)
+  TEAM_SOURCES = %w[staff_entry bulk_import].freeze
+  PUBLIC_SOURCES = %w[public_signup qr_signup].freeze
+  scope :team_input, -> { where(source: TEAM_SOURCES) }
+  scope :public_signups, -> { where(source: PUBLIC_SOURCES) }
+  scope :quota_eligible, -> { team_input.verified }
   scope :motorcade_available, -> { where(motorcade_available: true) }
   scope :yard_sign, -> { where(yard_sign: true) }
   scope :potential_duplicates_only, -> { where(potential_duplicate: true) }

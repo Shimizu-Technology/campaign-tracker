@@ -62,6 +62,11 @@ module Api
         end
         campaign_started_at = campaign&.started_at || campaign&.created_at&.to_date || Date.current
 
+        # Pipeline counts per village (team input vs public signups)
+        team_counts = Supporter.active.team_input.where(village_id: village_ids).group(:village_id).count
+        public_counts = Supporter.active.public_signups.where(village_id: village_ids).group(:village_id).count
+        quota_eligible_counts = Supporter.active.quota_eligible.where(village_id: village_ids).group(:village_id).count
+
         villages = villages_base.map do |village|
           verified_count = verified_counts[village.id] || 0
           total_count = total_counts[village.id] || 0
@@ -105,7 +110,11 @@ module Api
             pace_expected: pace[:expected],
             pace_diff: pace[:diff],
             pace_status: pace[:status],
-            pace_weekly_needed: pace[:weekly_needed]
+            pace_weekly_needed: pace[:weekly_needed],
+            # Pipeline separation
+            team_input_count: team_counts[village.id] || 0,
+            public_signup_count: public_counts[village.id] || 0,
+            quota_eligible_count: quota_eligible_counts[village.id] || 0
           }
         end
 
@@ -123,6 +132,9 @@ module Api
           0
         end
         # Quota percentage based on verified only
+        global_team_input = Supporter.active.team_input.count
+        global_public_signups = Supporter.active.public_signups.count
+        global_quota_eligible = Supporter.active.quota_eligible.count
         global_total_percentage = global_total_target > 0 ? (global_verified * 100.0 / global_total_target).round(1) : 0
         all_villages = Village.all
         global_total_registered_voters = all_villages.sum { |v| v.registered_voters.to_i }
@@ -165,7 +177,11 @@ module Api
             pace_expected: overall_pace[:expected],
             pace_diff: overall_pace[:diff],
             pace_status: overall_pace[:status],
-            pace_weekly_needed: overall_pace[:weekly_needed]
+            pace_weekly_needed: overall_pace[:weekly_needed],
+            # Pipeline separation
+            team_input_count: global_team_input,
+            public_signup_count: global_public_signups,
+            quota_eligible_count: global_quota_eligible
           },
           villages: villages
         }
