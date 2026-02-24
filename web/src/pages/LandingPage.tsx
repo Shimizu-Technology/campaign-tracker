@@ -54,7 +54,6 @@ export default function LandingPage() {
 
         {/* Hero */}
         <div className="text-center mb-12 md:mb-16">
-          <img src="/logo-placeholder.svg" alt="Josh &amp; Tina 2026" className="h-14 md:h-20 mx-auto mb-6" />
           <h1 className="text-5xl md:text-7xl font-bold tracking-tight mb-4">
             Josh & Tina 2026
           </h1>

@@ -24,29 +24,93 @@ class Api::V1::DashboardControllerTest < ActionDispatch::IntegrationTest
       contact_number: "6715551000",
       village: @village,
       source: "staff_entry",
-      status: "active"
+      status: "active",
+      verification_status: "verified",
+      # Created before this week, but vetted now.
+      created_at: 10.days.ago,
+      verified_at: Time.current
     )
     Supporter.create!(
       first_name: "Supporter", last_name: "Two", print_name: "Supporter Two",
       contact_number: "6715551001",
       village: @village,
       source: "staff_entry",
-      status: "active"
+      status: "active",
+      verification_status: "verified"
+    )
+    Supporter.create!(
+      first_name: "Supporter", last_name: "Three", print_name: "Supporter Three",
+      contact_number: "6715551002",
+      village: @village,
+      source: "staff_entry",
+      status: "active",
+      verification_status: "unverified"
     )
   end
 
-  test "show returns aggregated dashboard payload" do
+  test "show returns aggregated dashboard payload with vetting separation" do
     get "/api/v1/dashboard", headers: auth_headers(@user)
 
     assert_response :success
     payload = JSON.parse(response.body)
 
     assert_equal "Dashboard Campaign", payload.dig("campaign", "name")
-    assert_equal 2, payload.dig("summary", "total_supporters")
+
+    # Verified supporters are the primary count
+    assert_equal 2, payload.dig("summary", "verified_supporters")
+    # Total includes unverified
+    assert_equal 3, payload.dig("summary", "total_supporters")
+    assert_equal 1, payload.dig("summary", "unverified_supporters")
+    # Today/week counts are verified only
     assert_equal 2, payload.dig("summary", "today_signups")
     assert_equal 2, payload.dig("summary", "week_signups")
+
     assert_equal 1, payload["villages"].size
-    assert_equal 2, payload["villages"][0]["supporter_count"]
-    assert_equal 100, payload["villages"][0]["quota_target"]
+    village = payload["villages"][0]
+    # Village counts reflect vetting separation
+    assert_equal 2, village["verified_count"]
+    assert_equal 3, village["total_count"]
+    assert_equal 1, village["unverified_count"]
+    # supporter_count = verified (backward compat)
+    assert_equal 2, village["supporter_count"]
+    assert_equal 100, village["quota_target"]
+    # Quota percentage based on verified only: 2/100 = 2.0%
+    assert_equal 2.0, village["quota_percentage"]
+  end
+
+  test "scoped user sees island-wide summary with scoped village list" do
+    other_village = Village.create!(name: "Other Village", region: "North")
+    Precinct.create!(number: "O1", village: other_village)
+    Quota.create!(village: other_village, campaign: @campaign, period: "quarterly", target_count: 50, target_date: Date.current)
+    Supporter.create!(
+      first_name: "Supporter", last_name: "Four", print_name: "Supporter Four",
+      contact_number: "6715551003",
+      village: other_village,
+      source: "staff_entry",
+      status: "active",
+      verification_status: "verified",
+      verified_at: Time.current
+    )
+
+    scoped_user = User.create!(
+      clerk_id: "clerk-dashboard-scoped-user",
+      email: "dashboard-scoped-user@example.com",
+      name: "Dashboard Scoped User",
+      role: "block_leader",
+      assigned_village_id: @village.id
+    )
+
+    get "/api/v1/dashboard", headers: auth_headers(scoped_user)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+
+    # Summary remains island-wide.
+    assert_equal 4, payload.dig("summary", "total_supporters")
+    assert_equal 3, payload.dig("summary", "verified_supporters")
+
+    # Village cards are scoped to the assigned village.
+    assert_equal 1, payload["villages"].size
+    assert_equal @village.id, payload["villages"][0]["id"]
   end
 end

@@ -9,8 +9,9 @@ module Api
       # GET /api/v1/stats (public — no auth)
       def stats
         render json: {
-          total_supporters: Supporter.active.count,
+          # Verified = the official count
           verified_supporters: Supporter.active.verified.count,
+          total_supporters: Supporter.active.count,
           unverified_supporters: Supporter.active.unverified.count,
           flagged_supporters: Supporter.active.flagged.count,
           potential_duplicates: Supporter.active.potential_duplicates_only.count,
@@ -32,10 +33,18 @@ module Api
         else
           villages_query.where(id: scoped_village_ids).to_a
         end
+        all_village_ids = Village.pluck(:id)
         village_ids = villages_base.map(&:id)
-        supporter_counts = Supporter.active.where(village_id: village_ids).group(:village_id).count
-        today_counts = Supporter.active.today.where(village_id: village_ids).group(:village_id).count
-        week_counts = Supporter.active.this_week.where(village_id: village_ids).group(:village_id).count
+        # Verified supporters are the "real" counts for quota tracking
+        verified_counts = Supporter.active.verified.where(village_id: village_ids).group(:village_id).count
+        # Total includes unverified — shown as secondary metric
+        total_counts = Supporter.active.where(village_id: village_ids).group(:village_id).count
+        unverified_counts = Supporter.active.unverified.where(village_id: village_ids).group(:village_id).count
+        # "Today/Week (verified)" should reflect when a supporter was vetted.
+        today_counts = Supporter.active.verified_today.where(village_id: village_ids).group(:village_id).count
+        week_counts = Supporter.active.verified_this_week.where(village_id: village_ids).group(:village_id).count
+        today_total_counts = Supporter.active.today.where(village_id: village_ids).group(:village_id).count
+        week_total_counts = Supporter.active.this_week.where(village_id: village_ids).group(:village_id).count
         quota_targets = if campaign
           Quota.where(campaign_id: campaign.id, village_id: village_ids).group(:village_id).sum(:target_count)
         else
@@ -54,15 +63,20 @@ module Api
         campaign_started_at = campaign&.started_at || campaign&.created_at&.to_date || Date.current
 
         villages = villages_base.map do |village|
-          supporter_count = supporter_counts[village.id] || 0
+          verified_count = verified_counts[village.id] || 0
+          total_count = total_counts[village.id] || 0
+          unverified_count = unverified_counts[village.id] || 0
           today_count = today_counts[village.id] || 0
           week_count = week_counts[village.id] || 0
+          today_total_count = today_total_counts[village.id] || 0
+          week_total_count = week_total_counts[village.id] || 0
           target = quota_targets[village.id] || 0
-          percentage = target.positive? ? (supporter_count * 100.0 / target).round(1) : 0
+          # Quota progress based on VERIFIED supporters only
+          percentage = target.positive? ? (verified_count * 100.0 / target).round(1) : 0
 
-          # Pace calculation
+          # Pace calculation based on verified supporters
           pace = calculate_pace(
-            supporter_count: supporter_count,
+            supporter_count: verified_count,
             target: target,
             started_at: campaign_started_at,
             target_date: target_dates[village.id]
@@ -74,9 +88,17 @@ module Api
             region: village.region,
             registered_voters: village.registered_voters,
             precinct_count: village.precinct_count,
-            supporter_count: supporter_count,
+            # Verified = primary count (used for quota/pace)
+            verified_count: verified_count,
+            # Total = all active supporters including unverified
+            total_count: total_count,
+            unverified_count: unverified_count,
+            # Legacy field — now points to verified for backward compat
+            supporter_count: verified_count,
             today_count: today_count,
+            today_total_count: today_total_count,
             week_count: week_count,
+            week_total_count: week_total_count,
             quota_target: target,
             quota_percentage: percentage,
             status: percentage >= 75 ? "on_track" : percentage >= 50 ? "behind" : "critical",
@@ -87,36 +109,59 @@ module Api
           }
         end
 
-        total_supporters = supporter_counts.values.sum
-        total_target = villages.sum { |v| v[:quota_target] }
-        total_percentage = total_target > 0 ? (total_supporters * 100.0 / total_target).round(1) : 0
-        total_registered_voters = villages.sum { |v| v[:registered_voters].to_i }
-        total_villages = villages.size
-        total_precincts = villages.sum { |v| v[:precinct_count].to_i }
+        # Summary cards are island-wide for all roles, even when village cards are scoped.
+        global_verified = Supporter.active.verified.count
+        global_total = Supporter.active.count
+        global_unverified = Supporter.active.unverified.count
+        global_today_verified = Supporter.active.verified_today.count
+        global_week_verified = Supporter.active.verified_this_week.count
+        global_today_total = Supporter.active.today.count
+        global_week_total = Supporter.active.this_week.count
+        global_total_target = if campaign
+          Quota.where(campaign_id: campaign.id, village_id: all_village_ids).sum(:target_count)
+        else
+          0
+        end
+        # Quota percentage based on verified only
+        global_total_percentage = global_total_target > 0 ? (global_verified * 100.0 / global_total_target).round(1) : 0
+        all_villages = Village.all
+        global_total_registered_voters = all_villages.sum { |v| v.registered_voters.to_i }
+        global_total_villages = Village.count
+        global_total_precincts = all_villages.sum { |v| v.precinct_count.to_i }
+        global_target_dates = if campaign
+          Quota.where(campaign_id: campaign.id).group(:village_id).maximum(:target_date)
+        else
+          {}
+        end
 
-        # Overall pace
+        # Overall pace based on verified supporters
         overall_pace = calculate_pace(
-          supporter_count: total_supporters,
-          target: total_target,
+          supporter_count: global_verified,
+          target: global_total_target,
           started_at: campaign_started_at,
-          target_date: target_dates.values.compact.max
+          target_date: global_target_dates.values.compact.max
         )
 
-        Rails.logger.info("[Dashboard] total_target=#{total_target} total_precincts=#{total_precincts} villages=#{villages.size}")
+        Rails.logger.info("[Dashboard] total_target=#{global_total_target} total_precincts=#{global_total_precincts} villages=#{villages.size}")
 
         render json: {
           campaign: campaign&.slice(:id, :name, :candidate_names, :election_year, :primary_color, :secondary_color)&.merge(show_pace: campaign&.show_pace || false),
           summary: {
-            total_supporters: total_supporters,
-            total_target: total_target,
-            total_percentage: total_percentage,
-            total_registered_voters: total_registered_voters,
-            total_villages: total_villages,
-            total_precincts: total_precincts,
-            verified_supporters: Supporter.active.verified.where(village_id: village_ids).count,
-            today_signups: today_counts.values.sum,
-            week_signups: week_counts.values.sum,
-            status: total_percentage >= 75 ? "on_track" : total_percentage >= 50 ? "behind" : "critical",
+            # Primary count: verified supporters only (counts toward quota)
+            verified_supporters: global_verified,
+            # Total including unverified (secondary metric)
+            total_supporters: global_total,
+            unverified_supporters: global_unverified,
+            total_target: global_total_target,
+            total_percentage: global_total_percentage,
+            total_registered_voters: global_total_registered_voters,
+            total_villages: global_total_villages,
+            total_precincts: global_total_precincts,
+            today_signups: global_today_verified,
+            today_total_signups: global_today_total,
+            week_signups: global_week_verified,
+            week_total_signups: global_week_total,
+            status: global_total_percentage >= 75 ? "on_track" : global_total_percentage >= 50 ? "behind" : "critical",
             pace_expected: overall_pace[:expected],
             pace_diff: overall_pace[:diff],
             pace_status: overall_pace[:status],

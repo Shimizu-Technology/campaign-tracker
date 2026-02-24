@@ -109,39 +109,51 @@ class SupporterEmailService
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <title>Thank You for Your Support</title>
           </head>
-          <body style="margin: 0; padding: 0; background: #f3f5fb; color: #1f2937; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding: 28px 12px;">
+          <body style="margin: 0; padding: 0; background: #0f2341; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding: 28px 12px; background: #0f2341;">
               <tr>
                 <td align="center">
-                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 620px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 14px; overflow: hidden;">
+                  <!-- Header -->
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 620px;">
                     <tr>
-                      <td style="background: #1B3A6B; padding: 20px 24px;">
-                        <p style="margin: 0; color: #bfdbfe; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;">Josh &amp; Tina 2026</p>
-                        <h1 style="margin: 6px 0 0 0; color: #ffffff; font-size: 24px; line-height: 1.2;">Si Yu'os Ma'&aring;se, #{name}!</h1>
+                      <td style="padding: 16px 24px 24px 24px; text-align: center;">
+                        <p style="margin: 0; color: #93aed4; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600;">Josh &amp; Tina 2026</p>
+                        <p style="margin: 4px 0 0 0; color: #6b84b0; font-size: 11px;">For Governor &amp; Lt. Governor of Guam</p>
                       </td>
                     </tr>
+                  </table>
+
+                  <!-- Main Card -->
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 620px; background: #1a3259; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; overflow: hidden;">
                     <tr>
-                      <td style="padding: 24px;">
-                        <p style="margin: 0 0 12px 0; font-size: 16px;">
-                          Thank you for signing up to support <strong>Josh Tenorio &amp; Tina Mu&ntilde;a Barnes</strong> for Guam 2026.
+                      <td style="padding: 40px 32px 32px 32px; text-align: center;">
+                        <h1 style="margin: 0 0 8px 0; color: #ffffff; font-size: 28px; line-height: 1.2; font-weight: 700;">Si Yu'os Ma'&aring;se, #{name}!</h1>
+                        <p style="margin: 0 0 20px 0; font-size: 16px; color: #c4d5ef; line-height: 1.5;">
+                          Thank you for signing up to support <strong style="color: #ffffff;">Josh Tenorio &amp; Tina Mu&ntilde;a Barnes</strong> for Guam 2026.
                         </p>
-                        <p style="margin: 0 0 16px 0; font-size: 15px; color: #4b5563;">
+                        <p style="margin: 0 0 28px 0; font-size: 15px; color: #93aed4; line-height: 1.6;">
                           Together, we'll build a stronger Guam. We'll keep you updated on campaign events, motorcades, and important milestones.
                         </p>
 
-                        <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0 0 18px 0;">
+                        <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0 auto 24px auto;">
                           <tr>
-                            <td style="border-radius: 10px; background: #1B3A6B;">
-                              <a href="#{frontend_url}" target="_blank" style="display: inline-block; padding: 12px 18px; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 600;">
+                            <td style="border-radius: 12px; background: #dc2626;">
+                              <a href="#{frontend_url}" target="_blank" style="display: inline-block; padding: 14px 32px; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 700; letter-spacing: 0.02em;">
                                 Visit Campaign Page
                               </a>
                             </td>
                           </tr>
                         </table>
+                      </td>
+                    </tr>
+                  </table>
 
-                        <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 0 0 14px 0;">
-                        <p style="margin: 0; font-size: 12px; color: #6b7280;">
-                          You're receiving this because you signed up at #{frontend_url} and opted in to email updates.
+                  <!-- Footer -->
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 620px;">
+                    <tr>
+                      <td style="padding: 20px 24px; text-align: center;">
+                        <p style="margin: 0; font-size: 11px; color: #5a7199; line-height: 1.5;">
+                          You're receiving this because you signed up at #{frontend_url} and opted in to email updates.<br>
                           If you no longer wish to receive emails, please contact the campaign team.
                         </p>
                       </td>
@@ -163,26 +175,34 @@ class SupporterEmailService
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
           </head>
-          <body style="margin: 0; padding: 0; background: #f3f5fb; color: #1f2937; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding: 28px 12px;">
+          <body style="margin: 0; padding: 0; background: #0f2341; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding: 28px 12px; background: #0f2341;">
               <tr>
                 <td align="center">
-                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 620px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 14px; overflow: hidden;">
+                  <!-- Header -->
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 620px;">
                     <tr>
-                      <td style="background: #1B3A6B; padding: 20px 24px;">
-                        <p style="margin: 0; color: #bfdbfe; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;">Josh &amp; Tina 2026</p>
+                      <td style="padding: 16px 24px; text-align: center;">
+                        <p style="margin: 0; color: #93aed4; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600;">Josh &amp; Tina 2026</p>
                       </td>
                     </tr>
+                  </table>
+
+                  <!-- Main Card -->
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 620px; background: #1a3259; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; overflow: hidden;">
                     <tr>
-                      <td style="padding: 24px; font-size: 15px; line-height: 1.6;">
+                      <td style="padding: 32px; font-size: 15px; line-height: 1.6; color: #c4d5ef;">
                         #{content}
                       </td>
                     </tr>
+                  </table>
+
+                  <!-- Footer -->
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 620px;">
                     <tr>
-                      <td style="padding: 0 24px 20px 24px;">
-                        <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 0 0 14px 0;">
-                        <p style="margin: 0; font-size: 12px; color: #6b7280;">
-                          You're receiving this because you opted in to email updates from the Josh &amp; Tina 2026 campaign.
+                      <td style="padding: 20px 24px; text-align: center;">
+                        <p style="margin: 0; font-size: 11px; color: #5a7199; line-height: 1.5;">
+                          You're receiving this because you opted in to email updates from the Josh &amp; Tina 2026 campaign.<br>
                           To unsubscribe, please contact the campaign team.
                         </p>
                       </td>

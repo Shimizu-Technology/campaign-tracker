@@ -23,6 +23,8 @@ import {
 interface VillageSummary {
   id: number;
   name: string;
+  verified_count?: number;
+  total_count?: number;
   supporter_count: number;
   registered_voters: number;
 }
@@ -32,6 +34,8 @@ interface District {
   name: string;
   description: string | null;
   villages: VillageSummary[];
+  verified_count?: number;
+  total_count?: number;
   supporter_count: number;
   registered_voters: number;
 }

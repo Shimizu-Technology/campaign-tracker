@@ -39,9 +39,11 @@ module Api
         campaign = Campaign.active.first
 
         quota = village.quotas.where(campaign: campaign).first
-        supporter_count = village.supporters.active.count
-        precinct_supporter_counts = village.supporters.active.where.not(precinct_id: nil).group(:precinct_id).count
-        unassigned_precinct_count = village.supporters.active.where(precinct_id: nil).count
+        verified_count = village.supporters.active.verified.count
+        total_count = village.supporters.active.count
+        unverified_count = village.supporters.active.unverified.count
+        precinct_supporter_counts = village.supporters.active.verified.where.not(precinct_id: nil).group(:precinct_id).count
+        unassigned_precinct_count = village.supporters.active.verified.where(precinct_id: nil).count
 
         render json: {
           village: {
@@ -49,7 +51,11 @@ module Api
             name: village.name,
             region: village.region,
             registered_voters: village.registered_voters,
-            supporter_count: supporter_count,
+            verified_count: verified_count,
+            total_count: total_count,
+            unverified_count: unverified_count,
+            # Legacy compat
+            supporter_count: verified_count,
             quota_target: quota&.target_count || 0,
             precincts: village.precincts.order(:number).map { |p|
               {
@@ -66,7 +72,9 @@ module Api
               {
                 id: b.id,
                 name: b.name,
-                supporter_count: b.supporters.active.count
+                verified_count: b.supporters.active.verified.count,
+                total_count: b.supporters.active.count,
+                supporter_count: b.supporters.active.verified.count
               }
             }
           }
