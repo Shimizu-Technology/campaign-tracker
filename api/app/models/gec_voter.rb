@@ -66,7 +66,7 @@ class GecVoter < ApplicationRecord
           first_name.to_s.downcase.strip,
           last_name.to_s.downcase.strip
         )
-        .order(Arel.sql("similarity(LOWER(last_name), #{ActiveRecord::Base.connection.quote(last_name.to_s.downcase.strip)}) DESC"))
+        .order(Arel.sql(ActiveRecord::Base.sanitize_sql_array( [ "similarity(LOWER(last_name), ?) DESC", last_name.to_s.downcase.strip ] )))
         .limit(5)
 
       fuzzy.each do |gv|

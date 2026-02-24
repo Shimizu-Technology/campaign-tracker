@@ -15,11 +15,11 @@ class CreateGecVoters < ActiveRecord::Migration[8.1]
       t.timestamps
     end
 
-    add_index :gec_voters, [:last_name, :first_name, :dob], name: "index_gec_voters_on_name_and_dob"
+    add_index :gec_voters, [ :last_name, :first_name, :dob ], name: "index_gec_voters_on_name_and_dob"
     add_index :gec_voters, :village_name
     add_index :gec_voters, :voter_registration_number
     add_index :gec_voters, :gec_list_date
-    add_index :gec_voters, [:village_id, :last_name], name: "index_gec_voters_on_village_and_last_name"
+    add_index :gec_voters, [ :village_id, :last_name ], name: "index_gec_voters_on_village_and_last_name"
 
     create_table :gec_imports do |t|
       t.date :gec_list_date, null: false

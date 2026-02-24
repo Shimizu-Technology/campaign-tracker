@@ -76,7 +76,7 @@ Rails.application.routes.draw do
       post "imports/confirm", to: "imports#confirm"
 
       # GEC Voter List
-      resources :gec_voters, only: [:index] do
+      resources :gec_voters, only: [ :index ] do
         collection do
           get :stats
           get :imports
