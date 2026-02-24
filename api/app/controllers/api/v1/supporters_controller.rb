@@ -11,9 +11,9 @@ module Api
 
       include Authenticatable
       include AuditLoggable
-      before_action :authenticate_request, only: [ :index, :check_duplicate, :export, :show, :update, :verify, :bulk_verify, :duplicates, :resolve_duplicate, :scan_duplicates, :outreach, :outreach_status ]
+      before_action :authenticate_request, only: [ :index, :check_duplicate, :export, :show, :update, :verify, :bulk_verify, :duplicates, :resolve_duplicate, :scan_duplicates, :outreach, :outreach_status, :public_review, :accept_to_quota ]
       before_action :require_supporter_access!, only: [ :index, :check_duplicate, :export, :show, :outreach, :outreach_status ]
-      before_action :require_coordinator_or_above!, only: [ :duplicates, :resolve_duplicate, :scan_duplicates ]
+      before_action :require_coordinator_or_above!, only: [ :duplicates, :resolve_duplicate, :scan_duplicates, :public_review, :accept_to_quota ]
       before_action :require_chief_or_above!, only: [ :verify, :bulk_verify ]
 
       # POST /api/v1/supporters (public signup — no auth required)
@@ -205,6 +205,10 @@ module Api
         supporters = supporters.where(status: params[:status]) if params[:status].present?
         supporters = supporters.where(source: params[:source]) if params[:source].present?
         supporters = supporters.where(registered_voter: true) if params[:registered_voter] == "true"
+        # Pipeline filter: team (quota-eligible sources), public, or quota (team + verified)
+        supporters = supporters.team_input if params[:pipeline] == "team"
+        supporters = supporters.public_signups if params[:pipeline] == "public"
+        supporters = supporters.quota_eligible if params[:pipeline] == "quota"
         supporters = supporters.where(motorcade_available: true) if params[:motorcade_available] == "true"
         supporters = supporters.where(opt_in_email: true) if params[:opt_in_email] == "true"
         supporters = supporters.where(opt_in_text: true) if params[:opt_in_text] == "true"
@@ -480,6 +484,71 @@ module Api
         end
       end
 
+      # GET /api/v1/supporters/public_review
+      # List public signups for data team review (accept into quota pipeline or skip)
+      def public_review
+        supporters = scope_supporters(Supporter.includes(:village, :precinct))
+                       .public_signups
+                       .where(status: "active")
+
+        supporters = supporters.where(village_id: params[:village_id]) if params[:village_id].present?
+
+        if params[:search].present?
+          sanitized = ActiveRecord::Base.sanitize_sql_like(params[:search].to_s.strip)
+          supporters = supporters.where(
+            "LOWER(first_name) LIKE :q OR LOWER(last_name) LIKE :q",
+            q: "%#{sanitized.downcase}%"
+          )
+        end
+
+        supporters = supporters.order(created_at: :desc)
+
+        page = [ (params[:page] || 1).to_i, 1 ].max
+        per_page = (params[:per_page] || 50).to_i.clamp(1, MAX_PER_PAGE)
+        total = supporters.count
+        supporters = supporters.offset((page - 1) * per_page).limit(per_page)
+
+        render json: {
+          supporters: supporters.map { |s| supporter_json(s) },
+          summary: {
+            total_public: Supporter.active.public_signups.count,
+            # Pending = still has public source (not yet accepted)
+            pending_review: Supporter.active.public_signups.count,
+            # Accepted = originally public (attribution_method) but source changed to staff_entry
+            accepted: Supporter.active.team_input
+                        .where(attribution_method: %w[public_signup qr_self_signup]).count
+          },
+          pagination: { page: page, per_page: per_page, total: total, pages: (total.to_f / per_page).ceil }
+        }
+      end
+
+      # PATCH /api/v1/supporters/:id/accept_to_quota
+      # Accept a public signup into the quota pipeline (changes source to staff_entry)
+      def accept_to_quota
+        supporter = scope_supporters(Supporter).find(params[:id])
+
+        unless Supporter::PUBLIC_SOURCES.include?(supporter.source)
+          return render_api_error(
+            message: "Supporter is already in the team pipeline",
+            status: :unprocessable_entity,
+            code: "already_team_input"
+          )
+        end
+
+        old_source = supporter.source
+        supporter.update!(source: "staff_entry")
+
+        log_audit!(supporter, action: "accepted_to_quota", changed_data: { "source" => [ old_source, "staff_entry" ] }, normalize: true)
+
+        # Re-vet against GEC if not already verified
+        if supporter.verification_status != "verified"
+          GecVettingService.new(supporter).call
+          supporter.reload
+        end
+
+        render json: { supporter: supporter_json(supporter), message: "Supporter accepted into quota pipeline" }
+      end
+
       # POST /api/v1/supporters/scan_duplicates
       def scan_duplicates
         count = DuplicateDetector.scan_all!
@@ -498,6 +567,10 @@ module Api
         supporters = supporters.where(status: params[:status]) if params[:status].present?
         supporters = supporters.where(source: params[:source]) if params[:source].present?
         supporters = supporters.where(registered_voter: true) if params[:registered_voter] == "true"
+        # Pipeline filter: team (quota-eligible sources), public, or quota (team + verified)
+        supporters = supporters.team_input if params[:pipeline] == "team"
+        supporters = supporters.public_signups if params[:pipeline] == "public"
+        supporters = supporters.quota_eligible if params[:pipeline] == "quota"
         supporters = supporters.where(motorcade_available: true) if params[:motorcade_available] == "true"
         supporters = supporters.where(opt_in_email: true) if params[:opt_in_email] == "true"
         supporters = supporters.where(opt_in_text: true) if params[:opt_in_text] == "true"
