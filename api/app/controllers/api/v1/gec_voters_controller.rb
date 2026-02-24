@@ -50,10 +50,13 @@ module Api
 
         render json: {
           total_voters: GecVoter.active.count,
+          removed_voters: GecVoter.removed.count,
+          transferred_voters: GecVoter.transferred.count,
           latest_list_date: latest_date,
-          latest_import: latest_import&.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :ambiguous_dob_count, :status, :created_at ]),
+          latest_import: latest_import&.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :transferred_records, :re_vetted_count, :ambiguous_dob_count, :import_type, :status, :created_at ]),
           villages: village_counts.map { |name, count| { name: name, count: count } },
-          ambiguous_dob_count: GecVoter.active.with_ambiguous_dob.count
+          ambiguous_dob_count: GecVoter.active.with_ambiguous_dob.count,
+          last_change_summary: latest_import&.change_summary
         }
       end
 
@@ -81,11 +84,14 @@ module Api
         return render_api_error(message: "Invalid date format for gec_list_date", status: :unprocessable_entity, code: "invalid_date") unless gec_list_date
         sheet_name = params[:sheet_name]
 
+        import_type = %w[full_list changes_only].include?(params[:import_type]) ? params[:import_type] : "full_list"
+
         service = GecImportService.new(
           file_path: file.tempfile.path,
           gec_list_date: gec_list_date,
           uploaded_by_user: current_user,
-          sheet_name: sheet_name
+          sheet_name: sheet_name,
+          import_type: import_type
         )
 
         result = service.call
@@ -95,8 +101,9 @@ module Api
 
           render json: {
             message: "GEC voter list imported successfully",
-            import: result.gec_import.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :ambiguous_dob_count, :status ]),
+            import: result.gec_import.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :transferred_records, :re_vetted_count, :ambiguous_dob_count, :import_type, :status ]),
             stats: result.stats,
+            change_summary: result.gec_import.change_summary,
             errors: result.errors.first(20)
           }, status: :created
         else
@@ -152,7 +159,7 @@ module Api
         imports = GecImport.latest.limit(20)
 
         render json: {
-          imports: imports.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :ambiguous_dob_count, :status, :created_at ])
+          imports: imports.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :transferred_records, :re_vetted_count, :ambiguous_dob_count, :import_type, :status, :created_at ])
         }
       end
 

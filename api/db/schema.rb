@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_24_080002) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_24_080849) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -254,11 +254,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_080002) do
     t.datetime "created_at", null: false
     t.string "filename", null: false
     t.date "gec_list_date", null: false
+    t.string "import_type", default: "full_list", null: false
     t.jsonb "metadata", default: {}, null: false
     t.integer "new_records", default: 0, null: false
+    t.integer "re_vetted_count", default: 0, null: false
     t.integer "removed_records", default: 0, null: false
     t.string "status", default: "pending", null: false
     t.integer "total_records", default: 0, null: false
+    t.integer "transferred_records", default: 0, null: false
     t.datetime "updated_at", null: false
     t.integer "updated_records", default: 0, null: false
     t.bigint "uploaded_by_user_id"
@@ -274,6 +277,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_080002) do
     t.date "gec_list_date", null: false
     t.datetime "imported_at", null: false
     t.string "last_name", null: false
+    t.string "previous_village_name"
+    t.bigint "removal_detected_by_import_id"
+    t.datetime "removed_at"
     t.string "status", default: "active", null: false
     t.datetime "updated_at", null: false
     t.bigint "village_id"
@@ -283,6 +289,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_080002) do
     t.index "lower((first_name)::text), lower((last_name)::text), lower((village_name)::text)", name: "index_gec_voters_on_lower_names_and_village"
     t.index ["gec_list_date"], name: "index_gec_voters_on_gec_list_date"
     t.index ["last_name", "first_name", "dob"], name: "index_gec_voters_on_name_and_dob"
+    t.index ["removed_at"], name: "index_gec_voters_on_removed_at", where: "(removed_at IS NOT NULL)"
+    t.index ["status"], name: "index_gec_voters_on_status"
     t.index ["village_id", "last_name"], name: "index_gec_voters_on_village_and_last_name"
     t.index ["village_id"], name: "index_gec_voters_on_village_id"
     t.index ["village_name"], name: "index_gec_voters_on_village_name"

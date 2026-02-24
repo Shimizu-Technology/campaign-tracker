@@ -151,6 +151,139 @@ class GecImportServiceTest < ActiveSupport::TestCase
     assert_equal 1, import.new_records
   end
 
+  test "full_list import detects purged voters" do
+    # Existing voter from last month
+    gv = GecVoter.create!(
+      first_name: "Juan", last_name: "Cruz", village_name: "Barrigada",
+      gec_list_date: Date.new(2026, 1, 25), imported_at: 1.month.ago, status: "active"
+    )
+
+    # New list does NOT include Juan — only Maria
+    file = create_test_excel([
+      [ "First Name", "Last Name", "Date of Birth", "Village", "Reg No" ],
+      [ "Maria", "Santos", Date.new(1990, 6, 20), "Barrigada", "VR002" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      import_type: "full_list"
+    ).call
+
+    assert result.success
+    assert_equal 1, result.stats[:removed]
+    assert_equal 1, result.stats[:new]
+
+    gv.reload
+    assert_equal "removed", gv.status
+    assert_not_nil gv.removed_at
+  end
+
+  test "changes_only import does not purge missing voters" do
+    GecVoter.create!(
+      first_name: "Juan", last_name: "Cruz", village_name: "Barrigada",
+      gec_list_date: Date.new(2026, 1, 25), imported_at: 1.month.ago, status: "active"
+    )
+
+    file = create_test_excel([
+      [ "First Name", "Last Name", "Date of Birth", "Village", "Reg No" ],
+      [ "Maria", "Santos", Date.new(1990, 6, 20), "Barrigada", "VR002" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      import_type: "changes_only"
+    ).call
+
+    assert result.success
+    assert_equal 0, result.stats[:removed]
+    # Juan should still be active
+    assert_equal "active", GecVoter.find_by(first_name: "Juan").status
+  end
+
+  test "full_list import detects village transfers" do
+    GecVoter.create!(
+      first_name: "Juan", last_name: "Cruz", village_name: "Barrigada",
+      dob: Date.new(1985, 3, 15), gec_list_date: Date.new(2026, 1, 25),
+      imported_at: 1.month.ago, status: "active"
+    )
+
+    # Juan moved to Dededo
+    file = create_test_excel([
+      [ "First Name", "Last Name", "Date of Birth", "Village", "Reg No" ],
+      [ "Juan", "Cruz", Date.new(1985, 3, 15), "Dededo", "VR001" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      import_type: "full_list"
+    ).call
+
+    assert result.success
+    assert_equal 1, result.stats[:transferred]
+
+    juan = GecVoter.find_by(first_name: "Juan")
+    assert_equal "Dededo", juan.village_name
+    assert_equal "Barrigada", juan.previous_village_name
+    assert_equal "active", juan.status
+  end
+
+  test "full_list import re-flags verified supporters when voter is removed" do
+    # GEC voter
+    GecVoter.create!(
+      first_name: "Juan", last_name: "Cruz", village_name: "Barrigada",
+      gec_list_date: Date.new(2026, 1, 25), imported_at: 1.month.ago, status: "active"
+    )
+
+    # Verified supporter matching that voter — use update_columns to bypass auto-vet callback
+    village = Village.find_or_create_by!(name: "Barrigada")
+    supporter = Supporter.create!(
+      first_name: "Juan", last_name: "Cruz", village: village,
+      contact_number: "671-555-1234", status: "active",
+      source: "staff_entry"
+    )
+    supporter.update_columns(verification_status: "verified", registered_voter: true)
+
+    # New list without Juan
+    file = create_test_excel([
+      [ "First Name", "Last Name", "Date of Birth", "Village", "Reg No" ],
+      [ "Maria", "Santos", Date.new(1990, 6, 20), "Barrigada", "VR002" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      import_type: "full_list"
+    ).call
+
+    assert result.success
+    assert_equal 1, result.stats[:re_vetted]
+
+    supporter = Supporter.find_by(first_name: "Juan", last_name: "Cruz")
+    assert_equal "flagged", supporter.verification_status
+    assert_equal false, supporter.registered_voter
+  end
+
+  test "change_summary on gec_import returns correct data" do
+    file = create_test_excel([
+      [ "First Name", "Last Name", "Date of Birth", "Village", "Reg No" ],
+      [ "Maria", "Santos", Date.new(1990, 6, 20), "Barrigada", "VR002" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      import_type: "full_list"
+    ).call
+
+    summary = result.gec_import.change_summary
+    assert_equal "full_list", summary[:import_type]
+    assert_equal 1, summary[:total_records]
+    assert_equal 1, summary[:new_records]
+  end
+
   private
 
   def create_test_excel(rows)

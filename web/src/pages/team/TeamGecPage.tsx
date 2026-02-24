@@ -15,19 +15,33 @@ export default function TeamGecPage() {
   const [file, setFile] = useState<File | null>(null);
   const [listDate, setListDate] = useState('');
   const [sheetName, setSheetName] = useState('');
+  const [importType, setImportType] = useState<'full_list' | 'changes_only'>('full_list');
 
   const { data: stats, isLoading: statsLoading } = useQuery({ queryKey: ['gec-stats'], queryFn: getGecStats });
   const { data: imports } = useQuery({ queryKey: ['gec-imports'], queryFn: getGecImports });
 
   const uploadMutation = useMutation({
-    mutationFn: () => uploadGecList(file!, listDate, sheetName || undefined),
+    mutationFn: () => uploadGecList(file!, listDate, sheetName || undefined, importType),
     onSuccess: (data) => {
       setFile(null);
       setListDate('');
       setSheetName('');
+      setImportType('full_list');
       queryClient.invalidateQueries({ queryKey: ['gec-stats'] });
       queryClient.invalidateQueries({ queryKey: ['gec-imports'] });
-      alert(`Import successful!\n\nTotal: ${data.stats.total}\nNew: ${data.stats.new}\nUpdated: ${data.stats.updated}\nAmbiguous DOBs: ${data.stats.ambiguous_dob}`);
+      const s = data.stats;
+      const lines = [
+        `Import successful!`,
+        ``,
+        `Total processed: ${s.total}`,
+        `New voters: ${s.new}`,
+        `Updated: ${s.updated}`,
+        s.removed ? `Purged (removed from list): ${s.removed}` : null,
+        s.transferred ? `Village transfers detected: ${s.transferred}` : null,
+        s.re_vetted ? `Supporters re-flagged for review: ${s.re_vetted}` : null,
+        s.ambiguous_dob ? `Ambiguous DOBs: ${s.ambiguous_dob}` : null,
+      ].filter(Boolean);
+      alert(lines.join('\n'));
     },
     onError: (err: Error) => alert(`Import failed: ${err.message}`),
   });
@@ -56,10 +70,11 @@ export default function TeamGecPage() {
         {statsLoading ? (
           <div className="animate-pulse h-20 bg-gray-100 rounded-lg" />
         ) : stats?.total_voters ? (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+          <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
             <div>
               <div className="text-2xl font-bold text-gray-900">{(stats.total_voters || 0).toLocaleString()}</div>
-              <div className="text-xs text-gray-400">Total Voters</div>
+              <div className="text-xs text-gray-400">Active Voters</div>
             </div>
             <div>
               <div className="text-2xl font-bold text-gray-900">{stats.villages?.length || 0}</div>
@@ -70,12 +85,28 @@ export default function TeamGecPage() {
               <div className="text-xs text-gray-400">List Date</div>
             </div>
             <div>
+              <div className={`text-2xl font-bold ${stats.removed_voters > 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                {stats.removed_voters || 0}
+              </div>
+              <div className="text-xs text-gray-400">Purged</div>
+            </div>
+            <div>
+              <div className={`text-2xl font-bold ${stats.transferred_voters > 0 ? 'text-blue-600' : 'text-gray-900'}`}>
+                {stats.transferred_voters || 0}
+              </div>
+              <div className="text-xs text-gray-400">Transfers</div>
+            </div>
+            <div>
               <div className={`text-2xl font-bold ${stats.ambiguous_dob_count > 0 ? 'text-amber-600' : 'text-gray-900'}`}>
                 {stats.ambiguous_dob_count || 0}
               </div>
               <div className="text-xs text-gray-400">Ambiguous DOBs</div>
             </div>
           </div>
+
+          {/* Last import change summary */}
+          <ChangeSummary summary={stats.last_change_summary} />
+          </>
         ) : (
           <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-100 rounded-lg">
             <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
@@ -102,6 +133,27 @@ export default function TeamGecPage() {
               onChange={e => setFile(e.target.files?.[0] || null)}
               className="w-full text-sm border border-gray-200 rounded-lg p-2 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
             />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-gray-600 block mb-1.5">Import Type</label>
+            <div className="flex gap-3">
+              <label className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border cursor-pointer transition-colors ${importType === 'full_list' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                <input type="radio" name="importType" value="full_list" checked={importType === 'full_list'} onChange={() => setImportType('full_list')} className="sr-only" />
+                <Database className="w-4 h-4" />
+                <div>
+                  <div className="text-sm font-medium">Full Voter List</div>
+                  <div className="text-[10px] opacity-70">Detects purges &amp; transfers</div>
+                </div>
+              </label>
+              <label className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border cursor-pointer transition-colors ${importType === 'changes_only' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                <input type="radio" name="importType" value="changes_only" checked={importType === 'changes_only'} onChange={() => setImportType('changes_only')} className="sr-only" />
+                <RefreshCw className="w-4 h-4" />
+                <div>
+                  <div className="text-sm font-medium">Changes Only</div>
+                  <div className="text-[10px] opacity-70">Adds/updates only, no purge detection</div>
+                </div>
+              </label>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -170,7 +222,9 @@ export default function TeamGecPage() {
                   <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Total</th>
                   <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">New</th>
                   <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Updated</th>
-                  <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Ambiguous</th>
+                  <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Removed</th>
+                  <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Transfers</th>
+                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Type</th>
                   <th className="text-left py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Status</th>
                 </tr>
               </thead>
@@ -182,7 +236,11 @@ export default function TeamGecPage() {
                     <td className="py-2 px-3 text-right font-medium">{((imp.total_records as number) || 0).toLocaleString()}</td>
                     <td className="py-2 px-3 text-right text-green-600">{imp.new_records as number}</td>
                     <td className="py-2 px-3 text-right text-blue-600">{imp.updated_records as number}</td>
-                    <td className="py-2 px-3 text-right text-amber-600">{imp.ambiguous_dob_count as number}</td>
+                    <td className="py-2 px-3 text-right text-red-600">{(imp.removed_records as number) || 0}</td>
+                    <td className="py-2 px-3 text-right text-blue-600">{(imp.transferred_records as number) || 0}</td>
+                    <td className="py-2 px-3">
+                      <span className="text-xs text-gray-500">{(imp.import_type as string)?.replace(/_/g, ' ')}</span>
+                    </td>
                     <td className="py-2 px-3">
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
                         imp.status === 'completed' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
@@ -197,6 +255,25 @@ export default function TeamGecPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function ChangeSummary({ summary }: { summary?: Record<string, number> }) {
+  if (!summary) return null;
+  const removed = summary.removed_records || 0;
+  const transferred = summary.transferred_records || 0;
+  const reVetted = summary.re_vetted_count || 0;
+  if (removed + transferred + reVetted === 0) return null;
+
+  return (
+    <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-lg">
+      <div className="text-[10px] font-semibold text-blue-600 uppercase tracking-wider mb-1">Last Import Changes</div>
+      <div className="flex flex-wrap gap-4 text-xs text-blue-800">
+        {removed > 0 && <span>Purged: <strong>{removed}</strong></span>}
+        {transferred > 0 && <span>Transfers: <strong>{transferred}</strong></span>}
+        {reVetted > 0 && <span>Supporters re-flagged: <strong>{reVetted}</strong></span>}
+      </div>
     </div>
   );
 }

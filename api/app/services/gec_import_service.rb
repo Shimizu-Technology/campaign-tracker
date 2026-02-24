@@ -17,13 +17,15 @@ class GecImportService
 
   Result = Struct.new(:success, :gec_import, :errors, :stats, keyword_init: true)
 
-  def initialize(file_path:, gec_list_date:, uploaded_by_user: nil, sheet_name: nil)
+  def initialize(file_path:, gec_list_date:, uploaded_by_user: nil, sheet_name: nil, import_type: "full_list")
     @file_path = file_path
     @gec_list_date = gec_list_date
     @uploaded_by_user = uploaded_by_user
     @sheet_name = sheet_name
+    @import_type = import_type
     @errors = []
-    @stats = { total: 0, new: 0, updated: 0, ambiguous_dob: 0, skipped: 0 }
+    @stats = { total: 0, new: 0, updated: 0, ambiguous_dob: 0, skipped: 0, removed: 0, transferred: 0, re_vetted: 0 }
+    @seen_voter_ids = Set.new
   end
 
   def call
@@ -31,6 +33,7 @@ class GecImportService
       gec_list_date: @gec_list_date,
       filename: File.basename(@file_path),
       uploaded_by_user: @uploaded_by_user,
+      import_type: @import_type,
       status: "processing"
     )
 
@@ -52,14 +55,25 @@ class GecImportService
         rows.each_with_index do |row, idx|
           process_row(row, column_map, idx + 2) # +2 for 1-indexed header row
         end
+
+        # For full list imports, detect purged voters (in DB but not in file)
+        if @import_type == "full_list" && @seen_voter_ids.any?
+          detect_purged_voters(gec_import)
+        end
       end
+
+      # Re-vet affected supporters (outside transaction for performance)
+      @stats[:re_vetted] = re_vet_affected_supporters(gec_import)
 
       gec_import.update!(
         status: "completed",
         total_records: @stats[:total],
         new_records: @stats[:new],
         updated_records: @stats[:updated],
+        removed_records: @stats[:removed],
+        transferred_records: @stats[:transferred],
         ambiguous_dob_count: @stats[:ambiguous_dob],
+        re_vetted_count: @stats[:re_vetted],
         metadata: { skipped: @stats[:skipped], errors: @errors.first(50) }
       )
 
@@ -143,31 +157,54 @@ class GecImportService
 
     @stats[:ambiguous_dob] += 1 if data[:dob_ambiguous]
 
-    # Find existing record or create new one
-    existing = GecVoter.where(
-      "LOWER(first_name) = ? AND LOWER(last_name) = ? AND LOWER(village_name) = ?",
-      data[:first_name].downcase,
-      data[:last_name].downcase,
-      data[:village_name].downcase
-    )
+    # Find existing record: try name+village+DOB first, then name+DOB (to catch transfers)
+    fn_lower = data[:first_name].downcase
+    ln_lower = data[:last_name].downcase
+    vn_lower = data[:village_name].downcase
 
-    # If DOB available, narrow further
-    existing = existing.where(dob: data[:dob]) if data[:dob].present?
+    record = nil
 
-    record = existing.first
+    # First: exact match on name + village (+ DOB if available)
+    scope = GecVoter.where("LOWER(first_name) = ? AND LOWER(last_name) = ? AND LOWER(village_name) = ?", fn_lower, ln_lower, vn_lower)
+    scope = scope.where(dob: data[:dob]) if data[:dob].present?
+    record = scope.first
+
+    # Second: name + DOB only (detects village transfer)
+    if record.nil? && data[:dob].present?
+      record = GecVoter.where("LOWER(first_name) = ? AND LOWER(last_name) = ?", fn_lower, ln_lower)
+        .where(dob: data[:dob])
+        .first
+    end
 
     if record
-      record.update!(
+      # Detect village transfer
+      old_village = record.village_name&.downcase&.strip
+      new_village = data[:village_name]&.downcase&.strip
+      village_changed = old_village.present? && new_village.present? && old_village != new_village
+
+      attrs = {
         gec_list_date: @gec_list_date,
         imported_at: Time.current,
         status: "active",
+        removed_at: nil,
+        removal_detected_by_import_id: nil,
         voter_registration_number: data[:voter_registration_number] || record.voter_registration_number,
         dob: data[:dob] || record.dob,
         dob_ambiguous: data[:dob_ambiguous]
-      )
+      }
+
+      if village_changed
+        attrs[:previous_village_name] = record.village_name
+        attrs[:village_name] = data[:village_name]
+        attrs[:village_id] = nil # Will be re-resolved by before_validation
+        @stats[:transferred] += 1
+      end
+
+      record.update!(**attrs)
+      @seen_voter_ids.add(record.id)
       @stats[:updated] += 1
     else
-      GecVoter.create!(
+      voter = GecVoter.create!(
         first_name: data[:first_name],
         last_name: data[:last_name],
         dob: data[:dob],
@@ -178,8 +215,75 @@ class GecImportService
         imported_at: Time.current,
         status: "active"
       )
+      @seen_voter_ids.add(voter.id)
       @stats[:new] += 1
     end
+  end
+
+  # Mark voters as removed if they were active but not seen in this full-list import.
+  def detect_purged_voters(gec_import)
+    purged = GecVoter.active.where.not(id: @seen_voter_ids.to_a)
+    count = purged.count
+
+    purged.update_all(
+      status: "removed",
+      removed_at: Time.current,
+      removal_detected_by_import_id: gec_import.id
+    )
+
+    @stats[:removed] = count
+  end
+
+  # Re-vet supporters whose GEC voter record changed (village transfer or re-appeared).
+  # Also flags supporters matched to now-removed voters.
+  def re_vet_affected_supporters(gec_import)
+    count = 0
+
+    # Supporters linked to transferred voters need re-vetting
+    if @stats[:transferred] > 0
+      transferred_voters = GecVoter.where.not(previous_village_name: nil)
+        .where(gec_list_date: @gec_list_date)
+
+      transferred_voters.find_each do |gv|
+        # Find supporters in the OLD village with matching name
+        affected = Supporter.active.where(
+          "LOWER(first_name) = ? AND LOWER(last_name) = ?",
+          gv.first_name.downcase, gv.last_name.downcase
+        ).where(verification_status: "verified")
+
+        affected.find_each do |supporter|
+          supporter.update_columns(
+            verification_status: "flagged",
+            updated_at: Time.current
+          )
+          count += 1
+        end
+      end
+    end
+
+    # Supporters matched to now-removed voters need flagging
+    if @stats[:removed] > 0
+      removed_voters = GecVoter.removed
+        .where(removal_detected_by_import_id: gec_import.id)
+
+      removed_voters.find_each do |gv|
+        affected = Supporter.active.where(
+          "LOWER(first_name) = ? AND LOWER(last_name) = ?",
+          gv.first_name.downcase, gv.last_name.downcase
+        ).where(verification_status: "verified")
+
+        affected.find_each do |supporter|
+          supporter.update_columns(
+            verification_status: "flagged",
+            registered_voter: false,
+            updated_at: Time.current
+          )
+          count += 1
+        end
+      end
+    end
+
+    count
   end
 
   # Parse DOB with month/day swap detection.
