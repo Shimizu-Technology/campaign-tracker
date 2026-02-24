@@ -5,7 +5,7 @@ module Api
     class QuotaPeriodsController < ApplicationController
       include Authenticatable
 
-      before_action :require_authentication!
+      before_action :authenticate_request
       before_action :set_quota_period, only: %i[show update submit village_quotas update_village_quotas]
 
       # GET /api/v1/quota_periods/:id
@@ -15,7 +15,7 @@ module Api
 
       # PATCH /api/v1/quota_periods/:id
       def update
-        require_permission!(:can_manage_configuration)
+        require_admin!
 
         if @quota_period.update(quota_period_params)
           render json: { quota_period: period_detail_json(@quota_period) }
@@ -27,10 +27,13 @@ module Api
       # POST /api/v1/quota_periods/:id/submit
       # Snapshot the current counts and mark as submitted
       def submit
-        require_permission!(:can_access_data_team)
+        unless current_user&.admin? || current_user&.data_team?
+          render_api_error(message: "Data team access required", status: :forbidden, code: "data_team_required")
+          return
+        end
 
-        if @quota_period.status == "submitted"
-          render json: { error: "Period already submitted" }, status: :unprocessable_entity
+        unless @quota_period.status == "open"
+          render json: { error: "Only open periods can be submitted" }, status: :unprocessable_entity
           return
         end
 
@@ -59,7 +62,7 @@ module Api
       # PATCH /api/v1/quota_periods/:id/village_quotas
       # Bulk update village targets: { village_quotas: [{ village_id: 1, target: 300 }, ...] }
       def update_village_quotas
-        require_permission!(:can_manage_configuration)
+        require_admin!
 
         updates = params[:village_quotas] || []
         ActiveRecord::Base.transaction do

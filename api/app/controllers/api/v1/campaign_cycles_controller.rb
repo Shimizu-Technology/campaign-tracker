@@ -5,7 +5,7 @@ module Api
     class CampaignCyclesController < ApplicationController
       include Authenticatable
 
-      before_action :require_authentication!
+      before_action :authenticate_request
       before_action :set_campaign_cycle, only: %i[show update destroy]
 
       # GET /api/v1/campaign_cycles
@@ -40,13 +40,13 @@ module Api
 
       # POST /api/v1/campaign_cycles
       def create
-        require_permission!(:can_manage_configuration)
+        require_admin!
 
         cycle = CampaignCycle.new(campaign_cycle_params)
 
         if cycle.save
           # Auto-generate monthly periods if requested
-          if params[:generate_periods] != false
+          if ActiveModel::Type::Boolean.new.cast(params.fetch(:generate_periods, true))
             village_targets = (params[:village_targets] || {}).permit!.to_h.transform_keys(&:to_i)
             cycle.generate_periods!(village_targets: village_targets)
           end
@@ -59,7 +59,7 @@ module Api
 
       # PATCH /api/v1/campaign_cycles/:id
       def update
-        require_permission!(:can_manage_configuration)
+        require_admin!
 
         if @campaign_cycle.update(campaign_cycle_params)
           render json: { campaign_cycle: @campaign_cycle.as_json(include: :quota_periods) }
@@ -70,7 +70,7 @@ module Api
 
       # DELETE /api/v1/campaign_cycles/:id
       def destroy
-        require_permission!(:can_manage_configuration)
+        require_admin!
 
         @campaign_cycle.update!(status: "archived")
         render json: { message: "Campaign cycle archived" }
