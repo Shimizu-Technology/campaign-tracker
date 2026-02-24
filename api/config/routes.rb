@@ -37,6 +37,7 @@ Rails.application.routes.draw do
         end
       end
       resources :quotas, only: [ :index, :update ], param: :village_id
+      resources :sprint_goals, only: [ :index, :create, :update, :destroy ]
       resources :precincts, only: [ :index, :update ]
       resources :audit_logs, only: [ :index ]
 

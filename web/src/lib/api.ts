@@ -166,6 +166,13 @@ export const deleteUser = (id: number) => api.delete(`/users/${id}`).then(r => r
 export const getSettings = () => api.get('/settings').then(r => r.data);
 export const updateSettings = (data: JsonRecord) => api.patch('/settings', data).then(r => r.data);
 
+// Sprint Goals
+export const getSprintGoals = (params?: QueryParams) => api.get('/sprint_goals', { params }).then(r => r.data);
+export const createSprintGoal = (data: JsonRecord) => api.post('/sprint_goals', { sprint_goal: data }).then(r => r.data);
+export const updateSprintGoal = (id: number, data: JsonRecord) =>
+  api.patch(`/sprint_goals/${id}`, { sprint_goal: data }).then(r => r.data);
+export const deleteSprintGoal = (id: number) => api.delete(`/sprint_goals/${id}`).then(r => r.data);
+
 // Campaign Info (public)
 export const getCampaignInfo = () => api.get('/campaign_info').then(r => r.data);
 

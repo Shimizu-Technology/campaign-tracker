@@ -104,6 +104,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         ...(permissions?.can_manage_configuration ? [ { to: '/admin/districts', label: 'Districts', icon: MapPin } ] : []),
         ...(permissions?.can_manage_configuration ? [ { to: '/admin/quotas', label: 'Quotas', icon: Target } ] : []),
         ...(permissions?.can_manage_configuration ? [ { to: '/admin/precincts', label: 'Precincts', icon: MapPin } ] : []),
+        ...(permissions?.can_manage_configuration ? [ { to: '/admin/sprint-goals', label: 'Sprint Goals', icon: Target } ] : []),
         ...(permissions?.can_manage_configuration ? [ { to: '/admin/sms/settings', label: 'Campaign Settings', icon: Settings } ] : []),
       ],
     },
