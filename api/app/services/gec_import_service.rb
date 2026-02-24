@@ -246,10 +246,13 @@ class GecImportService
 
       transferred_voters.find_each do |gv|
         # Find supporters in the OLD village with matching name
-        affected = Supporter.active.where(
-          "LOWER(first_name) = ? AND LOWER(last_name) = ?",
-          gv.first_name.downcase, gv.last_name.downcase
-        ).where(verification_status: "verified")
+        old_village = Village.find_by("LOWER(name) = ?", gv.previous_village_name.downcase.strip)
+        next unless old_village
+
+        affected = Supporter.active.where(village_id: old_village.id)
+          .where("LOWER(first_name) = ? AND LOWER(last_name) = ?",
+            gv.first_name.downcase, gv.last_name.downcase)
+          .where(verification_status: "verified")
 
         affected.find_each do |supporter|
           supporter.update_columns(
@@ -261,16 +264,23 @@ class GecImportService
       end
     end
 
-    # Supporters matched to now-removed voters need flagging
+    # Supporters matched to now-removed voters need flagging.
+    # Match by name + village to avoid flagging unrelated supporters with same name elsewhere.
     if @stats[:removed] > 0
       removed_voters = GecVoter.removed
         .where(removal_detected_by_import_id: gec_import.id)
 
       removed_voters.find_each do |gv|
-        affected = Supporter.active.where(
-          "LOWER(first_name) = ? AND LOWER(last_name) = ?",
-          gv.first_name.downcase, gv.last_name.downcase
-        ).where(verification_status: "verified")
+        # Find the village object from gv.village_name
+        removed_village = Village.find_by("LOWER(name) = ?", gv.village_name.downcase.strip)
+        next unless removed_village
+
+        affected = Supporter.active
+          .where(village_id: removed_village.id)
+          .where(
+            "LOWER(first_name) = ? AND LOWER(last_name) = ?",
+            gv.first_name.downcase, gv.last_name.downcase
+          ).where(verification_status: "verified")
 
         affected.find_each do |supporter|
           supporter.update_columns(
