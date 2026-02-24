@@ -62,9 +62,11 @@ module Api
         require_permission!(:can_manage_configuration)
 
         updates = params[:village_quotas] || []
-        updates.each do |vq_params|
-          vq = @quota_period.village_quotas.find_or_initialize_by(village_id: vq_params[:village_id])
-          vq.update!(target: vq_params[:target])
+        ActiveRecord::Base.transaction do
+          updates.each do |vq_params|
+            vq = @quota_period.village_quotas.find_or_initialize_by(village_id: vq_params[:village_id])
+            vq.update!(target: vq_params[:target])
+          end
         end
 
         render json: { message: "Village quotas updated", count: updates.size }

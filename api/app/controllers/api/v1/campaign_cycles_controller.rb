@@ -47,7 +47,7 @@ module Api
         if cycle.save
           # Auto-generate monthly periods if requested
           if params[:generate_periods] != false
-            village_targets = params[:village_targets]&.to_unsafe_h || {}
+            village_targets = (params[:village_targets] || {}).permit!.to_h.transform_keys(&:to_i)
             cycle.generate_periods!(village_targets: village_targets)
           end
 

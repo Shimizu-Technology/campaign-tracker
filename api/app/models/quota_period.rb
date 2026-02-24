@@ -19,13 +19,17 @@ class QuotaPeriod < ApplicationRecord
   scope :upcoming, -> { where("start_date > ?", Date.current).order(:start_date) }
   scope :past, -> { where("end_date < ?", Date.current).order(start_date: :desc) }
 
-  # Count quota-eligible supporters for this period
-  def eligible_count
+  # Base query for quota-eligible supporters in this period
+  def eligible_supporters
     Supporter.active
       .where(quota_period_id: id)
       .team_input
       .where(verification_status: "verified")
-      .count
+  end
+
+  # Count quota-eligible supporters for this period
+  def eligible_count
+    eligible_supporters.count
   end
 
   # Count all supporters assigned to this period
@@ -33,14 +37,12 @@ class QuotaPeriod < ApplicationRecord
     Supporter.active.where(quota_period_id: id).count
   end
 
-  # Per-village breakdown
+  # Per-village breakdown — single query for all village counts
   def village_breakdown
+    eligible_by_village = eligible_supporters.group(:village_id).count
+
     village_quotas.includes(:village).map do |vq|
-      eligible = Supporter.active
-        .where(quota_period_id: id, village_id: vq.village_id)
-        .team_input
-        .where(verification_status: "verified")
-        .count
+      eligible = eligible_by_village[vq.village_id] || 0
 
       {
         village_id: vq.village_id,
