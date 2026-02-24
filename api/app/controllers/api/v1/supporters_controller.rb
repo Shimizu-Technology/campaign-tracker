@@ -512,8 +512,11 @@ module Api
           supporters: supporters.map { |s| supporter_json(s) },
           summary: {
             total_public: Supporter.active.public_signups.count,
-            pending_review: Supporter.active.public_signups.where.not(source: Supporter::TEAM_SOURCES).count,
-            accepted: Supporter.active.public_signups.where(source: Supporter::TEAM_SOURCES).count
+            # Pending = still has public source (not yet accepted)
+            pending_review: Supporter.active.public_signups.count,
+            # Accepted = originally public (attribution_method) but source changed to staff_entry
+            accepted: Supporter.active.team_input
+                        .where(attribution_method: %w[public_signup qr_self_signup]).count
           },
           pagination: { page: page, per_page: per_page, total: total, pages: (total.to_f / per_page).ceil }
         }
