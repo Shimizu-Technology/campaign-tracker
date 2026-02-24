@@ -25,7 +25,7 @@ module Api
           counts: {
             pending_vetting: scope_supporters(Supporter.active.unverified).count,
             flagged_supporters: scope_supporters(Supporter.active.flagged).count,
-            public_signups_pending: Supporter.active.public_signups.count,
+            public_signups_pending: scope_supporters(Supporter.active.public_signups).count,
             quota_eligible: scope_supporters(Supporter.active.quota_eligible).count
           },
           permissions: {
