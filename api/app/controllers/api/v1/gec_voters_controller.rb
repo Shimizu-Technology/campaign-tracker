@@ -176,6 +176,40 @@ module Api
           end
         }
       end
+
+      # POST /api/v1/gec_voters/bulk_vet
+      # Re-vet all existing supporters against the current GEC list.
+      # Useful after importing a new GEC list.
+      def bulk_vet
+        scope = Supporter.active
+
+        # Optional: only vet unverified supporters
+        scope = scope.unverified if params[:unverified_only] == "true"
+
+        # Optional: filter by village
+        if params[:village_id].present?
+          scope = scope.where(village_id: params[:village_id])
+        end
+
+        total = scope.count
+        results = { auto_verified: 0, flagged: 0, referral: 0, unregistered: 0, skipped: 0, errors: 0 }
+
+        scope.find_each do |supporter|
+          result = GecVettingService.new(supporter).call
+          results[result.status] += 1
+        rescue StandardError => e
+          results[:errors] += 1
+          Rails.logger.warn("Bulk vet error for supporter #{supporter.id}: #{e.message}")
+        end
+
+        log_audit(nil, "bulk_gec_vet", changed_data: results.merge(total: total))
+
+        render json: {
+          message: "Bulk vetting complete",
+          total: total,
+          results: results
+        }
+      end
     end
   end
 end

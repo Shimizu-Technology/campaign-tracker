@@ -83,6 +83,7 @@ Rails.application.routes.draw do
           post :upload
           post :preview
           post :match
+          post :bulk_vet
         end
       end
 

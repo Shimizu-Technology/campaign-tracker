@@ -67,6 +67,10 @@ module Api
             SendWelcomeEmailJob.perform_later(supporter_id: supporter.id)
           end
 
+          # Reload to pick up any changes from after_create callbacks
+          # (e.g., GEC auto-vetting sets verification_status via update_columns)
+          supporter.reload
+
           # Broadcast to connected clients
           CampaignBroadcast.new_supporter(supporter)
 
