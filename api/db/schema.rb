@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_24_080001) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_24_080002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -279,6 +279,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_080001) do
     t.bigint "village_id"
     t.string "village_name", null: false
     t.string "voter_registration_number"
+    t.index "lower((first_name)::text), lower((last_name)::text), dob", name: "index_gec_voters_on_lower_names_and_dob"
+    t.index "lower((first_name)::text), lower((last_name)::text), lower((village_name)::text)", name: "index_gec_voters_on_lower_names_and_village"
     t.index ["gec_list_date"], name: "index_gec_voters_on_gec_list_date"
     t.index ["last_name", "first_name", "dob"], name: "index_gec_voters_on_name_and_dob"
     t.index ["village_id", "last_name"], name: "index_gec_voters_on_village_and_last_name"

@@ -11,9 +11,9 @@ module Api
 
       include Authenticatable
       include AuditLoggable
-      before_action :authenticate_request, only: [ :index, :check_duplicate, :export, :show, :update, :verify, :bulk_verify, :duplicates, :resolve_duplicate, :scan_duplicates, :outreach, :outreach_status, :public_review, :accept_to_quota ]
+      before_action :authenticate_request, only: [ :index, :check_duplicate, :export, :show, :update, :verify, :bulk_verify, :duplicates, :resolve_duplicate, :scan_duplicates, :outreach, :outreach_status, :public_review, :accept_to_quota, :vetting_queue ]
       before_action :require_supporter_access!, only: [ :index, :check_duplicate, :export, :show, :outreach, :outreach_status ]
-      before_action :require_coordinator_or_above!, only: [ :duplicates, :resolve_duplicate, :scan_duplicates, :public_review, :accept_to_quota ]
+      before_action :require_coordinator_or_above!, only: [ :duplicates, :resolve_duplicate, :scan_duplicates, :public_review, :accept_to_quota, :vetting_queue ]
       before_action :require_chief_or_above!, only: [ :verify, :bulk_verify ]
 
       # POST /api/v1/supporters (public signup — no auth required)
@@ -547,6 +547,82 @@ module Api
         end
 
         render json: { supporter: supporter_json(supporter), message: "Supporter accepted into quota pipeline" }
+      end
+
+      # GET /api/v1/supporters/vetting_queue
+      # Supporters needing manual vetting review (flagged, unverified with GEC data)
+      def vetting_queue
+        scope = scope_supporters(Supporter.includes(:village, :precinct, :entered_by))
+                  .where(status: "active")
+
+        # Filter by vetting status
+        case params[:filter]
+        when "flagged"
+          scope = scope.flagged
+        when "unverified"
+          scope = scope.unverified
+        when "unregistered"
+          scope = scope.where(registered_voter: false)
+        when "referral"
+          scope = scope.where.not(referred_from_village_id: nil)
+        else
+          # Default: all items needing review (flagged + unverified)
+          scope = scope.where(verification_status: %w[flagged unverified])
+        end
+
+        scope = scope.where(village_id: params[:village_id]) if params[:village_id].present?
+
+        if params[:search].present?
+          sanitized = ActiveRecord::Base.sanitize_sql_like(params[:search].to_s.strip)
+          scope = scope.where(
+            "LOWER(first_name) LIKE :q OR LOWER(last_name) LIKE :q",
+            q: "%#{sanitized.downcase}%"
+          )
+        end
+
+        scope = scope.order(created_at: :desc)
+
+        page = [ (params[:page] || 1).to_i, 1 ].max
+        per_page = (params[:per_page] || 50).to_i.clamp(1, MAX_PER_PAGE)
+        total = scope.count
+        supporters = scope.offset((page - 1) * per_page).limit(per_page)
+
+        # GEC match lookup per supporter — O(n) queries where n = supporters per page (max 50).
+        # Each lookup uses compound indexes on (lower(first_name), lower(last_name), dob)
+        # and cascading match strategies that are hard to batch. With indexed queries and
+        # capped page size, this stays well under 100ms total.
+        gec_matches = {}
+        supporters.each do |s|
+          matches = GecVoter.find_matches(
+            first_name: s.first_name,
+            last_name: s.last_name,
+            dob: s.dob,
+            village_name: s.village&.name
+          )
+          gec_matches[s.id] = matches.first(3).map do |m|
+            {
+              gec_voter: m[:gec_voter].as_json(only: [ :id, :first_name, :last_name, :dob, :village_name, :voter_registration_number ]),
+              confidence: m[:confidence],
+              match_type: m[:match_type]
+            }
+          end
+        end
+
+        # Summary counts
+        base = scope_supporters(Supporter.active)
+        summary = {
+          total_needing_review: base.where(verification_status: %w[flagged unverified]).count,
+          flagged: base.flagged.count,
+          unverified: base.unverified.count,
+          unregistered: base.where(registered_voter: false).count,
+          referrals: base.where.not(referred_from_village_id: nil).where(verification_status: "flagged").count
+        }
+
+        render json: {
+          supporters: supporters.map { |s| supporter_json(s).merge(gec_matches: gec_matches[s.id] || []) },
+          summary: summary,
+          pagination: { page: page, per_page: per_page, total: total, pages: (total.to_f / per_page).ceil }
+        }
       end
 
       # POST /api/v1/supporters/scan_duplicates
