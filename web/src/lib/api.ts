@@ -173,10 +173,11 @@ export const getCampaignInfo = () => api.get('/campaign_info').then(r => r.data)
 export const getGecStats = () => api.get('/gec_voters/stats').then(r => r.data);
 export const getGecVoters = (params?: QueryParams) => api.get('/gec_voters', { params }).then(r => r.data);
 export const getGecImports = () => api.get('/gec_voters/imports').then(r => r.data);
-export const uploadGecList = (file: File, gecListDate: string, sheetName?: string) => {
+export const uploadGecList = (file: File, gecListDate: string, sheetName?: string, importType: string = 'full_list') => {
   const form = new FormData();
   form.append('file', file);
   form.append('gec_list_date', gecListDate);
+  form.append('import_type', importType);
   if (sheetName) form.append('sheet_name', sheetName);
   return api.post('/gec_voters/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
 };
