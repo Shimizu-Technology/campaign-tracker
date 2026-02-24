@@ -198,7 +198,7 @@ export default function DashboardPage() {
         {statCards.map((card) => {
           const Icon = card.icon;
           const cardContent = (
-            <div key={card.label} className={`app-card p-5 ${('link' in card) ? 'app-card-hover cursor-pointer' : ''}`}>
+            <div className={`app-card p-5 ${('link' in card) ? 'app-card-hover cursor-pointer' : ''}`}>
               <div className="flex items-center gap-3 mb-3">
                 <div className={`w-9 h-9 rounded-xl ${card.iconBg} flex items-center justify-center`}>
                   <Icon className={`w-[18px] h-[18px] ${card.iconColor}`} />

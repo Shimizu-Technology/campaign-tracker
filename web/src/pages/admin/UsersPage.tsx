@@ -1064,6 +1064,26 @@ export default function UsersPage() {
                                 <span className="block text-[11px] text-[var(--text-muted)] mt-0.5">
                                   {scopeLabelForRole(user.role, user.assigned_district_id, user.assigned_village_id, villages, districts)}
                                 </span>
+                                <details className="mt-1.5">
+                                  <summary className="cursor-pointer text-[11px] text-primary hover:text-primary/80">View permissions</summary>
+                                  <div className="mt-1.5 flex flex-wrap gap-1">
+                                    {PERMISSION_KEYS.map((permission) => {
+                                      const allowed = roleHasPermission(user.role, permission);
+                                      return (
+                                        <span
+                                          key={permission}
+                                          className={`text-[10px] px-1.5 py-0.5 rounded border ${
+                                            allowed
+                                              ? 'bg-green-50 border-green-200 text-green-700'
+                                              : 'bg-gray-100 border-gray-200 text-gray-500'
+                                          }`}
+                                        >
+                                          {allowed ? 'Can' : "Can't"} {PERMISSION_LABELS[permission]}
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                </details>
                               </div>
                             )}
                           </td>
