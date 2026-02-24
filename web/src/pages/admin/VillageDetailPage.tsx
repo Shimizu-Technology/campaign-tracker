@@ -71,7 +71,7 @@ export default function VillageDetailPage() {
               <span className="text-lg font-semibold">{verified} / {v.quota_target} verified supporters</span>
               {unverified > 0 && (
                 <Link
-                  to={`/admin/vetting?village=${v.name}`}
+                  to={`/admin/vetting?village_id=${id}`}
                   className="text-sm text-amber-600 hover:text-amber-700"
                 >
                   +{unverified} pending

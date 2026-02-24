@@ -25,7 +25,10 @@ class Api::V1::DashboardControllerTest < ActionDispatch::IntegrationTest
       village: @village,
       source: "staff_entry",
       status: "active",
-      verification_status: "verified"
+      verification_status: "verified",
+      # Created before this week, but vetted now.
+      created_at: 10.days.ago,
+      verified_at: Time.current
     )
     Supporter.create!(
       first_name: "Supporter", last_name: "Two", print_name: "Supporter Two",

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { getDashboard } from '../../lib/api';
 import { Link } from 'react-router-dom';
-import { Users, MapPin, TrendingUp, BarChart3, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { TrendingUp, BarChart3, ShieldCheck, AlertTriangle, Layers } from 'lucide-react';
 import DashboardSkeleton from '../../components/DashboardSkeleton';
 
 interface VillageData {
@@ -168,20 +168,20 @@ export default function DashboardPage() {
       iconColor: paceColor(summary.pace_status),
     }] : []),
     {
+      label: 'Total Collected',
+      value: summary.total_supporters.toLocaleString(),
+      sub: `${summary.verified_supporters.toLocaleString()} verified + ${summary.unverified_supporters.toLocaleString()} pending`,
+      icon: Layers,
+      iconBg: 'bg-teal-500/10',
+      iconColor: 'text-teal-400',
+    },
+    {
       label: 'Today',
       value: String(summary.today_signups),
       sub: `${summary.week_signups} this week (verified)`,
       icon: BarChart3,
       iconBg: 'bg-violet-500/10',
       iconColor: 'text-violet-400',
-    },
-    {
-      label: 'Coverage',
-      value: String(summary.total_villages),
-      sub: `${summary.total_precincts} precincts`,
-      icon: MapPin,
-      iconBg: 'bg-teal-500/10',
-      iconColor: 'text-teal-400',
     },
   ];
 
@@ -194,11 +194,11 @@ export default function DashboardPage() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 auto-rows-fr gap-4 mb-8">
         {statCards.map((card) => {
           const Icon = card.icon;
           const cardContent = (
-            <div className={`app-card p-5 ${('link' in card) ? 'app-card-hover cursor-pointer' : ''}`}>
+            <div className={`app-card p-5 h-full flex flex-col ${('link' in card) ? 'app-card-hover cursor-pointer' : ''}`}>
               <div className="flex items-center gap-3 mb-3">
                 <div className={`w-9 h-9 rounded-xl ${card.iconBg} flex items-center justify-center`}>
                   <Icon className={`w-[18px] h-[18px] ${card.iconColor}`} />
@@ -206,15 +206,15 @@ export default function DashboardPage() {
                 <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">{card.label}</span>
               </div>
               <div className="text-3xl font-bold text-[var(--text-primary)] tracking-tight tabular-nums">{card.value}</div>
-              <div className={`text-sm mt-1 font-medium ${'subColor' in card && card.subColor ? card.subColor : 'text-[var(--text-secondary)]'}`}>
+              <div className={`text-sm mt-1 font-medium min-h-[2.75rem] leading-snug ${'subColor' in card && card.subColor ? card.subColor : 'text-[var(--text-secondary)]'}`}>
                 {card.sub}
               </div>
             </div>
           );
           if ('link' in card && card.link) {
-            return <Link key={card.label} to={card.link as string}>{cardContent}</Link>;
+            return <Link key={card.label} to={card.link as string} className="block h-full">{cardContent}</Link>;
           }
-          return <div key={card.label}>{cardContent}</div>;
+          return <div key={card.label} className="h-full">{cardContent}</div>;
         })}
       </div>
 

@@ -39,8 +39,9 @@ module Api
         # Total includes unverified — shown as secondary metric
         total_counts = Supporter.active.where(village_id: village_ids).group(:village_id).count
         unverified_counts = Supporter.active.unverified.where(village_id: village_ids).group(:village_id).count
-        today_counts = Supporter.active.verified.today.where(village_id: village_ids).group(:village_id).count
-        week_counts = Supporter.active.verified.this_week.where(village_id: village_ids).group(:village_id).count
+        # "Today/Week (verified)" should reflect when a supporter was vetted.
+        today_counts = Supporter.active.verified_today.where(village_id: village_ids).group(:village_id).count
+        week_counts = Supporter.active.verified_this_week.where(village_id: village_ids).group(:village_id).count
         today_total_counts = Supporter.active.today.where(village_id: village_ids).group(:village_id).count
         week_total_counts = Supporter.active.this_week.where(village_id: village_ids).group(:village_id).count
         quota_targets = if campaign
