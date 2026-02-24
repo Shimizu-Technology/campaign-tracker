@@ -84,7 +84,7 @@ class ReportGenerator
                 "Submitted By", "Verification Status" ]
 
     if @village_id.present?
-      village = Village.find(@village_id)
+      village = Village.find_by(id: @village_id) || raise(ArgumentError, "Village not found")
       add_support_sheet(wb, village.name, headers, all_supporters, gec_lookup)
     else
       grouped = all_supporters.group_by { |s| s.village&.name || "Unknown" }
@@ -227,7 +227,7 @@ class ReportGenerator
     villages = Village.includes(:precincts).order(:name)
     villages = villages.where(id: @village_id) if @village_id.present?
 
-    campaign = @campaign_id ? Campaign.find(@campaign_id) : Campaign.active.first
+    campaign = @campaign_id ? (Campaign.find_by(id: @campaign_id) || raise(ArgumentError, "Campaign not found")) : Campaign.active.first
     village_ids = villages.pluck(:id)
 
     package = Axlsx::Package.new
