@@ -56,21 +56,23 @@ class QuotaPeriod < ApplicationRecord
 
   # Snapshot counts at submission time
   def submit!
-    breakdown = village_breakdown
-    village_quotas.each do |vq|
-      entry = breakdown.find { |b| b[:village_id] == vq.village_id }
-      vq.update!(submitted_count: entry ? entry[:eligible] : 0)
-    end
+    ActiveRecord::Base.transaction do
+      breakdown = village_breakdown
+      village_quotas.each do |vq|
+        entry = breakdown.find { |b| b[:village_id] == vq.village_id }
+        vq.update!(submitted_count: entry ? entry[:eligible] : 0)
+      end
 
-    update!(
-      status: "submitted",
-      submission_summary: {
-        submitted_at: Time.current.iso8601,
-        total_eligible: eligible_count,
-        total_assigned: total_assigned,
-        village_breakdown: breakdown
-      }
-    )
+      update!(
+        status: "submitted",
+        submission_summary: {
+          submitted_at: Time.current.iso8601,
+          total_eligible: eligible_count,
+          total_assigned: total_assigned,
+          village_breakdown: breakdown
+        }
+      )
+    end
   end
 
   # Days until due
