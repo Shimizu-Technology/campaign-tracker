@@ -21,12 +21,15 @@ Rails.application.routes.draw do
           patch :verify
           patch :resolve_duplicate
           patch :outreach_status
+          patch :accept_to_quota
         end
         collection do
           get :check_duplicate
           get :export
           get :duplicates
           get :outreach
+          get :public_review
+          get :vetting_queue
           post :bulk_verify
           post :scan_duplicates
         end
@@ -74,6 +77,36 @@ Rails.application.routes.draw do
       post "imports/preview", to: "imports#preview"
       post "imports/parse", to: "imports#parse"
       post "imports/confirm", to: "imports#confirm"
+
+      # Reports (Excel export)
+      get "reports", to: "reports#index"
+      get "reports/:report_type", to: "reports#show"
+
+      # Campaign Cycles & Quota Periods
+      resources :campaign_cycles, only: %i[index create update destroy] do
+        collection do
+          get :current
+        end
+      end
+      resources :quota_periods, only: %i[show update] do
+        member do
+          post :submit
+          get :village_quotas
+          patch :village_quotas, action: :update_village_quotas
+        end
+      end
+
+      # GEC Voter List
+      resources :gec_voters, only: [ :index ] do
+        collection do
+          get :stats
+          get :imports
+          post :upload
+          post :preview
+          post :match
+          post :bulk_vet
+        end
+      end
 
       # Form Scanner (OCR)
       post "scan", to: "scan#create"

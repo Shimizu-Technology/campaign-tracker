@@ -5,6 +5,7 @@ class Supporter < ApplicationRecord
   VERIFICATION_STATUSES = %w[unverified verified flagged].freeze
 
   belongs_to :village
+  belongs_to :quota_period, optional: true
   belongs_to :precinct, optional: true
   belongs_to :block, optional: true
   belongs_to :referral_code, optional: true
@@ -28,6 +29,7 @@ class Supporter < ApplicationRecord
   before_validation :auto_assign_precinct, on: :create
   before_save :set_normalized_phone
   after_create :check_for_duplicates
+  after_create :auto_vet_against_gec
 
   def display_name
     [ first_name, last_name ].compact_blank.join(" ")
@@ -49,6 +51,13 @@ class Supporter < ApplicationRecord
   scope :unverified, -> { where(verification_status: "unverified") }
   scope :flagged, -> { where(verification_status: "flagged") }
   scope :registered_voters, -> { where(registered_voter: true) }
+
+  # Pipeline separation: team input (quota-eligible) vs public signups (supplemental)
+  TEAM_SOURCES = %w[staff_entry bulk_import].freeze
+  PUBLIC_SOURCES = %w[public_signup qr_signup].freeze
+  scope :team_input, -> { where(source: TEAM_SOURCES) }
+  scope :public_signups, -> { where(source: PUBLIC_SOURCES) }
+  scope :quota_eligible, -> { team_input.verified }
   scope :motorcade_available, -> { where(motorcade_available: true) }
   scope :yard_sign, -> { where(yard_sign: true) }
   scope :potential_duplicates_only, -> { where(potential_duplicate: true) }
@@ -154,6 +163,13 @@ class Supporter < ApplicationRecord
     DuplicateDetector.flag_if_duplicate!(self)
   rescue StandardError => e
     Rails.logger.warn("Duplicate detection failed for supporter #{id}: #{e.message}")
+  end
+
+  def auto_vet_against_gec
+    result = GecVettingService.new(self).call
+    Rails.logger.info("GEC vetting for supporter #{id}: #{result.status} — #{result.details}")
+  rescue StandardError => e
+    Rails.logger.warn("GEC vetting failed for supporter #{id}: #{e.message}")
   end
 
   # Class method so DuplicateDetector can also use it

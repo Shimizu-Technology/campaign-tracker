@@ -23,8 +23,12 @@ module Api
             scoped_village_ids: scoped_village_ids
           },
           counts: {
-            pending_vetting: scope_supporters(Supporter.active.unverified).count
+            pending_vetting: scope_supporters(Supporter.active.unverified).count,
+            flagged_supporters: scope_supporters(Supporter.active.flagged).count,
+            public_signups_pending: scope_supporters(Supporter.active.public_signups).count,
+            quota_eligible: scope_supporters(Supporter.active.quota_eligible).count
           },
+          current_period: current_period_summary,
           permissions: {
             can_manage_users: can_manage_users?,
             can_manage_configuration: can_manage_configuration?,
@@ -40,8 +44,36 @@ module Api
             can_access_poll_watcher: can_access_poll_watcher?,
             can_access_duplicates: can_access_duplicates?,
             can_access_audit_logs: can_access_audit_logs?,
+            can_access_data_team: current_user.admin? || current_user.data_team?,
+            can_access_reports: current_user.admin? || current_user.data_team? || current_user.coordinator?,
+            can_upload_gec: current_user.admin? || current_user.data_team?,
+            can_bulk_vet: current_user.admin? || current_user.data_team?,
+            can_review_public: current_user.admin? || current_user.data_team? || current_user.coordinator?,
+            default_route: current_user.data_team? ? "/team" : "/admin",
             manageable_roles: manageable_roles_for_current_user
           }
+        }
+      end
+
+      private
+
+      def current_period_summary
+        cycle = CampaignCycle.current.first
+        return nil unless cycle
+
+        period = cycle.current_period
+        return nil unless period
+
+        {
+          id: period.id,
+          name: period.name,
+          due_date: period.due_date,
+          quota_target: period.quota_target,
+          eligible_count: period.eligible_count,
+          days_until_due: period.days_until_due,
+          overdue: period.overdue?,
+          due_soon: period.due_soon?,
+          status: period.status
         }
       end
     end

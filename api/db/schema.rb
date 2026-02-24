@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_24_080000) do
+ActiveRecord::Schema[8.1].define(version: 2026_02_24_122030) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -35,6 +35,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_080000) do
     t.datetime "updated_at", null: false
     t.bigint "village_id", null: false
     t.index ["village_id"], name: "index_blocks_on_village_id"
+  end
+
+  create_table "campaign_cycles", force: :cascade do |t|
+    t.boolean "carry_forward_data", default: true, null: false
+    t.datetime "created_at", null: false
+    t.string "cycle_type", default: "primary", null: false
+    t.date "end_date", null: false
+    t.integer "monthly_quota_target", default: 6000
+    t.string "name", null: false
+    t.jsonb "settings", default: {}, null: false
+    t.date "start_date", null: false
+    t.string "status", default: "active", null: false
+    t.datetime "updated_at", null: false
+    t.index ["start_date", "end_date"], name: "index_campaign_cycles_on_start_date_and_end_date"
+    t.index ["status"], name: "index_campaign_cycles_on_status"
   end
 
   create_table "campaigns", force: :cascade do |t|
@@ -249,6 +264,54 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_080000) do
     t.index ["village_id"], name: "index_events_on_village_id"
   end
 
+  create_table "gec_imports", force: :cascade do |t|
+    t.integer "ambiguous_dob_count", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.string "filename", null: false
+    t.date "gec_list_date", null: false
+    t.string "import_type", default: "full_list", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.integer "new_records", default: 0, null: false
+    t.integer "re_vetted_count", default: 0, null: false
+    t.integer "removed_records", default: 0, null: false
+    t.string "status", default: "pending", null: false
+    t.integer "total_records", default: 0, null: false
+    t.integer "transferred_records", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.integer "updated_records", default: 0, null: false
+    t.bigint "uploaded_by_user_id"
+    t.index ["gec_list_date"], name: "index_gec_imports_on_gec_list_date"
+    t.index ["uploaded_by_user_id"], name: "index_gec_imports_on_uploaded_by_user_id"
+  end
+
+  create_table "gec_voters", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.date "dob"
+    t.boolean "dob_ambiguous", default: false, null: false
+    t.string "first_name", null: false
+    t.date "gec_list_date", null: false
+    t.datetime "imported_at", null: false
+    t.string "last_name", null: false
+    t.string "previous_village_name"
+    t.bigint "removal_detected_by_import_id"
+    t.datetime "removed_at"
+    t.string "status", default: "active", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "village_id"
+    t.string "village_name", null: false
+    t.string "voter_registration_number"
+    t.index "lower((first_name)::text), lower((last_name)::text), dob", name: "index_gec_voters_on_lower_names_and_dob"
+    t.index "lower((first_name)::text), lower((last_name)::text), lower((village_name)::text)", name: "index_gec_voters_on_lower_names_and_village"
+    t.index ["gec_list_date"], name: "index_gec_voters_on_gec_list_date"
+    t.index ["last_name", "first_name", "dob"], name: "index_gec_voters_on_name_and_dob"
+    t.index ["removed_at"], name: "index_gec_voters_on_removed_at", where: "(removed_at IS NOT NULL)"
+    t.index ["status"], name: "index_gec_voters_on_status"
+    t.index ["village_id", "last_name"], name: "index_gec_voters_on_village_and_last_name"
+    t.index ["village_id"], name: "index_gec_voters_on_village_id"
+    t.index ["village_name"], name: "index_gec_voters_on_village_name"
+    t.index ["voter_registration_number"], name: "index_gec_voters_on_voter_registration_number"
+  end
+
   create_table "pay_periods", force: :cascade do |t|
     t.bigint "approved_by_id"
     t.datetime "committed_at"
@@ -335,6 +398,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_080000) do
     t.bigint "village_id", null: false
     t.index ["active"], name: "index_precincts_on_active"
     t.index ["village_id"], name: "index_precincts_on_village_id"
+  end
+
+  create_table "quota_periods", force: :cascade do |t|
+    t.bigint "campaign_cycle_id", null: false
+    t.datetime "created_at", null: false
+    t.date "due_date", null: false
+    t.date "end_date", null: false
+    t.string "name", null: false
+    t.integer "quota_target", default: 6000, null: false
+    t.date "start_date", null: false
+    t.string "status", default: "open", null: false
+    t.jsonb "submission_summary", default: {}, null: false
+    t.datetime "updated_at", null: false
+    t.index ["campaign_cycle_id", "start_date"], name: "index_quota_periods_on_campaign_cycle_id_and_start_date", unique: true
+    t.index ["campaign_cycle_id"], name: "index_quota_periods_on_campaign_cycle_id"
+    t.index ["due_date"], name: "index_quota_periods_on_due_date"
+    t.index ["status"], name: "index_quota_periods_on_status"
   end
 
   create_table "quotas", force: :cascade do |t|
@@ -437,6 +517,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_080000) do
     t.boolean "potential_duplicate", default: false, null: false
     t.bigint "precinct_id"
     t.string "print_name"
+    t.bigint "quota_period_id"
     t.bigint "referral_code_id"
     t.integer "referred_from_village_id"
     t.boolean "registered_voter"
@@ -475,6 +556,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_080000) do
     t.index ["precinct_id", "turnout_status"], name: "index_supporters_on_precinct_id_and_turnout_status"
     t.index ["precinct_id"], name: "index_supporters_on_precinct_id"
     t.index ["print_name", "village_id"], name: "index_supporters_on_name_village"
+    t.index ["quota_period_id"], name: "index_supporters_on_quota_period_id"
     t.index ["referral_code_id"], name: "index_supporters_on_referral_code_id"
     t.index ["source"], name: "index_supporters_on_source"
     t.index ["status", "village_id", "motorcade_available"], name: "idx_on_status_village_id_motorcade_available_edb4af7743"
@@ -520,6 +602,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_080000) do
     t.index ["role"], name: "index_users_on_role"
   end
 
+  create_table "village_quotas", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "quota_period_id", null: false
+    t.integer "submitted_count", default: 0
+    t.integer "target", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "village_id", null: false
+    t.index ["quota_period_id", "village_id"], name: "index_village_quotas_on_quota_period_id_and_village_id", unique: true
+    t.index ["quota_period_id"], name: "index_village_quotas_on_quota_period_id"
+    t.index ["village_id"], name: "index_village_quotas_on_village_id"
+  end
+
   create_table "villages", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.bigint "district_id"
@@ -547,12 +641,15 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_080000) do
   add_foreign_key "event_rsvps", "supporters"
   add_foreign_key "events", "campaigns"
   add_foreign_key "events", "villages"
+  add_foreign_key "gec_imports", "users", column: "uploaded_by_user_id"
+  add_foreign_key "gec_voters", "villages"
   add_foreign_key "pay_periods", "companies"
   add_foreign_key "payroll_items", "employees"
   add_foreign_key "payroll_items", "pay_periods"
   add_foreign_key "poll_reports", "precincts"
   add_foreign_key "poll_reports", "users"
   add_foreign_key "precincts", "villages"
+  add_foreign_key "quota_periods", "campaign_cycles"
   add_foreign_key "quotas", "campaigns"
   add_foreign_key "quotas", "districts"
   add_foreign_key "quotas", "villages"
@@ -566,9 +663,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_080000) do
   add_foreign_key "supporter_contact_attempts", "users", column: "recorded_by_user_id"
   add_foreign_key "supporters", "blocks"
   add_foreign_key "supporters", "precincts"
+  add_foreign_key "supporters", "quota_periods"
   add_foreign_key "supporters", "referral_codes"
   add_foreign_key "supporters", "supporters", column: "duplicate_of_id"
   add_foreign_key "supporters", "users", column: "turnout_updated_by_user_id"
   add_foreign_key "supporters", "villages"
+  add_foreign_key "village_quotas", "quota_periods"
+  add_foreign_key "village_quotas", "villages"
   add_foreign_key "villages", "districts"
 end
