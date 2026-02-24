@@ -5,6 +5,7 @@ class Supporter < ApplicationRecord
   VERIFICATION_STATUSES = %w[unverified verified flagged].freeze
 
   belongs_to :village
+  belongs_to :quota_period, optional: true
   belongs_to :precinct, optional: true
   belongs_to :block, optional: true
   belongs_to :referral_code, optional: true

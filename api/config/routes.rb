@@ -82,6 +82,20 @@ Rails.application.routes.draw do
       get "reports", to: "reports#index"
       get "reports/:report_type", to: "reports#show"
 
+      # Campaign Cycles & Quota Periods
+      resources :campaign_cycles, only: %i[index create update destroy] do
+        collection do
+          get :current
+        end
+      end
+      resources :quota_periods, only: %i[show update] do
+        member do
+          post :submit
+          get :village_quotas
+          patch :village_quotas, action: :update_village_quotas
+        end
+      end
+
       # GEC Voter List
       resources :gec_voters, only: [ :index ] do
         collection do

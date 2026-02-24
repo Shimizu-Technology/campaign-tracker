@@ -28,6 +28,7 @@ module Api
             public_signups_pending: scope_supporters(Supporter.active.public_signups).count,
             quota_eligible: scope_supporters(Supporter.active.quota_eligible).count
           },
+          current_period: current_period_summary,
           permissions: {
             can_manage_users: can_manage_users?,
             can_manage_configuration: can_manage_configuration?,
@@ -51,6 +52,28 @@ module Api
             default_route: current_user.data_team? ? "/team" : "/admin",
             manageable_roles: manageable_roles_for_current_user
           }
+        }
+      end
+
+      private
+
+      def current_period_summary
+        cycle = CampaignCycle.current.first
+        return nil unless cycle
+
+        period = cycle.current_period
+        return nil unless period
+
+        {
+          id: period.id,
+          name: period.name,
+          due_date: period.due_date,
+          quota_target: period.quota_target,
+          eligible_count: period.eligible_count,
+          days_until_due: period.days_until_due,
+          overdue: period.overdue?,
+          due_soon: period.due_soon?,
+          status: period.status
         }
       end
     end

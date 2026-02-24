@@ -215,3 +215,17 @@ export const getPublicReview = (params?: QueryParams) => api.get('/supporters/pu
 export const acceptToQuota = (id: number) => api.patch(`/supporters/${id}/accept_to_quota`).then(r => r.data);
 
 export default api;
+
+// Campaign Cycles
+export const getCampaignCycles = (params?: QueryParams) => api.get('/campaign_cycles', { params }).then(r => r.data);
+export const getCurrentCycle = () => api.get('/campaign_cycles/current').then(r => r.data);
+export const createCampaignCycle = (data: Record<string, unknown>) => api.post('/campaign_cycles', data).then(r => r.data);
+export const updateCampaignCycle = (id: number, data: Record<string, unknown>) => api.patch(`/campaign_cycles/${id}`, data).then(r => r.data);
+
+// Quota Periods
+export const getQuotaPeriod = (id: number) => api.get(`/quota_periods/${id}`).then(r => r.data);
+export const updateQuotaPeriod = (id: number, data: Record<string, unknown>) => api.patch(`/quota_periods/${id}`, data).then(r => r.data);
+export const submitQuotaPeriod = (id: number) => api.post(`/quota_periods/${id}/submit`).then(r => r.data);
+export const getVillageQuotas = (periodId: number) => api.get(`/quota_periods/${periodId}/village_quotas`).then(r => r.data);
+export const updateVillageQuotas = (periodId: number, quotas: Array<{ village_id: number; target: number }>) =>
+  api.patch(`/quota_periods/${periodId}/village_quotas`, { village_quotas: quotas }).then(r => r.data);
