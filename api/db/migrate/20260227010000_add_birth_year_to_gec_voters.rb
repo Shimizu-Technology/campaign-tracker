@@ -2,7 +2,7 @@ class AddBirthYearToGecVoters < ActiveRecord::Migration[8.1]
   def up
     add_column :gec_voters, :birth_year, :integer
     add_index :gec_voters,
-              "lower((last_name)::text), lower((first_name)::text), birth_year",
+              "lower((first_name)::text), lower((last_name)::text), birth_year",
               name: "index_gec_voters_on_lower_names_and_birth_year"
 
     # Backfill from existing dob records
