@@ -87,4 +87,14 @@ class QuotaPeriod < ApplicationRecord
   def due_soon?
     status == "open" && days_until_due.between?(0, 7)
   end
+
+  # Returns the last Monday of the given month/year.
+  # Per Trisha (Feb 26, 2026): GEC quota deadline is last Monday of each month.
+  # Example: last_monday_of_month(2026, 2) => Date.new(2026, 2, 23)
+  def self.last_monday_of_month(year, month)
+    # Start at last day of month and walk back to Monday
+    last_day = Date.new(year, month, -1)
+    days_since_monday = last_day.wday == 0 ? 6 : last_day.wday - 1
+    last_day - days_since_monday
+  end
 end

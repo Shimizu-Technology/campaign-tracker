@@ -10,56 +10,77 @@
 #   - :unregistered   — no match found in GEC list
 #   - :skipped        — no GEC data loaded yet
 class GecVettingService
-  Result = Struct.new(:status, :matches, :gec_voter, :details, keyword_init: true)
+  Result = Struct.new(:status, :matches, :gec_voter, :details, :match_count, keyword_init: true)
 
   def initialize(supporter)
     @supporter = supporter
   end
 
   def call
-    return Result.new(status: :skipped, matches: [], details: "No GEC voter data loaded") if GecVoter.active.none?
+    return Result.new(status: :skipped, matches: [], match_count: 0, details: "No GEC voter data loaded") if GecVoter.active.none?
+
+    # birth_year: derive from dob if available (supporters store full DOB if provided at signup)
+    supporter_birth_year = @supporter.respond_to?(:birth_year) ? @supporter.birth_year : nil
+    supporter_birth_year ||= @supporter.dob&.year
 
     matches = GecVoter.find_matches(
       first_name: @supporter.first_name,
       last_name: @supporter.last_name,
       dob: @supporter.dob,
+      birth_year: supporter_birth_year,
       village_name: @supporter.village&.name
     )
 
     if matches.empty?
       apply_unregistered!
-      return Result.new(status: :unregistered, matches: [], details: "No match found in GEC voter list")
+      return Result.new(status: :unregistered, matches: [], match_count: 0, details: "No match found in GEC voter list")
     end
 
     best = matches.first
+    count = best[:match_count] || matches.size
 
     case best[:confidence]
     when :exact
       apply_auto_verified!(best[:gec_voter])
-      Result.new(status: :auto_verified, matches: matches, gec_voter: best[:gec_voter],
-                 details: "Exact match: #{best[:gec_voter].first_name} #{best[:gec_voter].last_name}, #{best[:gec_voter].village_name}")
+      Result.new(
+        status: :auto_verified, matches: matches, gec_voter: best[:gec_voter], match_count: count,
+        details: "Exact match: #{best[:gec_voter].first_name} #{best[:gec_voter].last_name}, #{best[:gec_voter].village_name}"
+      )
     when :high
       if best[:match_type] == :different_village
         apply_referral!(best[:gec_voter])
-        Result.new(status: :referral, matches: matches, gec_voter: best[:gec_voter],
-                   details: "Registered in #{best[:gec_voter].village_name}, not #{@supporter.village&.name}")
+        Result.new(
+          status: :referral, matches: matches, gec_voter: best[:gec_voter], match_count: count,
+          details: "Registered in #{best[:gec_voter].village_name}, not #{@supporter.village&.name}"
+        )
       else
         apply_auto_verified!(best[:gec_voter])
-        Result.new(status: :auto_verified, matches: matches, gec_voter: best[:gec_voter],
-                   details: "High confidence match: #{best[:gec_voter].first_name} #{best[:gec_voter].last_name}")
+        detail = count > 1 ? "High confidence match (#{count} candidates, best selected)" : "High confidence match"
+        Result.new(
+          status: :auto_verified, matches: matches, gec_voter: best[:gec_voter], match_count: count,
+          details: "#{detail}: #{best[:gec_voter].first_name} #{best[:gec_voter].last_name}"
+        )
       end
     when :medium
       apply_flagged!(best[:gec_voter])
-      Result.new(status: :flagged, matches: matches, gec_voter: best[:gec_voter],
-                 details: "Fuzzy name match — needs manual review")
+      detail = best[:match_type] == :fuzzy_name_year ? "Fuzzy name match — needs manual review" :
+               "#{count} possible matches with same birth year — needs manual review"
+      Result.new(
+        status: :flagged, matches: matches, gec_voter: best[:gec_voter], match_count: count,
+        details: detail
+      )
     when :low
       apply_flagged!(best[:gec_voter])
-      Result.new(status: :flagged, matches: matches, gec_voter: best[:gec_voter],
-                 details: "Low confidence match (name + village only, no DOB)")
+      Result.new(
+        status: :flagged, matches: matches, gec_voter: best[:gec_voter], match_count: count,
+        details: "Low confidence match (name + village only, no birth year)"
+      )
     else
       apply_flagged!(best[:gec_voter])
-      Result.new(status: :flagged, matches: matches, gec_voter: best[:gec_voter],
-                 details: "Unknown confidence level")
+      Result.new(
+        status: :flagged, matches: matches, gec_voter: best[:gec_voter], match_count: count,
+        details: "Unknown confidence level"
+      )
     end
   end
 

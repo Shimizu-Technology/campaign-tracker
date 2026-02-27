@@ -78,12 +78,30 @@ export default function TeamVettingPage() {
 
   const matchTypeLabel = (type: string) => {
     switch (type) {
-      case 'exact_match': return 'Exact Match';
-      case 'different_village': return 'Different Village';
-      case 'fuzzy_name': return 'Fuzzy Name';
-      case 'name_dob_only': return 'Name + DOB';
-      case 'name_village_only': return 'Name + Village';
-      default: return type;
+      // Legacy (full DOB) match types
+      case 'exact_match':
+      case 'exact_dob_village':   return 'Exact (DOB + Village)';
+      case 'different_village':   return 'Different Village';
+      case 'fuzzy_name':          return 'Fuzzy Name';
+      case 'name_dob_only':       return 'Name + DOB';
+      case 'name_village_only':   return 'Name + Village';
+      // New (birth-year-only) match types
+      case 'name_year_village':   return 'Name + Year + Village';
+      case 'name_year_diff_village': return 'Diff. Village (Year)';
+      case 'name_year_only':      return 'Name + Year';
+      case 'name_only':           return 'Name Only';
+      default: return type.replace(/_/g, ' ');
+    }
+  };
+
+  const confidenceLabel = (confidence: string, matchCount?: number) => {
+    const count = matchCount && matchCount > 1 ? ` (${matchCount} candidates)` : '';
+    switch (confidence) {
+      case 'exact':  return `Exact${count}`;
+      case 'high':   return `High${count}`;
+      case 'medium': return `Medium${count}`;
+      case 'low':    return `Low${count}`;
+      default:       return confidence;
     }
   };
 
@@ -202,19 +220,28 @@ export default function TeamVettingPage() {
                     </div>
                     <div className="text-xs text-gray-400 mt-0.5">
                       {s.village_name as string} &middot; {s.contact_number as string || 'No phone'}
-                      {s.dob && <> &middot; DOB: {new Date(s.dob as string).toLocaleDateString()}</>}
+                      {s.dob
+                        ? <> &middot; DOB: {new Date(s.dob as string).toLocaleDateString()}</>
+                        : s.birth_year
+                          ? <> &middot; Born: {s.birth_year as number}</>
+                          : null
+                      }
                     </div>
                     {matches.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mt-1.5">
-                        {matches.map((m, i) => {
+                        {matches.slice(0, 3).map((m, i) => {
                           const gv = m.gec_voter as Record<string, unknown>;
+                          const mc = m.match_count as number | undefined;
                           return (
                             <span key={i} className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${confidenceColor(m.confidence as string)}`}>
-                              {matchTypeLabel(m.match_type as string)}: {gv.first_name as string} {gv.last_name as string}
-                              {m.match_type === 'different_village' && ` (${gv.village_name as string})`}
+                              {confidenceLabel(m.confidence as string, mc)} &middot; {matchTypeLabel(m.match_type as string)}
+                              {(m.match_type === 'different_village' || m.match_type === 'name_year_diff_village') && ` — ${gv.village_name as string}`}
                             </span>
                           );
                         })}
+                        {matches.length > 3 && (
+                          <span className="text-[10px] text-gray-400 px-2 py-0.5">+{matches.length - 3} more</span>
+                        )}
                       </div>
                     )}
                     {matches.length === 0 && (
@@ -267,15 +294,22 @@ export default function TeamVettingPage() {
                         {matches.map((m, i) => {
                           const gv = m.gec_voter as Record<string, unknown>;
                           return (
-                            <div key={i} className="p-2 bg-white rounded-lg border border-gray-100 mb-1 text-xs flex justify-between">
+                            <div key={i} className="p-2 bg-white rounded-lg border border-gray-100 mb-1 text-xs flex justify-between items-start gap-2">
                               <div>
                                 <span className="font-medium">{gv.first_name as string} {gv.last_name as string}</span>
                                 <span className="text-gray-400 ml-2">{gv.village_name as string}</span>
                                 {gv.dob && <span className="text-gray-400 ml-2">DOB: {new Date(gv.dob as string).toLocaleDateString()}</span>}
+                                {!gv.dob && gv.birth_year && <span className="text-gray-400 ml-2">Born: {gv.birth_year as number}</span>}
                                 {gv.voter_registration_number && <span className="text-gray-400 ml-2">Reg: {gv.voter_registration_number as string}</span>}
+                                <div className="text-gray-400 mt-0.5">{matchTypeLabel(m.match_type as string)}</div>
+                                {(m.match_count as number) > 1 && (
+                                  <div className="text-amber-600 mt-0.5">
+                                    {m.match_count as number} candidates matched — manual review recommended
+                                  </div>
+                                )}
                               </div>
-                              <span className={`px-2 py-0.5 rounded-full font-medium ${confidenceColor(m.confidence as string)}`}>
-                                {m.confidence as string}
+                              <span className={`px-2 py-0.5 rounded-full font-semibold shrink-0 ${confidenceColor(m.confidence as string)}`}>
+                                {confidenceLabel(m.confidence as string, m.match_count as number)}
                               </span>
                             </div>
                           );
