@@ -142,8 +142,16 @@ class GecImportService
     # Explicit birth_year column (new GEC format — year only)
     if column_map["birth_year"]
       parsed_year = parse_birth_year(row[column_map["birth_year"]])
-      birth_year = parsed_year if parsed_year.present?
-      # If we only have year, no full dob
+      if parsed_year.present?
+        # If both dob and birth_year present but years conflict, trust birth_year
+        # and clear dob to avoid dob.year != birth_year inconsistency
+        if dob.present? && dob.year != parsed_year
+          dob = nil
+          dob_ambiguous = false
+        end
+        birth_year = parsed_year
+      end
+      # If no full dob column at all, ensure dob stays nil
       dob = nil if column_map["dob"].blank?
     end
 
