@@ -4,13 +4,15 @@
 # Handles DOB month/day swap detection and village resolution.
 class GecImportService
   REQUIRED_COLUMNS = %w[first_name last_name].freeze
-  OPTIONAL_COLUMNS = %w[dob village voter_registration_number].freeze
+  OPTIONAL_COLUMNS = %w[dob birth_year village voter_registration_number].freeze
 
   # Column name aliases to handle different GEC Excel formats
   COLUMN_ALIASES = {
     "first_name" => [ "first_name", "first name", "fname", "given_name", "given name" ],
     "last_name" => [ "last_name", "last name", "lname", "surname", "family_name", "family name" ],
     "dob" => [ "dob", "date_of_birth", "date of birth", "birth_date", "birth date", "birthday" ],
+    # GEC now provides year of birth only (no full DOB) — support both formats
+    "birth_year" => [ "birth_year", "year_of_birth", "year of birth", "yob", "birth year", "birthyear" ],
     "village" => [ "village", "municipality", "district", "precinct_village", "voting_district" ],
     "voter_registration_number" => [ "voter_registration_number", "voter_reg", "registration_number", "reg_no", "reg_number", "vrn" ]
   }.freeze
@@ -128,13 +130,29 @@ class GecImportService
     village_name = column_map["village"] ? row[column_map["village"]]&.to_s&.strip : nil
     vrn = column_map["voter_registration_number"] ? row[column_map["voter_registration_number"]]&.to_s&.strip : nil
 
-    dob, dob_ambiguous = parse_dob(row[column_map["dob"]]) if column_map["dob"]
+    dob = nil
+    dob_ambiguous = false
+    birth_year = nil
+
+    if column_map["dob"]
+      dob, dob_ambiguous = parse_dob(row[column_map["dob"]])
+      birth_year = dob&.year
+    end
+
+    # Explicit birth_year column (new GEC format — year only)
+    if column_map["birth_year"]
+      parsed_year = parse_birth_year(row[column_map["birth_year"]])
+      birth_year = parsed_year if parsed_year.present?
+      # If we only have year, no full dob
+      dob = nil if column_map["dob"].blank?
+    end
 
     {
       first_name: first_name,
       last_name: last_name,
       dob: dob,
-      dob_ambiguous: dob_ambiguous || false,
+      dob_ambiguous: dob_ambiguous,
+      birth_year: birth_year,
       village_name: village_name,
       voter_registration_number: vrn
     }
@@ -157,23 +175,31 @@ class GecImportService
 
     @stats[:ambiguous_dob] += 1 if data[:dob_ambiguous]
 
-    # Find existing record: try name+village+DOB first, then name+DOB (to catch transfers)
+    # Find existing record: try name+village+(DOB or birth_year) first, then name+(DOB or birth_year) for transfers
     fn_lower = data[:first_name].downcase
     ln_lower = data[:last_name].downcase
     vn_lower = data[:village_name].downcase
 
     record = nil
 
-    # First: exact match on name + village (+ DOB if available)
+    # First: exact match on name + village (+ DOB or birth_year if available)
     scope = GecVoter.where("LOWER(first_name) = ? AND LOWER(last_name) = ? AND LOWER(village_name) = ?", fn_lower, ln_lower, vn_lower)
-    scope = scope.where(dob: data[:dob]) if data[:dob].present?
+    if data[:dob].present?
+      scope = scope.where(dob: data[:dob])
+    elsif data[:birth_year].present?
+      scope = scope.where(birth_year: data[:birth_year])
+    end
     record = scope.first
 
-    # Second: name + DOB only (detects village transfer)
-    if record.nil? && data[:dob].present?
-      record = GecVoter.where("LOWER(first_name) = ? AND LOWER(last_name) = ?", fn_lower, ln_lower)
-        .where(dob: data[:dob])
-        .first
+    # Second: name + (DOB or birth_year) only (detects village transfer)
+    if record.nil?
+      if data[:dob].present?
+        record = GecVoter.where("LOWER(first_name) = ? AND LOWER(last_name) = ?", fn_lower, ln_lower)
+          .where(dob: data[:dob]).first
+      elsif data[:birth_year].present?
+        record = GecVoter.where("LOWER(first_name) = ? AND LOWER(last_name) = ?", fn_lower, ln_lower)
+          .where(birth_year: data[:birth_year]).first
+      end
     end
 
     if record
@@ -190,7 +216,8 @@ class GecImportService
         removal_detected_by_import_id: nil,
         voter_registration_number: data[:voter_registration_number] || record.voter_registration_number,
         dob: data[:dob] || record.dob,
-        dob_ambiguous: data[:dob_ambiguous]
+        dob_ambiguous: data[:dob_ambiguous],
+        birth_year: data[:birth_year] || record.birth_year
       }
 
       if village_changed
@@ -209,6 +236,7 @@ class GecImportService
         last_name: data[:last_name],
         dob: data[:dob],
         dob_ambiguous: data[:dob_ambiguous],
+        birth_year: data[:birth_year],
         village_name: data[:village_name],
         voter_registration_number: data[:voter_registration_number],
         gec_list_date: @gec_list_date,
@@ -294,6 +322,25 @@ class GecImportService
     end
 
     count
+  end
+
+  # Parse a year-only birth year value (new GEC format).
+  # Accepts: integer (1985), string ("1985"), or a Date/DateTime (extracts year).
+  def parse_birth_year(value)
+    return nil if value.blank?
+
+    case value
+    when Integer
+      value if value.between?(1900, Date.current.year)
+    when Date, DateTime, Time
+      value.year
+    when String
+      year = value.strip.to_i
+      year if year.between?(1900, Date.current.year)
+    when Float
+      year = value.to_i
+      year if year.between?(1900, Date.current.year)
+    end
   end
 
   # Parse DOB with month/day swap detection.
