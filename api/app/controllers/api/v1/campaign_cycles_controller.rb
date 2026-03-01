@@ -6,7 +6,7 @@ module Api
       include Authenticatable
 
       before_action :authenticate_request
-      before_action :set_campaign_cycle, only: %i[show update destroy]
+      before_action :set_campaign_cycle, only: %i[update destroy]
 
       # GET /api/v1/campaign_cycles
       def index

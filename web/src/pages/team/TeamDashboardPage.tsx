@@ -210,12 +210,12 @@ export default function TeamDashboardPage() {
               </thead>
               <tbody>
                 {dashboard.villages.map((v: Record<string, unknown>) => {
-                  const target = (v.target as number) || 0;
+                  const target = (v.quota_target as number) || 0;
                   const eligible = (v.quota_eligible_count as number) || 0;
                   const pct = target > 0 ? Math.round((eligible / target) * 100) : 0;
                   return (
-                    <tr key={v.village_id as number} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="py-2 px-3 font-medium text-gray-900">{v.village_name as string}</td>
+                    <tr key={v.id as number} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="py-2 px-3 font-medium text-gray-900">{v.name as string}</td>
                       <td className="py-2 px-3 text-right text-gray-600">{target}</td>
                       <td className="py-2 px-3 text-right font-semibold text-green-700">{eligible}</td>
                       <td className="py-2 px-3 text-right text-gray-600">{(v.team_input_count as number) || 0}</td>

@@ -76,7 +76,7 @@ export default function TeamReportsPage() {
           className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
         >
           <option value="">All Villages</option>
-          {(villages || []).map((v: Record<string, unknown>) => (
+          {(villages?.villages || []).map((v: Record<string, unknown>) => (
             <option key={v.id as number} value={v.id as number}>{v.name as string}</option>
           ))}
         </select>

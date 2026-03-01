@@ -3,17 +3,62 @@
 # Parses and imports GEC voter registration lists (Excel format).
 # Handles DOB month/day swap detection and village resolution.
 class GecImportService
-  REQUIRED_COLUMNS = %w[first_name last_name].freeze
+  REQUIRED_COLUMNS = %w[first_name last_name].freeze  # May be satisfied by combined_name
   OPTIONAL_COLUMNS = %w[dob village voter_registration_number].freeze
 
   # Column name aliases to handle different GEC Excel formats
   COLUMN_ALIASES = {
     "first_name" => [ "first_name", "first name", "fname", "given_name", "given name" ],
     "last_name" => [ "last_name", "last name", "lname", "surname", "family_name", "family name" ],
+    # GEC official format: combined "NAME" column in "LAST, FIRST MIDDLE" format
+    "combined_name" => [ "name" ],
     "dob" => [ "dob", "date_of_birth", "date of birth", "birth_date", "birth date", "birthday" ],
     "village" => [ "village", "municipality", "district", "precinct_village", "voting_district" ],
-    "voter_registration_number" => [ "voter_registration_number", "voter_reg", "registration_number", "reg_no", "reg_number", "vrn" ]
+    "voter_registration_number" => [ "voter_registration_number", "voter_reg", "registration_number",
+                                     "reg_no", "reg_number", "vrn", "reg._no.", "reg.no.", "reg._no" ]
   }.freeze
+
+  # Maps GEC file village names (uppercase) to canonical DB names
+  VILLAGE_NAME_MAP = {
+    # Hagåtña variants
+    "hagatna" => "Hagåtña", "hagtna" => "Hagåtña", "hagtana" => "Hagåtña", "agana" => "Hagåtña",
+    # Hågat variants
+    "agat" => "Hågat", "hagat" => "Hågat",
+    # Inalåhan variants
+    "inarajan" => "Inalåhan", "inalahan" => "Inalåhan", "inajaran" => "Inalåhan", "inarjan" => "Inalåhan",
+    # Malesso' variants
+    "merizo" => "Malesso'", "malesso'" => "Malesso'",
+    # Talo'fo'fo' variants
+    "talofofo" => "Talo'fo'fo'", "talo'fo'fo'" => "Talo'fo'fo'", "talo'fo'fo" => "Talo'fo'fo'", "talofo'fo" => "Talo'fo'fo'",
+    # Humåtak variants
+    "umatac" => "Humåtak",
+    # Sånta Rita-Sumai variants
+    "santa rita" => "Sånta Rita-Sumai", "santa rita-sumai" => "Sånta Rita-Sumai",
+    # Chalan Pago/Ordot variants
+    "chalan pago" => "Chalan Pago/Ordot", "ordot" => "Chalan Pago/Ordot",
+    "chalan pago/ordot" => "Chalan Pago/Ordot", "ordot/ chalan pago" => "Chalan Pago/Ordot",
+    # Agana Heights variants
+    "agana hts" => "Agana Heights", "agana heights" => "Agana Heights",
+    # Mongmong/Toto/Maite variants
+    "mongmong" => "Mongmong/Toto/Maite", "toto" => "Mongmong/Toto/Maite", "maite" => "Mongmong/Toto/Maite",
+    "mongmong/toto/mait" => "Mongmong/Toto/Maite",
+    # Asan-Ma'ina variants
+    "asan" => "Asan-Ma'ina", "maina" => "Asan-Ma'ina",
+    # Direct matches (just lowercase versions)
+    "dededo" => "Dededo", "tamuning" => "Tamuning", "yigo" => "Yigo",
+    "barrigada" => "Barrigada", "yona" => "Yona", "sinajana" => "Sinajana",
+    "mangilao" => "Mangilao", "piti" => "Piti",
+    # Typos
+    "barriagda" => "Barrigada", "barridaga" => "Barrigada",
+    "sinjana" => "Sinajana", "tamunung" => "Tamuning",
+    "deded" => "Dededo",
+    "malojloj" => "Talo'fo'fo'",  # Malojloj is in Talo'fo'fo'
+    # Tumon is part of Tamuning in GEC
+    "tumon" => "Tamuning",
+    # GMF (Guam Military Forces/base) - some maps to Barrigada, but these are off-island or base residents
+    # Leave as nil (will be skipped) unless we can map them
+  }.freeze
+
 
   Result = Struct.new(:success, :gec_import, :errors, :stats, keyword_init: true)
 
@@ -44,8 +89,10 @@ class GecImportService
       headers = normalize_headers(sheet.row(1))
       column_map = build_column_map(headers)
 
-      unless column_map["first_name"] && column_map["last_name"]
-        raise "Missing required columns: first_name and last_name. Found headers: #{headers.join(', ')}"
+      has_split_names = column_map["first_name"] && column_map["last_name"]
+      has_combined_name = column_map["combined_name"]
+      unless has_split_names || has_combined_name
+        raise "Missing required columns: need first_name+last_name OR name (combined). Found headers: #{headers.join(', ')}"
       end
 
       rows = (2..sheet.last_row).map { |i| sheet.row(i) }
@@ -123,9 +170,52 @@ class GecImportService
   end
 
   def parse_row(row, column_map)
-    first_name = row[column_map["first_name"]]&.to_s&.strip
-    last_name = row[column_map["last_name"]]&.to_s&.strip
-    village_name = column_map["village"] ? row[column_map["village"]]&.to_s&.strip : nil
+    first_name = nil
+    last_name = nil
+
+    if column_map["combined_name"]
+      # GEC format: "NAME" column has "LAST, FIRST MIDDLE" format
+      combined = row[column_map["combined_name"]]&.to_s&.strip
+      if combined&.include?(",")
+        last_part, first_part = combined.split(",", 2)
+        last_name = last_part.strip
+        first_name = first_part.strip.split(" ").first  # Take first word of given name
+      elsif combined.present?
+        parts = combined.split(" ")
+        last_name = parts.last
+        first_name = parts.first(parts.size - 1).join(" ")
+      end
+    else
+      first_name = row[column_map["first_name"]]&.to_s&.strip
+      last_name = row[column_map["last_name"]]&.to_s&.strip
+    end
+
+    # GEC file: village is in column after address (no header label)
+    # Detect by checking column_map for combined_name pattern (GEC official format)
+    village_name = nil
+    if column_map["village"]
+      village_name = row[column_map["village"]]&.to_s&.strip
+    elsif column_map["combined_name"] && column_map["dob"]
+      # GEC format: village is typically at the column after address (index 4 for GEC Q1-GE6)
+      # Try to detect by finding a known Guam village name in surrounding columns
+      candidate_indices = (3..[row.size - 1, 8].min).to_a
+      candidate_indices.each do |ci|
+        val = row[ci]&.to_s&.strip
+        next unless val.present?
+        # First try alias map (fast, no DB hit)
+        mapped = VILLAGE_NAME_MAP[val.downcase]
+        if mapped
+          village_name = mapped
+          break
+        end
+        # Fallback: try direct case-insensitive DB lookup
+        if Village.where("LOWER(name) = ?", val.downcase).exists?
+          village_name = Village.where("LOWER(name) = ?", val.downcase).pick(:name)
+          break
+        end
+      end
+    end
+
     vrn = column_map["voter_registration_number"] ? row[column_map["voter_registration_number"]]&.to_s&.strip : nil
 
     dob, dob_ambiguous = parse_dob(row[column_map["dob"]]) if column_map["dob"]
