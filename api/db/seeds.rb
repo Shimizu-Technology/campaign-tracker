@@ -228,3 +228,183 @@ else
 end
 
 puts "Done!"
+
+# ============================================================
+# Unassigned Village (GMF/Military/Off-Island voters)
+# ============================================================
+unassigned_village = Village.find_or_create_by!(name: "Unassigned") do |v|
+  v.region = "Other"
+  v.population = 0
+end
+puts "  Unassigned village: #{unassigned_village.name}"
+
+# ============================================================
+# Campaign Cycle: Guam 2026 General Election
+# Guam Primary: August 1, 2026
+# Guam General Election: November 3, 2026
+# ============================================================
+puts "\nSeeding Campaign Cycle..."
+
+cycle = CampaignCycle.find_or_create_by!(name: "Guam 2026 General Election") do |c|
+  c.cycle_type = "general"
+  c.status = "active"
+  c.start_date = Date.new(2026, 1, 1)
+  c.end_date = Date.new(2026, 11, 3)
+  c.monthly_quota_target = 6000
+  c.carry_forward_data = true
+  c.settings = {
+    "due_day" => 23,
+    "election_date" => "2026-11-03",
+    "primary_date" => "2026-08-01",
+    "notes" => "Guam General Election. Primary: Aug 1, 2026. General: Nov 3, 2026."
+  }
+end
+
+if cycle.quota_periods.empty?
+  cycle.generate_periods!
+  puts "  Generated #{cycle.quota_periods.count} quota periods"
+end
+
+puts "  Campaign Cycle: #{cycle.name} (#{cycle.start_date} → #{cycle.end_date})"
+puts "  Status: #{cycle.status}, Periods: #{cycle.quota_periods.count}"
+
+# Primary cycle
+primary_cycle = CampaignCycle.find_or_create_by!(name: "Guam 2026 Primary Election") do |c|
+  c.cycle_type = "primary"
+  c.status = "active"
+  c.start_date = Date.new(2026, 1, 1)
+  c.end_date = Date.new(2026, 8, 1)
+  c.monthly_quota_target = 6000
+  c.carry_forward_data = true
+  c.settings = {
+    "due_day" => 23,
+    "election_date" => "2026-08-01",
+    "notes" => "Guam Primary Election — August 1, 2026."
+  }
+end
+
+if primary_cycle.quota_periods.empty?
+  primary_cycle.generate_periods!
+end
+
+puts "  Primary Cycle: #{primary_cycle.name} (#{primary_cycle.quota_periods.count} periods)"
+
+# ============================================================
+# Fake Supporter Data (~75 supporters for testing)
+# Mix of: verified (matched), unverified (ambiguous), flagged
+# ============================================================
+puts "\nSeeding fake supporters for testing..."
+
+# Only seed if we don't have test supporters already
+if Supporter.where(source: "bulk_import").count < 50
+  # Pick a few villages for variety
+  test_villages = Village.where(name: ["Dededo", "Tamuning", "Yigo", "Mangilao", "Barrigada", "Chalan Pago/Ordot"])
+  fallback_village = Village.find_by(name: "Dededo") || Village.first
+
+  FAKE_FIRST_NAMES = %w[Maria Jose Juan Ana Carlos Rosa Antonio Elena Miguel Carmen
+    Francisco Isabel Luis Paula Roberto Sofia David Clara Jorge Teresa
+    Kevin Jennifer Michael Sarah James Jennifer Tina Joshua Patricia].freeze
+  FAKE_LAST_NAMES = %w[Cruz Santos Reyes Flores Garcia Torres Rodriguez Martinez
+    Lopez Hernandez Perez Ramirez Aguon Aflague Camacho Pangelinan
+    Guerrero Mendiola Taitano San Nicolas Manibusan Blas Borja].freeze
+
+  def fake_phone
+    "671#{rand(100..999)}#{rand(1000..9999)}"
+  end
+
+  supporters_created = 0
+
+  # 30 HIGH-CONFIDENCE MATCHED supporters (verified, registered voters)
+  # These have exact DOB matches in the GEC voter roll
+  30.times do |i|
+    village = test_villages.sample || fallback_village
+    first = FAKE_FIRST_NAMES.sample
+    last = FAKE_LAST_NAMES.sample
+    # Use a birth year that would correspond to plausible GEC voter DOBs
+    dob = Date.new(rand(1950..2000), rand(1..12), rand(1..28))
+
+    s = Supporter.new(
+      first_name: first,
+      last_name: last,
+      village: village,
+      source: "bulk_import",
+      attribution_method: "staff_manual",
+      status: "active",
+      verification_status: "verified",
+      registered_voter: true,
+      dob: dob,
+      contact_number: fake_phone,
+      opt_in_text: true,
+      turnout_status: "not_yet_voted",
+      created_at: rand(1..60).days.ago,
+      updated_at: rand(1..30).days.ago
+    )
+    s.save(validate: false)
+    supporters_created += 1
+  end
+
+  # 25 AMBIGUOUS supporters (unverified, similar DOB/name — for vetting queue)
+  25.times do |i|
+    village = test_villages.sample || fallback_village
+    first = FAKE_FIRST_NAMES.sample
+    last = FAKE_LAST_NAMES.sample
+    # Ambiguous DOB: both month and day ≤ 12 (could be swapped)
+    month = rand(1..12)
+    day = rand(1..12)
+    dob = Date.new(rand(1960..1995), month, day)
+
+    s = Supporter.new(
+      first_name: first,
+      last_name: last,
+      village: village,
+      source: "staff_entry",
+      attribution_method: "staff_manual",
+      status: "active",
+      verification_status: "unverified",
+      registered_voter: nil,
+      dob: dob,
+      contact_number: fake_phone,
+      opt_in_text: [true, false].sample,
+      turnout_status: "not_yet_voted",
+      created_at: rand(1..30).days.ago,
+      updated_at: rand(1..15).days.ago
+    )
+    s.save(validate: false)
+    supporters_created += 1
+  end
+
+  # 20 UNMATCHED / FLAGGED supporters (not in GEC roll — testing flagged state)
+  20.times do |i|
+    village = test_villages.sample || fallback_village
+    first = FAKE_FIRST_NAMES.sample
+    last = FAKE_LAST_NAMES.sample
+
+    s = Supporter.new(
+      first_name: first,
+      last_name: last,
+      village: village,
+      source: "qr_signup",
+      attribution_method: "qr_self_signup",
+      status: "active",
+      verification_status: "flagged",
+      registered_voter: false,
+      dob: nil,
+      contact_number: fake_phone,
+      opt_in_text: true,
+      turnout_status: "not_yet_voted",
+      created_at: rand(1..20).days.ago,
+      updated_at: rand(1..10).days.ago
+    )
+    s.save(validate: false)
+    supporters_created += 1
+  end
+
+  puts "  Created #{supporters_created} fake supporters"
+  puts "    - Verified/matched: 30"
+  puts "    - Unverified/ambiguous: 25"
+  puts "    - Flagged/unmatched: 20"
+else
+  puts "  Fake supporters already exist (#{Supporter.where(source: 'bulk_import').count} bulk_import records)"
+end
+
+puts "\nDone!"

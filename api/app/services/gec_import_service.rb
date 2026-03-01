@@ -55,9 +55,18 @@ class GecImportService
     "malojloj" => "Talo'fo'fo'",  # Malojloj is in Talo'fo'fo'
     # Tumon is part of Tamuning in GEC
     "tumon" => "Tamuning",
-    # GMF (Guam Military Forces/base) - some maps to Barrigada, but these are off-island or base residents
-    # Leave as nil (will be skipped) unless we can map them
+    # GMF (Guam Military Forces/base) - off-island or base residents → Unassigned village
+    "gmf" => "Unassigned",
+    "guam military forces" => "Unassigned",
+    "military" => "Unassigned",
+    "off-island" => "Unassigned",
+    "off island" => "Unassigned",
+    "overseas" => "Unassigned",
+    "absentee" => "Unassigned",
   }.freeze
+
+  # Village name used for voters with no village match (GMF, military, off-island)
+  UNASSIGNED_VILLAGE_NAME = "Unassigned"
 
 
   Result = Struct.new(:success, :gec_import, :errors, :stats, keyword_init: true)
@@ -240,9 +249,10 @@ class GecImportService
     end
 
     if data[:village_name].blank?
-      @errors << "Row #{row_number}: missing village for #{data[:first_name]} #{data[:last_name]}"
-      @stats[:skipped] += 1
-      return
+      # Route to "Unassigned" village instead of skipping
+      # This captures GMF/military/off-island voters who have no standard village
+      data[:village_name] = UNASSIGNED_VILLAGE_NAME
+      @stats[:unassigned] = (@stats[:unassigned] || 0) + 1
     end
 
     @stats[:ambiguous_dob] += 1 if data[:dob_ambiguous]

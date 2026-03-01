@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_24_122030) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_01_023102) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -74,6 +74,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_122030) do
     t.index ["status"], name: "index_campaigns_on_status"
   end
 
+  create_table "cohorts", force: :cascade do |t|
+    t.integer "cohort_type", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.bigint "curriculum_id", null: false
+    t.date "end_date"
+    t.string "github_organization_name"
+    t.string "name", null: false
+    t.string "repository_name", default: "prework-exercises"
+    t.boolean "requires_github", default: false, null: false
+    t.jsonb "settings", default: {}, null: false
+    t.date "start_date", null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["curriculum_id"], name: "index_cohorts_on_curriculum_id"
+    t.index ["status"], name: "index_cohorts_on_status"
+  end
+
   create_table "companies", force: :cascade do |t|
     t.boolean "active", default: true
     t.string "address_line1"
@@ -108,6 +125,32 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_122030) do
     t.integer "year", null: false
     t.index ["company_id", "year"], name: "index_company_ytd_totals_on_company_id_and_year", unique: true
     t.index ["company_id"], name: "index_company_ytd_totals_on_company_id"
+  end
+
+  create_table "content_blocks", force: :cascade do |t|
+    t.integer "block_type", default: 0, null: false
+    t.text "body"
+    t.datetime "created_at", null: false
+    t.string "filename"
+    t.bigint "lesson_id", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.integer "position", default: 0, null: false
+    t.text "solution"
+    t.string "title"
+    t.datetime "updated_at", null: false
+    t.string "video_url"
+    t.index ["block_type"], name: "index_content_blocks_on_block_type"
+    t.index ["lesson_id", "position"], name: "index_content_blocks_on_lesson_id_and_position"
+    t.index ["lesson_id"], name: "index_content_blocks_on_lesson_id"
+  end
+
+  create_table "curricula", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.text "description"
+    t.string "name", null: false
+    t.integer "status", default: 0, null: false
+    t.integer "total_weeks"
+    t.datetime "updated_at", null: false
   end
 
   create_table "deduction_types", force: :cascade do |t|
@@ -231,6 +274,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_122030) do
     t.index ["status"], name: "index_employees_on_status"
   end
 
+  create_table "enrollments", force: :cascade do |t|
+    t.bigint "cohort_id", null: false
+    t.datetime "completed_at"
+    t.datetime "created_at", null: false
+    t.datetime "enrolled_at"
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["cohort_id"], name: "index_enrollments_on_cohort_id"
+    t.index ["user_id", "cohort_id"], name: "index_enrollments_on_user_id_and_cohort_id", unique: true
+    t.index ["user_id"], name: "index_enrollments_on_user_id"
+  end
+
   create_table "event_rsvps", force: :cascade do |t|
     t.boolean "attended"
     t.datetime "checked_in_at"
@@ -310,6 +366,46 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_122030) do
     t.index ["village_id"], name: "index_gec_voters_on_village_id"
     t.index ["village_name"], name: "index_gec_voters_on_village_name"
     t.index ["voter_registration_number"], name: "index_gec_voters_on_voter_registration_number"
+  end
+
+  create_table "lessons", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.integer "lesson_type", default: 0, null: false
+    t.bigint "module_id", null: false
+    t.integer "position", default: 0, null: false
+    t.integer "release_day", default: 0, null: false
+    t.boolean "required", default: true, null: false
+    t.string "title", null: false
+    t.datetime "updated_at", null: false
+    t.index ["module_id", "position"], name: "index_lessons_on_module_id_and_position"
+    t.index ["module_id", "release_day"], name: "index_lessons_on_module_id_and_release_day"
+    t.index ["module_id"], name: "index_lessons_on_module_id"
+  end
+
+  create_table "module_assignments", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "enrollment_id", null: false
+    t.bigint "module_id", null: false
+    t.date "unlock_date_override"
+    t.boolean "unlocked", default: true, null: false
+    t.datetime "updated_at", null: false
+    t.index ["enrollment_id", "module_id"], name: "index_module_assignments_on_enrollment_id_and_module_id", unique: true
+    t.index ["enrollment_id"], name: "index_module_assignments_on_enrollment_id"
+    t.index ["module_id"], name: "index_module_assignments_on_module_id"
+  end
+
+  create_table "modules", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "curriculum_id", null: false
+    t.integer "day_offset", default: 0, null: false
+    t.text "description"
+    t.integer "module_type", default: 0, null: false
+    t.string "name", null: false
+    t.integer "position", default: 0, null: false
+    t.integer "total_days"
+    t.datetime "updated_at", null: false
+    t.index ["curriculum_id", "position"], name: "index_modules_on_curriculum_id_and_position"
+    t.index ["curriculum_id"], name: "index_modules_on_curriculum_id"
   end
 
   create_table "pay_periods", force: :cascade do |t|
@@ -400,6 +496,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_122030) do
     t.index ["village_id"], name: "index_precincts_on_village_id"
   end
 
+  create_table "progresses", force: :cascade do |t|
+    t.datetime "completed_at"
+    t.bigint "content_block_id", null: false
+    t.datetime "created_at", null: false
+    t.integer "status", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["content_block_id"], name: "index_progresses_on_content_block_id"
+    t.index ["user_id", "content_block_id"], name: "index_progresses_on_user_id_and_content_block_id", unique: true
+    t.index ["user_id"], name: "index_progresses_on_user_id"
+  end
+
   create_table "quota_periods", force: :cascade do |t|
     t.bigint "campaign_cycle_id", null: false
     t.datetime "created_at", null: false
@@ -479,6 +587,25 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_122030) do
     t.index ["campaign_id", "status"], name: "index_sprint_goals_on_campaign_id_and_status"
     t.index ["campaign_id"], name: "index_sprint_goals_on_campaign_id"
     t.index ["village_id"], name: "index_sprint_goals_on_village_id"
+  end
+
+  create_table "submissions", force: :cascade do |t|
+    t.bigint "content_block_id", null: false
+    t.datetime "created_at", null: false
+    t.text "feedback"
+    t.string "github_code_url"
+    t.string "github_issue_url"
+    t.integer "grade"
+    t.datetime "graded_at"
+    t.bigint "graded_by_id"
+    t.integer "num_submissions", default: 1, null: false
+    t.text "text"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["content_block_id", "user_id"], name: "index_submissions_on_content_block_id_and_user_id"
+    t.index ["content_block_id"], name: "index_submissions_on_content_block_id"
+    t.index ["graded_by_id"], name: "index_submissions_on_graded_by_id"
+    t.index ["user_id"], name: "index_submissions_on_user_id"
   end
 
   create_table "supporter_contact_attempts", force: :cascade do |t|
@@ -627,7 +754,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_122030) do
 
   add_foreign_key "audit_logs", "users", column: "actor_user_id"
   add_foreign_key "blocks", "villages"
+  add_foreign_key "cohorts", "curricula", column: "curriculum_id"
   add_foreign_key "company_ytd_totals", "companies"
+  add_foreign_key "content_blocks", "lessons"
   add_foreign_key "deduction_types", "companies"
   add_foreign_key "department_ytd_totals", "departments"
   add_foreign_key "departments", "companies"
@@ -637,18 +766,24 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_122030) do
   add_foreign_key "employee_ytd_totals", "employees"
   add_foreign_key "employees", "companies"
   add_foreign_key "employees", "departments"
+  add_foreign_key "enrollments", "cohorts"
   add_foreign_key "event_rsvps", "events"
   add_foreign_key "event_rsvps", "supporters"
   add_foreign_key "events", "campaigns"
   add_foreign_key "events", "villages"
   add_foreign_key "gec_imports", "users", column: "uploaded_by_user_id"
   add_foreign_key "gec_voters", "villages"
+  add_foreign_key "lessons", "modules"
+  add_foreign_key "module_assignments", "enrollments"
+  add_foreign_key "module_assignments", "modules"
+  add_foreign_key "modules", "curricula", column: "curriculum_id"
   add_foreign_key "pay_periods", "companies"
   add_foreign_key "payroll_items", "employees"
   add_foreign_key "payroll_items", "pay_periods"
   add_foreign_key "poll_reports", "precincts"
   add_foreign_key "poll_reports", "users"
   add_foreign_key "precincts", "villages"
+  add_foreign_key "progresses", "content_blocks"
   add_foreign_key "quota_periods", "campaign_cycles"
   add_foreign_key "quotas", "campaigns"
   add_foreign_key "quotas", "districts"
@@ -659,6 +794,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_122030) do
   add_foreign_key "sms_blasts", "users", column: "initiated_by_user_id"
   add_foreign_key "sprint_goals", "campaigns"
   add_foreign_key "sprint_goals", "villages"
+  add_foreign_key "submissions", "content_blocks"
   add_foreign_key "supporter_contact_attempts", "supporters"
   add_foreign_key "supporter_contact_attempts", "users", column: "recorded_by_user_id"
   add_foreign_key "supporters", "blocks"
