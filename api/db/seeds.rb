@@ -298,7 +298,7 @@ puts "\nSeeding fake supporters for testing..."
 # Only seed if we don't have test supporters already
 if Supporter.where(source: "bulk_import").count < 50
   # Pick a few villages for variety
-  test_villages = Village.where(name: ["Dededo", "Tamuning", "Yigo", "Mangilao", "Barrigada", "Chalan Pago/Ordot"])
+  test_villages = Village.where(name: [ "Dededo", "Tamuning", "Yigo", "Mangilao", "Barrigada", "Chalan Pago/Ordot" ])
   fallback_village = Village.find_by(name: "Dededo") || Village.first
 
   FAKE_FIRST_NAMES = %w[Maria Jose Juan Ana Carlos Rosa Antonio Elena Miguel Carmen
@@ -364,7 +364,7 @@ if Supporter.where(source: "bulk_import").count < 50
       registered_voter: nil,
       dob: dob,
       contact_number: fake_phone,
-      opt_in_text: [true, false].sample,
+      opt_in_text: [ true, false ].sample,
       turnout_status: "not_yet_voted",
       created_at: rand(1..30).days.ago,
       updated_at: rand(1..15).days.ago
