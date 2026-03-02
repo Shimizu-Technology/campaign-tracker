@@ -306,6 +306,7 @@ module Api
 
       def turnout_source_for_current_user
         return "poll_watcher" if current_user.poll_watcher?
+        return "data_team" if current_user.data_team?
 
         "admin_override"
       end
