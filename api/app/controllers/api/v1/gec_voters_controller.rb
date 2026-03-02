@@ -6,7 +6,7 @@ module Api
       include Authenticatable
       include AuditLoggable
       before_action :authenticate_request
-      before_action :require_admin!
+      before_action :require_coordinator_or_above!
 
       # GET /api/v1/gec_voters
       # List GEC voters with optional filters
