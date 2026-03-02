@@ -62,7 +62,7 @@ class GecImportService
     "off-island" => "Unassigned",
     "off island" => "Unassigned",
     "overseas" => "Unassigned",
-    "absentee" => "Unassigned",
+    "absentee" => "Unassigned"
   }.freeze
 
   # Village name used for voters with no village match (GMF, military, off-island)
@@ -207,7 +207,7 @@ class GecImportService
     elsif column_map["combined_name"] && column_map["dob"]
       # GEC format: village is typically at the column after address (index 4 for GEC Q1-GE6)
       # Try to detect by finding a known Guam village name in surrounding columns
-      candidate_indices = (3..[row.size - 1, 8].min).to_a
+      candidate_indices = (3..[ row.size - 1, 8 ].min).to_a
       candidate_indices.each do |ci|
         val = row[ci]&.to_s&.strip
         next unless val.present?

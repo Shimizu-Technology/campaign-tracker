@@ -306,6 +306,7 @@ module Api
 
       def turnout_source_for_current_user
         return "poll_watcher" if current_user.poll_watcher?
+        return "data_team" if current_user.data_team?
 
         "admin_override"
       end
@@ -385,7 +386,7 @@ module Api
       def precinct_scope_for_current_user
         scope = Precinct.all
 
-        if current_user.admin?
+        if current_user.admin? || current_user.data_team?
           scope
         elsif current_user.coordinator?
           current_user.assigned_district_id.present? ? scope.joins(:village).where(villages: { district_id: current_user.assigned_district_id }) : scope
