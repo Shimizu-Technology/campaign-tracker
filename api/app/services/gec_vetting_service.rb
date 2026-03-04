@@ -12,12 +12,14 @@
 class GecVettingService
   Result = Struct.new(:status, :matches, :gec_voter, :details, keyword_init: true)
 
-  def initialize(supporter)
+  def initialize(supporter, gec_data_loaded: nil)
     @supporter = supporter
+    @gec_data_loaded = gec_data_loaded
   end
 
   def call
-    return Result.new(status: :skipped, matches: [], details: "No GEC voter data loaded") if GecVoter.active.none?
+    gec_data_loaded = @gec_data_loaded.nil? ? GecVoter.active.exists? : @gec_data_loaded
+    return Result.new(status: :skipped, matches: [], details: "No GEC voter data loaded") unless gec_data_loaded
 
     matches = GecVoter.find_matches(
       first_name: @supporter.first_name,

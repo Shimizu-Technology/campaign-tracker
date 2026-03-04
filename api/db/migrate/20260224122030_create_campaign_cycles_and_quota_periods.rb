@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class CreateCampaignCyclesAndQuotaPeriods < ActiveRecord::Migration[8.0]
+class CreateCampaignCyclesAndQuotaPeriods < ActiveRecord::Migration[8.1]
   def change
     # A campaign cycle represents an election (e.g., "2026 Primary", "2026 General")
     create_table :campaign_cycles do |t|

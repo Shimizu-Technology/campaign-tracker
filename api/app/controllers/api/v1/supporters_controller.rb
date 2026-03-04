@@ -508,15 +508,19 @@ module Api
         total = supporters.count
         supporters = supporters.offset((page - 1) * per_page).limit(per_page)
 
+        summary_base = scope_supporters(Supporter.active)
+        pending_review_count = summary_base.public_signups.count
+        accepted_count = summary_base.team_input
+          .where(attribution_method: %w[public_signup qr_self_signup]).count
+
         render json: {
           supporters: supporters.map { |s| supporter_json(s) },
           summary: {
-            total_public: Supporter.active.public_signups.count,
+            total_public: pending_review_count + accepted_count,
             # Pending = still has public source (not yet accepted)
-            pending_review: Supporter.active.public_signups.count,
+            pending_review: pending_review_count,
             # Accepted = originally public (attribution_method) but source changed to staff_entry
-            accepted: Supporter.active.team_input
-                        .where(attribution_method: %w[public_signup qr_self_signup]).count
+            accepted: accepted_count
           },
           pagination: { page: page, per_page: per_page, total: total, pages: (total.to_f / per_page).ceil }
         }
@@ -814,7 +818,7 @@ module Api
       end
 
       def supporter_edit_allowed?
-        current_user&.admin? || current_user&.coordinator?
+        current_user&.admin? || current_user&.data_team? || current_user&.coordinator?
       end
 
       # Alias for backward compatibility with callers

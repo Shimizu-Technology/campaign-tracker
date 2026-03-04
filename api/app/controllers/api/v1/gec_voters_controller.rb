@@ -97,7 +97,7 @@ module Api
         result = service.call
 
         if result.success
-          log_audit(result.gec_import, "gec_import", changed_data: result.stats)
+          log_audit!(result.gec_import, "gec_import", changed_data: result.stats)
 
           render json: {
             message: "GEC voter list imported successfully",
@@ -200,16 +200,21 @@ module Api
 
         total = scope.count
         results = { auto_verified: 0, flagged: 0, referral: 0, unregistered: 0, skipped: 0, errors: 0 }
+        gec_data_loaded = GecVoter.active.exists?
 
-        scope.find_each do |supporter|
-          result = GecVettingService.new(supporter).call
-          results[result.status] += 1
-        rescue StandardError => e
-          results[:errors] += 1
-          Rails.logger.warn("Bulk vet error for supporter #{supporter.id}: #{e.message}")
+        if gec_data_loaded
+          scope.find_each do |supporter|
+            result = GecVettingService.new(supporter, gec_data_loaded: true).call
+            results[result.status] += 1
+          rescue StandardError => e
+            results[:errors] += 1
+            Rails.logger.warn("Bulk vet error for supporter #{supporter.id}: #{e.message}")
+          end
+        else
+          results[:skipped] = total
         end
 
-        log_audit(nil, "bulk_gec_vet", changed_data: results.merge(total: total))
+        log_audit!(nil, "bulk_gec_vet", changed_data: results.merge(total: total))
 
         render json: {
           message: "Bulk vetting complete",

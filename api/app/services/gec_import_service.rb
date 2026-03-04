@@ -322,7 +322,9 @@ class GecImportService
 
   # Mark voters as removed if they were active but not seen in this full-list import.
   def detect_purged_voters(gec_import)
-    purged = GecVoter.active.where.not(id: @seen_voter_ids.to_a)
+    # For full-list imports, every voter still present gets gec_list_date updated to @gec_list_date.
+    # Purged voters are therefore active rows not updated to this import date.
+    purged = GecVoter.active.where.not(gec_list_date: @gec_list_date)
     count = purged.count
 
     purged.update_all(
@@ -434,7 +436,7 @@ class GecImportService
 
     # DOB ambiguity check: if both month and day ≤ 12, we can't be sure
     # the PDF→Excel conversion didn't swap them
-    ambiguous = date.month <= 12 && date.day <= 12 && date.month != date.day
+    ambiguous = date.day <= 12 && date.month != date.day
 
     [ date, ambiguous ]
   end
