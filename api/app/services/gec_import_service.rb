@@ -78,7 +78,7 @@ class GecImportService
     @sheet_name = sheet_name
     @import_type = import_type
     @errors = []
-    @stats = { total: 0, new: 0, updated: 0, ambiguous_dob: 0, skipped: 0, removed: 0, transferred: 0, re_vetted: 0 }
+    @stats = { total: 0, new: 0, updated: 0, ambiguous_dob: 0, skipped: 0, removed: 0, transferred: 0, re_vetted: 0, unassigned: 0 }
     @seen_voter_ids = Set.new
     @import_started_at = nil
   end
@@ -132,7 +132,7 @@ class GecImportService
         transferred_records: @stats[:transferred],
         ambiguous_dob_count: @stats[:ambiguous_dob],
         re_vetted_count: @stats[:re_vetted],
-        metadata: { skipped: @stats[:skipped], errors: @errors.first(50) }
+        metadata: { skipped: @stats[:skipped], unassigned: @stats[:unassigned], errors: @errors.first(50) }
       )
 
       Result.new(success: true, gec_import: gec_import, errors: @errors, stats: @stats)
@@ -254,7 +254,7 @@ class GecImportService
       # Route to "Unassigned" village instead of skipping
       # This captures GMF/military/off-island voters who have no standard village
       data[:village_name] = UNASSIGNED_VILLAGE_NAME
-      @stats[:unassigned] = (@stats[:unassigned] || 0) + 1
+      @stats[:unassigned] += 1
     end
 
     @stats[:ambiguous_dob] += 1 if data[:dob_ambiguous]

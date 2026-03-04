@@ -97,7 +97,7 @@ module Api
         result = service.call
 
         if result.success
-          log_audit!(result.gec_import, "gec_import", changed_data: result.stats)
+          log_audit!(result.gec_import, action: "gec_import", changed_data: result.stats)
 
           render json: {
             message: "GEC voter list imported successfully",
@@ -214,7 +214,7 @@ module Api
           results[:skipped] = total
         end
 
-        log_audit!(nil, "bulk_gec_vet", changed_data: results.merge(total: total))
+        log_audit!(nil, action: "bulk_gec_vet", changed_data: results.merge(total: total))
 
         render json: {
           message: "Bulk vetting complete",

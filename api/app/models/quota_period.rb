@@ -5,7 +5,7 @@ class QuotaPeriod < ApplicationRecord
 
   belongs_to :campaign_cycle
   has_many :village_quotas, dependent: :destroy
-  has_many :supporters
+  has_many :supporters, dependent: :nullify
 
   validates :name, presence: true
   validates :start_date, presence: true
