@@ -236,7 +236,7 @@ export default function TeamVettingPage() {
                       <CheckCircle className="w-5 h-5" />
                     </button>
                     <button
-                      onClick={() => verifyMutation.mutate({ id, status: 'rejected' })}
+                      onClick={() => verifyMutation.mutate({ id, status: 'flagged' })}
                       disabled={verifyMutation.isPending}
                       className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
                       title="Reject"

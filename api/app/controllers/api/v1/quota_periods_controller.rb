@@ -6,6 +6,7 @@ module Api
       include Authenticatable
 
       before_action :authenticate_request
+      before_action :require_coordinator_or_above!, only: %i[show village_quotas]
       before_action :set_quota_period, only: %i[show update submit village_quotas update_village_quotas]
 
       # GET /api/v1/quota_periods/:id

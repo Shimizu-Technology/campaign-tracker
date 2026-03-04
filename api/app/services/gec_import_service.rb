@@ -80,6 +80,7 @@ class GecImportService
     @errors = []
     @stats = { total: 0, new: 0, updated: 0, ambiguous_dob: 0, skipped: 0, removed: 0, transferred: 0, re_vetted: 0 }
     @seen_voter_ids = Set.new
+    @import_started_at = nil
   end
 
   def call
@@ -106,6 +107,7 @@ class GecImportService
 
       rows = (2..sheet.last_row).map { |i| sheet.row(i) }
       @stats[:total] = rows.size
+      @import_started_at = Time.current
 
       ActiveRecord::Base.transaction do
         rows.each_with_index do |row, idx|
@@ -284,7 +286,7 @@ class GecImportService
 
       attrs = {
         gec_list_date: @gec_list_date,
-        imported_at: Time.current,
+        imported_at: @import_started_at,
         status: "active",
         removed_at: nil,
         removal_detected_by_import_id: nil,
@@ -312,7 +314,7 @@ class GecImportService
         village_name: data[:village_name],
         voter_registration_number: data[:voter_registration_number],
         gec_list_date: @gec_list_date,
-        imported_at: Time.current,
+        imported_at: @import_started_at,
         status: "active"
       )
       @seen_voter_ids.add(voter.id)
@@ -320,11 +322,10 @@ class GecImportService
     end
   end
 
-  # Mark voters as removed if they were active but not seen in this full-list import.
+  # Mark voters as removed if they were active but not seen in this specific full-list import run.
+  # Uses import_started_at (run marker), so same-date reruns are handled correctly.
   def detect_purged_voters(gec_import)
-    # For full-list imports, every voter still present gets gec_list_date updated to @gec_list_date.
-    # Purged voters are therefore active rows not updated to this import date.
-    purged = GecVoter.active.where.not(gec_list_date: @gec_list_date)
+    purged = GecVoter.active.where("imported_at IS NULL OR imported_at < ?", @import_started_at)
     count = purged.count
 
     purged.update_all(
