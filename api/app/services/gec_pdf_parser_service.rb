@@ -58,11 +58,11 @@ class GecPdfParserService
     seen = {}
 
     reader.pages.each do |page|
-      text = page.text.to_s
-      next if text.blank?
-
       begin
         Timeout.timeout(PARSE_TIMEOUT_SECONDS) do
+          text = page.text.to_s
+          next if text.blank?
+
           matched_rows = 0
 
           # 1) Primary parser: modern line-based export
