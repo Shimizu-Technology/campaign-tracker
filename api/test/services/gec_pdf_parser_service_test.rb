@@ -102,6 +102,15 @@ class GecPdfParserServiceTest < ActiveSupport::TestCase
     assert_equal "ROUTE 4 BOX 123", match[3].strip
   end
 
+  test "ROW_REGEX does not split middle name that matches removed address prefix term" do
+    row = "1234567 SANTOS, JOHN MARINE 123 MAIN ST DEDEDO 96610 1990 5"
+    match = row.match(GecPdfParserService::ROW_REGEX)
+
+    assert match.present?
+    assert_equal "SANTOS, JOHN MARINE", match[2].strip
+    assert_equal "123 MAIN ST", match[3].strip
+  end
+
   test "VILLAGE_ALT matches known village names" do
     village_alt = Regexp.new(GecPdfParserService::VILLAGE_ALT_STR)
     assert_match village_alt, "DEDEDO"
