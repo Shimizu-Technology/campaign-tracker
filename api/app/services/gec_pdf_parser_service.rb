@@ -39,7 +39,7 @@ class GecPdfParserService
   # Legacy format fallback: REG_NO NAME ADDRESS VILLAGE 96XXX BIRTH_YEAR PCT
   ROW_REGEX = Regexp.new(
     "(\\d{4,7})\\s+" \
-    "([A-Z][A-Z,\\.\\-\\'\\s]{2,80}?)(?=\\s+(?:PO BOX|\\d+\\s+[A-Z]|#{VILLAGE_ALT_STR}))" \
+    "([A-Z][A-Z,\\.\\-\\'\\s]{2,80}?)(?=\\s+(?:PO BOX|\\d+\\s+[A-Z]|[A-Z]{2,}\\s|#{VILLAGE_ALT_STR}))" \
     "([A-Z0-9 #,\\.\\-\\/]{3,#{MAX_ADDRESS_CHARS}}?)\\s+" \
     "(#{VILLAGE_ALT_STR})\\s+96\\d{3}\\s+" \
     "(19\\d{2}|20\\d{2})\\s+" \
@@ -139,7 +139,7 @@ class GecPdfParserService
 
   def write_normalized_csv(rows)
     tf = Tempfile.new([ "gec_pdf_normalized", ".csv" ])
-    CSV.open(tf.path, "wb") do |csv|
+    CSV.open(tf.path, "w", encoding: "UTF-8") do |csv|
       csv << [ "name", "village", "voter_registration_number", "dob", "birth_year", "pct", "address" ]
       rows.each { |r| csv << [ r["name"], r["village"], r["voter_registration_number"], r["dob"], r["birth_year"], r["pct"], r["address"] ] }
     end
