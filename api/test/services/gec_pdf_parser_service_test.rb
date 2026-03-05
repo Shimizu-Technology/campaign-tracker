@@ -84,6 +84,24 @@ class GecPdfParserServiceTest < ActiveSupport::TestCase
     assert_instance_of Regexp, GecPdfParserService::ROW_REGEX
   end
 
+  test "ROW_REGEX does not truncate full middle names before numeric addresses" do
+    row = "1234567 REYES, JOHN CARLOS 123 MAIN ST DEDEDO 96610 1990 5"
+    match = row.match(GecPdfParserService::ROW_REGEX)
+
+    assert match.present?
+    assert_equal "REYES, JOHN CARLOS", match[2].strip
+    assert_equal "123 MAIN ST", match[3].strip
+  end
+
+  test "ROW_REGEX supports legacy letter-first address prefixes" do
+    row = "1234567 REYES, JOHN CARLOS ROUTE 4 BOX 123 DEDEDO 96610 1990 5"
+    match = row.match(GecPdfParserService::ROW_REGEX)
+
+    assert match.present?
+    assert_equal "REYES, JOHN CARLOS", match[2].strip
+    assert_equal "ROUTE 4 BOX 123", match[3].strip
+  end
+
   test "VILLAGE_ALT matches known village names" do
     village_alt = Regexp.new(GecPdfParserService::VILLAGE_ALT_STR)
     assert_match village_alt, "DEDEDO"

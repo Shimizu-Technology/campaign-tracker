@@ -203,7 +203,7 @@ module Api
           end
 
           parse_cache_key = build_pdf_parse_cache_key(file.tempfile.path)
-          write_cached_pdf_parse(parse_cache_key, parsed)
+          write_cached_pdf_parse(parse_cache_key, parsed) unless parsed.qa[:status] == "fail"
 
           preview_limit = [ (params[:limit] || 20).to_i, 100 ].min
           return render json: {

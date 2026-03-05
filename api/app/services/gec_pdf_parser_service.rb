@@ -36,10 +36,12 @@ class GecPdfParserService
     "(\\d{1,2})\\b"
   )
 
+  LEGACY_ADDRESS_PREFIXES = "ROUTE|MARINE|CHALAN|LOT|BLDG|BUILDING|UNIT|APT|APARTMENT|HOUSE".freeze
+
   # Legacy format fallback: REG_NO NAME ADDRESS VILLAGE 96XXX BIRTH_YEAR PCT
   ROW_REGEX = Regexp.new(
     "(\\d{4,7})\\s+" \
-    "([A-Z][A-Z,\\.\\-\\'\\s]{2,80}?)(?=\\s+(?:PO BOX|\\d+\\s+[A-Z]|[A-Z]{2,}\\s|#{VILLAGE_ALT_STR}))" \
+    "([A-Z][A-Z,\\.\\-\\'\\s]{2,80}?)(?=\\s+(?:PO BOX|\\d+\\s+[A-Z]|(?:#{LEGACY_ADDRESS_PREFIXES})\\b|#{VILLAGE_ALT_STR}))" \
     "([A-Z0-9 #,\\.\\-\\/]{3,#{MAX_ADDRESS_CHARS}}?)\\s+" \
     "(#{VILLAGE_ALT_STR})\\s+96\\d{3}\\s+" \
     "(19\\d{2}|20\\d{2})\\s+" \
