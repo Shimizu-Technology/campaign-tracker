@@ -19,12 +19,15 @@ class GecPdfParserService
   HEADER_TEXT = /Guam Election Commission\s*Voter Listing\s*as of\s*.+?\s*REG\. NO\.\s*NAME\s*BIRTH YEAR\s*PCT\s*ADDRESS/i
   PARSE_TIMEOUT_SECONDS = 3
   MAX_ADDRESS_CHARS = 200
+  REVIEW_MIN_ROWS = 10_000 # Guam full-list imports are ~60k+ rows; below this is likely partial/test data
+  FAIL_MIN_ROWS = 1_000
 
   VILLAGE_ALT = Regexp.union(VILLAGE_PATTERNS.sort_by(&:length).reverse)
   NAME_TOKEN = "[A-Z][A-Z'\\.\\-]{1,40}(?:\\s[A-Z'\\.\\-]{1,40}){0,5}"
-  ADDRESS_TOKEN = ".{1,#{MAX_ADDRESS_CHARS}}?"
+  # Stop address capture before a likely next-row boundary like " 1234567JOHN"
+  ADDRESS_TOKEN = "(?:(?!\\s\\d{4,7}[A-Z]).){1,#{MAX_ADDRESS_CHARS}}?"
   ROW_REGEX = Regexp.new(
-    "(\\d{4,7})(#{NAME_TOKEN})\\s+(#{ADDRESS_TOKEN})\\s+(#{VILLAGE_ALT})\\s*969\\d{2}\\s*(19\\d{2}|20\\d{2})\\s*(\\d{1,2})(?=\\d{4,7}[A-Z]|$)"
+    "(\\d{4,7})(#{NAME_TOKEN})\\s+(#{ADDRESS_TOKEN})\\s+(#{VILLAGE_ALT})\\s*969\\d{2}\\s*(19\\d{2}|20\\d{2})\\s*(\\d{1,2})(?=\\s\\d{4,7}[A-Z]|$)"
   )
 
   def initialize(file_path:)
@@ -125,7 +128,8 @@ class GecPdfParserService
     villages = rows.group_by { |r| r["village"] }.transform_values(&:count)
 
     score = 100
-    score -= 35 if rows.size < 10_000
+    score -= 35 if rows.size < REVIEW_MIN_ROWS
+    score -= 65 if rows.size < FAIL_MIN_ROWS
 
     {
       page_count: page_count,

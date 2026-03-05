@@ -94,15 +94,12 @@ module Api
 
         begin
           if pdf_file?(file)
+            parser = GecPdfParserService.new(file_path: file.tempfile.path)
             expected_cache_key = build_pdf_parse_cache_key(file.tempfile.path)
             requested_cache_key = params[:parse_cache_key].presence
             cache_key = requested_cache_key == expected_cache_key ? requested_cache_key : nil
             parsed = read_cached_pdf_parse(cache_key)
-
-            unless parsed
-              parser = GecPdfParserService.new(file_path: file.tempfile.path)
-              parsed = parser.parse
-            end
+            parsed ||= parser.parse
 
             if parsed.errors.any?
               return render_api_error(
