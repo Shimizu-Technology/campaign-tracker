@@ -127,6 +127,9 @@ class GecPdfParserService
       rescue Timeout::Error
         @errors << "PDF page parsing timed out (possible malformed layout)"
         break
+      rescue StandardError => e
+        @warnings << "Skipped page due to error: #{e.class}: #{e.message}"
+        next
       end
     end
 
