@@ -47,7 +47,7 @@ class GecPdfParserService
   ROW_REGEX = Regexp.new(
     "(\\d{4,7})\\s+" \
     "([A-Z][A-Z,\\.\\-\\'\\s]{2,80}?)(?=\\s+(?:PO BOX|\\d+\\s+[A-Z]|#{VILLAGE_ALT_STR}))" \
-    "(.{3,#{MAX_ADDRESS_CHARS}}?)\\s+" \
+    "([A-Z0-9 #,\\.\\-\\/]{3,#{MAX_ADDRESS_CHARS}}?)\\s+" \
     "(#{VILLAGE_ALT_STR})\\s+96\\d{3}\\s+" \
     "(19\\d{2}|20\\d{2})\\s+" \
     "(\\d{1,2})(?=\\s+\\d{4,7}|$)"
@@ -81,8 +81,7 @@ class GecPdfParserService
             next unless m
 
             reg_no, name_raw, address_raw, village_raw, dob_raw, pct = m.captures
-            birth_year = dob_raw.to_s.split("/").last
-            birth_year = "19#{birth_year}" if birth_year.length == 2
+            birth_year = normalize_birth_year_from_dob(dob_raw)
 
             name = normalize_name(name_raw)
             next if name.blank? || name.start_with?("REG.")
@@ -108,6 +107,7 @@ class GecPdfParserService
             flat = text.gsub("\n", " ")
             flat = flat.gsub(HEADER_TEXT, " ")
             flat = flat.gsub(/\s+/, " ").strip
+            next unless flat.match?(/\b96\d{3}\b/)
 
             flat.scan(ROW_REGEX) do |reg_no, name_raw, address_raw, village_raw, birth_year, pct|
               name = normalize_name(name_raw)
@@ -172,6 +172,16 @@ class GecPdfParserService
     "01/01/#{year}"
   end
 
+  def normalize_birth_year_from_dob(dob_raw)
+    year = dob_raw.to_s.split("/").last.to_s.strip
+    return year unless year.length == 2
+
+    # Guam voter files can include younger voters with 2-digit years; use a moving cutoff.
+    current_2_digit_year = Time.zone.now.year % 100
+    year_i = year.to_i
+    year_i <= current_2_digit_year ? "20#{year}" : "19#{year}"
+  end
+
   def build_qa(rows, page_count)
     return {
       page_count: page_count,
@@ -185,18 +195,24 @@ class GecPdfParserService
     } if rows.empty?
 
     villages = rows.group_by { |r| r["village"] }.transform_values(&:count)
+    missing_name = rows.count { |r| r["name"].blank? }
+    missing_village = rows.count { |r| r["village"].blank? }
+    missing_reg = rows.count { |r| r["voter_registration_number"].blank? }
 
     score = 100
     score -= 35 if rows.size < REVIEW_MIN_ROWS
     score -= 65 if rows.size < FAIL_MIN_ROWS
 
+    missing_ratio = (missing_name + missing_village + missing_reg).to_f / rows.size
+    score -= 20 if missing_ratio > 0.05
+
     {
       page_count: page_count,
       row_count: rows.size,
       quality_score: score.clamp(0, 100),
-      missing_name: 0,
-      missing_village: 0,
-      missing_reg: 0,
+      missing_name: missing_name,
+      missing_village: missing_village,
+      missing_reg: missing_reg,
       top_villages: villages.sort_by { |_k, v| -v }.first(10).to_h,
       status: score >= 80 ? "pass" : (score >= 60 ? "review" : "fail")
     }

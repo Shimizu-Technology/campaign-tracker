@@ -41,6 +41,20 @@ class GecPdfParserServiceTest < ActiveSupport::TestCase
     assert_includes qa[:top_villages].keys, "DEDEDO"
   end
 
+  test "build_qa computes missing fields and penalizes quality when missing ratio is high" do
+    rows = minimal_rows(10_000)
+    600.times do |i|
+      rows[i]["name"] = ""
+    end
+
+    qa = invoke_build_qa(rows, page_count: 100)
+    assert_equal 600, qa[:missing_name]
+    assert_equal 0, qa[:missing_village]
+    assert_equal 0, qa[:missing_reg]
+    assert_equal "pass", qa[:status]
+    assert_equal 80, qa[:quality_score]
+  end
+
   # ---------------------------------------------------------------------------
   # deduplication
   # ---------------------------------------------------------------------------
@@ -80,6 +94,14 @@ class GecPdfParserServiceTest < ActiveSupport::TestCase
 
   test "REVIEW_MIN_ROWS and FAIL_MIN_ROWS are ordered correctly" do
     assert GecPdfParserService::FAIL_MIN_ROWS < GecPdfParserService::REVIEW_MIN_ROWS
+  end
+
+  test "normalize_birth_year_from_dob maps 2-digit years using moving cutoff" do
+    travel_to Time.zone.local(2026, 3, 5) do
+      service = GecPdfParserService.new(file_path: "/dev/null")
+      assert_equal "2006", service.send(:normalize_birth_year_from_dob, "03/15/06")
+      assert_equal "1980", service.send(:normalize_birth_year_from_dob, "03/15/80")
+    end
   end
 
   # ---------------------------------------------------------------------------
