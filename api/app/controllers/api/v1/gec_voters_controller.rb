@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "digest"
+
 module Api
   module V1
     class GecVotersController < ApplicationController
@@ -61,7 +63,7 @@ module Api
       end
 
       # POST /api/v1/gec_voters/upload
-      # Upload a new GEC voter list (Excel file)
+      # Upload a new GEC voter list (Excel/CSV, or PDF with parser + QA gate)
       def upload
         file = params[:file]
         unless file.respond_to?(:tempfile)
@@ -86,33 +88,77 @@ module Api
 
         import_type = %w[full_list changes_only].include?(params[:import_type]) ? params[:import_type] : "full_list"
 
-        service = GecImportService.new(
-          file_path: file.tempfile.path,
-          gec_list_date: gec_list_date,
-          uploaded_by_user: current_user,
-          sheet_name: sheet_name,
-          import_type: import_type
-        )
+        import_file_path = file.tempfile.path
+        pdf_qa = nil
+        csv_tempfile = nil
 
-        result = service.call
+        begin
+          if pdf_file?(file)
+            parser = GecPdfParserService.new(file_path: file.tempfile.path)
+            # Always do a full parse on upload (we need the rows to write the CSV).
+            # The cache is only used for QA gate validation — if it matches, we skip
+            # re-validating QA and trust the already-approved preview result.
+            expected_cache_key = build_pdf_parse_cache_key(file.tempfile.path)
+            requested_cache_key = params[:parse_cache_key].presence
+            cache_key = requested_cache_key == expected_cache_key ? requested_cache_key : nil
+            cached_qa = read_cached_pdf_parse(cache_key)
+            parsed = parser.parse
 
-        if result.success
-          log_audit!(result.gec_import, action: "gec_import", changed_data: result.stats)
+            if parsed.errors.any?
+              return render_api_error(
+                message: "PDF parsing failed: #{parsed.errors.first}",
+                status: :unprocessable_entity,
+                code: "pdf_parse_failed",
+                details: parsed.errors.first(10)
+              )
+            end
 
-          render json: {
-            message: "GEC voter list imported successfully",
-            import: result.gec_import.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :transferred_records, :re_vetted_count, :ambiguous_dob_count, :import_type, :status ]),
-            stats: result.stats,
-            change_summary: result.gec_import.change_summary,
-            errors: result.errors.first(20)
-          }, status: :created
-        else
-          render_api_error(
-            message: "Import failed: #{result.errors.first}",
-            status: :unprocessable_entity,
-            code: "import_failed",
-            details: result.errors.first(20)
+            # Use cached QA if available (preview already approved it), otherwise use fresh parse QA
+            pdf_qa = cached_qa&.qa.presence || parsed.qa
+            if pdf_qa[:status] == "fail"
+              return render_api_error(
+                message: "PDF QA failed. Please review parsing quality before importing.",
+                status: :unprocessable_entity,
+                code: "pdf_quality_failed",
+                details: parsed.warnings
+              )
+            end
+
+            csv_tempfile = parser.write_normalized_csv(parsed.rows)
+            import_file_path = csv_tempfile.path
+          end
+
+          service = GecImportService.new(
+            file_path: import_file_path,
+            gec_list_date: gec_list_date,
+            uploaded_by_user: current_user,
+            sheet_name: sheet_name,
+            import_type: import_type
           )
+
+          result = service.call
+
+          if result.success
+            log_audit!(result.gec_import, action: "gec_import", changed_data: result.stats)
+
+            render json: {
+              message: "GEC voter list imported successfully",
+              import: result.gec_import.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :transferred_records, :re_vetted_count, :ambiguous_dob_count, :import_type, :status ]),
+              stats: result.stats,
+              change_summary: result.gec_import.change_summary,
+              pdf_qa: pdf_qa,
+              errors: result.errors.first(20)
+            }, status: :created
+          else
+            render_api_error(
+              message: "Import failed: #{result.errors.first}",
+              status: :unprocessable_entity,
+              code: "import_failed",
+              details: result.errors.first(20)
+            )
+          end
+        ensure
+          csv_tempfile&.close!
         end
       end
 
@@ -126,6 +172,32 @@ module Api
             status: :unprocessable_entity,
             code: "missing_file"
           )
+        end
+
+        if pdf_file?(file)
+          parser = GecPdfParserService.new(file_path: file.tempfile.path)
+          parsed = parser.parse
+
+          if parsed.errors.any?
+            return render_api_error(
+              message: "Failed to parse PDF: #{parsed.errors.first}",
+              status: :unprocessable_entity,
+              code: "pdf_parse_error"
+            )
+          end
+
+          parse_cache_key = build_pdf_parse_cache_key(file.tempfile.path)
+          write_cached_pdf_parse(parse_cache_key, parsed)
+
+          preview_limit = [ (params[:limit] || 20).to_i, 100 ].min
+          return render json: {
+            source_type: "pdf",
+            qa: parsed.qa,
+            warnings: parsed.warnings,
+            row_count: parsed.rows.size,
+            parse_cache_key: parse_cache_key,
+            preview_rows: parsed.rows.first(preview_limit)
+          }
         end
 
         service = GecImportService.new(
@@ -145,6 +217,7 @@ module Api
         end
 
         render json: {
+          source_type: "spreadsheet",
           sheets: preview_data[:sheets],
           headers: preview_data[:headers],
           column_map: preview_data[:column_map],
@@ -221,6 +294,52 @@ module Api
           total: total,
           results: results
         }
+      end
+
+      private
+
+      def pdf_file?(file)
+        filename = file.respond_to?(:original_filename) ? file.original_filename.to_s : ""
+        content_type = file.respond_to?(:content_type) ? file.content_type.to_s : ""
+
+        filename.downcase.end_with?(".pdf") || content_type.include?("pdf")
+      end
+
+      def build_pdf_parse_cache_key(file_path)
+        digest = Digest::SHA256.file(file_path).hexdigest
+        "gec_pdf_parse:v1:#{digest}"
+      rescue StandardError
+        nil
+      end
+
+      # Cache only the lightweight QA summary (not the full rows array which can be 30-60 MB
+      # for a full ~60k-voter GEC list). On a cache hit we skip re-parsing for QA purposes
+      # but still need to write_normalized_csv from a fresh parse — so the cache avoids the
+      # QA overhead only; the caller still parses rows when needed.
+      def write_cached_pdf_parse(cache_key, parsed)
+        return if cache_key.blank?
+
+        Rails.cache.write(
+          cache_key,
+          { qa: parsed.qa, warnings: parsed.warnings, errors: parsed.errors },
+          expires_in: 20.minutes
+        )
+      end
+
+      # Returns a lightweight cached result (qa/warnings/errors only, rows=[]).
+      # Callers must re-parse if they need full row data.
+      def read_cached_pdf_parse(cache_key)
+        return nil if cache_key.blank?
+
+        cached = Rails.cache.read(cache_key)
+        return nil unless cached.is_a?(Hash) && cached.key?(:qa)
+
+        GecPdfParserService::Result.new(
+          rows: [],
+          qa: cached[:qa] || {},
+          warnings: cached[:warnings] || [],
+          errors: cached[:errors] || []
+        )
       end
     end
   end
