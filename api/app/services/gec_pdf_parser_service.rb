@@ -30,7 +30,7 @@ class GecPdfParserService
   LINE_REGEX = Regexp.new(
     "^\\s*\\d+\\s+(\\d{4,7})\\s+" \
     "([A-Z][A-Z,\\.\\-\\'\\s]{2,80}?)\\s{2,}" \
-    "([A-Z0-9 #,\\.\\-\\/]{3,#{MAX_ADDRESS_CHARS}}?)\\s{2,}" \
+    "([A-Z0-9 #,\\.\\-\\/]{3,#{MAX_ADDRESS_CHARS}}?)\\s+" \
     "(#{VILLAGE_ALT_STR})\\s+" \
     "(\\d{1,2}\\/\\d{1,2}\\/\\d{2,4})\\s+" \
     "(\\d{1,2})\\b"

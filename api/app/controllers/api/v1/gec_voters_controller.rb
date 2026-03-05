@@ -140,6 +140,18 @@ module Api
               )
             end
 
+            review_status = (pdf_qa[:status] == "review") || (fresh_qa[:status] == "review")
+            confirm_review = ActiveModel::Type::Boolean.new.cast(params[:confirm_review])
+
+            if review_status && !confirm_review
+              return render_api_error(
+                message: "PDF QA is in review status. Confirm review before importing.",
+                status: :unprocessable_entity,
+                code: "pdf_quality_review_required",
+                details: parsed.warnings
+              )
+            end
+
             csv_tempfile = parser.write_normalized_csv(parsed.rows)
             import_file_path = csv_tempfile.path
           end
