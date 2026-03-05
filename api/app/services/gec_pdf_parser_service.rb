@@ -22,7 +22,6 @@ class GecPdfParserService
   REVIEW_MIN_ROWS = 10_000 # Guam full-list imports are ~60k+ rows; below this is likely partial/test data
   FAIL_MIN_ROWS = 1_000
 
-  # GEC PDF format: REG_NO LAST, FIRST [MI] ADDRESS VILLAGE 96XXX BIRTH_YEAR PCT
   # Sorted longest-first so Regexp.union matches greedily (e.g. "AGANA HEIGHTS" before "AGANA HTS")
   VILLAGE_ALT_STR = [
     "AGANA HEIGHTS", "AGANA HTS", "ASAN-MAINA", "ASAN MAINA",
@@ -34,9 +33,17 @@ class GecPdfParserService
     "INALAHAN", "INARAJAN", "GMF", "TUMON"
   ].sort_by { |v| -v.length }.map { |v| Regexp.escape(v) }.join("|")
 
-  # Name ends where an address token begins (PO BOX or street number + letter, or direct village)
-  # Address is then captured lazily up to the village name
-  # Lookahead ensures we stop at next row boundary (next reg number or end of string)
+  # Current GEC export format (line-based): page_no reg_no name address village dob pct ...
+  LINE_REGEX = Regexp.new(
+    "^\\s*\\d+\\s+(\\d{4,7})\\s+" \
+    "([A-Z][A-Z,\\.\\-\\'\\s]{2,80}?)\\s{2,}" \
+    "(.{3,#{MAX_ADDRESS_CHARS}}?)\\s{2,}" \
+    "(#{VILLAGE_ALT_STR})\\s+" \
+    "(\\d{1,2}\\/\\d{1,2}\\/\\d{2,4})\\s+" \
+    "(\\d{1,2})\\b"
+  )
+
+  # Legacy format fallback: REG_NO NAME ADDRESS VILLAGE 96XXX BIRTH_YEAR PCT
   ROW_REGEX = Regexp.new(
     "(\\d{4,7})\\s+" \
     "([A-Z][A-Z,\\.\\-\\'\\s]{2,80}?)(?=\\s+(?:PO BOX|\\d+\\s+[A-Z]|#{VILLAGE_ALT_STR}))" \
@@ -61,13 +68,22 @@ class GecPdfParserService
       text = page.text.to_s
       next if text.blank?
 
-      text = text.gsub("\n", " ")
-      text = text.gsub(HEADER_TEXT, " ")
-      text = text.gsub(/\s+/, " ").strip
-
       begin
         Timeout.timeout(PARSE_TIMEOUT_SECONDS) do
-          text.scan(ROW_REGEX) do |reg_no, name_raw, address_raw, village_raw, birth_year, pct|
+          matched_rows = 0
+
+          # 1) Primary parser: modern line-based export
+          text.each_line do |line|
+            compact = line.to_s.strip
+            next if compact.blank?
+
+            m = compact.match(LINE_REGEX)
+            next unless m
+
+            reg_no, name_raw, address_raw, village_raw, dob_raw, pct = m.captures
+            birth_year = dob_raw.to_s.split("/").last
+            birth_year = "19#{birth_year}" if birth_year.length == 2
+
             name = normalize_name(name_raw)
             next if name.blank? || name.start_with?("REG.")
 
@@ -75,15 +91,42 @@ class GecPdfParserService
             next if seen[key]
 
             seen[key] = true
+            matched_rows += 1
             rows << {
               "name" => name,
               "village" => village_raw,
               "voter_registration_number" => reg_no,
-              "dob" => birth_year_to_dob_placeholder(birth_year),
+              "dob" => dob_raw,
               "birth_year" => birth_year,
               "pct" => pct,
               "address" => normalize_text(address_raw)
             }
+          end
+
+          # 2) Fallback parser: legacy flattened format
+          if matched_rows.zero?
+            flat = text.gsub("\n", " ")
+            flat = flat.gsub(HEADER_TEXT, " ")
+            flat = flat.gsub(/\s+/, " ").strip
+
+            flat.scan(ROW_REGEX) do |reg_no, name_raw, address_raw, village_raw, birth_year, pct|
+              name = normalize_name(name_raw)
+              next if name.blank? || name.start_with?("REG.")
+
+              key = [ reg_no, name, village_raw, pct ].join("|")
+              next if seen[key]
+
+              seen[key] = true
+              rows << {
+                "name" => name,
+                "village" => village_raw,
+                "voter_registration_number" => reg_no,
+                "dob" => birth_year_to_dob_placeholder(birth_year),
+                "birth_year" => birth_year,
+                "pct" => pct,
+                "address" => normalize_text(address_raw)
+              }
+            end
           end
         end
       rescue Timeout::Error
