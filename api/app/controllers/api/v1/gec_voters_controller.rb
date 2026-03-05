@@ -88,61 +88,67 @@ module Api
 
         import_file_path = file.tempfile.path
         pdf_qa = nil
-        if pdf_file?(file)
-          parser = GecPdfParserService.new(file_path: file.tempfile.path)
-          parsed = parser.parse
+        csv_tempfile = nil
 
-          if parsed.errors.any?
-            return render_api_error(
-              message: "PDF parsing failed: #{parsed.errors.first}",
-              status: :unprocessable_entity,
-              code: "pdf_parse_failed",
-              details: parsed.errors.first(10)
-            )
+        begin
+          if pdf_file?(file)
+            parser = GecPdfParserService.new(file_path: file.tempfile.path)
+            parsed = parser.parse
+
+            if parsed.errors.any?
+              return render_api_error(
+                message: "PDF parsing failed: #{parsed.errors.first}",
+                status: :unprocessable_entity,
+                code: "pdf_parse_failed",
+                details: parsed.errors.first(10)
+              )
+            end
+
+            pdf_qa = parsed.qa
+            if pdf_qa[:status] == "fail"
+              return render_api_error(
+                message: "PDF QA failed. Please review parsing quality before importing.",
+                status: :unprocessable_entity,
+                code: "pdf_quality_failed",
+                details: parsed.warnings
+              )
+            end
+
+            csv_tempfile = parser.write_normalized_csv(parsed.rows)
+            import_file_path = csv_tempfile.path
           end
 
-          pdf_qa = parsed.qa
-          if pdf_qa[:status] == "fail"
-            return render_api_error(
-              message: "PDF QA failed. Please review parsing quality before importing.",
-              status: :unprocessable_entity,
-              code: "pdf_quality_failed",
-              details: parsed.warnings
-            )
-          end
-
-          csv_tempfile = parser.write_normalized_csv(parsed.rows)
-          import_file_path = csv_tempfile.path
-        end
-
-        service = GecImportService.new(
-          file_path: import_file_path,
-          gec_list_date: gec_list_date,
-          uploaded_by_user: current_user,
-          sheet_name: sheet_name,
-          import_type: import_type
-        )
-
-        result = service.call
-
-        if result.success
-          log_audit!(result.gec_import, action: "gec_import", changed_data: result.stats)
-
-          render json: {
-            message: "GEC voter list imported successfully",
-            import: result.gec_import.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :transferred_records, :re_vetted_count, :ambiguous_dob_count, :import_type, :status ]),
-            stats: result.stats,
-            change_summary: result.gec_import.change_summary,
-            pdf_qa: pdf_qa,
-            errors: result.errors.first(20)
-          }, status: :created
-        else
-          render_api_error(
-            message: "Import failed: #{result.errors.first}",
-            status: :unprocessable_entity,
-            code: "import_failed",
-            details: result.errors.first(20)
+          service = GecImportService.new(
+            file_path: import_file_path,
+            gec_list_date: gec_list_date,
+            uploaded_by_user: current_user,
+            sheet_name: sheet_name,
+            import_type: import_type
           )
+
+          result = service.call
+
+          if result.success
+            log_audit!(result.gec_import, action: "gec_import", changed_data: result.stats)
+
+            render json: {
+              message: "GEC voter list imported successfully",
+              import: result.gec_import.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :transferred_records, :re_vetted_count, :ambiguous_dob_count, :import_type, :status ]),
+              stats: result.stats,
+              change_summary: result.gec_import.change_summary,
+              pdf_qa: pdf_qa,
+              errors: result.errors.first(20)
+            }, status: :created
+          else
+            render_api_error(
+              message: "Import failed: #{result.errors.first}",
+              status: :unprocessable_entity,
+              code: "import_failed",
+              details: result.errors.first(20)
+            )
+          end
+        ensure
+          csv_tempfile&.close!
         end
       end
 
@@ -170,12 +176,13 @@ module Api
             )
           end
 
+          preview_limit = [ (params[:limit] || 20).to_i, 100 ].min
           return render json: {
             source_type: "pdf",
             qa: parsed.qa,
             warnings: parsed.warnings,
             row_count: parsed.rows.size,
-            preview_rows: parsed.rows.first((params[:limit] || 20).to_i)
+            preview_rows: parsed.rows.first(preview_limit)
           }
         end
 

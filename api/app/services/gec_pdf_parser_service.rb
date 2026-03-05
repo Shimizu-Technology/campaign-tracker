@@ -75,6 +75,7 @@ class GecPdfParserService
       csv << [ "name", "village", "voter_registration_number", "dob", "birth_year", "pct", "address" ]
       rows.each { |r| csv << [ r["name"], r["village"], r["voter_registration_number"], r["dob"], r["birth_year"], r["pct"], r["address"] ] }
     end
+    tf.close
     tf
   end
 
