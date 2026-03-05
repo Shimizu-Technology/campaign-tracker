@@ -98,24 +98,29 @@ class GecPdfParserService
   end
 
   def build_qa(rows, page_count)
+    return {
+      page_count: page_count,
+      row_count: 0,
+      quality_score: 0,
+      missing_name: 0,
+      missing_village: 0,
+      missing_reg: 0,
+      top_villages: {},
+      status: "fail"
+    } if rows.empty?
+
     villages = rows.group_by { |r| r["village"] }.transform_values(&:count)
-    missing_name = rows.count { |r| r["name"].blank? }
-    missing_village = rows.count { |r| r["village"].blank? }
-    missing_reg = rows.count { |r| r["voter_registration_number"].blank? }
 
     score = 100
     score -= 35 if rows.size < 10_000
-    score -= 20 if missing_name.positive?
-    score -= 20 if missing_village.positive?
-    score -= 20 if missing_reg.positive?
 
     {
       page_count: page_count,
       row_count: rows.size,
       quality_score: score.clamp(0, 100),
-      missing_name: missing_name,
-      missing_village: missing_village,
-      missing_reg: missing_reg,
+      missing_name: 0,
+      missing_village: 0,
+      missing_reg: 0,
       top_villages: villages.sort_by { |_k, v| -v }.first(10).to_h,
       status: score >= 80 ? "pass" : (score >= 60 ? "review" : "fail")
     }

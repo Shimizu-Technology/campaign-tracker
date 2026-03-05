@@ -214,7 +214,13 @@ export default function TeamGecPage() {
                   <div className="font-semibold text-gray-800">PDF QA Summary</div>
                   <div className="text-gray-700">Rows parsed: <strong>{Number(previewData.row_count || 0).toLocaleString()}</strong></div>
                   <div className="text-gray-700">Quality score: <strong>{String((previewData.qa as Record<string, unknown>)?.quality_score ?? 'n/a')}</strong></div>
-                  <div className="text-gray-700">Status: <strong className="uppercase">{String((previewData.qa as Record<string, unknown>)?.status ?? 'unknown')}</strong></div>
+                  <div className="text-gray-700">Status: <strong className={`uppercase ${
+                    String((previewData.qa as Record<string, unknown>)?.status) === 'fail'
+                      ? 'text-red-600'
+                      : String((previewData.qa as Record<string, unknown>)?.status) === 'review'
+                      ? 'text-amber-600'
+                      : 'text-green-600'
+                  }`}>{String((previewData.qa as Record<string, unknown>)?.status ?? 'unknown')}</strong></div>
                   {Array.isArray(previewData.warnings) && (previewData.warnings as unknown[]).length > 0 && (
                     <ul className="list-disc pl-5 text-amber-700 text-xs">
                       {(previewData.warnings as string[]).map((w, i) => <li key={i}>{w}</li>)}
