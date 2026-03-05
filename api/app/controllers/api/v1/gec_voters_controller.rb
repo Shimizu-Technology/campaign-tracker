@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "digest"
+
 module Api
   module V1
     class GecVotersController < ApplicationController
@@ -92,8 +94,15 @@ module Api
 
         begin
           if pdf_file?(file)
-            parser = GecPdfParserService.new(file_path: file.tempfile.path)
-            parsed = parser.parse
+            expected_cache_key = build_pdf_parse_cache_key(file.tempfile.path)
+            requested_cache_key = params[:parse_cache_key].presence
+            cache_key = requested_cache_key == expected_cache_key ? requested_cache_key : nil
+            parsed = read_cached_pdf_parse(cache_key)
+
+            unless parsed
+              parser = GecPdfParserService.new(file_path: file.tempfile.path)
+              parsed = parser.parse
+            end
 
             if parsed.errors.any?
               return render_api_error(
@@ -176,12 +185,16 @@ module Api
             )
           end
 
+          parse_cache_key = build_pdf_parse_cache_key(file.tempfile.path)
+          write_cached_pdf_parse(parse_cache_key, parsed)
+
           preview_limit = [ (params[:limit] || 20).to_i, 100 ].min
           return render json: {
             source_type: "pdf",
             qa: parsed.qa,
             warnings: parsed.warnings,
             row_count: parsed.rows.size,
+            parse_cache_key: parse_cache_key,
             preview_rows: parsed.rows.first(preview_limit)
           }
         end
@@ -289,6 +302,37 @@ module Api
         content_type = file.respond_to?(:content_type) ? file.content_type.to_s : ""
 
         filename.downcase.end_with?(".pdf") || content_type.include?("pdf")
+      end
+
+      def build_pdf_parse_cache_key(file_path)
+        digest = Digest::SHA256.file(file_path).hexdigest
+        "gec_pdf_parse:v1:#{digest}"
+      rescue StandardError
+        nil
+      end
+
+      def write_cached_pdf_parse(cache_key, parsed)
+        return if cache_key.blank?
+
+        Rails.cache.write(
+          cache_key,
+          { rows: parsed.rows, qa: parsed.qa, warnings: parsed.warnings, errors: parsed.errors },
+          expires_in: 20.minutes
+        )
+      end
+
+      def read_cached_pdf_parse(cache_key)
+        return nil if cache_key.blank?
+
+        cached = Rails.cache.read(cache_key)
+        return nil unless cached.is_a?(Hash)
+
+        GecPdfParserService::Result.new(
+          rows: cached[:rows] || [],
+          qa: cached[:qa] || {},
+          warnings: cached[:warnings] || [],
+          errors: cached[:errors] || []
+        )
       end
     end
   end

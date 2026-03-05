@@ -2,6 +2,7 @@
 
 require "csv"
 require "tempfile"
+require "timeout"
 
 # Parses Guam Election Commission PDF voter lists into normalized rows
 # and provides a QA summary before import.
@@ -16,6 +17,15 @@ class GecPdfParserService
   ].freeze
 
   HEADER_TEXT = /Guam Election Commission\s*Voter Listing\s*as of\s*.+?\s*REG\. NO\.\s*NAME\s*BIRTH YEAR\s*PCT\s*ADDRESS/i
+  PARSE_TIMEOUT_SECONDS = 3
+  MAX_ADDRESS_CHARS = 200
+
+  VILLAGE_ALT = Regexp.union(VILLAGE_PATTERNS.sort_by(&:length).reverse)
+  NAME_TOKEN = "[A-Z][A-Z'\\.\\-]{1,40}(?:\\s[A-Z'\\.\\-]{1,40}){0,5}"
+  ADDRESS_TOKEN = ".{1,#{MAX_ADDRESS_CHARS}}?"
+  ROW_REGEX = Regexp.new(
+    "(\\d{4,7})(#{NAME_TOKEN})\\s+(#{ADDRESS_TOKEN})\\s+(#{VILLAGE_ALT})\\s*969\\d{2}\\s*(19\\d{2}|20\\d{2})\\s*(\\d{1,2})(?=\\d{4,7}[A-Z]|$)"
+  )
 
   def initialize(file_path:)
     @file_path = file_path
@@ -28,10 +38,6 @@ class GecPdfParserService
     rows = []
     seen = {}
 
-    village_alt = Regexp.union(VILLAGE_PATTERNS.sort_by(&:length).reverse)
-    # regno + NAME + address + village + zip + birthyear + pct
-    row_regex = /(\d{4,7})([A-Z][A-Z'\.\-\s,]+?)\s+(.+?)\s+(#{village_alt})\s*969\d{2}\s*(19\d{2}|20\d{2})\s*(\d{1,2})(?=\d{4,7}[A-Z]|$)/
-
     reader.pages.each do |page|
       text = page.text.to_s
       next if text.blank?
@@ -40,23 +46,30 @@ class GecPdfParserService
       text = text.gsub(HEADER_TEXT, " ")
       text = text.gsub(/\s+/, " ").strip
 
-      text.scan(row_regex) do |reg_no, name_raw, address_raw, village_raw, birth_year, pct|
-        name = normalize_name(name_raw)
-        next if name.blank? || name.start_with?("REG.")
+      begin
+        Timeout.timeout(PARSE_TIMEOUT_SECONDS) do
+          text.scan(ROW_REGEX) do |reg_no, name_raw, address_raw, village_raw, birth_year, pct|
+            name = normalize_name(name_raw)
+            next if name.blank? || name.start_with?("REG.")
 
-        key = [ reg_no, name, village_raw, pct ].join("|")
-        next if seen[key]
+            key = [ reg_no, name, village_raw, pct ].join("|")
+            next if seen[key]
 
-        seen[key] = true
-        rows << {
-          "name" => name,
-          "village" => village_raw,
-          "voter_registration_number" => reg_no,
-          "dob" => birth_year_to_dob_placeholder(birth_year),
-          "birth_year" => birth_year,
-          "pct" => pct,
-          "address" => normalize_text(address_raw)
-        }
+            seen[key] = true
+            rows << {
+              "name" => name,
+              "village" => village_raw,
+              "voter_registration_number" => reg_no,
+              "dob" => birth_year_to_dob_placeholder(birth_year),
+              "birth_year" => birth_year,
+              "pct" => pct,
+              "address" => normalize_text(address_raw)
+            }
+          end
+        end
+      rescue Timeout::Error
+        @errors << "PDF page parsing timed out (possible malformed layout)"
+        break
       end
     end
 

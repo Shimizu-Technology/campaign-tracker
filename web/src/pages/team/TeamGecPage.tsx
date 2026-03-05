@@ -23,12 +23,19 @@ export default function TeamGecPage() {
 
   const previewMutation = useMutation({
     mutationFn: () => previewGecList(file!, sheetName || undefined),
+    onMutate: () => setPreviewData(null),
     onSuccess: (data) => setPreviewData(data),
     onError: (err: Error) => alert(`Preview failed: ${err.message}`),
   });
 
   const uploadMutation = useMutation({
-    mutationFn: () => uploadGecList(file!, listDate, sheetName || undefined, importType),
+    mutationFn: () => uploadGecList(
+      file!,
+      listDate,
+      sheetName || undefined,
+      importType,
+      (previewData?.parse_cache_key as string) || undefined
+    ),
     onSuccess: (data) => {
       setFile(null);
       setListDate('');
