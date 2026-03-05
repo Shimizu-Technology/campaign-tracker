@@ -113,9 +113,25 @@ module Api
               )
             end
 
-            # Use cached QA if available (preview already approved it), otherwise use fresh parse QA
-            pdf_qa = cached_qa&.qa.presence || parsed.qa
-            if pdf_qa[:status] == "fail"
+            # Prefer preview-approved QA when cache key matches, but sanity-check fresh parse.
+            fresh_qa = parsed.qa || {}
+            cached_pdf_qa = cached_qa&.qa.presence
+            pdf_qa = cached_pdf_qa || fresh_qa
+
+            if cached_pdf_qa.present?
+              cached_rows = cached_pdf_qa[:row_count].to_i
+              fresh_rows = fresh_qa[:row_count].to_i
+
+              if cached_rows.positive? && fresh_rows < (cached_rows * 0.95).to_i
+                return render_api_error(
+                  message: "PDF row count changed significantly since preview (#{fresh_rows} vs #{cached_rows}). Re-preview before importing.",
+                  status: :unprocessable_entity,
+                  code: "pdf_row_count_mismatch"
+                )
+              end
+            end
+
+            if pdf_qa[:status] == "fail" || fresh_qa[:status] == "fail"
               return render_api_error(
                 message: "PDF QA failed. Please review parsing quality before importing.",
                 status: :unprocessable_entity,

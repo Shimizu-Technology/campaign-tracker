@@ -9,13 +9,6 @@ require "timeout"
 class GecPdfParserService
   Result = Struct.new(:rows, :qa, :warnings, :errors, keyword_init: true)
 
-  VILLAGE_PATTERNS = [
-    "AGANA HTS", "ASAN MAINA", "ASAN-MAINA", "CHALAN PAGO/ORDOT", "CHALAN PAGO", "ORDOT",
-    "MONGMONG TOTO MAITE", "MONGMONG/TOTO/MAITE", "SANTA RITA-SUMAI", "SANTA RITA", "TALOFOFO",
-    "HAGATNA", "HAGAT", "DEDEDO", "BARRIGADA", "MANGILAO", "SINAJANA", "TAMUNING", "YIGO",
-    "YONA", "PITI", "HUMATAK", "MALESSO", "INALAHAN", "INARAJAN", "GMF", "TUMON"
-  ].freeze
-
   HEADER_TEXT = /Guam Election Commission\s*Voter Listing\s*as of\s*.+?\s*REG\. NO\.\s*NAME\s*(?:ADDRESS\s*)?BIRTH YEAR\s*PCT/i
   PARSE_TIMEOUT_SECONDS = 10
   MAX_ADDRESS_CHARS = 150
@@ -37,7 +30,7 @@ class GecPdfParserService
   LINE_REGEX = Regexp.new(
     "^\\s*\\d+\\s+(\\d{4,7})\\s+" \
     "([A-Z][A-Z,\\.\\-\\'\\s]{2,80}?)\\s{2,}" \
-    "(.{3,#{MAX_ADDRESS_CHARS}}?)\\s{2,}" \
+    "([A-Z0-9 #,\\.\\-\\/]{3,#{MAX_ADDRESS_CHARS}}?)\\s{2,}" \
     "(#{VILLAGE_ALT_STR})\\s+" \
     "(\\d{1,2}\\/\\d{1,2}\\/\\d{2,4})\\s+" \
     "(\\d{1,2})\\b"
