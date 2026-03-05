@@ -324,7 +324,8 @@ module Api
       def build_pdf_parse_cache_key(file_path)
         digest = Digest::SHA256.file(file_path).hexdigest
         "gec_pdf_parse:v1:#{digest}"
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn("PDF parse cache key generation failed: #{e.class}: #{e.message}")
         nil
       end
 
