@@ -144,12 +144,17 @@ class GecPdfParserService
 
   def write_normalized_csv(rows)
     tf = Tempfile.new([ "gec_pdf_normalized", ".csv" ])
-    CSV.open(tf.path, "w", encoding: "UTF-8") do |csv|
-      csv << [ "name", "village", "voter_registration_number", "dob", "birth_year", "pct", "address" ]
-      rows.each { |r| csv << [ r["name"], r["village"], r["voter_registration_number"], r["dob"], r["birth_year"], r["pct"], r["address"] ] }
+    begin
+      CSV.open(tf.path, "w", encoding: "UTF-8") do |csv|
+        csv << [ "name", "village", "voter_registration_number", "dob", "birth_year", "pct", "address" ]
+        rows.each { |r| csv << [ r["name"], r["village"], r["voter_registration_number"], r["dob"], r["birth_year"], r["pct"], r["address"] ] }
+      end
+      tf.close
+      tf
+    rescue StandardError
+      tf.close!
+      raise
     end
-    tf.close
-    tf
   end
 
   private
@@ -203,6 +208,12 @@ class GecPdfParserService
 
     missing_ratio = (missing_name + missing_village + missing_reg).to_f / rows.size
     score -= 20 if missing_ratio > 0.05
+
+    # Keep partial datasets (FAIL_MIN_ROWS..REVIEW_MIN_ROWS-1) in REVIEW band;
+    # missing-field penalties should not silently promote them to FAIL.
+    if rows.size >= FAIL_MIN_ROWS && rows.size < REVIEW_MIN_ROWS
+      score = [ score, 60 ].max
+    end
 
     {
       page_count: page_count,

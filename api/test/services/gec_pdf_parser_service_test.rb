@@ -55,6 +55,18 @@ class GecPdfParserServiceTest < ActiveSupport::TestCase
     assert_equal 80, qa[:quality_score]
   end
 
+  test "build_qa keeps partial datasets in review band even with missing field penalty" do
+    rows = minimal_rows(5_000)
+    300.times do |i|
+      rows[i]["village"] = ""
+    end
+
+    qa = invoke_build_qa(rows, page_count: 50)
+    assert_equal 300, qa[:missing_village]
+    assert_equal "review", qa[:status]
+    assert_equal 60, qa[:quality_score]
+  end
+
   # ---------------------------------------------------------------------------
   # deduplication
   # ---------------------------------------------------------------------------
