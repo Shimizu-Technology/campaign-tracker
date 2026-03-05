@@ -95,11 +95,14 @@ module Api
         begin
           if pdf_file?(file)
             parser = GecPdfParserService.new(file_path: file.tempfile.path)
+            # Always do a full parse on upload (we need the rows to write the CSV).
+            # The cache is only used for QA gate validation — if it matches, we skip
+            # re-validating QA and trust the already-approved preview result.
             expected_cache_key = build_pdf_parse_cache_key(file.tempfile.path)
             requested_cache_key = params[:parse_cache_key].presence
             cache_key = requested_cache_key == expected_cache_key ? requested_cache_key : nil
-            parsed = read_cached_pdf_parse(cache_key)
-            parsed ||= parser.parse
+            cached_qa = read_cached_pdf_parse(cache_key)
+            parsed = parser.parse
 
             if parsed.errors.any?
               return render_api_error(
@@ -110,7 +113,8 @@ module Api
               )
             end
 
-            pdf_qa = parsed.qa
+            # Use cached QA if available (preview already approved it), otherwise use fresh parse QA
+            pdf_qa = cached_qa&.qa.presence || parsed.qa
             if pdf_qa[:status] == "fail"
               return render_api_error(
                 message: "PDF QA failed. Please review parsing quality before importing.",
@@ -308,24 +312,30 @@ module Api
         nil
       end
 
+      # Cache only the lightweight QA summary (not the full rows array which can be 30-60 MB
+      # for a full ~60k-voter GEC list). On a cache hit we skip re-parsing for QA purposes
+      # but still need to write_normalized_csv from a fresh parse — so the cache avoids the
+      # QA overhead only; the caller still parses rows when needed.
       def write_cached_pdf_parse(cache_key, parsed)
         return if cache_key.blank?
 
         Rails.cache.write(
           cache_key,
-          { rows: parsed.rows, qa: parsed.qa, warnings: parsed.warnings, errors: parsed.errors },
+          { qa: parsed.qa, warnings: parsed.warnings, errors: parsed.errors },
           expires_in: 20.minutes
         )
       end
 
+      # Returns a lightweight cached result (qa/warnings/errors only, rows=[]).
+      # Callers must re-parse if they need full row data.
       def read_cached_pdf_parse(cache_key)
         return nil if cache_key.blank?
 
         cached = Rails.cache.read(cache_key)
-        return nil unless cached.is_a?(Hash)
+        return nil unless cached.is_a?(Hash) && cached.key?(:qa)
 
         GecPdfParserService::Result.new(
-          rows: cached[:rows] || [],
+          rows: [],
           qa: cached[:qa] || {},
           warnings: cached[:warnings] || [],
           errors: cached[:errors] || []

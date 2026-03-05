@@ -215,25 +215,54 @@ export default function TeamGecPage() {
           </div>
 
           {previewData && (
-            <div className="rounded-lg border border-gray-200 p-3 bg-gray-50">
+            <div className="rounded-lg border border-gray-200 p-3 bg-gray-50 space-y-3">
               {(previewData.source_type as string) === 'pdf' ? (
-                <div className="space-y-2 text-sm">
-                  <div className="font-semibold text-gray-800">PDF QA Summary</div>
-                  <div className="text-gray-700">Rows parsed: <strong>{Number(previewData.row_count || 0).toLocaleString()}</strong></div>
-                  <div className="text-gray-700">Quality score: <strong>{String((previewData.qa as Record<string, unknown>)?.quality_score ?? 'n/a')}</strong></div>
-                  <div className="text-gray-700">Status: <strong className={`uppercase ${
-                    String((previewData.qa as Record<string, unknown>)?.status) === 'fail'
-                      ? 'text-red-600'
-                      : String((previewData.qa as Record<string, unknown>)?.status) === 'review'
-                      ? 'text-amber-600'
-                      : 'text-green-600'
-                  }`}>{String((previewData.qa as Record<string, unknown>)?.status ?? 'unknown')}</strong></div>
-                  {Array.isArray(previewData.warnings) && (previewData.warnings as unknown[]).length > 0 && (
-                    <ul className="list-disc pl-5 text-amber-700 text-xs">
-                      {(previewData.warnings as string[]).map((w, i) => <li key={i}>{w}</li>)}
-                    </ul>
+                <>
+                  <div className="space-y-2 text-sm">
+                    <div className="font-semibold text-gray-800">PDF QA Summary</div>
+                    <div className="text-gray-700">Rows parsed: <strong>{Number(previewData.row_count || 0).toLocaleString()}</strong></div>
+                    <div className="text-gray-700">Quality score: <strong>{String((previewData.qa as Record<string, unknown>)?.quality_score ?? 'n/a')}</strong></div>
+                    <div className="text-gray-700">Status: <strong className={`uppercase ${
+                      String((previewData.qa as Record<string, unknown>)?.status) === 'fail'
+                        ? 'text-red-600'
+                        : String((previewData.qa as Record<string, unknown>)?.status) === 'review'
+                        ? 'text-amber-600'
+                        : 'text-green-600'
+                    }`}>{String((previewData.qa as Record<string, unknown>)?.status ?? 'unknown')}</strong></div>
+                    {Array.isArray(previewData.warnings) && (previewData.warnings as unknown[]).length > 0 && (
+                      <ul className="list-disc pl-5 text-amber-700 text-xs">
+                        {(previewData.warnings as string[]).map((w, i) => <li key={i}>{w}</li>)}
+                      </ul>
+                    )}
+                  </div>
+                  {Array.isArray(previewData.preview_rows) && (previewData.preview_rows as unknown[]).length > 0 && (
+                    <div>
+                      <div className="text-xs font-semibold text-gray-500 uppercase mb-1">Sample Rows (first {(previewData.preview_rows as unknown[]).length})</div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-gray-100">
+                              <th className="text-left px-2 py-1 text-gray-500 font-medium">Reg No.</th>
+                              <th className="text-left px-2 py-1 text-gray-500 font-medium">Name</th>
+                              <th className="text-left px-2 py-1 text-gray-500 font-medium">Village</th>
+                              <th className="text-left px-2 py-1 text-gray-500 font-medium">Birth Year</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(previewData.preview_rows as Record<string, unknown>[]).map((row, i) => (
+                              <tr key={i} className="border-t border-gray-200">
+                                <td className="px-2 py-1 text-gray-600">{String(row.voter_registration_number ?? '')}</td>
+                                <td className="px-2 py-1 text-gray-800">{String(row.name ?? '')}</td>
+                                <td className="px-2 py-1 text-gray-600">{String(row.village ?? '')}</td>
+                                <td className="px-2 py-1 text-gray-600">{String(row.birth_year ?? '')}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
                   )}
-                </div>
+                </>
               ) : (
                 <div className="text-sm text-gray-700">
                   Spreadsheet preview ready. Rows detected: <strong>{Number(previewData.row_count || 0).toLocaleString()}</strong>
