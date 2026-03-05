@@ -113,13 +113,41 @@ module Api
               )
             end
 
-            # Use cached QA if available (preview already approved it), otherwise use fresh parse QA
-            pdf_qa = cached_qa&.qa.presence || parsed.qa
-            if pdf_qa[:status] == "fail"
+            # Prefer preview-approved QA when cache key matches, but sanity-check fresh parse.
+            fresh_qa = parsed.qa || {}
+            cached_pdf_qa = cached_qa&.qa.presence
+            pdf_qa = cached_pdf_qa || fresh_qa
+
+            if cached_pdf_qa.present?
+              cached_rows = cached_pdf_qa[:row_count].to_i
+              fresh_rows = fresh_qa[:row_count].to_i
+
+              if cached_rows.positive? && fresh_rows < (cached_rows * 0.95).to_i
+                return render_api_error(
+                  message: "PDF row count changed significantly since preview (#{fresh_rows} vs #{cached_rows}). Re-preview before importing.",
+                  status: :unprocessable_entity,
+                  code: "pdf_row_count_mismatch"
+                )
+              end
+            end
+
+            if pdf_qa[:status] == "fail" || fresh_qa[:status] == "fail"
               return render_api_error(
                 message: "PDF QA failed. Please review parsing quality before importing.",
                 status: :unprocessable_entity,
                 code: "pdf_quality_failed",
+                details: parsed.warnings
+              )
+            end
+
+            review_status = (pdf_qa[:status] == "review") || (fresh_qa[:status] == "review")
+            confirm_review = ActiveModel::Type::Boolean.new.cast(params[:confirm_review])
+
+            if review_status && !confirm_review
+              return render_api_error(
+                message: "PDF QA is in review status. Confirm review before importing.",
+                status: :unprocessable_entity,
+                code: "pdf_quality_review_required",
                 details: parsed.warnings
               )
             end
@@ -187,7 +215,7 @@ module Api
           end
 
           parse_cache_key = build_pdf_parse_cache_key(file.tempfile.path)
-          write_cached_pdf_parse(parse_cache_key, parsed)
+          write_cached_pdf_parse(parse_cache_key, parsed) unless parsed.qa[:status] == "fail"
 
           preview_limit = [ (params[:limit] || 20).to_i, 100 ].min
           return render json: {
@@ -308,7 +336,8 @@ module Api
       def build_pdf_parse_cache_key(file_path)
         digest = Digest::SHA256.file(file_path).hexdigest
         "gec_pdf_parse:v1:#{digest}"
-      rescue StandardError
+      rescue StandardError => e
+        Rails.logger.warn("PDF parse cache key generation failed: #{e.class}: #{e.message}")
         nil
       end
 

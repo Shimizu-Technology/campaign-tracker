@@ -41,6 +41,32 @@ class GecPdfParserServiceTest < ActiveSupport::TestCase
     assert_includes qa[:top_villages].keys, "DEDEDO"
   end
 
+  test "build_qa computes missing fields and penalizes quality when missing ratio is high" do
+    rows = minimal_rows(10_000)
+    600.times do |i|
+      rows[i]["name"] = ""
+    end
+
+    qa = invoke_build_qa(rows, page_count: 100)
+    assert_equal 600, qa[:missing_name]
+    assert_equal 0, qa[:missing_village]
+    assert_equal 0, qa[:missing_reg]
+    assert_equal "pass", qa[:status]
+    assert_equal 80, qa[:quality_score]
+  end
+
+  test "build_qa keeps partial datasets in review band even with missing field penalty" do
+    rows = minimal_rows(5_000)
+    300.times do |i|
+      rows[i]["village"] = ""
+    end
+
+    qa = invoke_build_qa(rows, page_count: 50)
+    assert_equal 300, qa[:missing_village]
+    assert_equal "review", qa[:status]
+    assert_equal 60, qa[:quality_score]
+  end
+
   # ---------------------------------------------------------------------------
   # deduplication
   # ---------------------------------------------------------------------------
@@ -70,8 +96,35 @@ class GecPdfParserServiceTest < ActiveSupport::TestCase
     assert_instance_of Regexp, GecPdfParserService::ROW_REGEX
   end
 
+  test "ROW_REGEX does not truncate full middle names before numeric addresses" do
+    row = "1234567 REYES, JOHN CARLOS 123 MAIN ST DEDEDO 96610 1990 5"
+    match = row.match(GecPdfParserService::ROW_REGEX)
+
+    assert match.present?
+    assert_equal "REYES, JOHN CARLOS", match[2].strip
+    assert_equal "123 MAIN ST", match[3].strip
+  end
+
+  test "ROW_REGEX supports legacy letter-first address prefixes" do
+    row = "1234567 REYES, JOHN CARLOS ROUTE 4 BOX 123 DEDEDO 96610 1990 5"
+    match = row.match(GecPdfParserService::ROW_REGEX)
+
+    assert match.present?
+    assert_equal "REYES, JOHN CARLOS", match[2].strip
+    assert_equal "ROUTE 4 BOX 123", match[3].strip
+  end
+
+  test "ROW_REGEX does not split middle name that matches removed address prefix term" do
+    row = "1234567 SANTOS, JOHN MARINE 123 MAIN ST DEDEDO 96610 1990 5"
+    match = row.match(GecPdfParserService::ROW_REGEX)
+
+    assert match.present?
+    assert_equal "SANTOS, JOHN MARINE", match[2].strip
+    assert_equal "123 MAIN ST", match[3].strip
+  end
+
   test "VILLAGE_ALT matches known village names" do
-    village_alt = GecPdfParserService::VILLAGE_ALT
+    village_alt = Regexp.new(GecPdfParserService::VILLAGE_ALT_STR)
     assert_match village_alt, "DEDEDO"
     assert_match village_alt, "TAMUNING"
     assert_match village_alt, "HAGATNA"
@@ -80,6 +133,14 @@ class GecPdfParserServiceTest < ActiveSupport::TestCase
 
   test "REVIEW_MIN_ROWS and FAIL_MIN_ROWS are ordered correctly" do
     assert GecPdfParserService::FAIL_MIN_ROWS < GecPdfParserService::REVIEW_MIN_ROWS
+  end
+
+  test "normalize_birth_year_from_dob maps 2-digit years using moving cutoff" do
+    travel_to Time.zone.local(2026, 3, 5) do
+      service = GecPdfParserService.new(file_path: "/dev/null")
+      assert_equal "2006", service.send(:normalize_birth_year_from_dob, "03/15/06")
+      assert_equal "1980", service.send(:normalize_birth_year_from_dob, "03/15/80")
+    end
   end
 
   # ---------------------------------------------------------------------------

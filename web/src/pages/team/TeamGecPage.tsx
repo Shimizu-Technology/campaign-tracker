@@ -10,22 +10,58 @@ import {
   Calendar,
 } from 'lucide-react';
 
+type PdfQaStatus = 'pass' | 'review' | 'fail';
+
+type PreviewRow = Record<string, unknown>;
+
+interface PdfPreviewData {
+  source_type: 'pdf';
+  qa: { status: PdfQaStatus; quality_score: number; row_count: number };
+  warnings: string[];
+  row_count: number;
+  parse_cache_key: string | null;
+  preview_rows: PreviewRow[];
+}
+
+interface SpreadsheetPreviewData {
+  source_type: 'spreadsheet';
+  sheets: string[];
+  headers: Record<string, string>;
+  column_map: Record<string, string>;
+  row_count: number;
+  preview_rows: PreviewRow[];
+}
+
+type PreviewData = PdfPreviewData | SpreadsheetPreviewData;
+
 export default function TeamGecPage() {
   const queryClient = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
   const [listDate, setListDate] = useState('');
   const [sheetName, setSheetName] = useState('');
   const [importType, setImportType] = useState<'full_list' | 'changes_only'>('full_list');
-  const [previewData, setPreviewData] = useState<Record<string, unknown> | null>(null);
+  const [previewData, setPreviewData] = useState<PreviewData | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [confirmReview, setConfirmReview] = useState(false);
 
   const { data: stats, isLoading: statsLoading } = useQuery({ queryKey: ['gec-stats'], queryFn: getGecStats });
   const { data: imports } = useQuery({ queryKey: ['gec-imports'], queryFn: getGecImports });
 
+  const isPdfPreview = previewData?.source_type === 'pdf';
+  const pdfStatus = isPdfPreview ? previewData.qa?.status : null;
+  const reviewNeedsConfirmation = pdfStatus === 'review' && !confirmReview;
+
   const previewMutation = useMutation({
     mutationFn: () => previewGecList(file!, sheetName || undefined),
-    onMutate: () => setPreviewData(null),
-    onSuccess: (data) => setPreviewData(data),
-    onError: (err: Error) => alert(`Preview failed: ${err.message}`),
+    onMutate: () => {
+      setPreviewData(null);
+      setConfirmReview(false);
+      setErrorMessage(null);
+      setSuccessMessage(null);
+    },
+    onSuccess: (data: PreviewData) => setPreviewData(data),
+    onError: (err: Error) => setErrorMessage(`Preview failed: ${err.message}`),
   });
 
   const uploadMutation = useMutation({
@@ -34,7 +70,8 @@ export default function TeamGecPage() {
       listDate,
       sheetName || undefined,
       importType,
-      (previewData?.parse_cache_key as string) || undefined
+      isPdfPreview ? previewData.parse_cache_key || undefined : undefined,
+      confirmReview
     ),
     onSuccess: (data) => {
       setFile(null);
@@ -42,6 +79,8 @@ export default function TeamGecPage() {
       setSheetName('');
       setImportType('full_list');
       setPreviewData(null);
+      setConfirmReview(false);
+      setErrorMessage(null);
       queryClient.invalidateQueries({ queryKey: ['gec-stats'] });
       queryClient.invalidateQueries({ queryKey: ['gec-imports'] });
       const s = data.stats;
@@ -56,17 +95,19 @@ export default function TeamGecPage() {
         s.re_vetted ? `Supporters re-flagged for review: ${s.re_vetted}` : null,
         s.ambiguous_dob ? `Ambiguous DOBs: ${s.ambiguous_dob}` : null,
       ].filter(Boolean);
-      alert(lines.join('\n'));
+      setSuccessMessage(lines.join('\n'));
     },
-    onError: (err: Error) => alert(`Import failed: ${err.message}`),
+    onError: (err: Error) => setErrorMessage(`Import failed: ${err.message}`),
   });
 
   const bulkVetMutation = useMutation({
     mutationFn: () => bulkVetSupporters({ unverified_only: 'true' }),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['vetting-queue'] });
-      alert(`Bulk vetting complete!\n\nAuto-verified: ${data.results.auto_verified}\nFlagged: ${data.results.flagged}\nReferrals: ${data.results.referral}\nUnregistered: ${data.results.unregistered}`);
+      setErrorMessage(null);
+      setSuccessMessage(`Bulk vetting complete!\n\nAuto-verified: ${data.results.auto_verified}\nFlagged: ${data.results.flagged}\nReferrals: ${data.results.referral}\nUnregistered: ${data.results.unregistered}`);
     },
+    onError: (err: Error) => setErrorMessage(`Bulk vetting failed: ${err.message}`),
   });
 
   return (
@@ -148,6 +189,9 @@ export default function TeamGecPage() {
               onChange={e => {
                 setFile(e.target.files?.[0] || null);
                 setPreviewData(null);
+                setConfirmReview(false);
+                setErrorMessage(null);
+                setSuccessMessage(null);
               }}
               className="w-full text-sm border border-gray-200 rounded-lg p-2 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
             />
@@ -205,8 +249,7 @@ export default function TeamGecPage() {
             </button>
             <button
               onClick={() => uploadMutation.mutate()}
-              disabled={!file || !listDate || uploadMutation.isPending ||
-                ((previewData?.source_type as string) === 'pdf' && String((previewData?.qa as Record<string, unknown>)?.status || '') === 'fail')}
+              disabled={!file || !listDate || uploadMutation.isPending || pdfStatus === 'fail' || reviewNeedsConfirmation}
               className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
             >
               {uploadMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
@@ -214,30 +257,54 @@ export default function TeamGecPage() {
             </button>
           </div>
 
+          {errorMessage && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 whitespace-pre-line">
+              {errorMessage}
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-700 whitespace-pre-line">
+              {successMessage}
+            </div>
+          )}
+
           {previewData && (
             <div className="rounded-lg border border-gray-200 p-3 bg-gray-50 space-y-3">
-              {(previewData.source_type as string) === 'pdf' ? (
+              {previewData.source_type === 'pdf' ? (
                 <>
                   <div className="space-y-2 text-sm">
                     <div className="font-semibold text-gray-800">PDF QA Summary</div>
                     <div className="text-gray-700">Rows parsed: <strong>{Number(previewData.row_count || 0).toLocaleString()}</strong></div>
-                    <div className="text-gray-700">Quality score: <strong>{String((previewData.qa as Record<string, unknown>)?.quality_score ?? 'n/a')}</strong></div>
+                    <div className="text-gray-700">Quality score: <strong>{previewData.qa?.quality_score ?? 'n/a'}</strong></div>
                     <div className="text-gray-700">Status: <strong className={`uppercase ${
-                      String((previewData.qa as Record<string, unknown>)?.status) === 'fail'
+                      previewData.qa?.status === 'fail'
                         ? 'text-red-600'
-                        : String((previewData.qa as Record<string, unknown>)?.status) === 'review'
+                        : previewData.qa?.status === 'review'
                         ? 'text-amber-600'
                         : 'text-green-600'
-                    }`}>{String((previewData.qa as Record<string, unknown>)?.status ?? 'unknown')}</strong></div>
-                    {Array.isArray(previewData.warnings) && (previewData.warnings as unknown[]).length > 0 && (
+                    }`}>{previewData.qa?.status ?? 'unknown'}</strong></div>
+
+                    {previewData.qa?.status === 'review' && (
+                      <label className="flex items-center gap-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-2">
+                        <input
+                          type="checkbox"
+                          checked={confirmReview}
+                          onChange={e => setConfirmReview(e.target.checked)}
+                        />
+                        I reviewed this PDF preview and want to proceed with import.
+                      </label>
+                    )}
+
+                    {previewData.warnings.length > 0 && (
                       <ul className="list-disc pl-5 text-amber-700 text-xs">
-                        {(previewData.warnings as string[]).map((w, i) => <li key={i}>{w}</li>)}
+                        {previewData.warnings.map((w, i) => <li key={i}>{w}</li>)}
                       </ul>
                     )}
                   </div>
-                  {Array.isArray(previewData.preview_rows) && (previewData.preview_rows as unknown[]).length > 0 && (
+                  {previewData.preview_rows.length > 0 && (
                     <div>
-                      <div className="text-xs font-semibold text-gray-500 uppercase mb-1">Sample Rows (first {(previewData.preview_rows as unknown[]).length})</div>
+                      <div className="text-xs font-semibold text-gray-500 uppercase mb-1">Sample Rows (first {previewData.preview_rows.length})</div>
                       <div className="overflow-x-auto">
                         <table className="w-full text-xs border-collapse">
                           <thead>
@@ -249,7 +316,7 @@ export default function TeamGecPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {(previewData.preview_rows as Record<string, unknown>[]).map((row, i) => (
+                            {previewData.preview_rows.map((row, i) => (
                               <tr key={i} className="border-t border-gray-200">
                                 <td className="px-2 py-1 text-gray-600">{String(row.voter_registration_number ?? '')}</td>
                                 <td className="px-2 py-1 text-gray-800">{String(row.name ?? '')}</td>
