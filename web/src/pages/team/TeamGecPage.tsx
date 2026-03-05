@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getGecStats, getGecImports, uploadGecList, bulkVetSupporters } from '../../lib/api';
+import { getGecStats, getGecImports, uploadGecList, bulkVetSupporters, previewGecList } from '../../lib/api';
 import {
   Database,
   Upload,
@@ -16,9 +16,16 @@ export default function TeamGecPage() {
   const [listDate, setListDate] = useState('');
   const [sheetName, setSheetName] = useState('');
   const [importType, setImportType] = useState<'full_list' | 'changes_only'>('full_list');
+  const [previewData, setPreviewData] = useState<Record<string, unknown> | null>(null);
 
   const { data: stats, isLoading: statsLoading } = useQuery({ queryKey: ['gec-stats'], queryFn: getGecStats });
   const { data: imports } = useQuery({ queryKey: ['gec-imports'], queryFn: getGecImports });
+
+  const previewMutation = useMutation({
+    mutationFn: () => previewGecList(file!, sheetName || undefined),
+    onSuccess: (data) => setPreviewData(data),
+    onError: (err: Error) => alert(`Preview failed: ${err.message}`),
+  });
 
   const uploadMutation = useMutation({
     mutationFn: () => uploadGecList(file!, listDate, sheetName || undefined, importType),
@@ -27,6 +34,7 @@ export default function TeamGecPage() {
       setListDate('');
       setSheetName('');
       setImportType('full_list');
+      setPreviewData(null);
       queryClient.invalidateQueries({ queryKey: ['gec-stats'] });
       queryClient.invalidateQueries({ queryKey: ['gec-imports'] });
       const s = data.stats;
@@ -129,8 +137,11 @@ export default function TeamGecPage() {
             <label className="text-xs font-medium text-gray-600 block mb-1">Excel File</label>
             <input
               type="file"
-              accept=".xlsx,.xls,.csv"
-              onChange={e => setFile(e.target.files?.[0] || null)}
+              accept=".xlsx,.xls,.csv,.pdf"
+              onChange={e => {
+                setFile(e.target.files?.[0] || null);
+                setPreviewData(null);
+              }}
               className="w-full text-sm border border-gray-200 rounded-lg p-2 file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
             />
           </div>
@@ -176,14 +187,46 @@ export default function TeamGecPage() {
               />
             </div>
           </div>
-          <button
-            onClick={() => uploadMutation.mutate()}
-            disabled={!file || !listDate || uploadMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
-          >
-            {uploadMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-            {uploadMutation.isPending ? 'Uploading...' : 'Upload & Import'}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => previewMutation.mutate()}
+              disabled={!file || previewMutation.isPending}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              {previewMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
+              {previewMutation.isPending ? 'Analyzing...' : 'Analyze File'}
+            </button>
+            <button
+              onClick={() => uploadMutation.mutate()}
+              disabled={!file || !listDate || uploadMutation.isPending}
+              className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+            >
+              {uploadMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
+              {uploadMutation.isPending ? 'Uploading...' : 'Upload & Import'}
+            </button>
+          </div>
+
+          {previewData && (
+            <div className="rounded-lg border border-gray-200 p-3 bg-gray-50">
+              {(previewData.source_type as string) === 'pdf' ? (
+                <div className="space-y-2 text-sm">
+                  <div className="font-semibold text-gray-800">PDF QA Summary</div>
+                  <div className="text-gray-700">Rows parsed: <strong>{Number(previewData.row_count || 0).toLocaleString()}</strong></div>
+                  <div className="text-gray-700">Quality score: <strong>{String((previewData.qa as Record<string, unknown>)?.quality_score ?? 'n/a')}</strong></div>
+                  <div className="text-gray-700">Status: <strong className="uppercase">{String((previewData.qa as Record<string, unknown>)?.status ?? 'unknown')}</strong></div>
+                  {Array.isArray(previewData.warnings) && (previewData.warnings as unknown[]).length > 0 && (
+                    <ul className="list-disc pl-5 text-amber-700 text-xs">
+                      {(previewData.warnings as string[]).map((w, i) => <li key={i}>{w}</li>)}
+                    </ul>
+                  )}
+                </div>
+              ) : (
+                <div className="text-sm text-gray-700">
+                  Spreadsheet preview ready. Rows detected: <strong>{Number(previewData.row_count || 0).toLocaleString()}</strong>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
