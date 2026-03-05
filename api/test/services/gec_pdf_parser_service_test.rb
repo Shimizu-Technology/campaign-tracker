@@ -71,7 +71,7 @@ class GecPdfParserServiceTest < ActiveSupport::TestCase
   end
 
   test "VILLAGE_ALT matches known village names" do
-    village_alt = GecPdfParserService::VILLAGE_ALT
+    village_alt = Regexp.new(GecPdfParserService::VILLAGE_ALT_STR)
     assert_match village_alt, "DEDEDO"
     assert_match village_alt, "TAMUNING"
     assert_match village_alt, "HAGATNA"

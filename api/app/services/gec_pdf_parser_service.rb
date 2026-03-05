@@ -16,18 +16,34 @@ class GecPdfParserService
     "YONA", "PITI", "HUMATAK", "MALESSO", "INALAHAN", "INARAJAN", "GMF", "TUMON"
   ].freeze
 
-  HEADER_TEXT = /Guam Election Commission\s*Voter Listing\s*as of\s*.+?\s*REG\. NO\.\s*NAME\s*BIRTH YEAR\s*PCT\s*ADDRESS/i
-  PARSE_TIMEOUT_SECONDS = 3
-  MAX_ADDRESS_CHARS = 200
+  HEADER_TEXT = /Guam Election Commission\s*Voter Listing\s*as of\s*.+?\s*REG\. NO\.\s*NAME\s*(?:ADDRESS\s*)?BIRTH YEAR\s*PCT/i
+  PARSE_TIMEOUT_SECONDS = 10
+  MAX_ADDRESS_CHARS = 150
   REVIEW_MIN_ROWS = 10_000 # Guam full-list imports are ~60k+ rows; below this is likely partial/test data
   FAIL_MIN_ROWS = 1_000
 
-  VILLAGE_ALT = Regexp.union(VILLAGE_PATTERNS.sort_by(&:length).reverse)
-  NAME_TOKEN = "[A-Z][A-Z'\\.\\-]{1,40}(?:\\s[A-Z'\\.\\-]{1,40}){0,5}"
-  # Stop address capture before a likely next-row boundary like " 1234567JOHN"
-  ADDRESS_TOKEN = "(?:(?!\\s\\d{4,7}[A-Z]).){1,#{MAX_ADDRESS_CHARS}}?"
+  # GEC PDF format: REG_NO LAST, FIRST [MI] ADDRESS VILLAGE 96XXX BIRTH_YEAR PCT
+  # Sorted longest-first so Regexp.union matches greedily (e.g. "AGANA HEIGHTS" before "AGANA HTS")
+  VILLAGE_ALT_STR = [
+    "AGANA HEIGHTS", "AGANA HTS", "ASAN-MAINA", "ASAN MAINA",
+    "CHALAN PAGO/ORDOT", "CHALAN PAGO", "ORDOT",
+    "MONGMONG/TOTO/MAITE", "MONGMONG TOTO MAITE",
+    "SANTA RITA-SUMAI", "SANTA RITA", "TALOFOFO",
+    "HAGATNA", "HAGAT", "DEDEDO", "BARRIGADA", "MANGILAO", "SINAJANA",
+    "TAMUNING", "YIGO", "YONA", "PITI", "HUMATAK", "MALESSO",
+    "INALAHAN", "INARAJAN", "GMF", "TUMON"
+  ].sort_by { |v| -v.length }.map { |v| Regexp.escape(v) }.join("|")
+
+  # Name ends where an address token begins (PO BOX or street number + letter, or direct village)
+  # Address is then captured lazily up to the village name
+  # Lookahead ensures we stop at next row boundary (next reg number or end of string)
   ROW_REGEX = Regexp.new(
-    "(\\d{4,7})(#{NAME_TOKEN})\\s+(#{ADDRESS_TOKEN})\\s+(#{VILLAGE_ALT})\\s*969\\d{2}\\s*(19\\d{2}|20\\d{2})\\s*(\\d{1,2})(?=\\s\\d{4,7}[A-Z]|$)"
+    "(\\d{4,7})\\s+" \
+    "([A-Z][A-Z,\\.\\-\\'\\s]{2,80}?)(?=\\s+(?:PO BOX|\\d+\\s+[A-Z]|#{VILLAGE_ALT_STR}))" \
+    "(.{3,#{MAX_ADDRESS_CHARS}}?)\\s+" \
+    "(#{VILLAGE_ALT_STR})\\s+96\\d{3}\\s+" \
+    "(19\\d{2}|20\\d{2})\\s+" \
+    "(\\d{1,2})(?=\\s+\\d{4,7}|$)"
   )
 
   def initialize(file_path:)
