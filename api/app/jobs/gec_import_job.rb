@@ -23,10 +23,12 @@ class GecImportJob < ApplicationJob
     user = uploaded_by_user_id.present? ? User.find_by(id: uploaded_by_user_id) : nil
     tmp_file_path = nil
     lock_acquired = false
+    should_destroy_upload = true
 
     begin
       if import_type == "full_list"
-        lock_acquired = ActiveRecord::Base.connection.select_value("SELECT pg_try_advisory_lock(#{FULL_LIST_IMPORT_LOCK_KEY})")
+        lock_result = ActiveRecord::Base.connection.select_value("SELECT pg_try_advisory_lock(#{FULL_LIST_IMPORT_LOCK_KEY})")
+        lock_acquired = ActiveModel::Type::Boolean.new.cast(lock_result)
         unless lock_acquired
           Rails.logger.warn("GecImportJob #{gec_import_id}: full_list import lock busy, retrying")
           gec_import.update!(
@@ -41,6 +43,7 @@ class GecImportJob < ApplicationJob
             sheet_name: sheet_name,
             import_type: import_type
           )
+          should_destroy_upload = false
           return
         end
       end
@@ -90,7 +93,7 @@ class GecImportJob < ApplicationJob
       Rails.logger.error("GecImportJob failed for #{gec_import_id}: #{e.class}: #{e.message}")
     ensure
       File.delete(tmp_file_path) if tmp_file_path.present? && File.exist?(tmp_file_path)
-      upload&.destroy
+      upload&.destroy if should_destroy_upload
       if lock_acquired
         ActiveRecord::Base.connection.execute("SELECT pg_advisory_unlock(#{FULL_LIST_IMPORT_LOCK_KEY})")
       end

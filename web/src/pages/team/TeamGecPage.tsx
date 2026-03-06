@@ -61,6 +61,7 @@ export default function TeamGecPage() {
   const activeImport = imports?.imports?.find((imp: Record<string, unknown>) => imp.status === 'processing' || imp.status === 'pending');
   const hasActiveImport = Boolean(activeImport);
   const activeProgress = Number((activeImport?.metadata as Record<string, unknown> | undefined)?.progress_percent || 0);
+  const activeProgressDisplay = Math.max(5, Math.min(100, activeProgress));
   const activeStage = String((activeImport?.metadata as Record<string, unknown> | undefined)?.stage || 'processing');
 
   const previouslyHadActiveImport = useRef(false);
@@ -208,10 +209,10 @@ export default function TeamGecPage() {
             <div className="text-xs text-blue-700 capitalize">{activeStage.replace(/_/g, ' ')}</div>
           </div>
           <div className="w-full h-2 bg-blue-100 rounded-full overflow-hidden">
-            <div className="h-full bg-blue-600 transition-all" style={{ width: `${Math.max(5, Math.min(100, activeProgress))}%` }} />
+            <div className="h-full bg-blue-600 transition-all" style={{ width: `${activeProgressDisplay}%` }} />
           </div>
           <div className="mt-2 text-xs text-blue-700">
-            {activeProgress}% complete — safe to leave this page. Progress updates automatically.
+            {activeProgressDisplay}% complete — safe to leave this page. Progress updates automatically.
           </div>
         </div>
       )}
