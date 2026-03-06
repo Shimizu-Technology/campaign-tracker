@@ -161,6 +161,17 @@ export default function TeamShell({ children }: { children: React.ReactNode }) {
         </div>
       )}
 
+      {/* View Public Site */}
+      <div className="border-t border-gray-200 pt-3 px-3 pb-2">
+        <Link
+          to="/"
+          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-all duration-150"
+        >
+          <Home className="w-4 h-4 shrink-0 text-gray-400" />
+          <span>View Public Site</span>
+        </Link>
+      </div>
+
       {/* User */}
       <div className="border-t border-gray-200 px-4 py-4 flex items-center gap-3">
         <UserButton afterSignOutUrl="/" />
