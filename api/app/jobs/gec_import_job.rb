@@ -41,8 +41,8 @@ class GecImportJob < ApplicationJob
       # Layer 1: Process-level mutex (protects against multi-threaded workers like Sidekiq)
       mutex_acquired = IMPORT_MUTEX.try_lock
       unless mutex_acquired
-        handle_lock_contention(gec_import, gec_import_id, upload_id, gec_list_date, uploaded_by_user_id, sheet_name, import_type)
-        should_destroy_upload = false
+        requeued = handle_lock_contention(gec_import, gec_import_id, upload_id, gec_list_date, uploaded_by_user_id, sheet_name, import_type)
+        should_destroy_upload = !requeued # destroy upload if permanently failed
         return
       end
 
@@ -50,8 +50,8 @@ class GecImportJob < ApplicationJob
       lock_result = ActiveRecord::Base.connection.select_value("SELECT pg_try_advisory_lock(#{IMPORT_LOCK_KEY_1}, #{IMPORT_LOCK_KEY_2})")
       lock_acquired = ActiveModel::Type::Boolean.new.cast(lock_result)
       unless lock_acquired
-        handle_lock_contention(gec_import, gec_import_id, upload_id, gec_list_date, uploaded_by_user_id, sheet_name, import_type)
-        should_destroy_upload = false
+        requeued = handle_lock_contention(gec_import, gec_import_id, upload_id, gec_list_date, uploaded_by_user_id, sheet_name, import_type)
+        should_destroy_upload = !requeued
         return
       end
 
@@ -123,6 +123,7 @@ class GecImportJob < ApplicationJob
 
   private
 
+  # Returns true if job was re-queued (upload still needed), false if permanently failed (upload can be cleaned up).
   def handle_lock_contention(gec_import, gec_import_id, upload_id, gec_list_date, uploaded_by_user_id, sheet_name, import_type)
     requeue_count = (gec_import.metadata || {})["requeue_count"].to_i
     if requeue_count >= MAX_IMPORT_REQUEUE_ATTEMPTS
@@ -134,7 +135,7 @@ class GecImportJob < ApplicationJob
           "error" => "Exceeded import lock requeue limit (#{MAX_IMPORT_REQUEUE_ATTEMPTS})"
         })
       )
-      return
+      return false # permanently done — caller should clean up upload
     end
 
     Rails.logger.warn("GecImportJob #{gec_import_id}: import lock busy for #{import_type}, retrying (#{requeue_count + 1}/#{MAX_IMPORT_REQUEUE_ATTEMPTS})")
@@ -155,5 +156,6 @@ class GecImportJob < ApplicationJob
       sheet_name: sheet_name,
       import_type: import_type
     )
+    true # re-queued — upload still needed
   end
 end
