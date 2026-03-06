@@ -108,8 +108,8 @@ class GecVoter < ApplicationRecord
       end
     end
 
-    # --- Strategy 3: Name + birth_year only (no village constraint) ---
-    if effective_birth_year.present? && matches.empty?
+    # --- Strategy 3: Name + birth_year only (no village — only reached when village is blank) ---
+    if effective_birth_year.present? && village_name.blank? && matches.empty?
       name_year = active
         .where("LOWER(first_name) = ? AND LOWER(last_name) = ?", fn, ln)
         .where(birth_year: effective_birth_year)

@@ -55,12 +55,17 @@ class GecVettingService
           status: :referral, matches: matches, gec_voter: best[:gec_voter], match_count: count,
           details: "Registered in #{best[:gec_voter].village_name}, not #{@supporter.village&.name}"
         )
+      elsif count > 1
+        apply_flagged!(best[:gec_voter])
+        Result.new(
+          status: :flagged, matches: matches, gec_voter: best[:gec_voter], match_count: count,
+          details: "#{count} high-confidence candidates found — manual review required"
+        )
       else
         apply_auto_verified!(best[:gec_voter])
-        detail = count > 1 ? "High confidence match (#{count} candidates, best selected)" : "High confidence match"
         Result.new(
           status: :auto_verified, matches: matches, gec_voter: best[:gec_voter], match_count: count,
-          details: "#{detail}: #{best[:gec_voter].first_name} #{best[:gec_voter].last_name}"
+          details: "High confidence match: #{best[:gec_voter].first_name} #{best[:gec_voter].last_name}"
         )
       end
     when :medium

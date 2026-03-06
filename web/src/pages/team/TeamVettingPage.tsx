@@ -87,9 +87,7 @@ export default function TeamVettingPage() {
       case 'name_village_only':   return 'Name + Village';
       // New (birth-year-only) match types
       case 'name_year_village':   return 'Name + Year + Village';
-      case 'name_year_diff_village': return 'Diff. Village (Year)';
       case 'name_year_only':      return 'Name + Year';
-      case 'name_only':           return 'Name Only';
       default: return type.replace(/_/g, ' ');
     }
   };
@@ -235,7 +233,7 @@ export default function TeamVettingPage() {
                           return (
                             <span key={i} className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${confidenceColor(m.confidence as string)}`}>
                               {confidenceLabel(m.confidence as string, mc)} &middot; {matchTypeLabel(m.match_type as string)}
-                              {(m.match_type === 'different_village' || m.match_type === 'name_year_diff_village') && ` — ${gv.village_name as string}`}
+                              {m.match_type === 'different_village' && ` — ${gv.village_name as string}`}
                             </span>
                           );
                         })}
