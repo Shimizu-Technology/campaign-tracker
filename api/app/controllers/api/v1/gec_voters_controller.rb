@@ -183,10 +183,17 @@ module Api
             )
 
             begin
+              stored_filename = File.basename(file.original_filename || import_file_path)
+              stored_content_type = file.content_type
+              if pdf_file?(file)
+                stored_filename = "#{File.basename(file.original_filename.to_s, ".*")}.csv"
+                stored_content_type = "text/csv"
+              end
+
               upload_payload = GecImportUpload.create!(
                 gec_import: gec_import,
-                filename: File.basename(file.original_filename || import_file_path),
-                content_type: file.content_type,
+                filename: stored_filename,
+                content_type: stored_content_type,
                 file_data: File.binread(import_file_path)
               )
 

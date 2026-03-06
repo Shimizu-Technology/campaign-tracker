@@ -87,6 +87,7 @@ class GecImportService
   end
 
   def call
+    async_mode = @gec_import.present?
     gec_import = @gec_import || GecImport.create!(
       gec_list_date: @gec_list_date,
       filename: File.basename(@file_path),
@@ -96,7 +97,7 @@ class GecImportService
     )
 
     begin
-      update_progress!(gec_import, stage: "parsing", percent: 10)
+      update_progress!(gec_import, stage: "parsing", percent: 10) if async_mode
       spreadsheet = Roo::Spreadsheet.open(@file_path)
       sheet = @sheet_name ? spreadsheet.sheet(@sheet_name) : spreadsheet.sheet(0)
 
@@ -119,7 +120,7 @@ class GecImportService
           if (idx % 500).zero?
             # 20..85% while processing rows
             progress = 20 + ((idx.to_f / [ rows.size, 1 ].max) * 65).to_i
-            write_progress_cache(gec_import.id, stage: "importing", percent: [ progress, 85 ].min)
+            write_progress_cache(gec_import.id, stage: "importing", percent: [ progress, 85 ].min) if async_mode
           end
         end
 
@@ -130,7 +131,7 @@ class GecImportService
       end
 
       # Re-vet affected supporters (outside transaction for performance)
-      update_progress!(gec_import, stage: "re_vetting", percent: 90)
+      update_progress!(gec_import, stage: "re_vetting", percent: 90) if async_mode
       @stats[:re_vetted] = re_vet_affected_supporters(gec_import)
 
       gec_import.update!(

@@ -9,9 +9,13 @@ class GecImportJob < ApplicationJob
 
   def perform(gec_import_id:, upload_id:, gec_list_date:, uploaded_by_user_id: nil, sheet_name: nil, import_type: "full_list")
     gec_import = GecImport.find_by(id: gec_import_id)
-    return if gec_import.nil? || %w[completed failed].include?(gec_import.status)
-
     upload = GecImportUpload.find_by(id: upload_id)
+
+    if gec_import.nil? || %w[completed failed].include?(gec_import.status)
+      upload&.destroy
+      return
+    end
+
     unless upload
       gec_import.update!(
         status: "failed",
