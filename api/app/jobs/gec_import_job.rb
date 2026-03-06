@@ -27,7 +27,7 @@ class GecImportJob < ApplicationJob
     # 10-50 MB in Ruby heap while waiting for requeue.
     upload_meta = GecImportUpload.where(id: upload_id).select(:id, :gec_import_id, :filename, :content_type).first
 
-    if gec_import.nil? || %w[completed failed].include?(gec_import.status)
+    if gec_import.nil? || %w[completed failed processing].include?(gec_import.status)
       GecImportUpload.where(id: upload_id).delete_all
       return
     end
@@ -89,6 +89,10 @@ class GecImportJob < ApplicationJob
       )
 
       result = service.call
+
+      unless result.success
+        Rails.logger.error("GecImportJob: service returned failure for import ##{gec_import_id}: #{result.errors.first}")
+      end
 
       if result.success
         begin
