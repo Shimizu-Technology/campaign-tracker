@@ -176,7 +176,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
       {sessionData?.permissions?.can_access_data_team && (
         <div className="px-3 pb-2">
           <Link
-            to="/team"
+            to="/data"
             className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all duration-150"
           >
             <Database className="w-4 h-4 shrink-0 text-blue-500" />

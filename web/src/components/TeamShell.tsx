@@ -46,38 +46,38 @@ export default function TeamShell({ children }: { children: React.ReactNode }) {
     {
       label: 'Overview',
       items: [
-        { to: '/team', label: 'Dashboard', icon: LayoutDashboard },
-        { to: '/team/supporters', label: 'Supporters', icon: Users },
+        { to: '/data', label: 'Dashboard', icon: LayoutDashboard },
+        { to: '/data/supporters', label: 'Supporters', icon: Users },
       ],
     },
     {
       label: 'Data Entry',
       items: [
-        { to: '/team/scan', label: 'Scan Blue Form', icon: Camera },
-        { to: '/team/entry', label: 'Manual Entry', icon: ClipboardPlus },
-        { to: '/team/import', label: 'Excel Import', icon: Upload },
-        { to: '/team/gec', label: 'GEC Voter List', icon: Database },
+        { to: '/data/scan', label: 'Scan Blue Form', icon: Camera },
+        { to: '/data/entry', label: 'Manual Entry', icon: ClipboardPlus },
+        { to: '/data/import', label: 'Excel Import', icon: Upload },
+        { to: '/data/gec', label: 'GEC Voter List', icon: Database },
       ],
     },
     {
       label: 'Review',
       items: [
-        { to: '/team/vetting', label: 'Vetting Queue', icon: ShieldCheck, badge: (counts?.flagged_supporters || 0) + (counts?.pending_vetting || 0) },
-        { to: '/team/public-review', label: 'Public Signups', icon: UserCheck, badge: counts?.public_signups_pending || 0 },
-        { to: '/team/duplicates', label: 'Duplicates', icon: Copy },
+        { to: '/data/vetting', label: 'Vetting Queue', icon: ShieldCheck, badge: (counts?.flagged_supporters || 0) + (counts?.pending_vetting || 0) },
+        { to: '/data/public-review', label: 'Public Signups', icon: UserCheck, badge: counts?.public_signups_pending || 0 },
+        { to: '/data/duplicates', label: 'Duplicates', icon: Copy },
       ],
     },
     {
       label: 'Reports',
       items: [
-        { to: '/team/reports', label: 'Generate Reports', icon: FileSpreadsheet },
-        { to: '/team/audit-logs', label: 'Activity Log', icon: ScrollText },
+        { to: '/data/reports', label: 'Generate Reports', icon: FileSpreadsheet },
+        { to: '/data/audit-logs', label: 'Activity Log', icon: ScrollText },
       ],
     },
   ];
 
   const isActive = (to: string) => {
-    if (to === '/team') return location.pathname === '/team';
+    if (to === '/data') return location.pathname === '/data';
     if (location.pathname === to) return true;
     if (location.pathname.startsWith(to + '/')) {
       const allPaths = navGroups.flatMap(g => g.items.map(i => i.to));
@@ -115,7 +115,7 @@ export default function TeamShell({ children }: { children: React.ReactNode }) {
     <nav className="flex flex-col h-full">
       {/* Brand */}
       <div className="px-5 pt-6 pb-5">
-        <Link to="/team" className="block group" onClick={() => setSidebarOpen(false)}>
+        <Link to="/data" className="block group" onClick={() => setSidebarOpen(false)}>
           <div className="flex items-center gap-2 mb-1">
             <Database className="w-5 h-5 text-primary" />
             <span className="text-sm font-bold text-gray-900">Data Team</span>

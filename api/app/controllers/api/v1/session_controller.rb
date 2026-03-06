@@ -49,7 +49,7 @@ module Api
             can_upload_gec: current_user.admin? || current_user.data_team?,
             can_bulk_vet: current_user.admin? || current_user.data_team?,
             can_review_public: current_user.admin? || current_user.data_team? || current_user.coordinator?,
-            default_route: (current_user.data_team? || current_user.admin?) ? "/team" : "/admin",
+            default_route: (current_user.data_team? || current_user.admin?) ? "/data" : "/admin",
             manageable_roles: manageable_roles_for_current_user
           }
         }
