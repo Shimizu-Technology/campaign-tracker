@@ -18,8 +18,6 @@ import {
   Shield,
   Target,
   MapPin,
-  Upload,
-  ShieldCheck,
   Copy,
   TrendingUp,
   ScrollText,
@@ -27,6 +25,7 @@ import {
   X,
   Home,
   Settings,
+  Database,
 } from 'lucide-react';
 
 interface NavItem {
@@ -70,7 +69,6 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
       items: [
         ...(permissions?.can_create_staff_supporters ? [ { to: '/admin/scan', label: 'Scan Form', icon: Camera } ] : []),
         ...(permissions?.can_create_staff_supporters ? [ { to: '/admin/supporters/new', label: 'New Entry', icon: ClipboardPlus } ] : []),
-        ...(permissions?.can_edit_supporters ? [ { to: '/admin/import', label: 'Import', icon: Upload } ] : []),
       ],
     },
     {
@@ -85,7 +83,6 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     {
       label: 'Review',
       items: [
-        ...(permissions?.can_view_supporters ? [ { to: '/admin/vetting', label: 'Vetting', icon: ShieldCheck, badge: sessionData?.counts?.pending_vetting || 0 } ] : []),
         ...(permissions?.can_access_duplicates ? [ { to: '/admin/duplicates', label: 'Duplicates', icon: Copy } ] : []),
         ...(permissions?.can_access_leaderboard ? [ { to: '/admin/leaderboard', label: 'Leaderboard', icon: Trophy } ] : []),
         ...(permissions?.can_access_audit_logs ? [ { to: '/admin/audit-logs', label: 'Activity Log', icon: ScrollText } ] : []),
@@ -174,6 +171,19 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           </div>
         ))}
       </div>
+
+      {/* Data Ops link */}
+      {sessionData?.permissions?.can_access_data_team && (
+        <div className="px-3 pb-2">
+          <Link
+            to="/team"
+            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-all duration-150"
+          >
+            <Database className="w-4 h-4 shrink-0 text-blue-500" />
+            <span>Data Ops Workspace</span>
+          </Link>
+        </div>
+      )}
 
       {/* View Public Site */}
       <div className="mt-auto border-t border-gray-200 pt-3 px-3 pb-4">

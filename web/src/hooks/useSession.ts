@@ -30,6 +30,7 @@ export interface SessionResponse {
     can_access_poll_watcher: boolean;
     can_access_duplicates: boolean;
     can_access_audit_logs: boolean;
+    can_access_data_team: boolean;
     manageable_roles: string[];
   };
 }

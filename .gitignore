@@ -32,3 +32,4 @@ Thumbs.db
 # Coverage
 coverage/
 .env.deploy
+data/
