@@ -438,7 +438,6 @@ module Api
           errors: cached[:errors] || []
         )
       end
-
     end
   end
 end

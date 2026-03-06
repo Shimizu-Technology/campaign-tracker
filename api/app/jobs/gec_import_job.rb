@@ -31,6 +31,7 @@ class GecImportJob < ApplicationJob
         lock_acquired = ActiveModel::Type::Boolean.new.cast(lock_result)
         unless lock_acquired
           Rails.logger.warn("GecImportJob #{gec_import_id}: full_list import lock busy, retrying")
+          should_destroy_upload = false
           gec_import.update!(
             status: "pending",
             metadata: (gec_import.metadata || {}).merge({ "stage" => "queued", "progress_percent" => 0, "note" => "Waiting for another full-list import to finish" })
@@ -43,7 +44,6 @@ class GecImportJob < ApplicationJob
             sheet_name: sheet_name,
             import_type: import_type
           )
-          should_destroy_upload = false
           return
         end
       end
@@ -53,7 +53,7 @@ class GecImportJob < ApplicationJob
         metadata: (gec_import.metadata || {}).merge({ "stage" => "parsing", "progress_percent" => 5 })
       )
 
-      tmp = Tempfile.new([ "gec_import", File.extname(upload.filename.to_s).presence || ".tmp" ])
+      tmp = Tempfile.new([ "gec_import", ".tmp" ])
       tmp.binmode
       tmp.write(upload.file_data)
       tmp.flush
