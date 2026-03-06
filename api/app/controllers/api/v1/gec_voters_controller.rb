@@ -158,6 +158,16 @@ module Api
           end
 
           if async_import
+            max_bytes = 50.megabytes
+            file_size = File.size(import_file_path)
+            if file_size > max_bytes
+              return render_api_error(
+                message: "Uploaded file is too large (max 50 MB)",
+                status: :unprocessable_entity,
+                code: "file_too_large"
+              )
+            end
+
             gec_import = GecImport.create!(
               gec_list_date: gec_list_date,
               filename: File.basename(file.original_filename || import_file_path),
@@ -173,21 +183,6 @@ module Api
             )
 
             begin
-              max_bytes = 50.megabytes
-              file_size = File.size(import_file_path)
-              if file_size > max_bytes
-                gec_import.update!(
-                  status: "failed",
-                  metadata: (gec_import.metadata || {}).merge({ "stage" => "failed", "progress_percent" => 100, "error" => "Uploaded file too large (max 50 MB)" })
-                )
-
-                return render_api_error(
-                  message: "Uploaded file is too large (max 50 MB)",
-                  status: :unprocessable_entity,
-                  code: "file_too_large"
-                )
-              end
-
               upload_payload = GecImportUpload.create!(
                 gec_import: gec_import,
                 filename: File.basename(file.original_filename || import_file_path),

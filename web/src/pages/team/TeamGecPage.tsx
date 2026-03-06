@@ -102,7 +102,6 @@ export default function TeamGecPage() {
       setPreviewData(null);
       setConfirmReview(false);
       setErrorMessage(null);
-      queryClient.invalidateQueries({ queryKey: ['gec-stats'] });
       queryClient.invalidateQueries({ queryKey: ['gec-imports'] });
 
       if (data?.async) {
@@ -111,6 +110,7 @@ export default function TeamGecPage() {
         return;
       }
 
+      queryClient.invalidateQueries({ queryKey: ['gec-stats'] });
       const s = data.stats;
       const lines = [
         `Import successful!`,
