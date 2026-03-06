@@ -173,7 +173,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
       </div>
 
       {/* Data Ops link */}
-      {(sessionData?.permissions as Record<string, boolean> | undefined)?.can_access_data_team && (
+      {sessionData?.permissions?.can_access_data_team && (
         <div className="px-3 pb-2">
           <Link
             to="/team"
