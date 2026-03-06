@@ -91,6 +91,7 @@ module Api
         import_file_path = file.tempfile.path
         pdf_qa = nil
         csv_tempfile = nil
+        async_import = params[:async_import].nil? ? true : ActiveModel::Type::Boolean.new.cast(params[:async_import])
 
         begin
           if pdf_file?(file)
@@ -156,34 +157,66 @@ module Api
             import_file_path = csv_tempfile.path
           end
 
-          service = GecImportService.new(
-            file_path: import_file_path,
-            gec_list_date: gec_list_date,
-            uploaded_by_user: current_user,
-            sheet_name: sheet_name,
-            import_type: import_type
-          )
+          if async_import
+            persisted_file_path = persist_import_file!(import_file_path, file.original_filename)
+            gec_import = GecImport.create!(
+              gec_list_date: gec_list_date,
+              filename: File.basename(file.original_filename || import_file_path),
+              uploaded_by_user: current_user,
+              import_type: import_type,
+              status: "processing",
+              metadata: {
+                stage: "queued",
+                progress_percent: 0,
+                pdf_qa: pdf_qa,
+                mode: "async"
+              }
+            )
 
-          result = service.call
-
-          if result.success
-            log_audit!(result.gec_import, action: "gec_import", changed_data: result.stats)
+            GecImportJob.perform_later(
+              gec_import_id: gec_import.id,
+              file_path: persisted_file_path,
+              gec_list_date: gec_list_date.to_s,
+              uploaded_by_user_id: current_user&.id,
+              sheet_name: sheet_name,
+              import_type: import_type
+            )
 
             render json: {
-              message: "GEC voter list imported successfully",
-              import: result.gec_import.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :transferred_records, :re_vetted_count, :ambiguous_dob_count, :import_type, :status ]),
-              stats: result.stats,
-              change_summary: result.gec_import.change_summary,
-              pdf_qa: pdf_qa,
-              errors: result.errors.first(20)
-            }, status: :created
+              message: "GEC import queued in background",
+              async: true,
+              import: gec_import.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :transferred_records, :re_vetted_count, :ambiguous_dob_count, :import_type, :status, :metadata ])
+            }, status: :accepted
           else
-            render_api_error(
-              message: "Import failed: #{result.errors.first}",
-              status: :unprocessable_entity,
-              code: "import_failed",
-              details: result.errors.first(20)
+            service = GecImportService.new(
+              file_path: import_file_path,
+              gec_list_date: gec_list_date,
+              uploaded_by_user: current_user,
+              sheet_name: sheet_name,
+              import_type: import_type
             )
+
+            result = service.call
+
+            if result.success
+              log_audit!(result.gec_import, action: "gec_import", changed_data: result.stats)
+
+              render json: {
+                message: "GEC voter list imported successfully",
+                import: result.gec_import.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :transferred_records, :re_vetted_count, :ambiguous_dob_count, :import_type, :status, :metadata ]),
+                stats: result.stats,
+                change_summary: result.gec_import.change_summary,
+                pdf_qa: pdf_qa,
+                errors: result.errors.first(20)
+              }, status: :created
+            else
+              render_api_error(
+                message: "Import failed: #{result.errors.first}",
+                status: :unprocessable_entity,
+                code: "import_failed",
+                details: result.errors.first(20)
+              )
+            end
           end
         ensure
           csv_tempfile&.close!
@@ -260,7 +293,7 @@ module Api
         imports = GecImport.latest.limit(20)
 
         render json: {
-          imports: imports.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :transferred_records, :re_vetted_count, :ambiguous_dob_count, :import_type, :status, :created_at ])
+          imports: imports.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :transferred_records, :re_vetted_count, :ambiguous_dob_count, :import_type, :status, :created_at, :metadata ])
         }
       end
 
@@ -369,6 +402,17 @@ module Api
           warnings: cached[:warnings] || [],
           errors: cached[:errors] || []
         )
+      end
+
+      def persist_import_file!(source_path, original_filename)
+        ext = File.extname(original_filename.to_s).presence || File.extname(source_path.to_s).presence || ".tmp"
+        upload_dir = Rails.root.join("tmp", "gec_uploads")
+        FileUtils.mkdir_p(upload_dir)
+
+        target_path = upload_dir.join("#{SecureRandom.uuid}#{ext}")
+        FileUtils.cp(source_path, target_path)
+
+        target_path.to_s
       end
     end
   end

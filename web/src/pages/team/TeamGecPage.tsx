@@ -46,11 +46,21 @@ export default function TeamGecPage() {
   const [confirmReview, setConfirmReview] = useState(false);
 
   const { data: stats, isLoading: statsLoading } = useQuery({ queryKey: ['gec-stats'], queryFn: getGecStats });
-  const { data: imports } = useQuery({ queryKey: ['gec-imports'], queryFn: getGecImports });
+  const { data: imports } = useQuery({
+    queryKey: ['gec-imports'],
+    queryFn: getGecImports,
+    refetchInterval: (query) => {
+      const rows = (query.state.data as { imports?: Array<Record<string, unknown>> } | undefined)?.imports || [];
+      return rows.some((r) => r.status === 'processing' || r.status === 'pending') ? 3000 : false;
+    }
+  });
 
   const isPdfPreview = previewData?.source_type === 'pdf';
   const pdfStatus = isPdfPreview ? previewData.qa?.status : null;
   const reviewNeedsConfirmation = pdfStatus === 'review' && !confirmReview;
+  const activeImport = imports?.imports?.find((imp: Record<string, unknown>) => imp.status === 'processing' || imp.status === 'pending');
+  const activeProgress = Number((activeImport?.metadata as Record<string, unknown> | undefined)?.progress_percent || 0);
+  const activeStage = String((activeImport?.metadata as Record<string, unknown> | undefined)?.stage || 'processing');
 
   const previewMutation = useMutation({
     mutationFn: () => previewGecList(file!, sheetName || undefined),
@@ -71,7 +81,8 @@ export default function TeamGecPage() {
       sheetName || undefined,
       importType,
       isPdfPreview ? previewData.parse_cache_key || undefined : undefined,
-      confirmReview
+      confirmReview,
+      true
     ),
     onSuccess: (data) => {
       setFile(null);
@@ -83,6 +94,13 @@ export default function TeamGecPage() {
       setErrorMessage(null);
       queryClient.invalidateQueries({ queryKey: ['gec-stats'] });
       queryClient.invalidateQueries({ queryKey: ['gec-imports'] });
+
+      if (data?.async) {
+        const importId = data?.import?.id;
+        setSuccessMessage(`Import queued in background${importId ? ` (ID #${importId})` : ''}. You can leave this page — progress will continue and update in Import History.`);
+        return;
+      }
+
       const s = data.stats;
       const lines = [
         `Import successful!`,
@@ -173,6 +191,21 @@ export default function TeamGecPage() {
           </div>
         )}
       </div>
+
+      {activeImport && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <div className="text-sm font-semibold text-blue-900">Background import in progress</div>
+            <div className="text-xs text-blue-700 capitalize">{activeStage.replace(/_/g, ' ')}</div>
+          </div>
+          <div className="w-full h-2 bg-blue-100 rounded-full overflow-hidden">
+            <div className="h-full bg-blue-600 transition-all" style={{ width: `${Math.max(5, Math.min(100, activeProgress))}%` }} />
+          </div>
+          <div className="mt-2 text-xs text-blue-700">
+            {activeProgress}% complete — safe to leave this page. Progress updates automatically.
+          </div>
+        </div>
+      )}
 
       {/* Upload */}
       <div className="bg-white rounded-xl border border-gray-200 p-5">
@@ -396,7 +429,11 @@ export default function TeamGecPage() {
                     </td>
                     <td className="py-2 px-3">
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                        imp.status === 'completed' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                        imp.status === 'completed'
+                          ? 'bg-green-50 text-green-700'
+                          : (imp.status === 'processing' || imp.status === 'pending')
+                          ? 'bg-amber-50 text-amber-700'
+                          : 'bg-red-50 text-red-700'
                       }`}>
                         {imp.status as string}
                       </span>
