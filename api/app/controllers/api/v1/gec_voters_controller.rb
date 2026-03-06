@@ -164,23 +164,37 @@ module Api
               filename: File.basename(file.original_filename || import_file_path),
               uploaded_by_user: current_user,
               import_type: import_type,
-              status: "processing",
+              status: "pending",
               metadata: {
-                stage: "queued",
-                progress_percent: 0,
-                pdf_qa: pdf_qa,
-                mode: "async"
+                "stage" => "queued",
+                "progress_percent" => 0,
+                "pdf_qa" => pdf_qa,
+                "mode" => "async"
               }
             )
 
-            GecImportJob.perform_later(
-              gec_import_id: gec_import.id,
-              file_path: persisted_file_path,
-              gec_list_date: gec_list_date.to_s,
-              uploaded_by_user_id: current_user&.id,
-              sheet_name: sheet_name,
-              import_type: import_type
-            )
+            begin
+              GecImportJob.perform_later(
+                gec_import_id: gec_import.id,
+                file_path: persisted_file_path,
+                gec_list_date: gec_list_date.to_s,
+                uploaded_by_user_id: current_user&.id,
+                sheet_name: sheet_name,
+                import_type: import_type
+              )
+            rescue StandardError => e
+              File.delete(persisted_file_path) if persisted_file_path.present? && File.exist?(persisted_file_path)
+              gec_import.update!(
+                status: "failed",
+                metadata: (gec_import.metadata || {}).merge({ "stage" => "failed", "progress_percent" => 100, "error" => "Failed to enqueue import: #{e.message}" })
+              )
+
+              return render_api_error(
+                message: "Failed to queue import: #{e.message}",
+                status: :unprocessable_entity,
+                code: "import_enqueue_failed"
+              )
+            end
 
             render json: {
               message: "GEC import queued in background",

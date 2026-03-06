@@ -113,20 +113,18 @@ class GecImportService
       @stats[:total] = rows.size
       @import_started_at = Time.current
 
-      ActiveRecord::Base.transaction do
-        rows.each_with_index do |row, idx|
-          process_row(row, column_map, idx + 2) # +2 for 1-indexed header row
-          if (idx % 500).zero?
-            # 20..85% while processing rows
-            progress = 20 + ((idx.to_f / [ rows.size, 1 ].max) * 65).to_i
-            update_progress!(gec_import, stage: "importing", percent: [ progress, 85 ].min)
-          end
+      rows.each_with_index do |row, idx|
+        process_row(row, column_map, idx + 2) # +2 for 1-indexed header row
+        if (idx % 500).zero?
+          # 20..85% while processing rows
+          progress = 20 + ((idx.to_f / [ rows.size, 1 ].max) * 65).to_i
+          update_progress!(gec_import, stage: "importing", percent: [ progress, 85 ].min)
         end
+      end
 
-        # For full list imports, detect purged voters (in DB but not in file)
-        if @import_type == "full_list" && @seen_voter_ids.any?
-          detect_purged_voters(gec_import)
-        end
+      # For full list imports, detect purged voters (in DB but not in file)
+      if @import_type == "full_list" && @seen_voter_ids.any?
+        detect_purged_voters(gec_import)
       end
 
       # Re-vet affected supporters (outside transaction for performance)
