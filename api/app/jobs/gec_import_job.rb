@@ -1,7 +1,11 @@
 # frozen_string_literal: true
 
+require "zlib"
+
 class GecImportJob < ApplicationJob
   queue_as :default
+
+  FULL_LIST_IMPORT_LOCK_KEY = Zlib.crc32("gec_full_list_import_lock")
 
   def perform(gec_import_id:, upload_id:, gec_list_date:, uploaded_by_user_id: nil, sheet_name: nil, import_type: "full_list")
     gec_import = GecImport.find_by(id: gec_import_id)
@@ -18,8 +22,29 @@ class GecImportJob < ApplicationJob
 
     user = uploaded_by_user_id.present? ? User.find_by(id: uploaded_by_user_id) : nil
     tmp_file_path = nil
+    lock_acquired = false
 
     begin
+      if import_type == "full_list"
+        lock_acquired = ActiveRecord::Base.connection.select_value("SELECT pg_try_advisory_lock(#{FULL_LIST_IMPORT_LOCK_KEY})")
+        unless lock_acquired
+          Rails.logger.warn("GecImportJob #{gec_import_id}: full_list import lock busy, retrying")
+          gec_import.update!(
+            status: "pending",
+            metadata: (gec_import.metadata || {}).merge({ "stage" => "queued", "progress_percent" => 0, "note" => "Waiting for another full-list import to finish" })
+          )
+          self.class.set(wait: 30.seconds).perform_later(
+            gec_import_id: gec_import_id,
+            upload_id: upload_id,
+            gec_list_date: gec_list_date,
+            uploaded_by_user_id: uploaded_by_user_id,
+            sheet_name: sheet_name,
+            import_type: import_type
+          )
+          return
+        end
+      end
+
       gec_import.update!(
         status: "processing",
         metadata: (gec_import.metadata || {}).merge({ "stage" => "parsing", "progress_percent" => 5 })
@@ -66,6 +91,9 @@ class GecImportJob < ApplicationJob
     ensure
       File.delete(tmp_file_path) if tmp_file_path.present? && File.exist?(tmp_file_path)
       upload&.destroy
+      if lock_acquired
+        ActiveRecord::Base.connection.execute("SELECT pg_advisory_unlock(#{FULL_LIST_IMPORT_LOCK_KEY})")
+      end
     end
   end
 end

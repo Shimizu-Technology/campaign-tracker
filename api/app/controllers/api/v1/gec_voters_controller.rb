@@ -172,14 +172,29 @@ module Api
               }
             )
 
-            upload_payload = GecImportUpload.create!(
-              gec_import: gec_import,
-              filename: File.basename(file.original_filename || import_file_path),
-              content_type: file.content_type,
-              file_data: File.binread(import_file_path)
-            )
-
             begin
+              max_bytes = 50.megabytes
+              file_size = File.size(import_file_path)
+              if file_size > max_bytes
+                gec_import.update!(
+                  status: "failed",
+                  metadata: (gec_import.metadata || {}).merge({ "stage" => "failed", "progress_percent" => 100, "error" => "Uploaded file too large (max 50 MB)" })
+                )
+
+                return render_api_error(
+                  message: "Uploaded file is too large (max 50 MB)",
+                  status: :unprocessable_entity,
+                  code: "file_too_large"
+                )
+              end
+
+              upload_payload = GecImportUpload.create!(
+                gec_import: gec_import,
+                filename: File.basename(file.original_filename || import_file_path),
+                content_type: file.content_type,
+                file_data: File.binread(import_file_path)
+              )
+
               GecImportJob.perform_later(
                 gec_import_id: gec_import.id,
                 upload_id: upload_payload.id,
@@ -189,10 +204,9 @@ module Api
                 import_type: import_type
               )
             rescue StandardError => e
-              upload_payload.destroy
               gec_import.update!(
                 status: "failed",
-                metadata: (gec_import.metadata || {}).merge({ "stage" => "failed", "progress_percent" => 100, "error" => "Failed to enqueue import: #{e.message}" })
+                metadata: (gec_import.metadata || {}).merge({ "stage" => "failed", "progress_percent" => 100, "error" => "Failed to queue import: #{e.message}" })
               )
 
               return render_api_error(
