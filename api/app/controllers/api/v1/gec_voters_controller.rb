@@ -168,9 +168,17 @@ module Api
               )
             end
 
+            # For PDF uploads, the data stored/processed is the converted CSV, so reflect
+            # that in the GecImport filename (consistent with GecImportUpload.filename).
+            import_display_filename = if pdf_file?(file)
+              "#{File.basename(file.original_filename.to_s, ".*")}.csv"
+            else
+              File.basename(file.original_filename || import_file_path)
+            end
+
             gec_import = GecImport.create!(
               gec_list_date: gec_list_date,
-              filename: File.basename(file.original_filename || import_file_path),
+              filename: import_display_filename,
               uploaded_by_user: current_user,
               import_type: import_type,
               status: "pending",

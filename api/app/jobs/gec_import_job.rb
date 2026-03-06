@@ -8,6 +8,12 @@ class GecImportJob < ApplicationJob
   IMPORT_LOCK_KEY_2 = 1
   MAX_IMPORT_REQUEUE_ATTEMPTS = 10
 
+  # Process-level mutex to prevent concurrent imports within the same multi-threaded
+  # worker (e.g. Sidekiq). pg_try_advisory_lock is session-level and each thread gets
+  # its own DB connection, so two threads in the same process could both acquire the
+  # lock. This mutex gates access before the DB lock for belt-and-suspenders safety.
+  IMPORT_MUTEX = Mutex.new
+
   def perform(gec_import_id:, upload_id:, gec_list_date:, uploaded_by_user_id: nil, sheet_name: nil, import_type: "full_list")
     gec_import = GecImport.find_by(id: gec_import_id)
     upload = GecImportUpload.find_by(id: upload_id)
@@ -28,44 +34,24 @@ class GecImportJob < ApplicationJob
     user = uploaded_by_user_id.present? ? User.find_by(id: uploaded_by_user_id) : nil
     tmp_file_path = nil
     lock_acquired = false
+    mutex_acquired = false
     should_destroy_upload = true
 
     begin
+      # Layer 1: Process-level mutex (protects against multi-threaded workers like Sidekiq)
+      mutex_acquired = IMPORT_MUTEX.try_lock
+      unless mutex_acquired
+        handle_lock_contention(gec_import, gec_import_id, upload_id, gec_list_date, uploaded_by_user_id, sheet_name, import_type)
+        should_destroy_upload = false
+        return
+      end
+
+      # Layer 2: DB advisory lock (protects across separate worker processes/dynos)
       lock_result = ActiveRecord::Base.connection.select_value("SELECT pg_try_advisory_lock(#{IMPORT_LOCK_KEY_1}, #{IMPORT_LOCK_KEY_2})")
       lock_acquired = ActiveModel::Type::Boolean.new.cast(lock_result)
       unless lock_acquired
-        requeue_count = (gec_import.metadata || {})["requeue_count"].to_i
-        if requeue_count >= MAX_IMPORT_REQUEUE_ATTEMPTS
-          gec_import.update!(
-            status: "failed",
-            metadata: (gec_import.metadata || {}).merge({
-              "stage" => "failed",
-              "progress_percent" => 100,
-              "error" => "Exceeded import lock requeue limit (#{MAX_IMPORT_REQUEUE_ATTEMPTS})"
-            })
-          )
-          return
-        end
-
-        Rails.logger.warn("GecImportJob #{gec_import_id}: import lock busy for #{import_type}, retrying (#{requeue_count + 1}/#{MAX_IMPORT_REQUEUE_ATTEMPTS})")
+        handle_lock_contention(gec_import, gec_import_id, upload_id, gec_list_date, uploaded_by_user_id, sheet_name, import_type)
         should_destroy_upload = false
-        gec_import.update!(
-          status: "pending",
-          metadata: (gec_import.metadata || {}).merge({
-            "stage" => "queued",
-            "progress_percent" => 0,
-            "note" => "Waiting for another import to finish",
-            "requeue_count" => requeue_count + 1
-          })
-        )
-        self.class.set(wait: 30.seconds).perform_later(
-          gec_import_id: gec_import_id,
-          upload_id: upload_id,
-          gec_list_date: gec_list_date,
-          uploaded_by_user_id: uploaded_by_user_id,
-          sheet_name: sheet_name,
-          import_type: import_type
-        )
         return
       end
 
@@ -104,7 +90,11 @@ class GecImportJob < ApplicationJob
               entry_mode: "async_import_job",
               context: "background_job",
               request_context_available: false,
-              source: "gec_import_job"
+              source: "gec_import_job",
+              uploaded_by_user_id: user&.id,
+              uploaded_by_user_email: user&.email,
+              import_type: import_type,
+              gec_list_date: gec_list_date
             }
           )
         rescue StandardError => e
@@ -127,6 +117,43 @@ class GecImportJob < ApplicationJob
           Rails.logger.warn("GecImportJob #{gec_import_id}: advisory unlock failed: #{e.class}: #{e.message}")
         end
       end
+      IMPORT_MUTEX.unlock if mutex_acquired
     end
+  end
+
+  private
+
+  def handle_lock_contention(gec_import, gec_import_id, upload_id, gec_list_date, uploaded_by_user_id, sheet_name, import_type)
+    requeue_count = (gec_import.metadata || {})["requeue_count"].to_i
+    if requeue_count >= MAX_IMPORT_REQUEUE_ATTEMPTS
+      gec_import.update!(
+        status: "failed",
+        metadata: (gec_import.metadata || {}).merge({
+          "stage" => "failed",
+          "progress_percent" => 100,
+          "error" => "Exceeded import lock requeue limit (#{MAX_IMPORT_REQUEUE_ATTEMPTS})"
+        })
+      )
+      return
+    end
+
+    Rails.logger.warn("GecImportJob #{gec_import_id}: import lock busy for #{import_type}, retrying (#{requeue_count + 1}/#{MAX_IMPORT_REQUEUE_ATTEMPTS})")
+    gec_import.update!(
+      status: "pending",
+      metadata: (gec_import.metadata || {}).merge({
+        "stage" => "queued",
+        "progress_percent" => 0,
+        "note" => "Waiting for another import to finish",
+        "requeue_count" => requeue_count + 1
+      })
+    )
+    self.class.set(wait: 30.seconds).perform_later(
+      gec_import_id: gec_import_id,
+      upload_id: upload_id,
+      gec_list_date: gec_list_date,
+      uploaded_by_user_id: uploaded_by_user_id,
+      sheet_name: sheet_name,
+      import_type: import_type
+    )
   end
 end
