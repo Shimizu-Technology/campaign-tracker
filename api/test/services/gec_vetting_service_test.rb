@@ -95,6 +95,34 @@ class GecVettingServiceTest < ActiveSupport::TestCase
     assert_equal :auto_verified, result.status
   end
 
+  test "flags high-confidence multi-candidate birth-year matches for manual review" do
+    GecVoter.delete_all
+
+    2.times do |i|
+      GecVoter.create!(
+        first_name: "Juan",
+        last_name: "Cruz",
+        dob: Date.new(1985, 1, 1),
+        birth_year: 1985,
+        village_name: "Barrigada",
+        voter_registration_number: "VRX#{i + 1}",
+        gec_list_date: Date.new(2026, 2, 25),
+        imported_at: Time.current,
+        status: "active"
+      )
+    end
+
+    supporter = create_supporter(first_name: "Juan", last_name: "Cruz", dob: Date.new(1985, 3, 15), village: @village)
+
+    result = GecVettingService.new(supporter).call
+
+    assert_equal :flagged, result.status
+    assert_equal 2, result.match_count
+    supporter.reload
+    assert_equal "flagged", supporter.verification_status
+    assert supporter.registered_voter
+  end
+
   private
 
   def create_supporter(first_name:, last_name:, village:, dob: nil)

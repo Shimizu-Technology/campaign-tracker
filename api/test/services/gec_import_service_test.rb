@@ -130,6 +130,15 @@ class GecImportServiceTest < ActiveSupport::TestCase
     assert_equal 0, GecVoter.count, "Preview should not create records"
   end
 
+  test "parse_birth_year rejects out-of-range Date/DateTime/Time years" do
+    service = GecImportService.new(file_path: "/tmp/fake.xlsx", gec_list_date: Date.new(2026, 2, 25))
+
+    assert_nil service.send(:parse_birth_year, Date.new(2099, 1, 1))
+    assert_nil service.send(:parse_birth_year, DateTime.new(1899, 1, 1, 0, 0, 0))
+    assert_nil service.send(:parse_birth_year, Time.new(2099, 1, 1, 0, 0, 0))
+    assert_equal 1985, service.send(:parse_birth_year, Date.new(1985, 7, 1))
+  end
+
   test "creates GecImport record" do
     file = create_test_excel([
       [ "First Name", "Last Name", "Village" ],
@@ -228,6 +237,36 @@ class GecImportServiceTest < ActiveSupport::TestCase
     assert_equal "Dededo", juan.village_name
     assert_equal "Barrigada", juan.previous_village_name
     assert_equal "active", juan.status
+  end
+
+  test "birth-year-only transfer fallback does not merge when multiple candidates exist" do
+    GecVoter.create!(
+      first_name: "Juan", last_name: "Cruz", birth_year: 1985, village_name: "Barrigada",
+      gec_list_date: Date.new(2026, 1, 25), imported_at: 1.month.ago, status: "active"
+    )
+    GecVoter.create!(
+      first_name: "Juan", last_name: "Cruz", birth_year: 1985, village_name: "Dededo",
+      gec_list_date: Date.new(2026, 1, 25), imported_at: 1.month.ago, status: "active"
+    )
+
+    file = create_test_excel([
+      [ "First Name", "Last Name", "Birth Year", "Village", "Reg No" ],
+      [ "Juan", "Cruz", 1985, "Yigo", "VR001" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      import_type: "changes_only"
+    ).call
+
+    assert result.success
+    assert_equal 0, result.stats[:transferred]
+    assert_equal 1, result.stats[:new]
+
+    yigo_row = GecVoter.find_by(first_name: "Juan", last_name: "Cruz", village_name: "Yigo")
+    assert_not_nil yigo_row
+    assert_nil yigo_row.previous_village_name
   end
 
   test "full_list import re-flags verified supporters when voter is removed" do
