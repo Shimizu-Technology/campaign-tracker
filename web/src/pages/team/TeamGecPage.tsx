@@ -59,11 +59,15 @@ export default function TeamGecPage() {
   const isPdfPreview = previewData?.source_type === 'pdf';
   const pdfStatus = isPdfPreview ? previewData.qa?.status : null;
   const reviewNeedsConfirmation = pdfStatus === 'review' && !confirmReview;
-  const activeImport = imports?.imports?.find((imp: Record<string, unknown>) => imp.status === 'processing' || imp.status === 'pending');
-  const hasActiveImport = Boolean(activeImport);
+  const activeImports = (imports?.imports || []).filter(
+    (imp: Record<string, unknown>) => imp.status === 'processing' || imp.status === 'pending'
+  );
+  const hasActiveImport = activeImports.length > 0;
+  const activeImport = activeImports.find((imp: Record<string, unknown>) => imp.status === 'processing') || activeImports[0];
   const activeProgress = Number((activeImport?.metadata as Record<string, unknown> | undefined)?.progress_percent || 0);
   const activeProgressDisplay = Math.max(5, Math.min(100, activeProgress));
   const activeStage = String((activeImport?.metadata as Record<string, unknown> | undefined)?.stage || 'processing');
+  const activeImportCount = activeImports.length;
 
   const previouslyHadActiveImport = useRef(false);
   useEffect(() => {
@@ -206,7 +210,9 @@ export default function TeamGecPage() {
       {activeImport && (
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
           <div className="flex items-center justify-between gap-3 mb-2">
-            <div className="text-sm font-semibold text-blue-900">Background import in progress</div>
+            <div className="text-sm font-semibold text-blue-900">
+              {activeImportCount > 1 ? `${activeImportCount} imports in progress` : 'Background import in progress'}
+            </div>
             <div className="text-xs text-blue-700 capitalize">{activeStage.replace(/_/g, ' ')}</div>
           </div>
           <div className="w-full h-2 bg-blue-100 rounded-full overflow-hidden">

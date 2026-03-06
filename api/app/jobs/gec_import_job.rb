@@ -4,9 +4,9 @@ class GecImportJob < ApplicationJob
   queue_as :default
 
   # Use 2-key advisory lock form for portability and to avoid bigint/casting edge cases.
-  FULL_LIST_IMPORT_LOCK_KEY_1 = 81
-  FULL_LIST_IMPORT_LOCK_KEY_2 = 1
-  MAX_FULL_LIST_REQUEUE_ATTEMPTS = 10
+  IMPORT_LOCK_KEY_1 = 81
+  IMPORT_LOCK_KEY_2 = 1
+  MAX_IMPORT_REQUEUE_ATTEMPTS = 10
 
   def perform(gec_import_id:, upload_id:, gec_list_date:, uploaded_by_user_id: nil, sheet_name: nil, import_type: "full_list")
     gec_import = GecImport.find_by(id: gec_import_id)
@@ -31,44 +31,42 @@ class GecImportJob < ApplicationJob
     should_destroy_upload = true
 
     begin
-      if import_type == "full_list"
-        lock_result = ActiveRecord::Base.connection.select_value("SELECT pg_try_advisory_lock(#{FULL_LIST_IMPORT_LOCK_KEY_1}, #{FULL_LIST_IMPORT_LOCK_KEY_2})")
-        lock_acquired = ActiveModel::Type::Boolean.new.cast(lock_result)
-        unless lock_acquired
-          requeue_count = (gec_import.metadata || {})["requeue_count"].to_i
-          if requeue_count >= MAX_FULL_LIST_REQUEUE_ATTEMPTS
-            gec_import.update!(
-              status: "failed",
-              metadata: (gec_import.metadata || {}).merge({
-                "stage" => "failed",
-                "progress_percent" => 100,
-                "error" => "Exceeded lock requeue limit (#{MAX_FULL_LIST_REQUEUE_ATTEMPTS})"
-              })
-            )
-            return
-          end
-
-          Rails.logger.warn("GecImportJob #{gec_import_id}: full_list import lock busy, retrying (#{requeue_count + 1}/#{MAX_FULL_LIST_REQUEUE_ATTEMPTS})")
-          should_destroy_upload = false
+      lock_result = ActiveRecord::Base.connection.select_value("SELECT pg_try_advisory_lock(#{IMPORT_LOCK_KEY_1}, #{IMPORT_LOCK_KEY_2})")
+      lock_acquired = ActiveModel::Type::Boolean.new.cast(lock_result)
+      unless lock_acquired
+        requeue_count = (gec_import.metadata || {})["requeue_count"].to_i
+        if requeue_count >= MAX_IMPORT_REQUEUE_ATTEMPTS
           gec_import.update!(
-            status: "pending",
+            status: "failed",
             metadata: (gec_import.metadata || {}).merge({
-              "stage" => "queued",
-              "progress_percent" => 0,
-              "note" => "Waiting for another full-list import to finish",
-              "requeue_count" => requeue_count + 1
+              "stage" => "failed",
+              "progress_percent" => 100,
+              "error" => "Exceeded import lock requeue limit (#{MAX_IMPORT_REQUEUE_ATTEMPTS})"
             })
-          )
-          self.class.set(wait: 30.seconds).perform_later(
-            gec_import_id: gec_import_id,
-            upload_id: upload_id,
-            gec_list_date: gec_list_date,
-            uploaded_by_user_id: uploaded_by_user_id,
-            sheet_name: sheet_name,
-            import_type: import_type
           )
           return
         end
+
+        Rails.logger.warn("GecImportJob #{gec_import_id}: import lock busy for #{import_type}, retrying (#{requeue_count + 1}/#{MAX_IMPORT_REQUEUE_ATTEMPTS})")
+        should_destroy_upload = false
+        gec_import.update!(
+          status: "pending",
+          metadata: (gec_import.metadata || {}).merge({
+            "stage" => "queued",
+            "progress_percent" => 0,
+            "note" => "Waiting for another import to finish",
+            "requeue_count" => requeue_count + 1
+          })
+        )
+        self.class.set(wait: 30.seconds).perform_later(
+          gec_import_id: gec_import_id,
+          upload_id: upload_id,
+          gec_list_date: gec_list_date,
+          uploaded_by_user_id: uploaded_by_user_id,
+          sheet_name: sheet_name,
+          import_type: import_type
+        )
+        return
       end
 
       gec_import.update!(
@@ -124,7 +122,7 @@ class GecImportJob < ApplicationJob
       upload&.destroy if should_destroy_upload
       if lock_acquired
         begin
-          ActiveRecord::Base.connection.execute("SELECT pg_advisory_unlock(#{FULL_LIST_IMPORT_LOCK_KEY_1}, #{FULL_LIST_IMPORT_LOCK_KEY_2})")
+          ActiveRecord::Base.connection.execute("SELECT pg_advisory_unlock(#{IMPORT_LOCK_KEY_1}, #{IMPORT_LOCK_KEY_2})")
         rescue StandardError => e
           Rails.logger.warn("GecImportJob #{gec_import_id}: advisory unlock failed: #{e.class}: #{e.message}")
         end
