@@ -45,7 +45,7 @@ export default function LandingPage() {
             <p className="text-xs text-blue-200/80">For Governor & Lt. Governor of Guam</p>
           </div>
           <Link
-            to="/admin"
+            to="/data"
             className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-sm font-medium min-h-[44px] flex items-center transition-colors"
           >
             Staff Dashboard
