@@ -10,7 +10,7 @@ function DataOpsRedirectBanner() {
     <div className="mb-6 flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
       <ShieldCheck className="w-4 h-4 shrink-0 text-blue-500" />
       <span>Vetting is now managed in the <strong>Data Ops Workspace</strong> for a cleaner workflow.</span>
-      <Link to="/team/vetting" className="ml-auto flex items-center gap-1 font-semibold text-blue-700 hover:text-blue-900 whitespace-nowrap">
+      <Link to="/data/vetting" className="ml-auto flex items-center gap-1 font-semibold text-blue-700 hover:text-blue-900 whitespace-nowrap">
         Go to Data Ops <ArrowRight className="w-3.5 h-3.5" />
       </Link>
     </div>

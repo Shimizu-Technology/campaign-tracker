@@ -63,7 +63,7 @@ export default function TeamDashboardPage() {
           icon={ShieldCheck}
           color="amber"
           detail="Needs manual review"
-          to="/team/vetting"
+          to="/data/vetting"
         />
         <StatCard
           label="Public Signups"
@@ -71,7 +71,7 @@ export default function TeamDashboardPage() {
           icon={UserCheck}
           color="blue"
           detail="Awaiting review"
-          to="/team/public-review"
+          to="/data/public-review"
         />
         <StatCard
           label="Total Active"
@@ -120,10 +120,10 @@ export default function TeamDashboardPage() {
       <div>
         <h2 className="text-sm font-semibold text-gray-700 mb-3">Quick Actions</h2>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <QuickAction to="/team/scan" icon={Camera} label="Scan Blue Form" />
-          <QuickAction to="/team/entry" icon={ClipboardPlus} label="Manual Entry" />
-          <QuickAction to="/team/import" icon={Upload} label="Excel Import" />
-          <QuickAction to="/team/gec" icon={Database} label="GEC Voter List" />
+          <QuickAction to="/data/scan" icon={Camera} label="Scan Blue Form" />
+          <QuickAction to="/data/entry" icon={ClipboardPlus} label="Manual Entry" />
+          <QuickAction to="/data/import" icon={Upload} label="Excel Import" />
+          <QuickAction to="/data/gec" icon={Database} label="GEC Voter List" />
         </div>
       </div>
 
@@ -133,7 +133,7 @@ export default function TeamDashboardPage() {
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-gray-700">GEC Voter List Status</h2>
-            <Link to="/team/gec" className="text-xs text-blue-600 hover:text-blue-700 font-medium">Manage</Link>
+            <Link to="/data/gec" className="text-xs text-blue-600 hover:text-blue-700 font-medium">Manage</Link>
           </div>
           {gecStats ? (
             <div className="space-y-3">
@@ -169,7 +169,7 @@ export default function TeamDashboardPage() {
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-gray-700">Reports</h2>
-            <Link to="/team/reports" className="text-xs text-blue-600 hover:text-blue-700 font-medium">View All</Link>
+            <Link to="/data/reports" className="text-xs text-blue-600 hover:text-blue-700 font-medium">View All</Link>
           </div>
           <div className="space-y-2">
             {quickStats && (
@@ -182,7 +182,7 @@ export default function TeamDashboardPage() {
               </>
             )}
             <Link
-              to="/team/reports"
+              to="/data/reports"
               className="mt-3 flex items-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 rounded-lg text-sm font-medium text-blue-700 transition-colors"
             >
               <FileSpreadsheet className="w-4 h-4" />

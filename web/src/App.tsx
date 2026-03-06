@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Link, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Link, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AdminLayout from './components/AdminLayout';
 import TeamLayout from './components/TeamLayout';
@@ -369,18 +369,31 @@ export default function App() {
               </AdminRoute>
             }
           />
-          {/* Team (Data Team) routes */}
-          <Route path="/team" element={<TeamLayout><TeamDashboardPage /></TeamLayout>} />
-          <Route path="/team/supporters" element={<TeamLayout><SupportersPage /></TeamLayout>} />
-          <Route path="/team/vetting" element={<TeamLayout><TeamVettingPage /></TeamLayout>} />
-          <Route path="/team/reports" element={<TeamLayout><TeamReportsPage /></TeamLayout>} />
-          <Route path="/team/public-review" element={<TeamLayout><TeamPublicReviewPage /></TeamLayout>} />
-          <Route path="/team/gec" element={<TeamLayout><TeamGecPage /></TeamLayout>} />
-          <Route path="/team/scan" element={<TeamLayout><ScanFormPage /></TeamLayout>} />
-          <Route path="/team/entry" element={<TeamLayout><StaffEntryPage /></TeamLayout>} />
-          <Route path="/team/import" element={<TeamLayout><ImportPage /></TeamLayout>} />
-          <Route path="/team/duplicates" element={<TeamLayout><DuplicatesPage /></TeamLayout>} />
-          <Route path="/team/audit-logs" element={<TeamLayout><AuditLogsPage /></TeamLayout>} />
+          {/* Data Ops routes */}
+          <Route path="/data" element={<TeamLayout><TeamDashboardPage /></TeamLayout>} />
+          <Route path="/data/supporters" element={<TeamLayout><SupportersPage /></TeamLayout>} />
+          <Route path="/data/vetting" element={<TeamLayout><TeamVettingPage /></TeamLayout>} />
+          <Route path="/data/reports" element={<TeamLayout><TeamReportsPage /></TeamLayout>} />
+          <Route path="/data/public-review" element={<TeamLayout><TeamPublicReviewPage /></TeamLayout>} />
+          <Route path="/data/gec" element={<TeamLayout><TeamGecPage /></TeamLayout>} />
+          <Route path="/data/scan" element={<TeamLayout><ScanFormPage /></TeamLayout>} />
+          <Route path="/data/entry" element={<TeamLayout><StaffEntryPage /></TeamLayout>} />
+          <Route path="/data/import" element={<TeamLayout><ImportPage /></TeamLayout>} />
+          <Route path="/data/duplicates" element={<TeamLayout><DuplicatesPage /></TeamLayout>} />
+          <Route path="/data/audit-logs" element={<TeamLayout><AuditLogsPage /></TeamLayout>} />
+
+          {/* Legacy /team aliases (backward compatibility) */}
+          <Route path="/team" element={<Navigate to="/data" replace />} />
+          <Route path="/team/supporters" element={<Navigate to="/data/supporters" replace />} />
+          <Route path="/team/vetting" element={<Navigate to="/data/vetting" replace />} />
+          <Route path="/team/reports" element={<Navigate to="/data/reports" replace />} />
+          <Route path="/team/public-review" element={<Navigate to="/data/public-review" replace />} />
+          <Route path="/team/gec" element={<Navigate to="/data/gec" replace />} />
+          <Route path="/team/scan" element={<Navigate to="/data/scan" replace />} />
+          <Route path="/team/entry" element={<Navigate to="/data/entry" replace />} />
+          <Route path="/team/import" element={<Navigate to="/data/import" replace />} />
+          <Route path="/team/duplicates" element={<Navigate to="/data/duplicates" replace />} />
+          <Route path="/team/audit-logs" element={<Navigate to="/data/audit-logs" replace />} />
         </Routes>
         </Suspense>
       </BrowserRouter>
