@@ -206,6 +206,7 @@ module Api
                 import_type: import_type
               )
             rescue StandardError => e
+              upload_payload&.destroy
               gec_import.update!(
                 status: "failed",
                 metadata: (gec_import.metadata || {}).merge({ "stage" => "failed", "progress_percent" => 100, "error" => "Failed to queue import: #{e.message}" })

@@ -6,6 +6,7 @@ class GecImportJob < ApplicationJob
   # Use 2-key advisory lock form for portability and to avoid bigint/casting edge cases.
   FULL_LIST_IMPORT_LOCK_KEY_1 = 81
   FULL_LIST_IMPORT_LOCK_KEY_2 = 1
+  MAX_FULL_LIST_REQUEUE_ATTEMPTS = 10
 
   def perform(gec_import_id:, upload_id:, gec_list_date:, uploaded_by_user_id: nil, sheet_name: nil, import_type: "full_list")
     gec_import = GecImport.find_by(id: gec_import_id)
@@ -34,11 +35,29 @@ class GecImportJob < ApplicationJob
         lock_result = ActiveRecord::Base.connection.select_value("SELECT pg_try_advisory_lock(#{FULL_LIST_IMPORT_LOCK_KEY_1}, #{FULL_LIST_IMPORT_LOCK_KEY_2})")
         lock_acquired = ActiveModel::Type::Boolean.new.cast(lock_result)
         unless lock_acquired
-          Rails.logger.warn("GecImportJob #{gec_import_id}: full_list import lock busy, retrying")
+          requeue_count = (gec_import.metadata || {})["requeue_count"].to_i
+          if requeue_count >= MAX_FULL_LIST_REQUEUE_ATTEMPTS
+            gec_import.update!(
+              status: "failed",
+              metadata: (gec_import.metadata || {}).merge({
+                "stage" => "failed",
+                "progress_percent" => 100,
+                "error" => "Exceeded lock requeue limit (#{MAX_FULL_LIST_REQUEUE_ATTEMPTS})"
+              })
+            )
+            return
+          end
+
+          Rails.logger.warn("GecImportJob #{gec_import_id}: full_list import lock busy, retrying (#{requeue_count + 1}/#{MAX_FULL_LIST_REQUEUE_ATTEMPTS})")
           should_destroy_upload = false
           gec_import.update!(
             status: "pending",
-            metadata: (gec_import.metadata || {}).merge({ "stage" => "queued", "progress_percent" => 0, "note" => "Waiting for another full-list import to finish" })
+            metadata: (gec_import.metadata || {}).merge({
+              "stage" => "queued",
+              "progress_percent" => 0,
+              "note" => "Waiting for another full-list import to finish",
+              "requeue_count" => requeue_count + 1
+            })
           )
           self.class.set(wait: 30.seconds).perform_later(
             gec_import_id: gec_import_id,
@@ -83,7 +102,12 @@ class GecImportJob < ApplicationJob
             actor_user: user,
             action: "gec_import",
             changed_data: result.stats,
-            metadata: { entry_mode: "async_import_job" }
+            metadata: {
+              entry_mode: "async_import_job",
+              context: "background_job",
+              request_context_available: false,
+              source: "gec_import_job"
+            }
           )
         rescue StandardError => e
           Rails.logger.warn("Async import audit log failed for #{gec_import.id}: #{e.message}")
