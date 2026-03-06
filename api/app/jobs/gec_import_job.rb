@@ -55,13 +55,18 @@ class GecImportJob < ApplicationJob
         return
       end
 
-      # Layer 2: DB advisory lock (protects across separate worker processes/dynos)
-      lock_result = ActiveRecord::Base.connection.select_value("SELECT pg_try_advisory_lock(#{IMPORT_LOCK_KEY_1}, #{IMPORT_LOCK_KEY_2})")
-      lock_acquired = ActiveModel::Type::Boolean.new.cast(lock_result)
-      unless lock_acquired
-        requeued = handle_lock_contention(gec_import, gec_import_id, upload_id, gec_list_date, uploaded_by_user_id, sheet_name, import_type)
-        should_destroy_upload = !requeued
-        return
+      # Layer 2: DB advisory lock — only needed for full_list imports which call
+      # detect_purged_voters and require global voter-state serialization.
+      # changes_only imports do row-level upserts without purge detection, so
+      # fully serializing them behind the same lock is unnecessarily conservative.
+      if import_type == "full_list"
+        lock_result = ActiveRecord::Base.connection.select_value("SELECT pg_try_advisory_lock(#{IMPORT_LOCK_KEY_1}, #{IMPORT_LOCK_KEY_2})")
+        lock_acquired = ActiveModel::Type::Boolean.new.cast(lock_result)
+        unless lock_acquired
+          requeued = handle_lock_contention(gec_import, gec_import_id, upload_id, gec_list_date, uploaded_by_user_id, sheet_name, import_type)
+          should_destroy_upload = !requeued
+          return
+        end
       end
 
       gec_import.update!(

@@ -50,6 +50,9 @@ export default function TeamGecPage() {
     queryKey: ['gec-imports'],
     queryFn: getGecImports,
     refetchInterval: (query) => {
+      // Keep polling (at a slower rate) when errored — the progress banner
+      // stays frozen otherwise with no indication that updates have paused.
+      if (query.state.status === 'error') return 10_000;
       const data = query.state.data as { imports?: Array<Record<string, unknown>> } | undefined;
       const rows = Array.isArray(data?.imports) ? data.imports : [];
       return rows.some((r) => r.status === 'processing' || r.status === 'pending') ? 3000 : false;
