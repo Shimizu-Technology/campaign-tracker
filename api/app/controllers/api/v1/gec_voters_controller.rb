@@ -158,7 +158,6 @@ module Api
           end
 
           if async_import
-            persisted_file_path = persist_import_file!(import_file_path, file.original_filename)
             gec_import = GecImport.create!(
               gec_list_date: gec_list_date,
               filename: File.basename(file.original_filename || import_file_path),
@@ -173,17 +172,24 @@ module Api
               }
             )
 
+            upload_payload = GecImportUpload.create!(
+              gec_import: gec_import,
+              filename: File.basename(file.original_filename || import_file_path),
+              content_type: file.content_type,
+              file_data: File.binread(import_file_path)
+            )
+
             begin
               GecImportJob.perform_later(
                 gec_import_id: gec_import.id,
-                file_path: persisted_file_path,
+                upload_id: upload_payload.id,
                 gec_list_date: gec_list_date.to_s,
                 uploaded_by_user_id: current_user&.id,
                 sheet_name: sheet_name,
                 import_type: import_type
               )
             rescue StandardError => e
-              File.delete(persisted_file_path) if persisted_file_path.present? && File.exist?(persisted_file_path)
+              upload_payload.destroy
               gec_import.update!(
                 status: "failed",
                 metadata: (gec_import.metadata || {}).merge({ "stage" => "failed", "progress_percent" => 100, "error" => "Failed to enqueue import: #{e.message}" })
@@ -424,16 +430,6 @@ module Api
         )
       end
 
-      def persist_import_file!(source_path, original_filename)
-        ext = File.extname(original_filename.to_s).presence || File.extname(source_path.to_s).presence || ".tmp"
-        upload_dir = Rails.root.join("tmp", "gec_uploads")
-        FileUtils.mkdir_p(upload_dir)
-
-        target_path = upload_dir.join("#{SecureRandom.uuid}#{ext}")
-        FileUtils.cp(source_path, target_path)
-
-        target_path.to_s
-      end
     end
   end
 end
