@@ -305,10 +305,16 @@ module Api
       # List past GEC imports
       def imports
         imports = GecImport.latest.limit(20)
+        rows = imports.map do |imp|
+          json = imp.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :transferred_records, :re_vetted_count, :ambiguous_dob_count, :import_type, :status, :created_at, :metadata ])
+          if %w[pending processing].include?(imp.status)
+            cached = Rails.cache.read("gec_import_progress:#{imp.id}")
+            json["metadata"] = (json["metadata"] || {}).merge(cached || {})
+          end
+          json
+        end
 
-        render json: {
-          imports: imports.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :transferred_records, :re_vetted_count, :ambiguous_dob_count, :import_type, :status, :created_at, :metadata ])
-        }
+        render json: { imports: rows }
       end
 
       # POST /api/v1/gec_voters/match

@@ -113,18 +113,20 @@ class GecImportService
       @stats[:total] = rows.size
       @import_started_at = Time.current
 
-      rows.each_with_index do |row, idx|
-        process_row(row, column_map, idx + 2) # +2 for 1-indexed header row
-        if (idx % 500).zero?
-          # 20..85% while processing rows
-          progress = 20 + ((idx.to_f / [ rows.size, 1 ].max) * 65).to_i
-          update_progress!(gec_import, stage: "importing", percent: [ progress, 85 ].min)
+      ActiveRecord::Base.transaction do
+        rows.each_with_index do |row, idx|
+          process_row(row, column_map, idx + 2) # +2 for 1-indexed header row
+          if (idx % 500).zero?
+            # 20..85% while processing rows
+            progress = 20 + ((idx.to_f / [ rows.size, 1 ].max) * 65).to_i
+            write_progress_cache(gec_import.id, stage: "importing", percent: [ progress, 85 ].min)
+          end
         end
-      end
 
-      # For full list imports, detect purged voters (in DB but not in file)
-      if @import_type == "full_list" && @seen_voter_ids.any?
-        detect_purged_voters(gec_import)
+        # For full list imports, detect purged voters (in DB but not in file)
+        if @import_type == "full_list" && @seen_voter_ids.any?
+          detect_purged_voters(gec_import)
+        end
       end
 
       # Re-vet affected supporters (outside transaction for performance)
@@ -185,9 +187,18 @@ class GecImportService
   private
 
   def update_progress!(gec_import, stage:, percent:)
+    write_progress_cache(gec_import.id, stage: stage, percent: percent)
     gec_import.update_columns(
       metadata: (gec_import.metadata || {}).merge({ "stage" => stage, "progress_percent" => percent, "updated_at" => Time.current.iso8601 }),
       updated_at: Time.current
+    )
+  end
+
+  def write_progress_cache(import_id, stage:, percent:)
+    Rails.cache.write(
+      "gec_import_progress:#{import_id}",
+      { "stage" => stage, "progress_percent" => percent, "updated_at" => Time.current.iso8601 },
+      expires_in: 1.hour
     )
   end
 

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getGecStats, getGecImports, uploadGecList, bulkVetSupporters, previewGecList } from '../../lib/api';
 import {
@@ -59,8 +59,17 @@ export default function TeamGecPage() {
   const pdfStatus = isPdfPreview ? previewData.qa?.status : null;
   const reviewNeedsConfirmation = pdfStatus === 'review' && !confirmReview;
   const activeImport = imports?.imports?.find((imp: Record<string, unknown>) => imp.status === 'processing' || imp.status === 'pending');
+  const hasActiveImport = Boolean(activeImport);
   const activeProgress = Number((activeImport?.metadata as Record<string, unknown> | undefined)?.progress_percent || 0);
   const activeStage = String((activeImport?.metadata as Record<string, unknown> | undefined)?.stage || 'processing');
+
+  const previouslyHadActiveImport = useRef(false);
+  useEffect(() => {
+    if (previouslyHadActiveImport.current && !hasActiveImport) {
+      queryClient.invalidateQueries({ queryKey: ['gec-stats'] });
+    }
+    previouslyHadActiveImport.current = hasActiveImport;
+  }, [hasActiveImport, queryClient]);
 
   const previewMutation = useMutation({
     mutationFn: () => previewGecList(file!, sheetName || undefined),
