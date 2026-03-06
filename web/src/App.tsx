@@ -81,7 +81,8 @@ function PermissionRoute({
     | 'can_access_war_room'
     | 'can_access_poll_watcher'
     | 'can_access_duplicates'
-    | 'can_access_audit_logs';
+    | 'can_access_audit_logs'
+    | 'can_access_data_team';
   children: React.ReactNode;
 }) {
   const { data, isLoading } = useSession();

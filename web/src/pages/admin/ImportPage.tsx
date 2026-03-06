@@ -3,6 +3,19 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { uploadImportPreview, parseImportRows, confirmImport, getVillages } from '../../lib/api';
 import { useSession } from '../../hooks/useSession';
 import { Upload, FileSpreadsheet, ArrowRight, ArrowLeft, Check, AlertTriangle, Loader2 } from 'lucide-react';
+import { Link } from 'react-router-dom';
+
+function DataOpsImportBanner() {
+  return (
+    <div className="mb-6 flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+      <Upload className="w-4 h-4 shrink-0 text-blue-500" />
+      <span>For GEC voter list imports and full data team workflow, use the <strong>Data Ops Workspace</strong>.</span>
+      <Link to="/team" className="ml-auto flex items-center gap-1 font-semibold text-blue-700 hover:text-blue-900 whitespace-nowrap">
+        Go to Data Ops <ArrowRight className="w-3.5 h-3.5" />
+      </Link>
+    </div>
+  );
+}
 
 // Types
 interface SheetInfo {
@@ -216,6 +229,7 @@ export default function ImportPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+      <DataOpsImportBanner />
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Import Supporters</h1>
