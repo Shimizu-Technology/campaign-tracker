@@ -95,7 +95,11 @@ class GecImportJob < ApplicationJob
       File.delete(tmp_file_path) if tmp_file_path.present? && File.exist?(tmp_file_path)
       upload&.destroy if should_destroy_upload
       if lock_acquired
-        ActiveRecord::Base.connection.execute("SELECT pg_advisory_unlock(#{FULL_LIST_IMPORT_LOCK_KEY_1}, #{FULL_LIST_IMPORT_LOCK_KEY_2})")
+        begin
+          ActiveRecord::Base.connection.execute("SELECT pg_advisory_unlock(#{FULL_LIST_IMPORT_LOCK_KEY_1}, #{FULL_LIST_IMPORT_LOCK_KEY_2})")
+        rescue StandardError => e
+          Rails.logger.warn("GecImportJob #{gec_import_id}: advisory unlock failed: #{e.class}: #{e.message}")
+        end
       end
     end
   end
