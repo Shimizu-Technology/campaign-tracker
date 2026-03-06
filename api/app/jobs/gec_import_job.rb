@@ -3,7 +3,11 @@
 class GecImportJob < ApplicationJob
   queue_as :default
 
-  # Use 2-key advisory lock form for portability and to avoid bigint/casting edge cases.
+  # Advisory lock keys for GEC imports (2-key form for portability).
+  # Convention: key1 = subsystem ID (81 = GEC), key2 = operation (1 = import).
+  # These are application-global PostgreSQL advisory locks. If you add other
+  # advisory locks elsewhere in this codebase, choose different key1/key2
+  # values to avoid collisions. See: db/advisory_lock_registry.md
   IMPORT_LOCK_KEY_1 = 81
   IMPORT_LOCK_KEY_2 = 1
   # 20 retries with exponential backoff (30s, 60s, 120s, ..., capped at 5 min)
@@ -18,14 +22,17 @@ class GecImportJob < ApplicationJob
 
   def perform(gec_import_id:, upload_id:, gec_list_date:, uploaded_by_user_id: nil, sheet_name: nil, import_type: "full_list")
     gec_import = GecImport.find_by(id: gec_import_id)
-    upload = GecImportUpload.find_by(id: upload_id)
+    # Load metadata only (no file_data blob) for guard checks and lock contention path.
+    # The full blob is loaded only after both locks are acquired to avoid holding
+    # 10-50 MB in Ruby heap while waiting for requeue.
+    upload_meta = GecImportUpload.where(id: upload_id).select(:id, :gec_import_id, :filename, :content_type).first
 
     if gec_import.nil? || %w[completed failed].include?(gec_import.status)
-      upload&.destroy
+      GecImportUpload.where(id: upload_id).delete_all
       return
     end
 
-    unless upload
+    unless upload_meta
       gec_import.update!(
         status: "failed",
         metadata: (gec_import.metadata || {}).merge({ "stage" => "failed", "progress_percent" => 100, "error" => "Missing upload payload" })
@@ -61,6 +68,9 @@ class GecImportJob < ApplicationJob
         status: "processing",
         metadata: (gec_import.metadata || {}).merge({ "stage" => "parsing", "progress_percent" => 5 })
       )
+
+      # Now load the full binary blob — only after both locks are held.
+      upload = GecImportUpload.find(upload_id)
 
       tmp = Tempfile.new([ "gec_import", ".tmp" ])
       tmp.binmode
@@ -111,7 +121,7 @@ class GecImportJob < ApplicationJob
       Rails.logger.error("GecImportJob failed for #{gec_import_id}: #{e.class}: #{e.message}")
     ensure
       File.delete(tmp_file_path) if tmp_file_path.present? && File.exist?(tmp_file_path)
-      upload&.destroy if should_destroy_upload
+      GecImportUpload.where(id: upload_id).delete_all if should_destroy_upload
       if lock_acquired
         begin
           ActiveRecord::Base.connection.execute("SELECT pg_advisory_unlock(#{IMPORT_LOCK_KEY_1}, #{IMPORT_LOCK_KEY_2})")
