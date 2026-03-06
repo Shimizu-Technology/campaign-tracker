@@ -307,8 +307,12 @@ class GecImportService
         record = GecVoter.where("LOWER(first_name) = ? AND LOWER(last_name) = ?", fn_lower, ln_lower)
           .where(dob: data[:dob]).first
       elsif data[:birth_year].present?
-        record = GecVoter.where("LOWER(first_name) = ? AND LOWER(last_name) = ?", fn_lower, ln_lower)
-          .where(birth_year: data[:birth_year]).first
+        candidates = GecVoter.where("LOWER(first_name) = ? AND LOWER(last_name) = ?", fn_lower, ln_lower)
+          .where(birth_year: data[:birth_year])
+
+        # Birth-year-only matching can have legitimate duplicates across villages.
+        # Only auto-transfer when there's exactly one candidate.
+        record = candidates.count == 1 ? candidates.first : nil
       end
     end
 
@@ -444,7 +448,8 @@ class GecImportService
     when Integer
       value if value.between?(1900, Date.current.year)
     when Date, DateTime, Time
-      value.year
+      year = value.year
+      year if year.between?(1900, Date.current.year)
     when String
       year = value.strip.to_i
       year if year.between?(1900, Date.current.year)

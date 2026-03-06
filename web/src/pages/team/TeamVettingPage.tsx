@@ -82,8 +82,7 @@ export default function TeamVettingPage() {
       case 'exact_match':
       case 'exact_dob_village':   return 'Exact (DOB + Village)';
       case 'different_village':   return 'Different Village';
-      case 'fuzzy_name':          return 'Fuzzy Name';
-      case 'name_dob_only':       return 'Name + DOB';
+      case 'fuzzy_name_year':     return 'Fuzzy Name (Birth Year)';
       case 'name_village_only':   return 'Name + Village';
       // New (birth-year-only) match types
       case 'name_year_village':   return 'Name + Year + Village';
