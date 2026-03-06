@@ -219,7 +219,9 @@ export default function TeamGecPage() {
             <div className="h-full bg-blue-600 transition-all" style={{ width: `${activeProgressDisplay}%` }} />
           </div>
           <div className="mt-2 text-xs text-blue-700">
-            {activeProgressDisplay}% complete — safe to leave this page. Progress updates automatically.
+            {activeProgress === 0
+              ? 'Waiting to start — safe to leave this page. Progress updates automatically.'
+              : `${activeProgressDisplay}% complete — safe to leave this page. Progress updates automatically.`}
           </div>
         </div>
       )}

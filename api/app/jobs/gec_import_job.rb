@@ -6,7 +6,9 @@ class GecImportJob < ApplicationJob
   # Use 2-key advisory lock form for portability and to avoid bigint/casting edge cases.
   IMPORT_LOCK_KEY_1 = 81
   IMPORT_LOCK_KEY_2 = 1
-  MAX_IMPORT_REQUEUE_ATTEMPTS = 10
+  # 20 retries with exponential backoff (30s, 60s, 120s, ..., capped at 5 min)
+  # gives ~30+ minutes total wait — enough for a full 60K-row import to finish.
+  MAX_IMPORT_REQUEUE_ATTEMPTS = 20
 
   # Process-level mutex to prevent concurrent imports within the same multi-threaded
   # worker (e.g. Sidekiq). pg_try_advisory_lock is session-level and each thread gets
@@ -138,17 +140,18 @@ class GecImportJob < ApplicationJob
       return false # permanently done — caller should clean up upload
     end
 
-    Rails.logger.warn("GecImportJob #{gec_import_id}: import lock busy for #{import_type}, retrying (#{requeue_count + 1}/#{MAX_IMPORT_REQUEUE_ATTEMPTS})")
+    wait_seconds = [ 30 * (2**requeue_count), 300 ].min # exponential backoff, capped at 5 minutes
+    Rails.logger.warn("GecImportJob #{gec_import_id}: import lock busy for #{import_type}, retrying in #{wait_seconds}s (#{requeue_count + 1}/#{MAX_IMPORT_REQUEUE_ATTEMPTS})")
     gec_import.update!(
       status: "pending",
       metadata: (gec_import.metadata || {}).merge({
         "stage" => "queued",
         "progress_percent" => 0,
-        "note" => "Waiting for another import to finish",
+        "note" => "Waiting for another import to finish (retry #{requeue_count + 1}/#{MAX_IMPORT_REQUEUE_ATTEMPTS})",
         "requeue_count" => requeue_count + 1
       })
     )
-    self.class.set(wait: 30.seconds).perform_later(
+    self.class.set(wait: wait_seconds.seconds).perform_later(
       gec_import_id: gec_import_id,
       upload_id: upload_id,
       gec_list_date: gec_list_date,
