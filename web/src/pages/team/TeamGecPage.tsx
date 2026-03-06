@@ -50,7 +50,8 @@ export default function TeamGecPage() {
     queryKey: ['gec-imports'],
     queryFn: getGecImports,
     refetchInterval: (query) => {
-      const rows = (query.state.data as { imports?: Array<Record<string, unknown>> } | undefined)?.imports || [];
+      const data = query.state.data as { imports?: Array<Record<string, unknown>> } | undefined;
+      const rows = Array.isArray(data?.imports) ? data.imports : [];
       return rows.some((r) => r.status === 'processing' || r.status === 'pending') ? 3000 : false;
     }
   });

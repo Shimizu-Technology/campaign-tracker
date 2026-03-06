@@ -200,6 +200,8 @@ class GecImportService
       { "stage" => stage, "progress_percent" => percent, "updated_at" => Time.current.iso8601 },
       expires_in: 1.hour
     )
+  rescue StandardError => e
+    Rails.logger.warn("GEC progress cache write failed for import #{import_id}: #{e.class}: #{e.message}")
   end
 
   def normalize_headers(row)

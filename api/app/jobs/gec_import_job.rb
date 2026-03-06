@@ -1,11 +1,11 @@
 # frozen_string_literal: true
 
-require "zlib"
-
 class GecImportJob < ApplicationJob
   queue_as :default
 
-  FULL_LIST_IMPORT_LOCK_KEY = Zlib.crc32("gec_full_list_import_lock")
+  # Use 2-key advisory lock form for portability and to avoid bigint/casting edge cases.
+  FULL_LIST_IMPORT_LOCK_KEY_1 = 81
+  FULL_LIST_IMPORT_LOCK_KEY_2 = 1
 
   def perform(gec_import_id:, upload_id:, gec_list_date:, uploaded_by_user_id: nil, sheet_name: nil, import_type: "full_list")
     gec_import = GecImport.find_by(id: gec_import_id)
@@ -27,7 +27,7 @@ class GecImportJob < ApplicationJob
 
     begin
       if import_type == "full_list"
-        lock_result = ActiveRecord::Base.connection.select_value("SELECT pg_try_advisory_lock(#{FULL_LIST_IMPORT_LOCK_KEY})")
+        lock_result = ActiveRecord::Base.connection.select_value("SELECT pg_try_advisory_lock(#{FULL_LIST_IMPORT_LOCK_KEY_1}, #{FULL_LIST_IMPORT_LOCK_KEY_2})")
         lock_acquired = ActiveModel::Type::Boolean.new.cast(lock_result)
         unless lock_acquired
           Rails.logger.warn("GecImportJob #{gec_import_id}: full_list import lock busy, retrying")
@@ -95,7 +95,7 @@ class GecImportJob < ApplicationJob
       File.delete(tmp_file_path) if tmp_file_path.present? && File.exist?(tmp_file_path)
       upload&.destroy if should_destroy_upload
       if lock_acquired
-        ActiveRecord::Base.connection.execute("SELECT pg_advisory_unlock(#{FULL_LIST_IMPORT_LOCK_KEY})")
+        ActiveRecord::Base.connection.execute("SELECT pg_advisory_unlock(#{FULL_LIST_IMPORT_LOCK_KEY_1}, #{FULL_LIST_IMPORT_LOCK_KEY_2})")
       end
     end
   end
