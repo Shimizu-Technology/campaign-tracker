@@ -640,6 +640,7 @@ function ImportDetailPanel({ imp, matchedUnchanged, skipped, unassigned, errors,
   const handleDownload = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setDownloading(true);
+    setDownloadError(null);
     try {
       await downloadGecImportFile(imp.id);
     } catch (err) {
