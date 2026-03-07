@@ -118,17 +118,6 @@ class GecImportService
         rows.each_with_index do |row, idx|
           process_row(row, column_map, idx + 2) # +2 for 1-indexed header row
 
-          # Periodically refresh heartbeat to prevent the stale-processing
-          # detector (PROCESSING_TIMEOUT) from treating a long-running import
-          # as crashed. We're inside an open transaction, so DB writes on this
-          # connection are invisible to other sessions until commit. Instead,
-          # write the heartbeat to Rails.cache (non-transactional, immediately
-          # visible). The stale detector in GecImportJob reads this cache key
-          # before falling back to updated_at.
-          if (idx % 5000).zero? && async_mode
-            write_heartbeat_cache(gec_import.id)
-          end
-
           if (idx % 500).zero?
             # NOTE: write_progress_cache is intentionally non-transactional.
             # Cache writes commit immediately regardless of the surrounding
@@ -218,7 +207,7 @@ class GecImportService
     Rails.cache.write(
       "gec_import_progress:#{import_id}",
       { "stage" => stage, "progress_percent" => percent, "updated_at" => now },
-      expires_in: 1.hour
+      expires_in: GecImportJob::HEARTBEAT_TTL
     )
     # Also refresh the heartbeat cache so stale-detector sees activity
     write_heartbeat_cache(import_id)
@@ -229,11 +218,17 @@ class GecImportService
   # Non-transactional heartbeat visible to the stale-processing detector
   # in GecImportJob. DB updated_at is invisible during an open transaction,
   # so the job checks this cache key first.
+  #
+  # TTL is derived from GecImportJob::HEARTBEAT_TTL (currently 90 min) to
+  # survive the longest plausible import. If the TTL expires before the
+  # import finishes, the stale detector falls back to DB updated_at which
+  # may be stale (set at "parsing" stage before the transaction opened).
+  # See GecImportJob comments for queue retry window requirements.
   def write_heartbeat_cache(import_id)
     Rails.cache.write(
       "gec_import_heartbeat:#{import_id}",
       Time.current.iso8601,
-      expires_in: 1.hour
+      expires_in: GecImportJob::HEARTBEAT_TTL
     )
   rescue StandardError => e
     Rails.logger.warn("GEC heartbeat cache write failed for import #{import_id}: #{e.class}: #{e.message}")
