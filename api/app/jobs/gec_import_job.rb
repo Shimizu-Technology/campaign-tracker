@@ -32,9 +32,11 @@ class GecImportJob < ApplicationJob
     # 10-50 MB in Ruby heap while waiting for requeue.
     upload_meta = GecImportUpload.where(id: upload_id).select(:id, :gec_import_id, :filename, :content_type).first
 
-    # Allow retries of stale "processing" imports — a genuinely running job
-    # updates metadata regularly (progress_percent, stage), so updated_at
-    # stays recent. A crashed job leaves updated_at frozen indefinitely.
+    # Allow retries of stale "processing" imports. A running job touches
+    # updated_at at stage transitions (parsing → importing → re_vetting)
+    # and every 5,000 rows during the import loop. A crashed/OOM-killed
+    # job leaves updated_at frozen, so if it hasn't been touched in
+    # PROCESSING_TIMEOUT we treat it as abandoned and allow a retry.
     stale_processing = gec_import&.status == "processing" &&
                        gec_import.updated_at < PROCESSING_TIMEOUT.ago
 

@@ -117,7 +117,21 @@ class GecImportService
       ActiveRecord::Base.transaction do
         rows.each_with_index do |row, idx|
           process_row(row, column_map, idx + 2) # +2 for 1-indexed header row
+
+          # Periodically refresh heartbeat to prevent the stale-processing
+          # detector (PROCESSING_TIMEOUT) from treating a long-running import
+          # as crashed. update_columns touches updated_at in the DB directly.
+          if (idx % 5000).zero? && async_mode
+            gec_import.update_columns(updated_at: Time.current)
+          end
+
           if (idx % 500).zero?
+            # NOTE: write_progress_cache is intentionally non-transactional.
+            # Cache writes commit immediately regardless of the surrounding
+            # DB transaction. If the transaction rolls back, the cached values
+            # become stale. This is acceptable because the import status moves
+            # to "failed" on rollback, and the controller only reads cached
+            # progress for pending/processing imports.
             # 20..85% while processing rows
             progress = 20 + ((idx.to_f / [ rows.size, 1 ].max) * 65).to_i
             write_progress_cache(gec_import.id, stage: "importing", percent: [ progress, 85 ].min) if async_mode
