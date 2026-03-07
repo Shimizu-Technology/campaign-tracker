@@ -12,10 +12,22 @@ import {
 
 type PdfQaStatus = 'pass' | 'review' | 'fail';
 
-/** Parse a date string as UTC to avoid timezone shift (e.g. "2025-12-25" showing as Dec 24). */
+/**
+ * Parse a date string as UTC to avoid timezone shift
+ * (e.g. "2025-12-25" showing as Dec 24 in UTC-positive zones).
+ * Handles: "2025-12-25", "2025-12-25T00:00:00", "2025-12-25T00:00:00Z"
+ */
 function formatDateUTC(dateStr: string | null | undefined): string {
   if (!dateStr) return '—';
-  const d = new Date(dateStr + (dateStr.includes('T') ? '' : 'T00:00:00Z'));
+  let normalized = dateStr;
+  if (!dateStr.includes('T')) {
+    // Date-only string: append UTC time to prevent local-timezone interpretation
+    normalized = dateStr + 'T00:00:00Z';
+  } else if (!/[Zz]|[+-]\d{2}:\d{2}$/.test(dateStr)) {
+    // Has 'T' but no timezone designator: append 'Z' so it's treated as UTC
+    normalized = dateStr + 'Z';
+  }
+  const d = new Date(normalized);
   return d.toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'numeric', day: 'numeric' });
 }
 
@@ -411,7 +423,8 @@ export default function TeamGecPage() {
                   {previewData.column_map && Object.keys(previewData.column_map).length > 0 && (
                     <div className="text-xs text-gray-600">
                       <span className="font-medium">Columns mapped:</span>{' '}
-                      {Object.entries(previewData.column_map).map(([key]) => key).join(', ')}
+                      {Object.entries(previewData.column_map).map(([key, val]) =>
+                        `${key} → ${val}`).join(', ')}
                     </div>
                   )}
                   {previewData.preview_rows?.length > 0 && (
