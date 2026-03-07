@@ -14,6 +14,11 @@ class GecImportJob < ApplicationJob
   # gives ~30+ minutes total wait — enough for a full 60K-row import to finish.
   MAX_IMPORT_REQUEUE_ATTEMPTS = 20
 
+  # If a "processing" import hasn't been updated in this long, treat it as
+  # stale (crashed worker / OOM-kill / pod eviction). A retry can then
+  # reclaim the import instead of bailing out at the guard check.
+  PROCESSING_TIMEOUT = 30.minutes
+
   # Process-level mutex to prevent concurrent imports within the same multi-threaded
   # worker (e.g. Sidekiq). pg_try_advisory_lock is session-level and each thread gets
   # its own DB connection, so two threads in the same process could both acquire the
@@ -27,7 +32,14 @@ class GecImportJob < ApplicationJob
     # 10-50 MB in Ruby heap while waiting for requeue.
     upload_meta = GecImportUpload.where(id: upload_id).select(:id, :gec_import_id, :filename, :content_type).first
 
-    if gec_import.nil? || %w[completed failed processing].include?(gec_import.status)
+    # Allow retries of stale "processing" imports — a genuinely running job
+    # updates metadata regularly (progress_percent, stage), so updated_at
+    # stays recent. A crashed job leaves updated_at frozen indefinitely.
+    stale_processing = gec_import&.status == "processing" &&
+                       gec_import.updated_at < PROCESSING_TIMEOUT.ago
+
+    if gec_import.nil? || %w[completed failed].include?(gec_import.status) ||
+       (gec_import.status == "processing" && !stale_processing)
       GecImportUpload.where(id: upload_id).delete_all
       return
     end
@@ -81,13 +93,15 @@ class GecImportJob < ApplicationJob
       # PDF uploads are stored as CSV bytes (converted by the controller),
       # so always use .csv for those. Standard Excel uploads keep their
       # original extension so Roo can detect the format via File.extname().
+      # Allowlist prevents path traversal via crafted filenames (Brakeman FileAccess).
       intended_extension = if upload.content_type&.start_with?("application/pdf")
-                             ".csv"
-                           else
-                             File.extname(upload.filename.to_s).presence || ".xlsx"
-                           end
+        ".csv"
+      else
+        raw_ext = File.extname(upload.filename.to_s).downcase
+        %w[.xlsx .xls .csv].include?(raw_ext) ? raw_ext : ".xlsx"
+      end
 
-      tmp = Tempfile.new(["gec_import", intended_extension])
+      tmp = Tempfile.new([ "gec_import", intended_extension ])
       tmp.binmode
       tmp.write(upload.file_data)
       tmp.flush
