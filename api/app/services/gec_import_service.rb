@@ -414,7 +414,7 @@ class GecImportService
 
       # Determine if any meaningful field actually changed
       actually_changed = village_changed ||
-        record.status != "active" ||
+        record.status != attrs[:status] ||
         record.voter_registration_number != attrs[:voter_registration_number] ||
         record.dob != attrs[:dob] ||
         record.dob_ambiguous != attrs[:dob_ambiguous] ||

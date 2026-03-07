@@ -367,7 +367,8 @@ module Api
         end
 
         filename = gec_import.original_filename || gec_import.filename || "gec_import_#{gec_import.id}"
-        send_data gec_import.original_file_data, filename: filename, disposition: :attachment
+        content_type = Rack::Mime.mime_type(File.extname(filename), "application/octet-stream")
+        send_data gec_import.original_file_data, filename: filename, disposition: :attachment, type: content_type
       end
 
       # POST /api/v1/gec_voters/match

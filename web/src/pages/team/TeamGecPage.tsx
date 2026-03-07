@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getGecStats, getGecImports, uploadGecList, bulkVetSupporters, previewGecList, downloadGecImportFile } from '../../lib/api';
 import {
@@ -568,9 +568,8 @@ export default function TeamGecPage() {
                   const unassigned = Number(meta.unassigned || 0);
 
                   return (
-                    <>{/* eslint-disable-next-line react/jsx-key */}
+                    <React.Fragment key={imp.id}>
                     <tr
-                      key={imp.id}
                       className={`border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${isExpanded ? 'bg-gray-50' : ''}`}
                       onClick={() => setExpandedImportId(isExpanded ? null : imp.id)}
                     >
@@ -615,7 +614,7 @@ export default function TeamGecPage() {
                         </td>
                       </tr>
                     )}
-                    </>
+                    </React.Fragment>
                   );
                 })}
               </tbody>
@@ -636,14 +635,15 @@ function ImportDetailPanel({ imp, matchedUnchanged, skipped, unassigned, errors,
   errorMsg?: string;
 }) {
   const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   const handleDownload = async (e: React.MouseEvent) => {
     e.stopPropagation();
     setDownloading(true);
     try {
       await downloadGecImportFile(imp.id);
-    } catch {
-      // silently fail - file may not be available
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : 'Download failed. The original file may not be available.');
     } finally {
       setDownloading(false);
     }
@@ -703,6 +703,9 @@ function ImportDetailPanel({ imp, matchedUnchanged, skipped, unassigned, errors,
               {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
               Download Original
             </button>
+          )}
+          {downloadError && (
+            <div className="text-xs text-red-600 mt-1">{downloadError}</div>
           )}
         </div>
       </div>
