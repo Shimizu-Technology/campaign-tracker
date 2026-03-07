@@ -40,7 +40,11 @@ class GecImportJob < ApplicationJob
     stale_processing = if gec_import&.status == "processing"
       cached_heartbeat = Rails.cache.read("gec_import_heartbeat:#{gec_import.id}")
       last_seen = if cached_heartbeat.present?
-        Time.parse(cached_heartbeat)
+        begin
+          Time.parse(cached_heartbeat)
+        rescue ArgumentError
+          gec_import.updated_at # fall back on corrupted cache data
+        end
       else
         gec_import.updated_at
       end
