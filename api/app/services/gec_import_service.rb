@@ -401,7 +401,7 @@ class GecImportService
         removal_detected_by_import_id: nil,
         voter_registration_number: data[:voter_registration_number] || record.voter_registration_number,
         dob: data[:dob] || record.dob,
-        dob_ambiguous: data[:dob_ambiguous],
+        dob_ambiguous: data[:dob_ambiguous].nil? ? record.dob_ambiguous : data[:dob_ambiguous],
         birth_year: data[:birth_year] || record.birth_year
       }
 
@@ -417,7 +417,7 @@ class GecImportService
         record.status != attrs[:status] ||
         record.voter_registration_number != attrs[:voter_registration_number] ||
         record.dob != attrs[:dob] ||
-        record.dob_ambiguous != (attrs[:dob_ambiguous].nil? ? record.dob_ambiguous : attrs[:dob_ambiguous]) ||
+        record.dob_ambiguous != attrs[:dob_ambiguous] ||
         record.birth_year != attrs[:birth_year]
 
       record.update!(**attrs)

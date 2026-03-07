@@ -52,7 +52,10 @@ class S3Service
         key: key,
         expires_in: expires_in
       }
-      options[:response_content_disposition] = "attachment; filename=\"#{filename}\"" if filename.present?
+      if filename.present?
+        escaped = filename.to_s.gsub(/["\\]/, '\\\\\0')
+        options[:response_content_disposition] = "attachment; filename=\"#{escaped}\""
+      end
       presigner.presigned_url(:get_object, **options)
     rescue Aws::S3::Errors::ServiceError => e
       Rails.logger.error "[S3Service] Presigned URL failed for #{key}: #{e.message}"
