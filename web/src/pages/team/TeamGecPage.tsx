@@ -182,33 +182,33 @@ export default function TeamGecPage() {
           <div className="animate-pulse h-20 bg-gray-100 rounded-lg" />
         ) : stats?.total_voters ? (
           <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
-            <div>
-              <div className="text-2xl font-bold text-gray-900">{(stats.total_voters || 0).toLocaleString()}</div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-4">
+            <div className="min-w-0">
+              <div className="text-2xl font-bold text-gray-900 whitespace-nowrap">{(stats.total_voters || 0).toLocaleString()}</div>
               <div className="text-xs text-gray-400">Active Voters</div>
             </div>
-            <div>
-              <div className="text-2xl font-bold text-gray-900">{stats.villages?.length || 0}</div>
+            <div className="min-w-0">
+              <div className="text-2xl font-bold text-gray-900 whitespace-nowrap">{stats.villages?.length || 0}</div>
               <div className="text-xs text-gray-400">Villages</div>
             </div>
-            <div>
-              <div className="text-2xl font-bold text-gray-900">{formatDateUTC(stats.latest_list_date)}</div>
+            <div className="min-w-0">
+              <div className="text-2xl font-bold text-gray-900 whitespace-nowrap">{formatDateUTC(stats.latest_list_date)}</div>
               <div className="text-xs text-gray-400">List Date</div>
             </div>
-            <div>
-              <div className={`text-2xl font-bold ${stats.removed_voters > 0 ? 'text-red-600' : 'text-gray-900'}`}>
+            <div className="min-w-0">
+              <div className={`text-2xl font-bold whitespace-nowrap ${stats.removed_voters > 0 ? 'text-red-600' : 'text-gray-900'}`}>
                 {stats.removed_voters || 0}
               </div>
               <div className="text-xs text-gray-400">Purged</div>
             </div>
-            <div>
-              <div className={`text-2xl font-bold ${stats.transferred_voters > 0 ? 'text-blue-600' : 'text-gray-900'}`}>
+            <div className="min-w-0">
+              <div className={`text-2xl font-bold whitespace-nowrap ${stats.transferred_voters > 0 ? 'text-blue-600' : 'text-gray-900'}`}>
                 {stats.transferred_voters || 0}
               </div>
               <div className="text-xs text-gray-400">Transfers</div>
             </div>
-            <div>
-              <div className={`text-2xl font-bold ${stats.ambiguous_dob_count > 0 ? 'text-amber-600' : 'text-gray-900'}`}>
+            <div className="min-w-0">
+              <div className={`text-2xl font-bold whitespace-nowrap ${stats.ambiguous_dob_count > 0 ? 'text-amber-600' : 'text-gray-900'}`}>
                 {stats.ambiguous_dob_count || 0}
               </div>
               <div className="text-xs text-gray-400">Ambiguous DOBs</div>
