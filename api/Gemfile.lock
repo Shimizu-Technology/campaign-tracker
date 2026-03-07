@@ -387,7 +387,7 @@ PLATFORMS
   x86_64-linux-musl
 
 DEPENDENCIES
-  aws-sdk-s3
+  aws-sdk-s3 (~> 1.0)
   bootsnap
   brakeman
   bundler-audit

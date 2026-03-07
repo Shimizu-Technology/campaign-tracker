@@ -205,8 +205,6 @@ export const downloadGecImportFile = (importId: number) =>
     const a = document.createElement('a');
     a.href = download_url;
     a.download = filename;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
     document.body.appendChild(a);
     a.click();
     a.remove();
