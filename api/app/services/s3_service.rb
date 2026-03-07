@@ -53,7 +53,7 @@ class S3Service
         expires_in: expires_in
       }
       if filename.present?
-        escaped = filename.to_s.gsub(/["\\]/, '\\\\\0')
+        escaped = filename.to_s.gsub(/["\\]/) { |ch| "\\#{ch}" }
         options[:response_content_disposition] = "attachment; filename=\"#{escaped}\""
       end
       presigner.presigned_url(:get_object, **options)
