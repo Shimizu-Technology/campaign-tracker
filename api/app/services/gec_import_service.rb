@@ -412,7 +412,11 @@ class GecImportService
         @stats[:transferred] += 1
       end
 
-      # Determine if any meaningful field actually changed
+      # Determine if any meaningful field actually changed.
+      # NOTE: imported_at and gec_list_date are excluded by design — they are
+      # bookkeeping timestamps that change on every import and would inflate
+      # the :updated counter if included. They are still written via attrs
+      # so the record reflects the latest import metadata.
       actually_changed = village_changed ||
         record.status != attrs[:status] ||
         record.voter_registration_number != attrs[:voter_registration_number] ||
