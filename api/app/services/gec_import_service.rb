@@ -417,7 +417,7 @@ class GecImportService
         record.status != attrs[:status] ||
         record.voter_registration_number != attrs[:voter_registration_number] ||
         record.dob != attrs[:dob] ||
-        record.dob_ambiguous != attrs[:dob_ambiguous] ||
+        record.dob_ambiguous != (attrs[:dob_ambiguous].nil? ? record.dob_ambiguous : attrs[:dob_ambiguous]) ||
         record.birth_year != attrs[:birth_year]
 
       record.update!(**attrs)

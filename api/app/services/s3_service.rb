@@ -4,6 +4,8 @@ class S3Service
   BUCKET_NAME = ENV.fetch("AWS_S3_BUCKET", nil)
   REGION = ENV.fetch("AWS_REGION", "ap-southeast-2")
 
+  MUTEX = Mutex.new
+
   class << self
     def enabled?
       BUCKET_NAME.present? &&
@@ -12,11 +14,15 @@ class S3Service
     end
 
     def s3_client
-      @s3_client ||= Aws::S3::Client.new(
-        region: REGION,
-        access_key_id: ENV.fetch("AWS_ACCESS_KEY_ID"),
-        secret_access_key: ENV.fetch("AWS_SECRET_ACCESS_KEY")
-      )
+      return @s3_client if @s3_client
+
+      MUTEX.synchronize do
+        @s3_client ||= Aws::S3::Client.new(
+          region: REGION,
+          access_key_id: ENV.fetch("AWS_ACCESS_KEY_ID"),
+          secret_access_key: ENV.fetch("AWS_SECRET_ACCESS_KEY")
+        )
+      end
     end
 
     # Upload file data (binary string) to S3

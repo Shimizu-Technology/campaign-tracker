@@ -131,7 +131,10 @@ class GecImportJob < ApplicationJob
 
       # Preserve original file for later download (S3 if configured, skip otherwise)
       if S3Service.enabled?
-        s3_key = "gec-imports/#{gec_import.id}/#{upload.filename}"
+        # Sanitize filename for S3 key: strip non-safe chars to avoid broken presigned URLs
+        safe_filename = upload.filename.to_s.gsub(/[^A-Za-z0-9._\-]/, "_").squeeze("_")
+        safe_filename = "import_file" if safe_filename.blank?
+        s3_key = "gec-imports/#{gec_import.id}/#{safe_filename}"
         content_type = upload.content_type || "application/octet-stream"
         if S3Service.upload(s3_key, upload.file_data, content_type: content_type)
           gec_import.update_columns(
