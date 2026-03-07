@@ -77,7 +77,17 @@ class GecImportJob < ApplicationJob
       # Now load the full binary blob — only after both locks are held.
       upload = GecImportUpload.find(upload_id)
 
-      tmp = Tempfile.new([ "gec_import", ".tmp" ])
+      # Determine intended extension from upload metadata.
+      # PDF uploads are stored as CSV bytes (converted by the controller),
+      # so always use .csv for those. Standard Excel uploads keep their
+      # original extension so Roo can detect the format via File.extname().
+      intended_extension = if upload.content_type&.start_with?("application/pdf")
+                             ".csv"
+                           else
+                             File.extname(upload.filename.to_s).presence || ".xlsx"
+                           end
+
+      tmp = Tempfile.new(["gec_import", intended_extension])
       tmp.binmode
       tmp.write(upload.file_data)
       tmp.flush
