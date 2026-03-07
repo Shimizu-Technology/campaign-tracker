@@ -204,7 +204,7 @@ export const downloadGecImportFile = (importId: number) =>
     const { download_url, filename } = r.data;
     const a = document.createElement('a');
     a.href = download_url;
-    a.download = filename;
+    a.download = filename; // Hint only — ignored for cross-origin S3 URLs; actual filename set by Content-Disposition header
     document.body.appendChild(a);
     a.click();
     a.remove();
