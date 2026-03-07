@@ -43,16 +43,17 @@ class S3Service
     end
 
     # Generate a presigned GET URL for temporary download access
-    def presigned_url(key, expires_in: 3600)
+    def presigned_url(key, expires_in: 3600, filename: nil)
       return nil unless enabled?
 
       presigner = Aws::S3::Presigner.new(client: s3_client)
-      presigner.presigned_url(
-        :get_object,
+      options = {
         bucket: BUCKET_NAME,
         key: key,
         expires_in: expires_in
-      )
+      }
+      options[:response_content_disposition] = "attachment; filename=\"#{filename}\"" if filename.present?
+      presigner.presigned_url(:get_object, **options)
     rescue Aws::S3::Errors::ServiceError => e
       Rails.logger.error "[S3Service] Presigned URL failed for #{key}: #{e.message}"
       nil

@@ -366,7 +366,11 @@ module Api
           return render_api_error(message: "Original file not available for this import", status: :not_found, code: "file_not_available")
         end
 
-        download_url = S3Service.presigned_url(gec_import.original_file_s3_key, expires_in: 300)
+        download_url = S3Service.presigned_url(
+          gec_import.original_file_s3_key,
+          expires_in: 300,
+          filename: gec_import.original_filename || gec_import.filename
+        )
         unless download_url
           return render_api_error(message: "Could not generate download link", status: :service_unavailable, code: "s3_error")
         end
