@@ -304,7 +304,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_27_010000) do
     t.index "lower((first_name)::text), lower((last_name)::text), dob", name: "index_gec_voters_on_lower_names_and_dob"
     t.index "lower((first_name)::text), lower((last_name)::text), lower((village_name)::text)", name: "index_gec_voters_on_lower_names_and_village"
     t.index ["gec_list_date"], name: "index_gec_voters_on_gec_list_date"
-    t.index ["last_name", "first_name", "birth_year"], name: "index_gec_voters_on_name_and_birth_year"
+    t.index "lower((first_name)::text), lower((last_name)::text), birth_year", name: "index_gec_voters_on_lower_names_and_birth_year"
     t.index ["last_name", "first_name", "dob"], name: "index_gec_voters_on_name_and_dob"
     t.index ["removed_at"], name: "index_gec_voters_on_removed_at", where: "(removed_at IS NOT NULL)"
     t.index ["status"], name: "index_gec_voters_on_status"
