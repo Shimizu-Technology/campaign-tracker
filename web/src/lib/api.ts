@@ -179,7 +179,8 @@ export const uploadGecList = (
   sheetName?: string,
   importType: string = 'full_list',
   parseCacheKey?: string,
-  confirmReview: boolean = false
+  confirmReview: boolean = false,
+  asyncImport: boolean = true
 ) => {
   const form = new FormData();
   form.append('file', file);
@@ -188,6 +189,7 @@ export const uploadGecList = (
   if (sheetName) form.append('sheet_name', sheetName);
   if (parseCacheKey) form.append('parse_cache_key', parseCacheKey);
   if (confirmReview) form.append('confirm_review', 'true');
+  form.append('async_import', asyncImport ? 'true' : 'false');
   return api.post('/gec_voters/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
 };
 export const previewGecList = (file: File, sheetName?: string) => {

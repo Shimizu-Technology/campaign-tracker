@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getGecStats, getGecImports, uploadGecList, bulkVetSupporters, previewGecList } from '../../lib/api';
 import {
@@ -46,11 +46,39 @@ export default function TeamGecPage() {
   const [confirmReview, setConfirmReview] = useState(false);
 
   const { data: stats, isLoading: statsLoading } = useQuery({ queryKey: ['gec-stats'], queryFn: getGecStats });
-  const { data: imports } = useQuery({ queryKey: ['gec-imports'], queryFn: getGecImports });
+  const { data: imports } = useQuery({
+    queryKey: ['gec-imports'],
+    queryFn: getGecImports,
+    refetchInterval: (query) => {
+      // Keep polling (at a slower rate) when errored — the progress banner
+      // stays frozen otherwise with no indication that updates have paused.
+      if (query.state.status === 'error') return 10_000;
+      const data = query.state.data as { imports?: Array<Record<string, unknown>> } | undefined;
+      const rows = Array.isArray(data?.imports) ? data.imports : [];
+      return rows.some((r) => r.status === 'processing' || r.status === 'pending') ? 3000 : false;
+    }
+  });
 
   const isPdfPreview = previewData?.source_type === 'pdf';
   const pdfStatus = isPdfPreview ? previewData.qa?.status : null;
   const reviewNeedsConfirmation = pdfStatus === 'review' && !confirmReview;
+  const activeImports = (imports?.imports || []).filter(
+    (imp: Record<string, unknown>) => imp.status === 'processing' || imp.status === 'pending'
+  );
+  const hasActiveImport = activeImports.length > 0;
+  const activeImport = activeImports.find((imp: Record<string, unknown>) => imp.status === 'processing') || activeImports[0];
+  const activeProgress = Number((activeImport?.metadata as Record<string, unknown> | undefined)?.progress_percent || 0);
+  const activeProgressDisplay = Math.max(5, Math.min(100, activeProgress));
+  const activeStage = String((activeImport?.metadata as Record<string, unknown> | undefined)?.stage || 'processing');
+  const activeImportCount = activeImports.length;
+
+  const previouslyHadActiveImport = useRef(false);
+  useEffect(() => {
+    if (previouslyHadActiveImport.current && !hasActiveImport) {
+      queryClient.invalidateQueries({ queryKey: ['gec-stats'] });
+    }
+    previouslyHadActiveImport.current = hasActiveImport;
+  }, [hasActiveImport, queryClient]);
 
   const previewMutation = useMutation({
     mutationFn: () => previewGecList(file!, sheetName || undefined),
@@ -71,7 +99,8 @@ export default function TeamGecPage() {
       sheetName || undefined,
       importType,
       isPdfPreview ? previewData.parse_cache_key || undefined : undefined,
-      confirmReview
+      confirmReview,
+      true
     ),
     onSuccess: (data) => {
       setFile(null);
@@ -81,8 +110,15 @@ export default function TeamGecPage() {
       setPreviewData(null);
       setConfirmReview(false);
       setErrorMessage(null);
-      queryClient.invalidateQueries({ queryKey: ['gec-stats'] });
       queryClient.invalidateQueries({ queryKey: ['gec-imports'] });
+
+      if (data?.async) {
+        const importId = data?.import?.id;
+        setSuccessMessage(`Import queued in background${importId ? ` (ID #${importId})` : ''}. You can leave this page — progress will continue and update in Import History.`);
+        return;
+      }
+
+      queryClient.invalidateQueries({ queryKey: ['gec-stats'] });
       const s = data.stats;
       const lines = [
         `Import successful!`,
@@ -173,6 +209,25 @@ export default function TeamGecPage() {
           </div>
         )}
       </div>
+
+      {activeImport && (
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <div className="text-sm font-semibold text-blue-900">
+              {activeImportCount > 1 ? `${activeImportCount} imports in progress` : 'Background import in progress'}
+            </div>
+            <div className="text-xs text-blue-700 capitalize">{activeStage.replace(/_/g, ' ')}</div>
+          </div>
+          <div className="w-full h-2 bg-blue-100 rounded-full overflow-hidden">
+            <div className="h-full bg-blue-600 transition-all" style={{ width: `${activeProgressDisplay}%` }} />
+          </div>
+          <div className="mt-2 text-xs text-blue-700">
+            {activeProgress === 0
+              ? 'Waiting to start — safe to leave this page. Progress updates automatically.'
+              : `${activeProgressDisplay}% complete — safe to leave this page. Progress updates automatically.`}
+          </div>
+        </div>
+      )}
 
       {/* Upload */}
       <div className="bg-white rounded-xl border border-gray-200 p-5">
@@ -396,7 +451,11 @@ export default function TeamGecPage() {
                     </td>
                     <td className="py-2 px-3">
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                        imp.status === 'completed' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                        imp.status === 'completed'
+                          ? 'bg-green-50 text-green-700'
+                          : (imp.status === 'processing' || imp.status === 'pending')
+                          ? 'bg-amber-50 text-amber-700'
+                          : 'bg-red-50 text-red-700'
                       }`}>
                         {imp.status as string}
                       </span>

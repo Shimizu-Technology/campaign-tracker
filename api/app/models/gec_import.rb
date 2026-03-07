@@ -5,6 +5,7 @@ class GecImport < ApplicationRecord
   IMPORT_TYPES = %w[full_list changes_only].freeze
 
   belongs_to :uploaded_by_user, class_name: "User", optional: true
+  has_one :upload_payload, class_name: "GecImportUpload", dependent: :destroy
 
   validates :gec_list_date, presence: true
   validates :filename, presence: true

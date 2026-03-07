@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_01_023102) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_06_053000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -318,6 +318,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_01_023102) do
     t.index ["event_type"], name: "index_events_on_event_type"
     t.index ["status"], name: "index_events_on_status"
     t.index ["village_id"], name: "index_events_on_village_id"
+  end
+
+  create_table "gec_import_uploads", force: :cascade do |t|
+    t.string "content_type"
+    t.datetime "created_at", null: false
+    t.binary "file_data", null: false
+    t.string "filename", null: false
+    t.bigint "gec_import_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["gec_import_id"], name: "index_gec_import_uploads_on_gec_import_id", unique: true
   end
 
   create_table "gec_imports", force: :cascade do |t|
@@ -773,6 +783,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_01_023102) do
   add_foreign_key "event_rsvps", "supporters"
   add_foreign_key "events", "campaigns"
   add_foreign_key "events", "villages"
+  add_foreign_key "gec_import_uploads", "gec_imports"
   add_foreign_key "gec_imports", "users", column: "uploaded_by_user_id"
   add_foreign_key "gec_voters", "villages"
   add_foreign_key "lessons", "modules"

@@ -11,8 +11,12 @@
     {
       "fingerprint": "6d7188bba7423fe298cb2512a42db11523e6bd43f58ead66bdb3eee11ac860ec",
       "note": "File extension is validated against allowlist (.xlsx/.xls/.csv) before use — no path traversal risk"
+    },
+    {
+      "fingerprint": "89e352e0f538674b9c592babf7338776700746ee016a6877005d61da957e2961",
+      "note": "GecImportJob Tempfile: extension is allowlisted to .csv/.xlsx/.xls only — no user-controlled path component"
     }
   ],
-  "updated": "2026-02-14",
+  "updated": "2026-03-07",
   "brakeman_version": "8.0.2"
 }

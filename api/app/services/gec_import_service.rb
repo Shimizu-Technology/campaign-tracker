@@ -70,10 +70,16 @@ class GecImportService
   # Village name used for voters with no village match (GMF, military, off-island)
   UNASSIGNED_VILLAGE_NAME = "Unassigned"
 
+  # Cache TTL for heartbeat and progress keys. Must exceed the longest
+  # plausible import runtime (60K rows on a loaded DB can take >1 hour).
+  # Kept in the service to avoid a reverse dependency on GecImportJob.
+  # GecImportJob::PROCESSING_TIMEOUT (30 min) should be less than this value.
+  IMPORT_CACHE_TTL = 90.minutes
+
 
   Result = Struct.new(:success, :gec_import, :errors, :stats, keyword_init: true)
 
-  def initialize(file_path:, gec_list_date:, uploaded_by_user: nil, sheet_name: nil, import_type: "full_list")
+  def initialize(file_path:, gec_list_date:, uploaded_by_user: nil, sheet_name: nil, import_type: "full_list", gec_import: nil)
     @file_path = file_path
     @gec_list_date = gec_list_date
     @uploaded_by_user = uploaded_by_user
@@ -83,10 +89,12 @@ class GecImportService
     @stats = { total: 0, new: 0, updated: 0, ambiguous_dob: 0, skipped: 0, removed: 0, transferred: 0, re_vetted: 0, unassigned: 0 }
     @seen_voter_ids = Set.new
     @import_started_at = nil
+    @gec_import = gec_import
   end
 
   def call
-    gec_import = GecImport.create!(
+    async_mode = @gec_import.present?
+    gec_import = @gec_import || GecImport.create!(
       gec_list_date: @gec_list_date,
       filename: File.basename(@file_path),
       uploaded_by_user: @uploaded_by_user,
@@ -95,6 +103,7 @@ class GecImportService
     )
 
     begin
+      update_progress!(gec_import, stage: "parsing", percent: 10) if async_mode
       spreadsheet = Roo::Spreadsheet.open(@file_path)
       sheet = @sheet_name ? spreadsheet.sheet(@sheet_name) : spreadsheet.sheet(0)
 
@@ -114,6 +123,18 @@ class GecImportService
       ActiveRecord::Base.transaction do
         rows.each_with_index do |row, idx|
           process_row(row, column_map, idx + 2) # +2 for 1-indexed header row
+
+          if (idx % 500).zero?
+            # NOTE: write_progress_cache is intentionally non-transactional.
+            # Cache writes commit immediately regardless of the surrounding
+            # DB transaction. If the transaction rolls back, the cached values
+            # become stale. This is acceptable because the import status moves
+            # to "failed" on rollback, and the controller only reads cached
+            # progress for pending/processing imports.
+            # 20..85% while processing rows
+            progress = 20 + ((idx.to_f / [ rows.size, 1 ].max) * 65).to_i
+            write_progress_cache(gec_import.id, stage: "importing", percent: [ progress, 85 ].min) if async_mode
+          end
         end
 
         # For full list imports, detect purged voters (in DB but not in file)
@@ -123,6 +144,7 @@ class GecImportService
       end
 
       # Re-vet affected supporters (outside transaction for performance)
+      update_progress!(gec_import, stage: "re_vetting", percent: 90) if async_mode
       @stats[:re_vetted] = re_vet_affected_supporters(gec_import)
 
       gec_import.update!(
@@ -134,12 +156,21 @@ class GecImportService
         transferred_records: @stats[:transferred],
         ambiguous_dob_count: @stats[:ambiguous_dob],
         re_vetted_count: @stats[:re_vetted],
-        metadata: { skipped: @stats[:skipped], unassigned: @stats[:unassigned], errors: @errors.first(50) }
+        metadata: (gec_import.metadata || {}).merge({
+          "stage" => "completed",
+          "progress_percent" => 100,
+          "skipped" => @stats[:skipped],
+          "unassigned" => @stats[:unassigned],
+          "errors" => @errors.first(50)
+        })
       )
 
       Result.new(success: true, gec_import: gec_import, errors: @errors, stats: @stats)
     rescue => e
-      gec_import.update!(status: "failed", metadata: { error: e.message })
+      gec_import.update!(
+        status: "failed",
+        metadata: (gec_import.metadata || {}).merge({ "stage" => "failed", "progress_percent" => 100, "error" => e.message })
+      )
       Result.new(success: false, gec_import: gec_import, errors: [ e.message ], stats: @stats)
     end
   end
@@ -168,6 +199,45 @@ class GecImportService
   end
 
   private
+
+  def update_progress!(gec_import, stage:, percent:)
+    write_progress_cache(gec_import.id, stage: stage, percent: percent)
+    gec_import.update_columns(
+      metadata: (gec_import.metadata || {}).merge({ "stage" => stage, "progress_percent" => percent, "updated_at" => Time.current.iso8601 }),
+      updated_at: Time.current
+    )
+  end
+
+  def write_progress_cache(import_id, stage:, percent:)
+    now = Time.current.iso8601
+    Rails.cache.write(
+      "gec_import_progress:#{import_id}",
+      { "stage" => stage, "progress_percent" => percent, "updated_at" => now },
+      expires_in: IMPORT_CACHE_TTL
+    )
+    # Also refresh the heartbeat cache so stale-detector sees activity
+    write_heartbeat_cache(import_id)
+  rescue StandardError => e
+    Rails.logger.warn("GEC progress cache write failed for import #{import_id}: #{e.class}: #{e.message}")
+  end
+
+  # Non-transactional heartbeat visible to the stale-processing detector
+  # in GecImportJob. DB updated_at is invisible during an open transaction,
+  # so the job checks this cache key first.
+  #
+  # TTL must exceed the longest plausible import. If the TTL expires before
+  # the import finishes, the stale detector falls back to DB updated_at which
+  # may be stale (set at "parsing" stage before the transaction opened).
+  # See GecImportJob comments for queue retry window requirements.
+  def write_heartbeat_cache(import_id)
+    Rails.cache.write(
+      "gec_import_heartbeat:#{import_id}",
+      Time.current.iso8601,
+      expires_in: IMPORT_CACHE_TTL
+    )
+  rescue StandardError => e
+    Rails.logger.warn("GEC heartbeat cache write failed for import #{import_id}: #{e.class}: #{e.message}")
+  end
 
   def normalize_headers(row)
     row.map { |h| h.to_s.strip.downcase.gsub(/\s+/, "_") }
