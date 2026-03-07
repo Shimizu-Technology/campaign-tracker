@@ -264,6 +264,8 @@ export default function TeamGecPage() {
                 setFile(e.target.files?.[0] || null);
                 setPreviewData(null);
                 setConfirmReview(false);
+                setPreviewData(null);
+                setConfirmReview(false);
                 setErrorMessage(null);
                 setSuccessMessage(null);
               }}
@@ -274,7 +276,7 @@ export default function TeamGecPage() {
             <label className="text-xs font-medium text-gray-600 block mb-1.5">Import Type</label>
             <div className="flex gap-3">
               <label className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border cursor-pointer transition-colors ${importType === 'full_list' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                <input type="radio" name="importType" value="full_list" checked={importType === 'full_list'} onChange={() => setImportType('full_list')} className="sr-only" />
+                <input type="radio" name="importType" value="full_list" checked={importType === 'full_list'} onChange={() => { setImportType('full_list'); setPreviewData(null); setConfirmReview(false); }} className="sr-only" />
                 <Database className="w-4 h-4" />
                 <div>
                   <div className="text-sm font-medium">Full Voter List</div>
@@ -282,7 +284,7 @@ export default function TeamGecPage() {
                 </div>
               </label>
               <label className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border cursor-pointer transition-colors ${importType === 'changes_only' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                <input type="radio" name="importType" value="changes_only" checked={importType === 'changes_only'} onChange={() => setImportType('changes_only')} className="sr-only" />
+                <input type="radio" name="importType" value="changes_only" checked={importType === 'changes_only'} onChange={() => { setImportType('changes_only'); setPreviewData(null); setConfirmReview(false); }} className="sr-only" />
                 <RefreshCw className="w-4 h-4" />
                 <div>
                   <div className="text-sm font-medium">Changes Only</div>
@@ -306,7 +308,7 @@ export default function TeamGecPage() {
               <input
                 type="text"
                 value={sheetName}
-                onChange={e => setSheetName(e.target.value)}
+                onChange={e => { setSheetName(e.target.value); setPreviewData(null); setConfirmReview(false); }}
                 placeholder="e.g., Voter List"
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
               />
