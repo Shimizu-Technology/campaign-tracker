@@ -38,12 +38,16 @@ class GecImportJob < ApplicationJob
     # check the cache heartbeat first. If neither has been refreshed in
     # PROCESSING_TIMEOUT, the job is assumed crashed and we allow a retry.
     stale_processing = if gec_import&.status == "processing"
-      cached_heartbeat = Rails.cache.read("gec_import_heartbeat:#{gec_import.id}")
+      cached_heartbeat = begin
+        Rails.cache.read("gec_import_heartbeat:#{gec_import.id}")
+      rescue StandardError
+        nil
+      end
       last_seen = if cached_heartbeat.present?
         begin
           Time.parse(cached_heartbeat)
         rescue ArgumentError
-          gec_import.updated_at # fall back on corrupted cache data
+          gec_import.updated_at
         end
       else
         gec_import.updated_at
