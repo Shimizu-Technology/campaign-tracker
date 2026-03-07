@@ -135,4 +135,68 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     json = JSON.parse(response.body)
     assert json["imports"].any?
   end
+
+  test "imports includes uploaded_by_email" do
+    GecImport.create!(
+      gec_list_date: Date.new(2026, 1, 25),
+      filename: "gec_jan_2026.xlsx",
+      status: "completed",
+      total_records: 50000,
+      uploaded_by_user: @admin
+    )
+
+    get "/api/v1/gec_voters/imports", headers: auth_headers(@admin)
+
+    assert_response :success
+    json = JSON.parse(response.body)
+    imp = json["imports"].first
+    assert_equal @admin.email, imp["uploaded_by_email"]
+  end
+
+  test "imports includes has_original_file flag" do
+    GecImport.create!(
+      gec_list_date: Date.new(2026, 1, 25),
+      filename: "gec_jan_2026.xlsx",
+      status: "completed",
+      total_records: 50000,
+      original_file_data: "test data",
+      original_filename: "gec_jan_2026.xlsx"
+    )
+
+    get "/api/v1/gec_voters/imports", headers: auth_headers(@admin)
+
+    assert_response :success
+    json = JSON.parse(response.body)
+    imp = json["imports"].first
+    assert_equal true, imp["has_original_file"]
+  end
+
+  test "download_import returns original file" do
+    gec_import = GecImport.create!(
+      gec_list_date: Date.new(2026, 1, 25),
+      filename: "gec_jan_2026.xlsx",
+      status: "completed",
+      total_records: 50000,
+      original_file_data: "file content here",
+      original_filename: "gec_jan_2026.xlsx"
+    )
+
+    get "/api/v1/gec_voters/imports/#{gec_import.id}/download", headers: auth_headers(@admin)
+
+    assert_response :success
+    assert_equal "file content here", response.body
+  end
+
+  test "download_import returns 404 when no original file" do
+    gec_import = GecImport.create!(
+      gec_list_date: Date.new(2026, 1, 25),
+      filename: "gec_jan_2026.xlsx",
+      status: "completed",
+      total_records: 50000
+    )
+
+    get "/api/v1/gec_voters/imports/#{gec_import.id}/download", headers: auth_headers(@admin)
+
+    assert_response :not_found
+  end
 end

@@ -86,7 +86,7 @@ class GecImportService
     @sheet_name = sheet_name
     @import_type = import_type
     @errors = []
-    @stats = { total: 0, new: 0, updated: 0, ambiguous_dob: 0, skipped: 0, removed: 0, transferred: 0, re_vetted: 0, unassigned: 0 }
+    @stats = { total: 0, new: 0, updated: 0, matched_unchanged: 0, ambiguous_dob: 0, skipped: 0, removed: 0, transferred: 0, re_vetted: 0, unassigned: 0 }
     @seen_voter_ids = Set.new
     @import_started_at = nil
     @gec_import = gec_import
@@ -159,6 +159,7 @@ class GecImportService
         metadata: (gec_import.metadata || {}).merge({
           "stage" => "completed",
           "progress_percent" => 100,
+          "matched_unchanged" => @stats[:matched_unchanged],
           "skipped" => @stats[:skipped],
           "unassigned" => @stats[:unassigned],
           "errors" => @errors.first(50)
@@ -411,9 +412,22 @@ class GecImportService
         @stats[:transferred] += 1
       end
 
+      # Determine if any meaningful field actually changed
+      actually_changed = village_changed ||
+        record.status != "active" ||
+        record.voter_registration_number != attrs[:voter_registration_number] ||
+        record.dob != attrs[:dob] ||
+        record.dob_ambiguous != attrs[:dob_ambiguous] ||
+        record.birth_year != attrs[:birth_year] ||
+        record.gec_list_date != attrs[:gec_list_date]
+
       record.update!(**attrs)
       @seen_voter_ids.add(record.id)
-      @stats[:updated] += 1
+      if actually_changed
+        @stats[:updated] += 1
+      else
+        @stats[:matched_unchanged] += 1
+      end
     else
       voter = GecVoter.create!(
         first_name: data[:first_name],

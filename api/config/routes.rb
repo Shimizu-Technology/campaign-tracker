@@ -101,6 +101,7 @@ Rails.application.routes.draw do
         collection do
           get :stats
           get :imports
+          get "imports/:id/download", action: :download_import, as: :download_import
           post :upload
           post :preview
           post :match

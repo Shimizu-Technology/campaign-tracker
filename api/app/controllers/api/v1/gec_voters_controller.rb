@@ -335,9 +335,11 @@ module Api
       # GET /api/v1/gec_voters/imports
       # List past GEC imports
       def imports
-        imports = GecImport.latest.limit(20)
+        imports = GecImport.includes(:uploaded_by_user).latest.limit(20)
         rows = imports.map do |imp|
           json = imp.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :transferred_records, :re_vetted_count, :ambiguous_dob_count, :import_type, :status, :created_at, :metadata ])
+          json["uploaded_by_email"] = imp.uploaded_by_user&.email
+          json["has_original_file"] = imp.original_file_data.present?
           if %w[pending processing].include?(imp.status)
             cached = begin
               Rails.cache.read("gec_import_progress:#{imp.id}")
@@ -350,6 +352,22 @@ module Api
         end
 
         render json: { imports: rows }
+      end
+
+      # GET /api/v1/gec_voters/imports/:id/download
+      # Download the original imported file
+      def download_import
+        gec_import = GecImport.find_by(id: params[:id])
+        unless gec_import
+          return render_api_error(message: "Import not found", status: :not_found, code: "not_found")
+        end
+
+        unless gec_import.original_file_data.present?
+          return render_api_error(message: "Original file not available for this import", status: :not_found, code: "file_not_available")
+        end
+
+        filename = gec_import.original_filename || gec_import.filename || "gec_import_#{gec_import.id}"
+        send_data gec_import.original_file_data, filename: filename, disposition: :attachment
       end
 
       # POST /api/v1/gec_voters/match

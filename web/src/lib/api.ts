@@ -199,6 +199,17 @@ export const previewGecList = (file: File, sheetName?: string) => {
   return api.post('/gec_voters/preview', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
 };
 export const bulkVetSupporters = (params?: QueryParams) => api.post('/gec_voters/bulk_vet', params).then(r => r.data);
+export const downloadGecImportFile = (importId: number) =>
+  api.get(`/gec_voters/imports/${importId}/download`, { responseType: 'blob' }).then(r => {
+    const disposition = r.headers['content-disposition'];
+    const filename = disposition?.match(/filename="?(.+?)"?$/)?.[1] || `gec_import_${importId}`;
+    const url = URL.createObjectURL(r.data as Blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
 export const matchGecVoter = (params: { first_name: string; last_name: string; dob?: string; village_name?: string }) =>
   api.post('/gec_voters/match', params).then(r => r.data);
 

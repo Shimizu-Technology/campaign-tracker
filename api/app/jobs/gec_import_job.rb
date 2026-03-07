@@ -129,6 +129,12 @@ class GecImportJob < ApplicationJob
       # Now load the full binary blob — only after both locks are held.
       upload = GecImportUpload.find(upload_id)
 
+      # Preserve original file on the GecImport for later download
+      gec_import.update_columns(
+        original_file_data: upload.file_data,
+        original_filename: upload.filename
+      )
+
       # Determine intended extension from upload metadata.
       # PDF uploads are stored as CSV bytes (converted by the controller),
       # so always use .csv for those. Standard Excel uploads keep their

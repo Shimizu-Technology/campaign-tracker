@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getGecStats, getGecImports, uploadGecList, bulkVetSupporters, previewGecList } from '../../lib/api';
+import { getGecStats, getGecImports, uploadGecList, bulkVetSupporters, previewGecList, downloadGecImportFile } from '../../lib/api';
 import {
   Database,
   Upload,
@@ -8,6 +8,9 @@ import {
   Loader2,
   RefreshCw,
   Calendar,
+  ChevronDown,
+  ChevronRight,
+  Download,
 } from 'lucide-react';
 
 type PdfQaStatus = 'pass' | 'review' | 'fail';
@@ -29,6 +32,18 @@ function formatDateUTC(dateStr: string | null | undefined): string {
   }
   const d = new Date(normalized);
   return d.toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'numeric', day: 'numeric' });
+}
+
+function formatDateTimeUTC(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—';
+  let normalized = dateStr;
+  if (!dateStr.includes('T')) {
+    normalized = dateStr + 'T00:00:00Z';
+  } else if (!/[Zz]|[+-]\d{2}:\d{2}$/.test(dateStr)) {
+    normalized = dateStr + 'Z';
+  }
+  const d = new Date(normalized);
+  return d.toLocaleString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' });
 }
 
 type PreviewRow = Record<string, unknown>;
@@ -53,6 +68,36 @@ interface SpreadsheetPreviewData {
 
 type PreviewData = PdfPreviewData | SpreadsheetPreviewData;
 
+interface ImportRecord {
+  id: number;
+  gec_list_date: string;
+  filename: string;
+  total_records: number;
+  new_records: number;
+  updated_records: number;
+  removed_records: number;
+  transferred_records: number;
+  re_vetted_count: number;
+  ambiguous_dob_count: number;
+  import_type: string;
+  status: string;
+  created_at: string;
+  uploaded_by_email: string | null;
+  has_original_file: boolean;
+  metadata: {
+    stage?: string;
+    progress_percent?: number;
+    matched_unchanged?: number;
+    skipped?: number;
+    unassigned?: number;
+    errors?: string[];
+    error?: string;
+    pdf_qa?: Record<string, unknown>;
+    mode?: string;
+    [key: string]: unknown;
+  };
+}
+
 export default function TeamGecPage() {
   const queryClient = useQueryClient();
   const [file, setFile] = useState<File | null>(null);
@@ -63,6 +108,7 @@ export default function TeamGecPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [confirmReview, setConfirmReview] = useState(false);
+  const [expandedImportId, setExpandedImportId] = useState<number | null>(null);
 
   const { data: stats, isLoading: statsLoading } = useQuery({ queryKey: ['gec-stats'], queryFn: getGecStats });
   const { data: imports } = useQuery({
@@ -78,17 +124,19 @@ export default function TeamGecPage() {
     }
   });
 
+  const importRows = (imports?.imports || []) as ImportRecord[];
+
   const isPdfPreview = previewData?.source_type === 'pdf';
   const pdfStatus = isPdfPreview ? previewData.qa?.status : null;
   const reviewNeedsConfirmation = pdfStatus === 'review' && !confirmReview;
-  const activeImports = (imports?.imports || []).filter(
-    (imp: Record<string, unknown>) => imp.status === 'processing' || imp.status === 'pending'
+  const activeImports = importRows.filter(
+    (imp) => imp.status === 'processing' || imp.status === 'pending'
   );
   const hasActiveImport = activeImports.length > 0;
-  const activeImport = activeImports.find((imp: Record<string, unknown>) => imp.status === 'processing') || activeImports[0];
-  const activeProgress = Number((activeImport?.metadata as Record<string, unknown> | undefined)?.progress_percent || 0);
+  const activeImport = activeImports.find((imp) => imp.status === 'processing') || activeImports[0];
+  const activeProgress = Number(activeImport?.metadata?.progress_percent || 0);
   const activeProgressDisplay = Math.max(5, Math.min(100, activeProgress));
-  const activeStage = String((activeImport?.metadata as Record<string, unknown> | undefined)?.stage || 'processing');
+  const activeStage = String(activeImport?.metadata?.stage || 'processing');
   const activeImportCount = activeImports.length;
 
   const previouslyHadActiveImport = useRef(false);
@@ -485,7 +533,7 @@ export default function TeamGecPage() {
       )}
 
       {/* Import History */}
-      {imports?.imports?.length > 0 && (
+      {importRows.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <h2 className="text-sm font-semibold text-gray-700 mb-4 flex items-center gap-2">
             <Calendar className="w-4 h-4 text-gray-500" />
@@ -495,6 +543,7 @@ export default function TeamGecPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100">
+                  <th className="w-6 py-2 px-1"></th>
                   <th className="text-left py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Date</th>
                   <th className="text-left py-2 px-3 text-xs font-semibold text-gray-400 uppercase">File</th>
                   <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Total</th>
@@ -502,39 +551,174 @@ export default function TeamGecPage() {
                   <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Updated</th>
                   <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Removed</th>
                   <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Transfers</th>
+                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Imported At</th>
+                  <th className="text-left py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Imported By</th>
                   <th className="text-left py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Type</th>
                   <th className="text-left py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Status</th>
                 </tr>
               </thead>
               <tbody>
-                {imports.imports.map((imp: Record<string, unknown>) => (
-                  <tr key={imp.id as number} className="border-b border-gray-50">
-                    <td className="py-2 px-3 text-gray-600">{formatDateUTC(imp.gec_list_date as string)}</td>
-                    <td className="py-2 px-3 text-gray-600 text-xs">{imp.filename as string}</td>
-                    <td className="py-2 px-3 text-right font-medium">{((imp.total_records as number) || 0).toLocaleString()}</td>
-                    <td className="py-2 px-3 text-right text-green-600">{imp.new_records as number}</td>
-                    <td className="py-2 px-3 text-right text-blue-600">{imp.updated_records as number}</td>
-                    <td className="py-2 px-3 text-right text-red-600">{(imp.removed_records as number) || 0}</td>
-                    <td className="py-2 px-3 text-right text-blue-600">{(imp.transferred_records as number) || 0}</td>
-                    <td className="py-2 px-3">
-                      <span className="text-xs text-gray-500">{(imp.import_type as string)?.replace(/_/g, ' ')}</span>
-                    </td>
-                    <td className="py-2 px-3">
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-                        imp.status === 'completed'
-                          ? 'bg-green-50 text-green-700'
-                          : (imp.status === 'processing' || imp.status === 'pending')
-                          ? 'bg-amber-50 text-amber-700'
-                          : 'bg-red-50 text-red-700'
-                      }`}>
-                        {imp.status as string}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
+                {importRows.map((imp) => {
+                  const isExpanded = expandedImportId === imp.id;
+                  const meta = imp.metadata || {};
+                  const matchedUnchanged = Number(meta.matched_unchanged || 0);
+                  const errors = meta.errors as string[] | undefined;
+                  const errorMsg = meta.error as string | undefined;
+                  const skipped = Number(meta.skipped || 0);
+                  const unassigned = Number(meta.unassigned || 0);
+
+                  return (
+                    <>{/* eslint-disable-next-line react/jsx-key */}
+                    <tr
+                      key={imp.id}
+                      className={`border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${isExpanded ? 'bg-gray-50' : ''}`}
+                      onClick={() => setExpandedImportId(isExpanded ? null : imp.id)}
+                    >
+                      <td className="py-2 px-1 text-gray-400">
+                        {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                      </td>
+                      <td className="py-2 px-3 text-gray-600">{formatDateUTC(imp.gec_list_date)}</td>
+                      <td className="py-2 px-3 text-gray-600 text-xs">{imp.filename}</td>
+                      <td className="py-2 px-3 text-right font-medium">{(imp.total_records || 0).toLocaleString()}</td>
+                      <td className="py-2 px-3 text-right text-green-600">{imp.new_records}</td>
+                      <td className="py-2 px-3 text-right text-blue-600">{imp.updated_records}</td>
+                      <td className="py-2 px-3 text-right text-red-600">{imp.removed_records || 0}</td>
+                      <td className="py-2 px-3 text-right text-blue-600">{imp.transferred_records || 0}</td>
+                      <td className="py-2 px-3 text-gray-500 text-xs whitespace-nowrap">{formatDateTimeUTC(imp.created_at)}</td>
+                      <td className="py-2 px-3 text-gray-500 text-xs">{imp.uploaded_by_email || '—'}</td>
+                      <td className="py-2 px-3">
+                        <span className="text-xs text-gray-500">{imp.import_type?.replace(/_/g, ' ')}</span>
+                      </td>
+                      <td className="py-2 px-3">
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                          imp.status === 'completed'
+                            ? 'bg-green-50 text-green-700'
+                            : (imp.status === 'processing' || imp.status === 'pending')
+                            ? 'bg-amber-50 text-amber-700'
+                            : 'bg-red-50 text-red-700'
+                        }`}>
+                          {imp.status}
+                        </span>
+                      </td>
+                    </tr>
+                    {isExpanded && (
+                      <tr key={`${imp.id}-detail`}>
+                        <td colSpan={12} className="p-0">
+                          <ImportDetailPanel
+                            imp={imp}
+                            matchedUnchanged={matchedUnchanged}
+                            skipped={skipped}
+                            unassigned={unassigned}
+                            errors={errors}
+                            errorMsg={errorMsg}
+                          />
+                        </td>
+                      </tr>
+                    )}
+                    </>
+                  );
+                })}
               </tbody>
             </table>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ImportDetailPanel({ imp, matchedUnchanged, skipped, unassigned, errors, errorMsg }: {
+  imp: ImportRecord;
+  matchedUnchanged: number;
+  skipped: number;
+  unassigned: number;
+  errors?: string[];
+  errorMsg?: string;
+}) {
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDownloading(true);
+    try {
+      await downloadGecImportFile(imp.id);
+    } catch {
+      // silently fail - file may not be available
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  return (
+    <div className="px-6 py-4 bg-gray-50 border-t border-gray-100">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* Info */}
+        <div className="space-y-1.5">
+          <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Import Details</div>
+          <div className="text-xs text-gray-600">
+            <span className="font-medium">Imported at:</span> {formatDateTimeUTC(imp.created_at)}
+          </div>
+          <div className="text-xs text-gray-600">
+            <span className="font-medium">Imported by:</span> {imp.uploaded_by_email || '—'}
+          </div>
+          <div className="text-xs text-gray-600">
+            <span className="font-medium">Filename:</span> {imp.filename}
+          </div>
+          <div className="text-xs text-gray-600">
+            <span className="font-medium">List date:</span> {formatDateUTC(imp.gec_list_date)}
+          </div>
+          <div className="text-xs text-gray-600">
+            <span className="font-medium">Type:</span> {imp.import_type?.replace(/_/g, ' ')}
+          </div>
+        </div>
+
+        {/* Breakdown */}
+        <div className="space-y-1.5">
+          <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Breakdown</div>
+          <div className="text-xs text-gray-600">Total processed: <strong>{(imp.total_records || 0).toLocaleString()}</strong></div>
+          <div className="text-xs text-green-700">New records: <strong>{imp.new_records}</strong></div>
+          <div className="text-xs text-blue-700">
+            Updated (changed): <strong>{imp.updated_records}</strong>
+            {matchedUnchanged > 0 && (
+              <span className="text-gray-500 ml-1">({matchedUnchanged.toLocaleString()} matched unchanged)</span>
+            )}
+          </div>
+          <div className="text-xs text-red-700">Removed / purged: <strong>{imp.removed_records || 0}</strong></div>
+          <div className="text-xs text-blue-700">Village transfers: <strong>{imp.transferred_records || 0}</strong></div>
+          <div className="text-xs text-gray-600">Re-vetted supporters: <strong>{imp.re_vetted_count || 0}</strong></div>
+        </div>
+
+        {/* Extra stats */}
+        <div className="space-y-1.5">
+          <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Additional</div>
+          <div className="text-xs text-amber-700">Ambiguous DOBs: <strong>{imp.ambiguous_dob_count || 0}</strong></div>
+          {skipped > 0 && <div className="text-xs text-gray-600">Skipped rows: <strong>{skipped}</strong></div>}
+          {unassigned > 0 && <div className="text-xs text-gray-600">Unassigned village: <strong>{unassigned}</strong></div>}
+          {imp.has_original_file && (
+            <button
+              onClick={handleDownload}
+              disabled={downloading}
+              className="mt-2 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:opacity-50 transition-colors"
+            >
+              {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+              Download Original
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Errors */}
+      {errorMsg && (
+        <div className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          <span className="font-medium">Error:</span> {errorMsg}
+        </div>
+      )}
+      {errors && errors.length > 0 && (
+        <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+          <div className="text-[10px] font-semibold text-amber-600 uppercase mb-1">Row Errors ({errors.length})</div>
+          <ul className="text-xs text-amber-700 space-y-0.5 max-h-32 overflow-y-auto">
+            {errors.map((err, i) => <li key={i}>{err}</li>)}
+          </ul>
         </div>
       )}
     </div>
