@@ -129,6 +129,35 @@ class GecImportJob < ApplicationJob
       # Now load the full binary blob — only after both locks are held.
       upload = GecImportUpload.find(upload_id)
 
+      # Preserve original file for later download (S3 if configured, skip otherwise)
+      if S3Service.enabled?
+        display_filename = upload.filename.to_s
+        content_type = upload.content_type || "application/octet-stream"
+
+        # PDF uploads are converted to CSV by the controller before saving to GecImportUpload,
+        # so file_data is CSV but content_type/filename still reflect the original PDF.
+        # Normalize so the downloaded file is correctly typed and openable.
+        if content_type.start_with?("application/pdf")
+          content_type = "text/csv"
+          display_filename = "#{File.basename(display_filename, '.*')}.csv"
+        end
+
+        # Sanitize filename for S3 key: strip non-safe chars to avoid broken presigned URLs
+        safe_filename = display_filename.gsub(/[^A-Za-z0-9._\-]/, "_").squeeze("_")
+        safe_filename = "import_file" if safe_filename.blank?
+        s3_key = "gec-imports/#{gec_import.id}/#{safe_filename}"
+
+        if S3Service.upload(s3_key, upload.file_data, content_type: content_type)
+          gec_import.update_columns(
+            original_file_s3_key: s3_key,
+            original_filename: display_filename,
+            original_content_type: content_type
+          )
+        else
+          Rails.logger.warn("GecImportJob #{gec_import.id}: S3 upload failed, original file not preserved")
+        end
+      end
+
       # Determine intended extension from upload metadata.
       # PDF uploads are stored as CSV bytes (converted by the controller),
       # so always use .csv for those. Standard Excel uploads keep their

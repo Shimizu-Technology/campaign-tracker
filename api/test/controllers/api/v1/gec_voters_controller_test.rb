@@ -135,4 +135,70 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     json = JSON.parse(response.body)
     assert json["imports"].any?
   end
+
+  test "imports includes uploaded_by_email" do
+    GecImport.create!(
+      gec_list_date: Date.new(2026, 1, 25),
+      filename: "gec_jan_2026.xlsx",
+      status: "completed",
+      total_records: 50000,
+      uploaded_by_user: @admin
+    )
+
+    get "/api/v1/gec_voters/imports", headers: auth_headers(@admin)
+
+    assert_response :success
+    json = JSON.parse(response.body)
+    imp = json["imports"].first
+    assert_equal @admin.email, imp["uploaded_by_email"]
+  end
+
+  test "imports includes has_original_file flag" do
+    GecImport.create!(
+      gec_list_date: Date.new(2026, 1, 25),
+      filename: "gec_jan_2026.xlsx",
+      status: "completed",
+      total_records: 50000,
+      original_file_s3_key: "gec-imports/1/gec_jan_2026.xlsx",
+      original_filename: "gec_jan_2026.xlsx"
+    )
+
+    get "/api/v1/gec_voters/imports", headers: auth_headers(@admin)
+
+    assert_response :success
+    json = JSON.parse(response.body)
+    imp = json["imports"].first
+    assert_equal true, imp["has_original_file"]
+  end
+
+  test "download_import returns service_unavailable when S3 not configured" do
+    gec_import = GecImport.create!(
+      gec_list_date: Date.new(2026, 1, 25),
+      filename: "gec_jan_2026.xlsx",
+      status: "completed",
+      total_records: 50000,
+      original_file_s3_key: "gec-imports/1/gec_jan_2026.xlsx",
+      original_filename: "gec_jan_2026.xlsx"
+    )
+
+    # S3Service.enabled? is false in test (no AWS env vars), so presigned_url returns nil
+    get "/api/v1/gec_voters/imports/#{gec_import.id}/download", headers: auth_headers(@admin)
+
+    assert_response :service_unavailable
+    json = JSON.parse(response.body)
+    assert_equal "s3_error", json["code"]
+  end
+
+  test "download_import returns 404 when no original file" do
+    gec_import = GecImport.create!(
+      gec_list_date: Date.new(2026, 1, 25),
+      filename: "gec_jan_2026.xlsx",
+      status: "completed",
+      total_records: 50000
+    )
+
+    get "/api/v1/gec_voters/imports/#{gec_import.id}/download", headers: auth_headers(@admin)
+
+    assert_response :not_found
+  end
 end

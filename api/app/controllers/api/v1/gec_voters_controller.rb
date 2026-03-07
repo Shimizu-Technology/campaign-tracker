@@ -335,9 +335,11 @@ module Api
       # GET /api/v1/gec_voters/imports
       # List past GEC imports
       def imports
-        imports = GecImport.latest.limit(20)
+        imports = GecImport.includes(:uploaded_by_user).latest.limit(20)
         rows = imports.map do |imp|
           json = imp.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :transferred_records, :re_vetted_count, :ambiguous_dob_count, :import_type, :status, :created_at, :metadata ])
+          json["uploaded_by_email"] = imp.uploaded_by_user&.email
+          json["has_original_file"] = imp.original_file_s3_key.present?
           if %w[pending processing].include?(imp.status)
             cached = begin
               Rails.cache.read("gec_import_progress:#{imp.id}")
@@ -350,6 +352,33 @@ module Api
         end
 
         render json: { imports: rows }
+      end
+
+      # GET /api/v1/gec_voters/imports/:id/download
+      # Download the original imported file
+      def download_import
+        gec_import = GecImport.find_by(id: params[:id])
+        unless gec_import
+          return render_api_error(message: "Import not found", status: :not_found, code: "not_found")
+        end
+
+        unless gec_import.original_file_s3_key.present?
+          return render_api_error(message: "Original file not available for this import", status: :not_found, code: "file_not_available")
+        end
+
+        download_url = S3Service.presigned_url(
+          gec_import.original_file_s3_key,
+          expires_in: 300,
+          filename: gec_import.original_filename || gec_import.filename
+        )
+        unless download_url
+          return render_api_error(message: "Could not generate download link", status: :service_unavailable, code: "s3_error")
+        end
+
+        render json: {
+          download_url: download_url,
+          filename: gec_import.original_filename || gec_import.filename || "gec_import_#{gec_import.id}"
+        }
       end
 
       # POST /api/v1/gec_voters/match

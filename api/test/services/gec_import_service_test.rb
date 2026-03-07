@@ -305,6 +305,60 @@ class GecImportServiceTest < ActiveSupport::TestCase
     assert_equal false, supporter.registered_voter
   end
 
+  test "tracks matched_unchanged when re-importing identical data" do
+    GecVoter.create!(
+      first_name: "Juan",
+      last_name: "Cruz",
+      dob: Date.new(1985, 3, 15),
+      birth_year: 1985,
+      village_name: "Barrigada",
+      gec_list_date: Date.new(2026, 2, 25),
+      imported_at: 1.day.ago
+    )
+
+    file = create_test_excel([
+      [ "First Name", "Last Name", "Date of Birth", "Village", "Reg No" ],
+      [ "Juan", "Cruz", Date.new(1985, 3, 15), "Barrigada", nil ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      import_type: "changes_only"
+    ).call
+
+    assert result.success
+    assert_equal 0, result.stats[:updated], "No fields changed, should not count as updated"
+    assert_equal 1, result.stats[:matched_unchanged], "Should count as matched_unchanged"
+    assert_equal 1, result.gec_import.metadata["matched_unchanged"]
+  end
+
+  test "counts as updated when a field actually changes" do
+    GecVoter.create!(
+      first_name: "Juan",
+      last_name: "Cruz",
+      dob: Date.new(1985, 3, 15),
+      village_name: "Barrigada",
+      gec_list_date: Date.new(2026, 1, 25),
+      imported_at: 1.month.ago
+    )
+
+    file = create_test_excel([
+      [ "First Name", "Last Name", "Date of Birth", "Village", "Reg No" ],
+      [ "Juan", "Cruz", Date.new(1985, 3, 15), "Barrigada", "VR-NEW" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      import_type: "changes_only"
+    ).call
+
+    assert result.success
+    assert_equal 1, result.stats[:updated], "VRN changed, should count as updated"
+    assert_equal 0, result.stats[:matched_unchanged]
+  end
+
   test "change_summary on gec_import returns correct data" do
     file = create_test_excel([
       [ "First Name", "Last Name", "Date of Birth", "Village", "Reg No" ],

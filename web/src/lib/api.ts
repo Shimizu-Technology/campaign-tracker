@@ -199,6 +199,16 @@ export const previewGecList = (file: File, sheetName?: string) => {
   return api.post('/gec_voters/preview', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
 };
 export const bulkVetSupporters = (params?: QueryParams) => api.post('/gec_voters/bulk_vet', params).then(r => r.data);
+export const downloadGecImportFile = (importId: number) =>
+  api.get<{ download_url: string; filename: string }>(`/gec_voters/imports/${importId}/download`).then(r => {
+    const { download_url, filename } = r.data;
+    const a = document.createElement('a');
+    a.href = download_url;
+    a.download = filename; // Hint only — ignored for cross-origin S3 URLs; actual filename set by Content-Disposition header
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  });
 export const matchGecVoter = (params: { first_name: string; last_name: string; dob?: string; village_name?: string }) =>
   api.post('/gec_voters/match', params).then(r => r.data);
 
