@@ -70,6 +70,12 @@ class GecImportService
   # Village name used for voters with no village match (GMF, military, off-island)
   UNASSIGNED_VILLAGE_NAME = "Unassigned"
 
+  # Cache TTL for heartbeat and progress keys. Must exceed the longest
+  # plausible import runtime (60K rows on a loaded DB can take >1 hour).
+  # Kept in the service to avoid a reverse dependency on GecImportJob.
+  # GecImportJob::PROCESSING_TIMEOUT (30 min) should be less than this value.
+  IMPORT_CACHE_TTL = 90.minutes
+
 
   Result = Struct.new(:success, :gec_import, :errors, :stats, keyword_init: true)
 
@@ -207,7 +213,7 @@ class GecImportService
     Rails.cache.write(
       "gec_import_progress:#{import_id}",
       { "stage" => stage, "progress_percent" => percent, "updated_at" => now },
-      expires_in: GecImportJob::HEARTBEAT_TTL
+      expires_in: IMPORT_CACHE_TTL
     )
     # Also refresh the heartbeat cache so stale-detector sees activity
     write_heartbeat_cache(import_id)
@@ -219,16 +225,15 @@ class GecImportService
   # in GecImportJob. DB updated_at is invisible during an open transaction,
   # so the job checks this cache key first.
   #
-  # TTL is derived from GecImportJob::HEARTBEAT_TTL (currently 90 min) to
-  # survive the longest plausible import. If the TTL expires before the
-  # import finishes, the stale detector falls back to DB updated_at which
+  # TTL must exceed the longest plausible import. If the TTL expires before
+  # the import finishes, the stale detector falls back to DB updated_at which
   # may be stale (set at "parsing" stage before the transaction opened).
   # See GecImportJob comments for queue retry window requirements.
   def write_heartbeat_cache(import_id)
     Rails.cache.write(
       "gec_import_heartbeat:#{import_id}",
       Time.current.iso8601,
-      expires_in: GecImportJob::HEARTBEAT_TTL
+      expires_in: IMPORT_CACHE_TTL
     )
   rescue StandardError => e
     Rails.logger.warn("GEC heartbeat cache write failed for import #{import_id}: #{e.class}: #{e.message}")

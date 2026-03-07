@@ -19,18 +19,12 @@ class GecImportJob < ApplicationJob
   # reclaim the import instead of bailing out at the guard check.
   PROCESSING_TIMEOUT = 30.minutes
 
-  # Cache TTL for heartbeat/progress keys. Must exceed the longest plausible
-  # import runtime (60K rows on a loaded DB can take >1 hour). Set to 3x
-  # PROCESSING_TIMEOUT so the cache outlives both the import and the stale
-  # detection window.
-  #
   # OPERATOR NOTE: If the only outstanding job crashes and the queue backend
   # exhausts its retries before PROCESSING_TIMEOUT elapses, no retry will
   # exist to reclaim the import and it will be stuck in "processing" until
   # manual intervention. Configure job retries with a window of at least
-  # PROCESSING_TIMEOUT + HEARTBEAT_TTL (currently 2 hours) to ensure
-  # recovery is possible.
-  HEARTBEAT_TTL = PROCESSING_TIMEOUT * 3
+  # PROCESSING_TIMEOUT + GecImportService::IMPORT_CACHE_TTL (currently
+  # 30 min + 90 min = 2 hours) to ensure recovery is possible.
 
   # Process-level mutex to prevent concurrent imports within the same multi-threaded
   # worker (e.g. Sidekiq). pg_try_advisory_lock is session-level and each thread gets

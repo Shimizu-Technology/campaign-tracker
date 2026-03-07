@@ -339,7 +339,11 @@ module Api
         rows = imports.map do |imp|
           json = imp.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :transferred_records, :re_vetted_count, :ambiguous_dob_count, :import_type, :status, :created_at, :metadata ])
           if %w[pending processing].include?(imp.status)
-            cached = Rails.cache.read("gec_import_progress:#{imp.id}")
+            cached = begin
+              Rails.cache.read("gec_import_progress:#{imp.id}")
+            rescue StandardError
+              nil
+            end
             json["metadata"] = (json["metadata"] || {}).merge(cached || {})
           end
           json
@@ -444,7 +448,11 @@ module Api
       def read_cached_pdf_parse(cache_key)
         return nil if cache_key.blank?
 
-        cached = Rails.cache.read(cache_key)
+        cached = begin
+          Rails.cache.read(cache_key)
+        rescue StandardError
+          nil
+        end
         return nil unless cached.is_a?(Hash) && cached.key?(:qa)
 
         GecPdfParserService::Result.new(
