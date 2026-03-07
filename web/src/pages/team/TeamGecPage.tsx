@@ -12,6 +12,13 @@ import {
 
 type PdfQaStatus = 'pass' | 'review' | 'fail';
 
+/** Parse a date string as UTC to avoid timezone shift (e.g. "2025-12-25" showing as Dec 24). */
+function formatDateUTC(dateStr: string | null | undefined): string {
+  if (!dateStr) return '—';
+  const d = new Date(dateStr + (dateStr.includes('T') ? '' : 'T00:00:00Z'));
+  return d.toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'numeric', day: 'numeric' });
+}
+
 type PreviewRow = Record<string, unknown>;
 
 interface PdfPreviewData {
@@ -173,7 +180,7 @@ export default function TeamGecPage() {
               <div className="text-xs text-gray-400">Villages</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-gray-900">{new Date(stats.latest_list_date).toLocaleDateString()}</div>
+              <div className="text-2xl font-bold text-gray-900">{formatDateUTC(stats.latest_list_date)}</div>
               <div className="text-xs text-gray-400">List Date</div>
             </div>
             <div>
@@ -304,13 +311,20 @@ export default function TeamGecPage() {
             </button>
             <button
               onClick={() => uploadMutation.mutate()}
-              disabled={!file || !listDate || uploadMutation.isPending || pdfStatus === 'fail' || reviewNeedsConfirmation}
+              disabled={!file || !listDate || !previewData || uploadMutation.isPending || pdfStatus === 'fail' || reviewNeedsConfirmation}
               className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
+              title={!previewData ? 'Analyze file first to review before importing' : undefined}
             >
               {uploadMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              {uploadMutation.isPending ? 'Uploading...' : 'Upload & Import'}
+              {uploadMutation.isPending ? 'Uploading...' : 'Confirm & Import'}
             </button>
           </div>
+
+          {file && !previewData && !previewMutation.isPending && (
+            <div className="text-xs text-gray-500">
+              Click "Analyze File" to preview the data before importing.
+            </div>
+          )}
 
           {errorMessage && (
             <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 whitespace-pre-line">
@@ -386,8 +400,49 @@ export default function TeamGecPage() {
                   )}
                 </>
               ) : (
-                <div className="text-sm text-gray-700">
-                  Spreadsheet preview ready. Rows detected: <strong>{Number(previewData.row_count || 0).toLocaleString()}</strong>
+                <div className="space-y-2">
+                  <div className="text-sm font-semibold text-gray-800">Spreadsheet Preview</div>
+                  <div className="text-sm text-gray-700">
+                    Rows detected: <strong>{Number(previewData.row_count || 0).toLocaleString()}</strong>
+                    {previewData.sheets?.length > 1 && (
+                      <span className="ml-2 text-gray-500">({previewData.sheets.length} sheets)</span>
+                    )}
+                  </div>
+                  {previewData.column_map && Object.keys(previewData.column_map).length > 0 && (
+                    <div className="text-xs text-gray-600">
+                      <span className="font-medium">Columns mapped:</span>{' '}
+                      {Object.entries(previewData.column_map).map(([key]) => key).join(', ')}
+                    </div>
+                  )}
+                  {previewData.preview_rows?.length > 0 && (
+                    <div>
+                      <div className="text-xs font-semibold text-gray-500 uppercase mb-1">Sample Rows (first {previewData.preview_rows.length})</div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs border-collapse">
+                          <thead>
+                            <tr className="bg-gray-100">
+                              <th className="text-left px-2 py-1 text-gray-500 font-medium">First Name</th>
+                              <th className="text-left px-2 py-1 text-gray-500 font-medium">Last Name</th>
+                              <th className="text-left px-2 py-1 text-gray-500 font-medium">Village</th>
+                              <th className="text-left px-2 py-1 text-gray-500 font-medium">DOB / Year</th>
+                              <th className="text-left px-2 py-1 text-gray-500 font-medium">Reg No.</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {previewData.preview_rows.map((row, i) => (
+                              <tr key={i} className="border-t border-gray-200">
+                                <td className="px-2 py-1 text-gray-800">{String(row.first_name ?? '')}</td>
+                                <td className="px-2 py-1 text-gray-800">{String(row.last_name ?? '')}</td>
+                                <td className="px-2 py-1 text-gray-600">{String(row.village_name ?? '')}</td>
+                                <td className="px-2 py-1 text-gray-600">{String(row.dob ?? row.birth_year ?? '')}</td>
+                                <td className="px-2 py-1 text-gray-600">{String(row.voter_registration_number ?? '')}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -439,7 +494,7 @@ export default function TeamGecPage() {
               <tbody>
                 {imports.imports.map((imp: Record<string, unknown>) => (
                   <tr key={imp.id as number} className="border-b border-gray-50">
-                    <td className="py-2 px-3 text-gray-600">{new Date(imp.gec_list_date as string).toLocaleDateString()}</td>
+                    <td className="py-2 px-3 text-gray-600">{formatDateUTC(imp.gec_list_date as string)}</td>
                     <td className="py-2 px-3 text-gray-600 text-xs">{imp.filename as string}</td>
                     <td className="py-2 px-3 text-right font-medium">{((imp.total_records as number) || 0).toLocaleString()}</td>
                     <td className="py-2 px-3 text-right text-green-600">{imp.new_records as number}</td>
