@@ -32,17 +32,33 @@ class GecImportJob < ApplicationJob
     # 10-50 MB in Ruby heap while waiting for requeue.
     upload_meta = GecImportUpload.where(id: upload_id).select(:id, :gec_import_id, :filename, :content_type).first
 
-    # Allow retries of stale "processing" imports. A running job touches
-    # updated_at at stage transitions (parsing → importing → re_vetting)
-    # and every 5,000 rows during the import loop. A crashed/OOM-killed
-    # job leaves updated_at frozen, so if it hasn't been touched in
-    # PROCESSING_TIMEOUT we treat it as abandoned and allow a retry.
-    stale_processing = gec_import&.status == "processing" &&
-                       gec_import.updated_at < PROCESSING_TIMEOUT.ago
+    # Allow retries of stale "processing" imports. A running job writes a
+    # heartbeat to Rails.cache every 5,000 rows + at each stage transition.
+    # The DB updated_at is invisible during the open transaction, so we
+    # check the cache heartbeat first. If neither has been refreshed in
+    # PROCESSING_TIMEOUT, the job is assumed crashed and we allow a retry.
+    stale_processing = if gec_import&.status == "processing"
+      cached_heartbeat = Rails.cache.read("gec_import_heartbeat:#{gec_import.id}")
+      last_seen = if cached_heartbeat.present?
+        Time.parse(cached_heartbeat)
+      else
+        gec_import.updated_at
+      end
+      last_seen < PROCESSING_TIMEOUT.ago
+    else
+      false
+    end
 
-    if gec_import.nil? || %w[completed failed].include?(gec_import.status) ||
-       (gec_import.status == "processing" && !stale_processing)
+    # Terminal states: safe to clean up upload and bail.
+    if gec_import.nil? || %w[completed failed].include?(gec_import.status)
       GecImportUpload.where(id: upload_id).delete_all
+      return
+    end
+
+    # Non-stale processing: a healthy job is already running and still
+    # holds the tempfile. Do NOT delete the upload — the running job
+    # may crash later and a retry would need it for recovery.
+    if gec_import.status == "processing" && !stale_processing
       return
     end
 

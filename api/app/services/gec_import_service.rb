@@ -120,9 +120,13 @@ class GecImportService
 
           # Periodically refresh heartbeat to prevent the stale-processing
           # detector (PROCESSING_TIMEOUT) from treating a long-running import
-          # as crashed. update_columns touches updated_at in the DB directly.
+          # as crashed. We're inside an open transaction, so DB writes on this
+          # connection are invisible to other sessions until commit. Instead,
+          # write the heartbeat to Rails.cache (non-transactional, immediately
+          # visible). The stale detector in GecImportJob reads this cache key
+          # before falling back to updated_at.
           if (idx % 5000).zero? && async_mode
-            gec_import.update_columns(updated_at: Time.current)
+            write_heartbeat_cache(gec_import.id)
           end
 
           if (idx % 500).zero?
@@ -210,13 +214,29 @@ class GecImportService
   end
 
   def write_progress_cache(import_id, stage:, percent:)
+    now = Time.current.iso8601
     Rails.cache.write(
       "gec_import_progress:#{import_id}",
-      { "stage" => stage, "progress_percent" => percent, "updated_at" => Time.current.iso8601 },
+      { "stage" => stage, "progress_percent" => percent, "updated_at" => now },
+      expires_in: 1.hour
+    )
+    # Also refresh the heartbeat cache so stale-detector sees activity
+    write_heartbeat_cache(import_id)
+  rescue StandardError => e
+    Rails.logger.warn("GEC progress cache write failed for import #{import_id}: #{e.class}: #{e.message}")
+  end
+
+  # Non-transactional heartbeat visible to the stale-processing detector
+  # in GecImportJob. DB updated_at is invisible during an open transaction,
+  # so the job checks this cache key first.
+  def write_heartbeat_cache(import_id)
+    Rails.cache.write(
+      "gec_import_heartbeat:#{import_id}",
+      Time.current.iso8601,
       expires_in: 1.hour
     )
   rescue StandardError => e
-    Rails.logger.warn("GEC progress cache write failed for import #{import_id}: #{e.class}: #{e.message}")
+    Rails.logger.warn("GEC heartbeat cache write failed for import #{import_id}: #{e.class}: #{e.message}")
   end
 
   def normalize_headers(row)
