@@ -418,8 +418,7 @@ class GecImportService
         record.voter_registration_number != attrs[:voter_registration_number] ||
         record.dob != attrs[:dob] ||
         record.dob_ambiguous != attrs[:dob_ambiguous] ||
-        record.birth_year != attrs[:birth_year] ||
-        record.gec_list_date != attrs[:gec_list_date]
+        record.birth_year != attrs[:birth_year]
 
       record.update!(**attrs)
       @seen_voter_ids.add(record.id)

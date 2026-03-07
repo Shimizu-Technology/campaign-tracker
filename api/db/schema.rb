@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_07_081859) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_07_090006) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -338,7 +338,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_07_081859) do
     t.string "import_type", default: "full_list", null: false
     t.jsonb "metadata", default: {}, null: false
     t.integer "new_records", default: 0, null: false
-    t.binary "original_file_data"
+    t.string "original_content_type"
+    t.string "original_file_s3_key"
     t.string "original_filename"
     t.integer "re_vetted_count", default: 0, null: false
     t.integer "removed_records", default: 0, null: false

@@ -200,15 +200,16 @@ export const previewGecList = (file: File, sheetName?: string) => {
 };
 export const bulkVetSupporters = (params?: QueryParams) => api.post('/gec_voters/bulk_vet', params).then(r => r.data);
 export const downloadGecImportFile = (importId: number) =>
-  api.get(`/gec_voters/imports/${importId}/download`, { responseType: 'blob' }).then(r => {
-    const disposition = r.headers['content-disposition'];
-    const filename = disposition?.match(/filename="?(.+?)"?$/)?.[1] || `gec_import_${importId}`;
-    const url = URL.createObjectURL(r.data as Blob);
+  api.get<{ download_url: string; filename: string }>(`/gec_voters/imports/${importId}/download`).then(r => {
+    const { download_url, filename } = r.data;
     const a = document.createElement('a');
-    a.href = url;
+    a.href = download_url;
     a.download = filename;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
     a.click();
-    URL.revokeObjectURL(url);
+    a.remove();
   });
 export const matchGecVoter = (params: { first_name: string; last_name: string; dob?: string; village_name?: string }) =>
   api.post('/gec_voters/match', params).then(r => r.data);

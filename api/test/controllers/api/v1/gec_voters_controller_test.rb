@@ -159,7 +159,7 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
       filename: "gec_jan_2026.xlsx",
       status: "completed",
       total_records: 50000,
-      original_file_data: "test data",
+      original_file_s3_key: "gec-imports/1/gec_jan_2026.xlsx",
       original_filename: "gec_jan_2026.xlsx"
     )
 
@@ -171,20 +171,22 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     assert_equal true, imp["has_original_file"]
   end
 
-  test "download_import returns original file" do
+  test "download_import returns service_unavailable when S3 not configured" do
     gec_import = GecImport.create!(
       gec_list_date: Date.new(2026, 1, 25),
       filename: "gec_jan_2026.xlsx",
       status: "completed",
       total_records: 50000,
-      original_file_data: "file content here",
+      original_file_s3_key: "gec-imports/1/gec_jan_2026.xlsx",
       original_filename: "gec_jan_2026.xlsx"
     )
 
+    # S3Service.enabled? is false in test (no AWS env vars), so presigned_url returns nil
     get "/api/v1/gec_voters/imports/#{gec_import.id}/download", headers: auth_headers(@admin)
 
-    assert_response :success
-    assert_equal "file content here", response.body
+    assert_response :service_unavailable
+    json = JSON.parse(response.body)
+    assert_equal "s3_error", json["code"]
   end
 
   test "download_import returns 404 when no original file" do

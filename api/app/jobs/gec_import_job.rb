@@ -129,11 +129,20 @@ class GecImportJob < ApplicationJob
       # Now load the full binary blob — only after both locks are held.
       upload = GecImportUpload.find(upload_id)
 
-      # Preserve original file on the GecImport for later download
-      gec_import.update_columns(
-        original_file_data: upload.file_data,
-        original_filename: upload.filename
-      )
+      # Preserve original file for later download (S3 if configured, skip otherwise)
+      if S3Service.enabled?
+        s3_key = "gec-imports/#{gec_import.id}/#{upload.filename}"
+        content_type = upload.content_type || "application/octet-stream"
+        if S3Service.upload(s3_key, upload.file_data, content_type: content_type)
+          gec_import.update_columns(
+            original_file_s3_key: s3_key,
+            original_filename: upload.filename,
+            original_content_type: content_type
+          )
+        else
+          Rails.logger.warn("GecImportJob #{gec_import.id}: S3 upload failed, original file not preserved")
+        end
+      end
 
       # Determine intended extension from upload metadata.
       # PDF uploads are stored as CSV bytes (converted by the controller),
