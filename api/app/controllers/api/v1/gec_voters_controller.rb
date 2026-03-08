@@ -416,7 +416,7 @@ module Api
         scope = apply_change_search_filter(scope, q) if q.present?
 
         total_rows = scope.count
-        total_pages = (total_rows.to_f / per_page).ceil
+        total_pages = total_rows.zero? ? 1 : (total_rows.to_f / per_page).ceil
         rows = scope.offset((page - 1) * per_page).limit(per_page)
 
         raw_counts = gec_import.change_records.group(:change_type).count
@@ -771,7 +771,14 @@ module Api
         dataset = build_import_viewer_dataset(gec_import)
         return nil unless dataset
 
-        Rails.cache.write(cache_key, dataset, expires_in: 6.hours)
+        if dataset_cacheable?(dataset)
+          Rails.cache.write(cache_key, dataset, expires_in: 6.hours)
+        else
+          Rails.logger.info(
+            "GecVotersController import #{gec_import.id}: skipped viewer dataset cache " \
+            "(rows=#{dataset["row_count"]}, cache_row_limit=#{import_viewer_cache_row_limit})"
+          )
+        end
         dataset
       rescue StandardError => e
         Rails.logger.warn("GecVotersController import #{gec_import.id}: viewer cache failed: #{e.class}: #{e.message}")
@@ -781,6 +788,14 @@ module Api
       def import_viewer_cache_key(gec_import)
         artifact_version = gec_import.original_file_s3_key.to_s
         "gec_import_viewer:v3:#{gec_import.id}:#{Digest::SHA256.hexdigest(artifact_version)}"
+      end
+
+      def import_viewer_cache_row_limit
+        100_000
+      end
+
+      def dataset_cacheable?(dataset)
+        dataset["row_count"].to_i <= import_viewer_cache_row_limit
       end
 
       def build_import_viewer_dataset(gec_import)

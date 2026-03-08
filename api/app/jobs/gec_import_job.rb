@@ -93,8 +93,9 @@ class GecImportJob < ApplicationJob
     end
 
     user = uploaded_by_user_id.present? ? User.find_by(id: uploaded_by_user_id) : nil
+    source_tmp = nil
+    csv_tempfile = nil
     source_tmp_file_path = nil
-    artifact_tmp_file_path = nil
     lock_acquired = false
     mutex_acquired = false
     should_destroy_upload = true
@@ -191,8 +192,7 @@ class GecImportJob < ApplicationJob
         )
 
         csv_tempfile = parser.write_normalized_csv(parsed.rows)
-        artifact_tmp_file_path = csv_tempfile.path
-        service_file_path = artifact_tmp_file_path
+        service_file_path = csv_tempfile.path
         artifact_filename = "#{File.basename(upload.filename.to_s, ".*")}.csv"
         artifact_content_type = "text/csv"
       end
@@ -255,8 +255,8 @@ class GecImportJob < ApplicationJob
       )
       Rails.logger.error("GecImportJob failed for #{gec_import_id}: #{e.class}: #{e.message}")
     ensure
-      File.delete(source_tmp_file_path) if source_tmp_file_path.present? && File.exist?(source_tmp_file_path)
-      File.delete(artifact_tmp_file_path) if artifact_tmp_file_path.present? && File.exist?(artifact_tmp_file_path)
+      source_tmp&.close!
+      csv_tempfile&.close!
       GecImportUpload.where(id: upload_id).delete_all if should_destroy_upload
       if lock_acquired
         begin
