@@ -584,7 +584,7 @@ class GecImportService
 
       if vrn_matches.size == 1
         candidate = vrn_matches.first
-        if same_voter_name?(candidate, data)
+        if trusted_vrn_match?(candidate, data)
           record = candidate
         else
           trusted_voter_registration_number = nil
@@ -626,6 +626,8 @@ class GecImportService
       new_village = canonical_village_key(data[:village_name])
       village_changed = old_village.present? && new_village.present? && old_village != new_village
       previous_values = {
+        first_name: record.first_name,
+        last_name: record.last_name,
         village_name: record.village_name,
         voter_registration_number: record.voter_registration_number,
         dob: record.dob,
@@ -633,6 +635,8 @@ class GecImportService
       }
 
       attrs = {
+        first_name: data[:first_name],
+        last_name: data[:last_name],
         gec_list_date: @gec_list_date,
         imported_at: @import_started_at,
         status: "active",
@@ -659,7 +663,9 @@ class GecImportService
       #
       # Also exclude dob_ambiguous-only flips from the public "updated" bucket.
       # Those are parser confidence changes, not voter-record changes.
-      actually_changed = village_changed ||
+      actually_changed = record.first_name != attrs[:first_name] ||
+        record.last_name != attrs[:last_name] ||
+        village_changed ||
         record.status != attrs[:status] ||
         record.voter_registration_number != attrs[:voter_registration_number] ||
         record.dob != attrs[:dob] ||
@@ -683,6 +689,8 @@ class GecImportService
           },
           details: {
             changed_fields: build_changed_fields(previous_values, {
+              first_name: record.first_name,
+              last_name: record.last_name,
               village_name: record.village_name,
               voter_registration_number: record.voter_registration_number,
               dob: record.dob,
@@ -847,6 +855,21 @@ class GecImportService
   def same_voter_name?(candidate, data)
     candidate.first_name.to_s.casecmp?(data[:first_name].to_s) &&
       candidate.last_name.to_s.casecmp?(data[:last_name].to_s)
+  end
+
+  def trusted_vrn_match?(candidate, data)
+    return true if same_voter_name?(candidate, data)
+
+    same_village = canonical_village_key(candidate.village_name) == canonical_village_key(data[:village_name])
+    return false unless same_village
+
+    if data[:dob].present? && !data[:dob_estimated]
+      candidate.dob == data[:dob]
+    elsif data[:birth_year].present?
+      candidate.birth_year == data[:birth_year]
+    else
+      false
+    end
   end
 
   # Parse DOB with month/day swap detection.

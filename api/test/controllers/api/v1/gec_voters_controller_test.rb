@@ -323,7 +323,9 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
 
     uploaded = []
     upload = lambda do |key, data, **kwargs|
-      uploaded << { key: key, data: data, kwargs: kwargs }
+      body = data.respond_to?(:read) ? data.read : data
+      data.rewind if data.respond_to?(:rewind)
+      uploaded << { key: key, data: body, kwargs: kwargs }
       key
     end
 

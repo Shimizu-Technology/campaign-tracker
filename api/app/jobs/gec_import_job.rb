@@ -324,7 +324,11 @@ class GecImportJob < ApplicationJob
     safe_filename = S3Service.safe_filename(filename, fallback: "import_artifact")
     s3_key = "gec-imports/#{gec_import.id}/artifact/#{safe_filename}"
 
-    if S3Service.upload(s3_key, File.binread(file_path), content_type: content_type)
+    upload_result = File.open(file_path, "rb") do |io|
+      S3Service.upload(s3_key, io, content_type: content_type)
+    end
+
+    if upload_result
       gec_import.update_columns(
         original_file_s3_key: s3_key,
         original_filename: filename,

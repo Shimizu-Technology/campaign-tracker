@@ -681,7 +681,9 @@ module Api
         raw_content_type ||= "application/octet-stream"
         safe_filename = S3Service.safe_filename(raw_filename, fallback: "raw_upload")
         s3_key = "gec-imports/#{gec_import.id}/raw/#{safe_filename}"
-        upload_result = S3Service.upload(s3_key, File.binread(file.tempfile.path), content_type: raw_content_type)
+        upload_result = File.open(file.tempfile.path, "rb") do |io|
+          S3Service.upload(s3_key, io, content_type: raw_content_type)
+        end
         unless upload_result
           Rails.logger.error("GecVotersController import #{gec_import.id}: raw upload preservation failed; import will continue without raw source file")
           return
@@ -701,7 +703,9 @@ module Api
 
         safe_filename = S3Service.safe_filename(filename, fallback: "import_artifact")
         s3_key = "gec-imports/#{gec_import.id}/artifact/#{safe_filename}"
-        upload_result = S3Service.upload(s3_key, File.binread(file_path), content_type: content_type)
+        upload_result = File.open(file_path, "rb") do |io|
+          S3Service.upload(s3_key, io, content_type: content_type)
+        end
         unless upload_result
           Rails.logger.warn("GecVotersController import #{gec_import.id}: import artifact preservation failed")
           return

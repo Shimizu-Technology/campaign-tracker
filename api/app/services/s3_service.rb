@@ -30,7 +30,7 @@ class S3Service
       end
     end
 
-    # Upload file data (binary string) to S3
+    # Upload file data (String or IO-like body) to S3
     def upload(key, data, content_type: "application/octet-stream")
       return nil unless enabled?
 

@@ -227,8 +227,8 @@ class GecImportServiceTest < ActiveSupport::TestCase
 
   test "ignores conflicting vrn matches when names do not match" do
     jane = GecVoter.create!(
-      first_name: "Jane",
-      last_name: "Smith",
+      first_name: "JANE",
+      last_name: "SMITH",
       village_name: "Dededo",
       birth_year: 1980,
       voter_registration_number: "123456",
@@ -237,8 +237,8 @@ class GecImportServiceTest < ActiveSupport::TestCase
       status: "active"
     )
     john = GecVoter.create!(
-      first_name: "John",
-      last_name: "Doe",
+      first_name: "JOHN",
+      last_name: "DOE",
       village_name: "Barrigada",
       birth_year: 1980,
       voter_registration_number: nil,
@@ -266,6 +266,44 @@ class GecImportServiceTest < ActiveSupport::TestCase
     john.reload
     assert_equal "123456", jane.voter_registration_number
     assert_nil john.voter_registration_number
+  ensure
+    file&.close!
+  end
+
+  test "vrn-matched updates persist and report corrected names" do
+    existing = GecVoter.create!(
+      first_name: "JHON",
+      last_name: "DOEE",
+      village_name: "Barrigada",
+      birth_year: 1980,
+      voter_registration_number: "VR123",
+      gec_list_date: Date.new(2025, 12, 25),
+      imported_at: 1.month.ago,
+      status: "active"
+    )
+
+    file = create_test_csv([
+      [ "name", "village", "voter_registration_number", "dob", "dob_estimated", "birth_year", "pct", "address" ],
+      [ "DOE, JOHN", "Barrigada", "VR123", "01/01/1980", "true", "1980", "1", "123 TEST ST" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 1, 25),
+      import_type: "changes_only"
+    ).call
+
+    assert result.success
+    assert_equal 1, result.stats[:updated]
+
+    existing.reload
+    assert_equal "JOHN", existing.first_name
+    assert_equal "DOE", existing.last_name
+
+    change = result.gec_import.change_records.find_by!(change_type: "updated")
+    changed_fields = change.details["changed_fields"]
+    assert_equal({ "before" => "JHON", "after" => "JOHN" }, changed_fields["first_name"])
+    assert_equal({ "before" => "DOEE", "after" => "DOE" }, changed_fields["last_name"])
   ensure
     file&.close!
   end
