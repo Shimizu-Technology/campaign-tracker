@@ -7,6 +7,11 @@ class S3Service
   MUTEX = Mutex.new
 
   class << self
+    def safe_filename(filename, fallback: "import_file")
+      safe = filename.to_s.gsub(/[^A-Za-z0-9._\-]/, "_").squeeze("_")
+      safe.present? ? safe : fallback
+    end
+
     def enabled?
       BUCKET_NAME.present? &&
         ENV["AWS_ACCESS_KEY_ID"].present? &&
@@ -42,8 +47,18 @@ class S3Service
       nil
     end
 
-    # Generate a presigned GET URL for temporary download access
-    def presigned_url(key, expires_in: 3600, filename: nil)
+    def download(key)
+      return nil unless enabled?
+
+      response = s3_client.get_object(bucket: BUCKET_NAME, key: key)
+      response.body.read
+    rescue Aws::S3::Errors::ServiceError => e
+      Rails.logger.error "[S3Service] Download failed for #{key}: #{e.message}"
+      nil
+    end
+
+    # Generate a presigned GET URL for temporary file access.
+    def presigned_url(key, expires_in: 3600, filename: nil, disposition: :attachment)
       return nil unless enabled?
 
       presigner = Aws::S3::Presigner.new(client: s3_client)
@@ -54,7 +69,8 @@ class S3Service
       }
       if filename.present?
         escaped = filename.to_s.gsub(/["\\]/) { |ch| "\\#{ch}" }
-        options[:response_content_disposition] = "attachment; filename=\"#{escaped}\""
+        mode = disposition.to_sym == :inline ? "inline" : "attachment"
+        options[:response_content_disposition] = "#{mode}; filename=\"#{escaped}\""
       end
       presigner.presigned_url(:get_object, **options)
     rescue Aws::S3::Errors::ServiceError => e

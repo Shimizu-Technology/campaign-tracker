@@ -114,6 +114,14 @@ class GecPdfParserServiceTest < ActiveSupport::TestCase
     assert_equal "ROUTE 4 BOX 123", match[3].strip
   end
 
+  test "ROW_REGEX supports letter-suffixed precincts" do
+    row = "1234567 REYES, JOHN CARLOS 123 MAIN ST DEDEDO 96610 1990 18E"
+    match = row.match(GecPdfParserService::ROW_REGEX)
+
+    assert match.present?
+    assert_equal "18E", match[6]
+  end
+
   test "ROW_REGEX does not split middle name that matches removed address prefix term" do
     row = "1234567 SANTOS, JOHN MARINE 123 MAIN ST DEDEDO 96610 1990 5"
     match = row.match(GecPdfParserService::ROW_REGEX)
@@ -156,9 +164,69 @@ class GecPdfParserServiceTest < ActiveSupport::TestCase
     tf = service.write_normalized_csv(rows)
     csv = CSV.read(tf.path)
     tf.close!
-    assert_equal [ "name", "village", "voter_registration_number", "dob", "birth_year", "pct", "address" ], csv[0]
+    assert_equal [ "name", "village", "voter_registration_number", "dob", "dob_estimated", "birth_year", "pct", "address" ], csv[0]
     assert_equal "JOHN DOE", csv[1][0]
     assert_equal "DEDEDO", csv[1][1]
+  end
+
+  test "parse reports page progress through callback" do
+    progress_calls = []
+    page = Struct.new(:text)
+    reader = Struct.new(:pages, :page_count).new(
+      [
+        page.new("1 44157 AFLAGUE, MARILYN A 123 MAIN ST HAGATNA 01/01/47 1"),
+        page.new("2 44161 AFLAGUE, NORMA J. 456 MAIN ST HAGATNA 01/01/49 1")
+      ],
+      2
+    )
+
+    reader_singleton = class << PDF::Reader; self; end
+    original_new = reader_singleton.instance_method(:new)
+    reader_singleton.define_method(:new) { |_file_path| reader }
+
+    begin
+      service = GecPdfParserService.new(
+        file_path: "/dev/null",
+        progress_callback: ->(pages_processed:, page_count:) { progress_calls << [ pages_processed, page_count ] }
+      )
+      result = service.parse
+
+      assert_empty result.errors
+    ensure
+      reader_singleton.send(:remove_method, :new)
+      reader_singleton.define_method(:new, original_new)
+    end
+
+    assert_includes progress_calls, [ 0, 2 ]
+    assert_includes progress_calls, [ 1, 2 ]
+    assert_includes progress_calls, [ 2, 2 ]
+  end
+
+  test "parse captures rows with letter-suffixed precincts" do
+    page = Struct.new(:text)
+    reader = Struct.new(:pages, :page_count).new(
+      [
+        page.new("78851 MADAHAN, ELENA GAYAGAS PO BOX 7549 AGAT 96928 1961 4A")
+      ],
+      1
+    )
+
+    reader_singleton = class << PDF::Reader; self; end
+    original_new = reader_singleton.instance_method(:new)
+    reader_singleton.define_method(:new) { |_file_path| reader }
+
+    begin
+      service = GecPdfParserService.new(file_path: "/dev/null")
+      result = service.parse
+
+      assert_empty result.errors
+      assert_equal 1, result.rows.size
+      assert_equal "4A", result.rows.first["pct"]
+      assert_equal "AGAT", result.rows.first["village"]
+    ensure
+      reader_singleton.send(:remove_method, :new)
+      reader_singleton.define_method(:new, original_new)
+    end
   end
 
   private

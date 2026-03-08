@@ -1,5 +1,6 @@
 require "test_helper"
 require "tempfile"
+require "csv"
 
 class GecImportServiceTest < ActiveSupport::TestCase
   setup do
@@ -108,6 +109,95 @@ class GecImportServiceTest < ActiveSupport::TestCase
     assert result.success
     assert_equal 1, result.stats[:new]
     assert_equal 2, result.stats[:skipped]
+    assert_equal 2, result.gec_import.metadata["row_error_details"].length
+    assert_equal "missing first_name or last_name", result.gec_import.metadata["row_error_details"].first["message"]
+  end
+
+  test "pdf-style birth-year import matches existing voter by vrn and canonical village" do
+    Village.find_or_create_by!(name: "Hagåtña")
+    existing = GecVoter.create!(
+      first_name: "ADRIAN",
+      last_name: "ALDRIDGE",
+      dob: Date.new(1947, 5, 10),
+      birth_year: 1947,
+      village_name: "Hagåtña",
+      voter_registration_number: "24688",
+      gec_list_date: Date.new(2025, 12, 25),
+      imported_at: 1.month.ago,
+      status: "active"
+    )
+
+    file = create_test_csv([
+      [ "name", "village", "voter_registration_number", "dob", "dob_estimated", "birth_year", "pct", "address" ],
+      [ "ALDRIDGE, ADRIAN", "HAGATNA", "24688", "01/01/1947", "true", "1947", "1", "133 OLIAZ ST" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 1, 25),
+      import_type: "changes_only"
+    ).call
+
+    assert result.success
+    assert_equal 0, result.stats[:new]
+    assert_equal 0, result.stats[:updated]
+    assert_equal 1, result.stats[:matched_unchanged]
+    assert_equal 1, GecVoter.where(status: "active").count
+
+    existing.reload
+    assert_equal "Hagåtña", existing.village_name
+    assert_equal Date.new(1947, 5, 10), existing.dob
+    assert_equal 1947, existing.birth_year
+  ensure
+    file&.close!
+  end
+
+  test "official GEC combined-name format detects village column instead of address column" do
+    Village.find_or_create_by!(name: "Dededo")
+
+    file = create_test_excel([
+      [ 16431, "REG. NO.", "NAME", "ADDRESS", nil, nil, "DOB", "PCT" ],
+      [ 1, "43881", "ABAD, BRENDA R.", "PMB 932 111 CHALAN BALAKO", "DEDEDO", "GU", Date.new(1975, 11, 16), 18 ]
+    ])
+
+    service = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2025, 12, 25)
+    )
+    preview = service.preview(limit: 5)
+
+    assert_equal "Dededo", preview[:preview_rows][0][:village_name]
+    refute_equal "PMB 932 111 CHALAN BALAKO", preview[:preview_rows][0][:village_name]
+  ensure
+    file&.close!
+  end
+
+  test "placeholder NEW registration numbers do not merge unrelated rows" do
+    file = create_test_excel([
+      [ 16431, "REG. NO.", "NAME", "ADDRESS", nil, nil, "DOB", "PCT", "CONTACT 1", "CONTACT 2", "EMAIL", "NOTES", "Q", "BL SOURCE", "MISC" ],
+      [ 1, "NEW", "ADA, ADRIAN ANTHONY T.", nil, nil, nil, Date.new(1980, 3, 28), 9, "NEED CONTACT #", nil, nil, "EARLY VOTED AS OF 10/24/2022", "GE6", nil, nil ],
+      [ 1, "NEW", "AFLLEJE, WILLIAM J.", nil, nil, nil, Date.new(1959, 12, 7), 14, "6717881550", nil, nil, "EARLY VOTED ON 10/12/2022", "GE5", nil, nil ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2025, 12, 25),
+      import_type: "full_list"
+    ).call
+
+    assert result.success
+    assert_equal 2, result.stats[:new]
+    assert_equal 0, result.stats[:updated]
+    assert_equal 2, GecVoter.count
+    assert_equal 0, result.gec_import.change_records.where(change_type: "updated").count
+
+    voters = GecVoter.order(:last_name, :first_name).pluck(:first_name, :last_name, :voter_registration_number, :village_name, :birth_year)
+    assert_equal [
+      [ "ADRIAN", "ADA", nil, "Unassigned", 1980 ],
+      [ "WILLIAM", "AFLLEJE", nil, "Unassigned", 1959 ]
+    ], voters
+  ensure
+    file&.close!
   end
 
   test "preview returns sample data without importing" do
@@ -188,6 +278,35 @@ class GecImportServiceTest < ActiveSupport::TestCase
     assert_not_nil gv.removed_at
   end
 
+  test "stores new and removed change records for a full list import" do
+    GecVoter.create!(
+      first_name: "Juan", last_name: "Cruz", village_name: "Barrigada",
+      gec_list_date: Date.new(2026, 1, 25), imported_at: 1.month.ago, status: "active"
+    )
+
+    file = create_test_excel([
+      [ "First Name", "Last Name", "Date of Birth", "Village", "Reg No" ],
+      [ "Maria", "Santos", Date.new(1990, 6, 20), "Barrigada", "VR002" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      import_type: "full_list"
+    ).call
+
+    assert result.success
+
+    change_types = result.gec_import.change_records.order(:id).pluck(:change_type)
+    assert_equal [ "new", "removed" ], change_types.sort
+
+    removed_change = result.gec_import.change_records.find_by!(change_type: "removed")
+    assert_equal "Juan", removed_change.first_name
+    assert_equal "missing_from_full_list", removed_change.details["reason"]
+  ensure
+    file&.close!
+  end
+
   test "changes_only import does not purge missing voters" do
     GecVoter.create!(
       first_name: "Juan", last_name: "Cruz", village_name: "Barrigada",
@@ -232,11 +351,41 @@ class GecImportServiceTest < ActiveSupport::TestCase
 
     assert result.success
     assert_equal 1, result.stats[:transferred]
+    assert_equal 0, result.stats[:updated]
 
     juan = GecVoter.find_by(first_name: "Juan")
     assert_equal "Dededo", juan.village_name
     assert_equal "Barrigada", juan.previous_village_name
     assert_equal "active", juan.status
+  end
+
+  test "stores transfer change details for moved voters" do
+    GecVoter.create!(
+      first_name: "Juan", last_name: "Cruz", village_name: "Barrigada",
+      dob: Date.new(1985, 3, 15), gec_list_date: Date.new(2026, 1, 25),
+      imported_at: 1.month.ago, status: "active"
+    )
+
+    file = create_test_excel([
+      [ "First Name", "Last Name", "Date of Birth", "Village", "Reg No" ],
+      [ "Juan", "Cruz", Date.new(1985, 3, 15), "Dededo", "VR001" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      import_type: "full_list"
+    ).call
+
+    assert result.success
+
+    transfer_change = result.gec_import.change_records.find_by!(change_type: "transferred")
+    assert_equal "Dededo", transfer_change.village_name
+    assert_equal "Barrigada", transfer_change.previous_village_name
+    assert_equal "Barrigada", transfer_change.details["changed_fields"]["village_name"]["before"]
+    assert_equal "Dededo", transfer_change.details["changed_fields"]["village_name"]["after"]
+  ensure
+    file&.close!
   end
 
   test "birth-year-only transfer fallback does not merge when multiple candidates exist" do
@@ -333,6 +482,41 @@ class GecImportServiceTest < ActiveSupport::TestCase
     assert_equal 1, result.gec_import.metadata["matched_unchanged"]
   end
 
+  test "dob ambiguity only change does not count as updated" do
+    GecVoter.create!(
+      first_name: "Ana",
+      last_name: "Flores",
+      dob: Date.new(1988, 3, 5),
+      dob_ambiguous: false,
+      birth_year: 1988,
+      village_name: "Barrigada",
+      gec_list_date: Date.new(2026, 1, 25),
+      imported_at: 1.month.ago,
+      status: "active"
+    )
+
+    file = create_test_excel([
+      [ "First Name", "Last Name", "Date of Birth", "Village", "Reg No" ],
+      [ "Ana", "Flores", Date.new(1988, 3, 5), "Barrigada", nil ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      import_type: "changes_only"
+    ).call
+
+    assert result.success
+    assert_equal 0, result.stats[:updated], "DOB ambiguity-only change should not count as updated"
+    assert_equal 1, result.stats[:matched_unchanged]
+    assert_equal 0, result.gec_import.change_records.where(change_type: "updated").count
+
+    voter = GecVoter.find_by!(first_name: "Ana", last_name: "Flores")
+    assert voter.dob_ambiguous, "Parser confidence flag should still be updated on the record"
+  ensure
+    file&.close!
+  end
+
   test "counts as updated when a field actually changes" do
     GecVoter.create!(
       first_name: "Juan",
@@ -386,6 +570,14 @@ class GecImportServiceTest < ActiveSupport::TestCase
       rows.each { |row| sheet.add_row(row) }
     end
     package.serialize(file.path)
+    file
+  end
+
+  def create_test_csv(rows)
+    file = Tempfile.new([ "gec_test", ".csv" ])
+    CSV.open(file.path, "w") do |csv|
+      rows.each { |row| csv << row }
+    end
     file
   end
 end

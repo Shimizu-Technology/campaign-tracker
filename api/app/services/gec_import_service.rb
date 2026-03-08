@@ -4,7 +4,8 @@
 # Handles DOB month/day swap detection and village resolution.
 class GecImportService
   REQUIRED_COLUMNS = %w[first_name last_name].freeze  # May be satisfied by combined_name
-  OPTIONAL_COLUMNS = %w[dob birth_year village voter_registration_number].freeze
+  OPTIONAL_COLUMNS = %w[dob birth_year village voter_registration_number dob_estimated].freeze
+  MAX_STORED_ROW_ERRORS = 50
 
   # Column name aliases to handle different GEC Excel formats
   COLUMN_ALIASES = {
@@ -15,6 +16,7 @@ class GecImportService
     "dob" => [ "dob", "date_of_birth", "date of birth", "birth_date", "birth date", "birthday" ],
     # GEC now provides year of birth only (no full DOB) — support both formats
     "birth_year" => [ "birth_year", "year_of_birth", "year of birth", "yob", "birth year", "birthyear" ],
+    "dob_estimated" => [ "dob_estimated", "dob estimated", "birth_year_only", "birth year only" ],
     "village" => [ "village", "municipality", "district", "precinct_village", "voting_district" ],
     "voter_registration_number" => [ "voter_registration_number", "voter_reg", "registration_number",
                                      "reg_no", "reg_number", "vrn", "reg._no.", "reg.no.", "reg._no" ]
@@ -69,6 +71,7 @@ class GecImportService
 
   # Village name used for voters with no village match (GMF, military, off-island)
   UNASSIGNED_VILLAGE_NAME = "Unassigned"
+  PLACEHOLDER_VOTER_REGISTRATION_NUMBERS = %w[NEW].freeze
 
   # Cache TTL for heartbeat and progress keys. Must exceed the longest
   # plausible import runtime (60K rows on a loaded DB can take >1 hour).
@@ -79,7 +82,18 @@ class GecImportService
 
   Result = Struct.new(:success, :gec_import, :errors, :stats, keyword_init: true)
 
-  def initialize(file_path:, gec_list_date:, uploaded_by_user: nil, sheet_name: nil, import_type: "full_list", gec_import: nil)
+  def initialize(
+    file_path:,
+    gec_list_date:,
+    uploaded_by_user: nil,
+    sheet_name: nil,
+    import_type: "full_list",
+    gec_import: nil,
+    parsing_progress_percent: 10,
+    importing_progress_start: 20,
+    importing_progress_end: 85,
+    re_vetting_progress_percent: 90
+  )
     @file_path = file_path
     @gec_list_date = gec_list_date
     @uploaded_by_user = uploaded_by_user
@@ -90,6 +104,12 @@ class GecImportService
     @seen_voter_ids = Set.new
     @import_started_at = nil
     @gec_import = gec_import
+    @row_error_details = []
+    @change_rows_buffer = []
+    @parsing_progress_percent = parsing_progress_percent
+    @importing_progress_start = importing_progress_start
+    @importing_progress_end = importing_progress_end
+    @re_vetting_progress_percent = re_vetting_progress_percent
   end
 
   def call
@@ -101,9 +121,10 @@ class GecImportService
       import_type: @import_type,
       status: "processing"
     )
+    @current_gec_import = gec_import
 
     begin
-      update_progress!(gec_import, stage: "parsing", percent: 10) if async_mode
+      update_progress!(gec_import, stage: "parsing", percent: @parsing_progress_percent) if async_mode
       spreadsheet = Roo::Spreadsheet.open(@file_path)
       sheet = @sheet_name ? spreadsheet.sheet(@sheet_name) : spreadsheet.sheet(0)
 
@@ -131,9 +152,9 @@ class GecImportService
             # become stale. This is acceptable because the import status moves
             # to "failed" on rollback, and the controller only reads cached
             # progress for pending/processing imports.
-            # 20..85% while processing rows
-            progress = 20 + ((idx.to_f / [ rows.size, 1 ].max) * 65).to_i
-            write_progress_cache(gec_import.id, stage: "importing", percent: [ progress, 85 ].min) if async_mode
+            progress_span = [ @importing_progress_end - @importing_progress_start, 1 ].max
+            progress = @importing_progress_start + ((idx.to_f / [ rows.size, 1 ].max) * progress_span).to_i
+            write_progress_cache(gec_import.id, stage: "importing", percent: [ progress, @importing_progress_end ].min) if async_mode
           end
         end
 
@@ -141,10 +162,12 @@ class GecImportService
         if @import_type == "full_list" && @seen_voter_ids.any?
           detect_purged_voters(gec_import)
         end
+
+        flush_change_rows!
       end
 
       # Re-vet affected supporters (outside transaction for performance)
-      update_progress!(gec_import, stage: "re_vetting", percent: 90) if async_mode
+      update_progress!(gec_import, stage: "re_vetting", percent: @re_vetting_progress_percent) if async_mode
       @stats[:re_vetted] = re_vet_affected_supporters(gec_import)
 
       gec_import.update!(
@@ -162,7 +185,8 @@ class GecImportService
           "matched_unchanged" => @stats[:matched_unchanged],
           "skipped" => @stats[:skipped],
           "unassigned" => @stats[:unassigned],
-          "errors" => @errors.first(50)
+          "errors" => @errors.first(MAX_STORED_ROW_ERRORS),
+          "row_error_details" => @row_error_details
         })
       )
 
@@ -195,6 +219,67 @@ class GecImportService
       column_map: column_map,
       sheets: sheets,
       row_count: sheet.last_row - 1,
+      preview_rows: rows
+    }
+  end
+
+  # Preview a specific page of parsed rows without importing.
+  def preview_page(page: 1, per_page: 100)
+    spreadsheet = Roo::Spreadsheet.open(@file_path)
+    sheet = @sheet_name ? spreadsheet.sheet(@sheet_name) : spreadsheet.sheet(0)
+
+    headers = normalize_headers(sheet.row(1))
+    column_map = build_column_map(headers)
+    sheets = spreadsheet.sheets
+    row_count = [ (sheet.last_row || 1) - 1, 0 ].max
+    normalized_page = [ page.to_i, 1 ].max
+    normalized_per_page = [ [ per_page.to_i, 1 ].max, 250 ].min
+    total_pages = row_count.zero? ? 1 : (row_count.to_f / normalized_per_page).ceil
+    effective_page = [ normalized_page, total_pages ].min
+    offset = (effective_page - 1) * normalized_per_page
+    start_row = offset + 2
+    end_row = [ start_row + normalized_per_page - 1, sheet.last_row || 1 ].min
+
+    rows = if start_row <= end_row
+      (start_row..end_row).map do |i|
+        raw = sheet.row(i)
+        parse_row(raw, column_map)
+      end
+    else
+      []
+    end
+
+    {
+      headers: headers,
+      column_map: column_map,
+      sheets: sheets,
+      row_count: row_count,
+      preview_rows: rows,
+      pagination: {
+        page: effective_page,
+        per_page: normalized_per_page,
+        total_pages: total_pages,
+        total_rows: row_count
+      }
+    }
+  end
+
+  # Parse the entire file for viewer/search use-cases.
+  def preview_all
+    spreadsheet = Roo::Spreadsheet.open(@file_path)
+    sheet = @sheet_name ? spreadsheet.sheet(@sheet_name) : spreadsheet.sheet(0)
+
+    headers = normalize_headers(sheet.row(1))
+    column_map = build_column_map(headers)
+    sheets = spreadsheet.sheets
+    row_count = [ (sheet.last_row || 1) - 1, 0 ].max
+    rows = row_count.positive? ? (2..sheet.last_row).map { |i| parse_row(sheet.row(i), column_map) } : []
+
+    {
+      headers: headers,
+      column_map: column_map,
+      sheets: sheets,
+      row_count: row_count,
       preview_rows: rows
     }
   end
@@ -240,6 +325,104 @@ class GecImportService
     Rails.logger.warn("GEC heartbeat cache write failed for import #{import_id}: #{e.class}: #{e.message}")
   end
 
+  def normalize_village_name(value)
+    raw = value.to_s.strip
+    return nil if raw.blank?
+
+    mapped = VILLAGE_NAME_MAP[raw.downcase]
+    return mapped if mapped.present?
+
+    Village.where("LOWER(name) = ?", raw.downcase).pick(:name) || raw
+  end
+
+  def detect_known_village_name(value)
+    raw = value.to_s.strip
+    return nil if raw.blank?
+
+    mapped = VILLAGE_NAME_MAP[raw.downcase]
+    return mapped if mapped.present?
+
+    Village.where("LOWER(name) = ?", raw.downcase).pick(:name)
+  end
+
+  def canonical_village_key(value)
+    normalize_village_name(value)&.downcase&.strip
+  end
+
+  def normalize_voter_registration_number(value)
+    raw = value.to_s.strip
+    return nil if raw.blank?
+    return nil if PLACEHOLDER_VOTER_REGISTRATION_NUMBERS.include?(raw.upcase)
+
+    raw
+  end
+
+  def parse_booleanish(value)
+    return false if value.nil?
+
+    ActiveModel::Type::Boolean.new.cast(value)
+  end
+
+  def remember_row_error!(row_number:, message:, row:, data:)
+    @errors << "Row #{row_number}: #{message}"
+    return if @row_error_details.length >= MAX_STORED_ROW_ERRORS
+
+    @row_error_details << {
+      "row_number" => row_number,
+      "message" => message,
+      "source_name" => data[:source_name],
+      "voter_registration_number" => data[:voter_registration_number],
+      "first_name" => data[:first_name],
+      "last_name" => data[:last_name],
+      "village_name" => data[:village_name],
+      "birth_year" => data[:birth_year],
+      "raw_values" => Array(row).map { |value| value.to_s.strip }.reject(&:blank?).first(10)
+    }
+  end
+
+  def log_change_row!(change_type:, current_values:, row_number: nil, details: {})
+    return unless @current_gec_import
+
+    @change_rows_buffer << {
+      gec_import_id: @current_gec_import.id,
+      change_type: change_type,
+      row_number: row_number,
+      first_name: current_values[:first_name],
+      last_name: current_values[:last_name],
+      voter_registration_number: current_values[:voter_registration_number],
+      village_name: current_values[:village_name],
+      previous_village_name: current_values[:previous_village_name],
+      birth_year: current_values[:birth_year],
+      dob: current_values[:dob],
+      details: details.compact,
+      created_at: Time.current,
+      updated_at: Time.current
+    }
+
+    flush_change_rows! if @change_rows_buffer.length >= 500
+  end
+
+  def flush_change_rows!
+    return if @change_rows_buffer.empty?
+
+    GecImportChange.insert_all!(@change_rows_buffer)
+    @change_rows_buffer.clear
+  end
+
+  def build_changed_fields(before_values, after_values)
+    changed = {}
+    after_values.each do |field, after_value|
+      before_value = before_values[field]
+      next if before_value == after_value
+
+      changed[field.to_s] = {
+        before: before_value,
+        after: after_value
+      }
+    end
+    changed
+  end
+
   def normalize_headers(row)
     row.map { |h| h.to_s.strip.downcase.gsub(/\s+/, "_") }
   end
@@ -278,29 +461,25 @@ class GecImportService
     # Detect by checking column_map for combined_name pattern (GEC official format)
     village_name = nil
     if column_map["village"]
-      village_name = row[column_map["village"]]&.to_s&.strip
+      village_name = normalize_village_name(row[column_map["village"]])
     elsif column_map["combined_name"] && column_map["dob"]
       # GEC format: village is typically at the column after address (index 4 for GEC Q1-GE6)
       # Try to detect by finding a known Guam village name in surrounding columns
-      candidate_indices = (3..[ row.size - 1, 8 ].min).to_a
+      candidate_indices = (4..[ row.size - 1, 8 ].min).to_a + [ 3 ]
       candidate_indices.each do |ci|
         val = row[ci]&.to_s&.strip
         next unless val.present?
-        # First try alias map (fast, no DB hit)
-        mapped = VILLAGE_NAME_MAP[val.downcase]
-        if mapped
-          village_name = mapped
-          break
-        end
-        # Fallback: try direct case-insensitive DB lookup
-        if Village.where("LOWER(name) = ?", val.downcase).exists?
-          village_name = Village.where("LOWER(name) = ?", val.downcase).pick(:name)
+        normalized_village = detect_known_village_name(val)
+        if normalized_village.present?
+          village_name = normalized_village
           break
         end
       end
     end
 
-    vrn = column_map["voter_registration_number"] ? row[column_map["voter_registration_number"]]&.to_s&.strip : nil
+    vrn = if column_map["voter_registration_number"]
+      normalize_voter_registration_number(row[column_map["voter_registration_number"]])
+    end
 
     dob = nil
     dob_ambiguous = false
@@ -327,14 +506,22 @@ class GecImportService
       dob = nil if column_map["dob"].blank?
     end
 
+    dob_estimated = parse_booleanish(row[column_map["dob_estimated"]]) if column_map["dob_estimated"]
+    if dob_estimated && birth_year.present?
+      dob = nil
+      dob_ambiguous = false
+    end
+
     {
       first_name: first_name,
       last_name: last_name,
       dob: dob,
+      dob_estimated: dob_estimated,
       dob_ambiguous: dob_ambiguous,
       birth_year: birth_year,
       village_name: village_name,
-      voter_registration_number: vrn
+      voter_registration_number: vrn,
+      source_name: column_map["combined_name"] ? row[column_map["combined_name"]]&.to_s&.strip : nil
     }
   end
 
@@ -342,7 +529,12 @@ class GecImportService
     data = parse_row(row, column_map)
 
     if data[:first_name].blank? || data[:last_name].blank?
-      @errors << "Row #{row_number}: missing first_name or last_name"
+      remember_row_error!(
+        row_number: row_number,
+        message: "missing first_name or last_name",
+        row: row,
+        data: data
+      )
       @stats[:skipped] += 1
       return
     end
@@ -359,22 +551,29 @@ class GecImportService
     # Find existing record: try name+village+(DOB or birth_year) first, then name+(DOB or birth_year) for transfers
     fn_lower = data[:first_name].downcase
     ln_lower = data[:last_name].downcase
-    vn_lower = data[:village_name].downcase
+    vn_lower = canonical_village_key(data[:village_name]) || data[:village_name].downcase
 
     record = nil
 
-    # First: exact match on name + village (+ DOB or birth_year if available)
-    scope = GecVoter.where("LOWER(first_name) = ? AND LOWER(last_name) = ? AND LOWER(village_name) = ?", fn_lower, ln_lower, vn_lower)
-    if data[:dob].present?
-      scope = scope.where(dob: data[:dob])
-    elsif data[:birth_year].present?
-      scope = scope.where(birth_year: data[:birth_year])
+    if data[:voter_registration_number].present?
+      vrn_matches = GecVoter.active.where(voter_registration_number: data[:voter_registration_number]).limit(2).to_a
+      record = vrn_matches.first if vrn_matches.size == 1
     end
-    record = scope.first
+
+    # First: exact match on name + village (+ DOB or birth_year if available)
+    if record.nil?
+      scope = GecVoter.where("LOWER(first_name) = ? AND LOWER(last_name) = ? AND LOWER(village_name) = ?", fn_lower, ln_lower, vn_lower)
+      if data[:dob].present? && !data[:dob_estimated]
+        scope = scope.where(dob: data[:dob])
+      elsif data[:birth_year].present?
+        scope = scope.where(birth_year: data[:birth_year])
+      end
+      record = scope.first
+    end
 
     # Second: name + (DOB or birth_year) only (detects village transfer)
     if record.nil?
-      if data[:dob].present?
+      if data[:dob].present? && !data[:dob_estimated]
         record = GecVoter.where("LOWER(first_name) = ? AND LOWER(last_name) = ?", fn_lower, ln_lower)
           .where(dob: data[:dob]).first
       elsif data[:birth_year].present?
@@ -389,9 +588,15 @@ class GecImportService
 
     if record
       # Detect village transfer
-      old_village = record.village_name&.downcase&.strip
-      new_village = data[:village_name]&.downcase&.strip
+      old_village = canonical_village_key(record.village_name)
+      new_village = canonical_village_key(data[:village_name])
       village_changed = old_village.present? && new_village.present? && old_village != new_village
+      previous_values = {
+        village_name: record.village_name,
+        voter_registration_number: record.voter_registration_number,
+        dob: record.dob,
+        birth_year: record.birth_year
+      }
 
       attrs = {
         gec_list_date: @gec_list_date,
@@ -400,7 +605,7 @@ class GecImportService
         removed_at: nil,
         removal_detected_by_import_id: nil,
         voter_registration_number: data[:voter_registration_number] || record.voter_registration_number,
-        dob: data[:dob] || record.dob,
+        dob: data[:dob_estimated] ? record.dob : (data[:dob] || record.dob),
         dob_ambiguous: data[:dob_ambiguous].nil? ? record.dob_ambiguous : data[:dob_ambiguous],
         birth_year: data[:birth_year] || record.birth_year
       }
@@ -417,17 +622,42 @@ class GecImportService
       # bookkeeping timestamps that change on every import and would inflate
       # the :updated counter if included. They are still written via attrs
       # so the record reflects the latest import metadata.
+      #
+      # Also exclude dob_ambiguous-only flips from the public "updated" bucket.
+      # Those are parser confidence changes, not voter-record changes.
       actually_changed = village_changed ||
         record.status != attrs[:status] ||
         record.voter_registration_number != attrs[:voter_registration_number] ||
         record.dob != attrs[:dob] ||
-        record.dob_ambiguous != attrs[:dob_ambiguous] ||
         record.birth_year != attrs[:birth_year]
 
       record.update!(**attrs)
       @seen_voter_ids.add(record.id)
       if actually_changed
-        @stats[:updated] += 1
+        change_type = village_changed ? "transferred" : "updated"
+        log_change_row!(
+          change_type: change_type,
+          row_number: row_number,
+          current_values: {
+            first_name: record.first_name,
+            last_name: record.last_name,
+            village_name: record.village_name,
+            previous_village_name: previous_values[:village_name],
+            voter_registration_number: record.voter_registration_number,
+            birth_year: record.birth_year,
+            dob: record.dob
+          },
+          details: {
+            changed_fields: build_changed_fields(previous_values, {
+              village_name: record.village_name,
+              voter_registration_number: record.voter_registration_number,
+              dob: record.dob,
+              birth_year: record.birth_year
+            }),
+            source_name: data[:source_name]
+          }
+        )
+        @stats[:updated] += 1 if change_type == "updated"
       else
         @stats[:matched_unchanged] += 1
       end
@@ -435,7 +665,7 @@ class GecImportService
       voter = GecVoter.create!(
         first_name: data[:first_name],
         last_name: data[:last_name],
-        dob: data[:dob],
+        dob: data[:dob_estimated] ? nil : data[:dob],
         dob_ambiguous: data[:dob_ambiguous],
         birth_year: data[:birth_year],
         village_name: data[:village_name],
@@ -445,6 +675,21 @@ class GecImportService
         status: "active"
       )
       @seen_voter_ids.add(voter.id)
+      log_change_row!(
+        change_type: "new",
+        row_number: row_number,
+        current_values: {
+          first_name: voter.first_name,
+          last_name: voter.last_name,
+          village_name: voter.village_name,
+          voter_registration_number: voter.voter_registration_number,
+          birth_year: voter.birth_year,
+          dob: voter.dob
+        },
+        details: {
+          source_name: data[:source_name]
+        }
+      )
       @stats[:new] += 1
     end
   end
@@ -454,6 +699,24 @@ class GecImportService
   def detect_purged_voters(gec_import)
     purged = GecVoter.active.where("imported_at IS NULL OR imported_at < ?", @import_started_at)
     count = purged.count
+
+    purged.find_each do |gv|
+      log_change_row!(
+        change_type: "removed",
+        current_values: {
+          first_name: gv.first_name,
+          last_name: gv.last_name,
+          village_name: gv.village_name,
+          previous_village_name: gv.previous_village_name,
+          voter_registration_number: gv.voter_registration_number,
+          birth_year: gv.birth_year,
+          dob: gv.dob
+        },
+        details: {
+          reason: "missing_from_full_list"
+        }
+      )
+    end
 
     purged.update_all(
       status: "removed",
