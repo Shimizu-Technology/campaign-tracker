@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_08_214500) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_08_220000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -284,7 +284,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_08_214500) do
     t.index "lower((village_name)::text) gin_trgm_ops", name: "idx_gec_import_changes_village_name_trgm", using: :gin
     t.index "lower((voter_registration_number)::text) gin_trgm_ops", name: "idx_gec_import_changes_vrn_trgm", using: :gin
     t.index ["gec_import_id", "change_type"], name: "index_gec_import_changes_on_gec_import_id_and_change_type"
-    t.index ["gec_import_id"], name: "index_gec_import_changes_on_gec_import_id"
     t.index ["voter_registration_number"], name: "index_gec_import_changes_on_voter_registration_number"
   end
 
