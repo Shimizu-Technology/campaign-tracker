@@ -419,16 +419,18 @@ module Api
         total_pages = (total_rows.to_f / per_page).ceil
         rows = scope.offset((page - 1) * per_page).limit(per_page)
 
+        raw_counts = gec_import.change_records.group(:change_type).count
+
         render json: {
           import: import_json(gec_import),
           changes: rows.map { |row| import_change_json(row) },
           counts: {
-            all: gec_import.change_records.count,
-            new: gec_import.change_records.where(change_type: "new").count,
-            changed: gec_import.change_records.where(change_type: %w[updated transferred]).count,
-            updated: gec_import.change_records.where(change_type: "updated").count,
-            removed: gec_import.change_records.where(change_type: "removed").count,
-            transferred: gec_import.change_records.where(change_type: "transferred").count
+            all: raw_counts.values.sum,
+            new: raw_counts["new"].to_i,
+            changed: raw_counts["updated"].to_i + raw_counts["transferred"].to_i,
+            updated: raw_counts["updated"].to_i,
+            removed: raw_counts["removed"].to_i,
+            transferred: raw_counts["transferred"].to_i
           },
           filters: {
             type: type,
@@ -672,7 +674,7 @@ module Api
         s3_key = "gec-imports/#{gec_import.id}/raw/#{safe_filename}"
         upload_result = S3Service.upload(s3_key, File.binread(file.tempfile.path), content_type: raw_content_type)
         unless upload_result
-          Rails.logger.warn("GecVotersController import #{gec_import.id}: raw upload preservation failed")
+          Rails.logger.error("GecVotersController import #{gec_import.id}: raw upload preservation failed; import will continue without raw source file")
           return
         end
 
@@ -682,7 +684,7 @@ module Api
           raw_content_type: raw_content_type
         )
       rescue StandardError => e
-        Rails.logger.warn("GecVotersController import #{gec_import.id}: raw preservation error: #{e.class}: #{e.message}")
+        Rails.logger.error("GecVotersController import #{gec_import.id}: raw preservation error: #{e.class}: #{e.message}; import will continue without raw source file")
       end
 
       def preserve_import_artifact!(gec_import:, file_path:, filename:, content_type:)
@@ -782,6 +784,7 @@ module Api
       end
 
       def build_import_viewer_dataset(gec_import)
+        started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         artifact_data = S3Service.download(gec_import.original_file_s3_key)
         return nil unless artifact_data
 
@@ -797,7 +800,7 @@ module Api
         service = GecImportService.new(file_path: temp.path, gec_list_date: gec_import.gec_list_date)
         preview_data = service.preview_all
 
-        if gec_import.imported_from_pdf?
+        dataset = if gec_import.imported_from_pdf?
           rows = preview_data[:preview_rows].map do |row|
             {
               "name" => [ row[:last_name], row[:first_name] ].compact.reject(&:blank?).join(", "),
@@ -826,6 +829,14 @@ module Api
             "available_villages" => rows.map { |row| row["village_name"] || row["village"] }.compact.uniq.sort
           }
         end
+        elapsed_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at) * 1000).round
+        if preview_data[:row_count].to_i >= 25_000 || elapsed_ms >= 1500
+          Rails.logger.info(
+            "GecVotersController import #{gec_import.id}: built viewer dataset " \
+            "(rows=#{preview_data[:row_count]}, elapsed_ms=#{elapsed_ms})"
+          )
+        end
+        dataset
       ensure
         temp&.close!
       end

@@ -77,6 +77,21 @@ class GecPdfParserService
     )
   end
 
+  def write_normalized_csv(rows)
+    tf = Tempfile.new([ "gec_pdf_normalized", ".csv" ])
+    begin
+      CSV.open(tf.path, "w", encoding: "UTF-8") do |csv|
+        csv << [ "name", "village", "voter_registration_number", "dob", "dob_estimated", "birth_year", "pct", "address" ]
+        rows.each { |r| csv << [ r["name"], r["village"], r["voter_registration_number"], r["dob"], r["dob_estimated"], r["birth_year"], r["pct"], r["address"] ] }
+      end
+      tf.close
+      tf
+    rescue StandardError
+      tf.close!
+      raise
+    end
+  end
+
   private
 
   def parse_internal(max_pages:, max_rows:, timeout_seconds:, preview_mode:)
@@ -191,23 +206,6 @@ class GecPdfParserService
   rescue StandardError => e
     @errors << e.message
     Result.new(rows: [], qa: {}, warnings: @warnings, errors: @errors)
-  end
-
-  public
-
-  def write_normalized_csv(rows)
-    tf = Tempfile.new([ "gec_pdf_normalized", ".csv" ])
-    begin
-      CSV.open(tf.path, "w", encoding: "UTF-8") do |csv|
-        csv << [ "name", "village", "voter_registration_number", "dob", "dob_estimated", "birth_year", "pct", "address" ]
-        rows.each { |r| csv << [ r["name"], r["village"], r["voter_registration_number"], r["dob"], r["dob_estimated"], r["birth_year"], r["pct"], r["address"] ] }
-      end
-      tf.close
-      tf
-    rescue StandardError
-      tf.close!
-      raise
-    end
   end
 
   def normalize_name(value)
