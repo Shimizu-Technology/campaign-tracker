@@ -1439,10 +1439,10 @@ function ImportChangesView({
   onChangeTypeChange: (value: ImportChangeFilter) => void;
 }) {
   const counts = data?.counts ?? {
-    all: imp.new_records + imp.updated_records + imp.removed_records,
+    all: imp.new_records + imp.updated_records + imp.removed_records + imp.transferred_records,
     new: imp.new_records,
-    changed: imp.updated_records,
-    updated: Math.max(imp.updated_records - imp.transferred_records, 0),
+    changed: imp.updated_records + imp.transferred_records,
+    updated: imp.updated_records,
     removed: imp.removed_records,
     transferred: imp.transferred_records,
   };
