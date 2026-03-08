@@ -362,7 +362,7 @@ export default function TeamGecPage() {
     queryKey: ['gec-import-original-view', viewerState?.importId],
     queryFn: () => getGecImportOriginalView(viewerState!.importId),
     enabled: Boolean(viewerState?.importId && selectedImport?.has_original_file && selectedImportIsPdf),
-    staleTime: 240_000,
+    staleTime: 60_000,
   });
 
   const importChangesQuery = useQuery<ImportChangesResponse>({

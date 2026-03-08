@@ -417,6 +417,7 @@ module Api
 
         total_rows = scope.count
         total_pages = total_rows.zero? ? 1 : (total_rows.to_f / per_page).ceil
+        page = [ page, total_pages ].min
         rows = scope.offset((page - 1) * per_page).limit(per_page)
 
         raw_counts = gec_import.change_records.group(:change_type).count
@@ -461,7 +462,7 @@ module Api
         filename = gec_import.raw_source_filename || gec_import.filename || "gec_import_#{gec_import.id}"
         view_url = S3Service.presigned_url(
           gec_import.raw_file_s3_key,
-          expires_in: 300,
+          expires_in: 1800,
           filename: filename,
           disposition: :inline
         )

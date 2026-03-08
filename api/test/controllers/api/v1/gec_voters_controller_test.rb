@@ -490,6 +490,35 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "transferred", json["changes"].first["change_type"]
   end
 
+  test "view_import_changes clamps requested page to total_pages" do
+    gec_import = GecImport.create!(
+      gec_list_date: Date.new(2026, 1, 25),
+      filename: "gec_jan_2026.xlsx",
+      status: "completed",
+      total_records: 1,
+      new_records: 1
+    )
+
+    GecImportChange.create!(
+      gec_import: gec_import,
+      change_type: "new",
+      first_name: "Juan",
+      last_name: "Cruz",
+      village_name: "Barrigada",
+      voter_registration_number: "VR001"
+    )
+
+    get "/api/v1/gec_voters/imports/#{gec_import.id}/changes",
+      params: { page: 999, per_page: 100 },
+      headers: auth_headers(@admin)
+
+    assert_response :success
+    json = JSON.parse(response.body)
+    assert_equal 1, json["pagination"]["total_pages"]
+    assert_equal 1, json["pagination"]["page"]
+    assert_equal 1, json["changes"].length
+  end
+
   test "view_original returns inline viewer metadata for preserved raw pdf" do
     gec_import = GecImport.create!(
       gec_list_date: Date.new(2026, 1, 25),
@@ -501,7 +530,13 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
       raw_content_type: "application/pdf"
     )
 
-    with_singleton_stubs(S3Service, presigned_url: "https://example.test/original.pdf") do
+    calls = []
+    presign = lambda do |key, **kwargs|
+      calls << { key: key, kwargs: kwargs }
+      "https://example.test/original.pdf"
+    end
+
+    with_singleton_stubs(S3Service, presigned_url: presign) do
       get "/api/v1/gec_voters/imports/#{gec_import.id}/view_original", headers: auth_headers(@admin)
     end
 
@@ -509,6 +544,7 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     json = JSON.parse(response.body)
     assert_equal true, json["inline_supported"]
     assert_equal "application/pdf", json["content_type"]
+    assert_equal 1800, calls.first[:kwargs][:expires_in]
   end
 
   test "download_import prefers raw file when available" do
