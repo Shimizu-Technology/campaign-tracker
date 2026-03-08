@@ -226,47 +226,6 @@ class GecImportService
     }
   end
 
-  # Preview a specific page of parsed rows without importing.
-  def preview_page(page: 1, per_page: 100)
-    spreadsheet = Roo::Spreadsheet.open(@file_path)
-    sheet = @sheet_name ? spreadsheet.sheet(@sheet_name) : spreadsheet.sheet(0)
-
-    headers = normalize_headers(sheet.row(1))
-    column_map = build_column_map(headers)
-    sheets = spreadsheet.sheets
-    row_count = [ (sheet.last_row || 1) - 1, 0 ].max
-    normalized_page = [ page.to_i, 1 ].max
-    normalized_per_page = [ [ per_page.to_i, 1 ].max, 250 ].min
-    total_pages = row_count.zero? ? 1 : (row_count.to_f / normalized_per_page).ceil
-    effective_page = [ normalized_page, total_pages ].min
-    offset = (effective_page - 1) * normalized_per_page
-    start_row = offset + 2
-    end_row = [ start_row + normalized_per_page - 1, sheet.last_row || 1 ].min
-
-    rows = if start_row <= end_row
-      (start_row..end_row).map do |i|
-        raw = sheet.row(i)
-        parse_row(raw, column_map)
-      end
-    else
-      []
-    end
-
-    {
-      headers: headers,
-      column_map: column_map,
-      sheets: sheets,
-      row_count: row_count,
-      preview_rows: rows,
-      pagination: {
-        page: effective_page,
-        per_page: normalized_per_page,
-        total_pages: total_pages,
-        total_rows: row_count
-      }
-    }
-  end
-
   # Parse the entire file for viewer/search use-cases.
   def preview_all
     spreadsheet = Roo::Spreadsheet.open(@file_path)

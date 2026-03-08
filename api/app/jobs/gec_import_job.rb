@@ -158,8 +158,8 @@ class GecImportJob < ApplicationJob
 
             last_reported_page = pages_processed
             percent = 10 + ((pages_processed.to_f / page_count) * 20).to_i
-            merge_metadata!(
-              gec_import,
+            write_progress_cache(
+              gec_import.id,
               stage: "validating_pdf",
               progress_percent: [ percent, 30 ].min,
               pages_processed: pages_processed,
@@ -341,5 +341,26 @@ class GecImportJob < ApplicationJob
 
   def merge_metadata!(gec_import, **attrs)
     gec_import.update!(metadata: (gec_import.metadata || {}).merge(attrs.compact.stringify_keys))
+  end
+
+  def write_progress_cache(import_id, stage:, progress_percent:, pages_processed: nil, page_count: nil)
+    Rails.cache.write(
+      "gec_import_progress:#{import_id}",
+      {
+        "stage" => stage,
+        "progress_percent" => progress_percent,
+        "pages_processed" => pages_processed,
+        "page_count" => page_count,
+        "updated_at" => Time.current.iso8601
+      }.compact,
+      expires_in: GecImportService::IMPORT_CACHE_TTL
+    )
+    Rails.cache.write(
+      "gec_import_heartbeat:#{import_id}",
+      Time.current.iso8601,
+      expires_in: GecImportService::IMPORT_CACHE_TTL
+    )
+  rescue StandardError => e
+    Rails.logger.warn("GecImportJob #{import_id}: progress cache write failed: #{e.class}: #{e.message}")
   end
 end
