@@ -327,7 +327,8 @@ export default function TeamGecPage() {
 
   const isPdfPreview = previewData?.source_type === 'pdf';
   const pdfStatus = isPdfPreview ? previewData.qa?.status : null;
-  const reviewNeedsConfirmation = pdfStatus === 'review' && !confirmReview;
+  const pdfPreviewRequiresConfirmation = Boolean(isPdfPreview && (previewData.qa?.preview_mode || pdfStatus === 'review'));
+  const reviewNeedsConfirmation = pdfPreviewRequiresConfirmation && !confirmReview;
   const activeImports = importRows.filter(
     (imp) => imp.status === 'processing' || imp.status === 'pending'
   );
@@ -352,7 +353,7 @@ export default function TeamGecPage() {
   const importViewerQuery = useQuery<ImportViewDataResponse>({
     queryKey: ['gec-import-view-data', viewerState?.importId, viewerPage, viewerPerPage, debouncedViewerSearch, viewerVillageFilter],
     queryFn: () => getGecImportViewData(viewerState!.importId, viewerPage, viewerPerPage, debouncedViewerSearch, viewerVillageFilter || undefined),
-    enabled: Boolean(viewerState?.importId),
+    enabled: Boolean(viewerState?.importId && selectedImport?.has_import_artifact),
     staleTime: 30_000,
     placeholderData: (previousData) => previousData,
   });
@@ -679,14 +680,16 @@ export default function TeamGecPage() {
                       </div>
                     )}
 
-                    {previewData.qa?.status === 'review' && (
+                    {pdfPreviewRequiresConfirmation && (
                       <label className="flex items-center gap-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-2">
                         <input
                           type="checkbox"
                           checked={confirmReview}
                           onChange={e => setConfirmReview(e.target.checked)}
                         />
-                        I reviewed this PDF preview and want to proceed with import.
+                        {previewData.qa?.preview_mode
+                          ? 'I understand this is a sample preview and want to proceed with the background import even if full PDF validation later needs manual review.'
+                          : 'I reviewed this PDF preview and want to proceed with import.'}
                       </label>
                     )}
 

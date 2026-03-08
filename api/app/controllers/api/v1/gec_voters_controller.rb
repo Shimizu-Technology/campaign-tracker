@@ -161,6 +161,14 @@ module Api
           end
 
           if async_import
+            if pdf_file?(file) && !confirm_review
+              return render_api_error(
+                message: "PDF preview is only a sample. Confirm review before starting the background import.",
+                status: :unprocessable_entity,
+                code: "pdf_review_confirmation_required"
+              )
+            end
+
             max_bytes = 50.megabytes
             file_size = File.size(import_file_path)
             if file_size > max_bytes

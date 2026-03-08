@@ -239,7 +239,8 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
             params: {
               file: Rack::Test::UploadedFile.new(file.path, "application/pdf", original_filename: "voter_list.pdf"),
               gec_list_date: "2026-02-25",
-              async_import: "true"
+              async_import: "true",
+              confirm_review: "true"
             },
             headers: auth_headers(@admin)
         end
@@ -255,6 +256,32 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "voter_list.pdf", payload.filename
     assert_equal "application/pdf", payload.content_type
     assert_equal "queued", imp.metadata["stage"]
+  ensure
+    file&.close!
+  end
+
+  test "async pdf upload requires explicit review confirmation before queueing" do
+    file = Tempfile.new([ "gec_async_pdf_review", ".pdf" ])
+    file.binmode
+    file.write("%PDF-1.4 sample")
+    file.rewind
+
+    with_singleton_stubs(S3Service, enabled?: false) do
+      assert_no_enqueued_jobs only: GecImportJob do
+        post "/api/v1/gec_voters/upload",
+          params: {
+            file: Rack::Test::UploadedFile.new(file.path, "application/pdf", original_filename: "voter_list.pdf"),
+            gec_list_date: "2026-02-25",
+            async_import: "true"
+          },
+          headers: auth_headers(@admin)
+      end
+    end
+
+    assert_response :unprocessable_entity
+    json = JSON.parse(response.body)
+    assert_equal "pdf_review_confirmation_required", json["code"]
+    assert_match(/Confirm review before starting the background import/i, json["error"])
   ensure
     file&.close!
   end
