@@ -368,7 +368,7 @@ export default function TeamGecPage() {
   const importChangesQuery = useQuery<ImportChangesResponse>({
     queryKey: ['gec-import-changes', viewerState?.importId, changeViewerPage, viewerPerPage, changeViewerType, debouncedChangeViewerSearch],
     queryFn: () => getGecImportChanges(viewerState!.importId, changeViewerPage, viewerPerPage, changeViewerType, debouncedChangeViewerSearch || undefined),
-    enabled: Boolean(viewerState?.importId),
+    enabled: Boolean(viewerState?.importId && selectedImport?.status === 'completed'),
     staleTime: 30_000,
     placeholderData: (previousData) => previousData,
   });

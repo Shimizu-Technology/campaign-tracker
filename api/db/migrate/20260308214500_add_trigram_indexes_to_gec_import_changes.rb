@@ -1,5 +1,5 @@
 class AddTrigramIndexesToGecImportChanges < ActiveRecord::Migration[8.1]
-  def change
+  def up
     execute <<~SQL
       CREATE INDEX idx_gec_import_changes_first_name_trgm
       ON gec_import_changes
