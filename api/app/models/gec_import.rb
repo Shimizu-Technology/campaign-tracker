@@ -6,14 +6,47 @@ class GecImport < ApplicationRecord
 
   belongs_to :uploaded_by_user, class_name: "User", optional: true
   has_one :upload_payload, class_name: "GecImportUpload", dependent: :destroy
+  has_many :change_records, class_name: "GecImportChange", dependent: :destroy
 
   validates :gec_list_date, presence: true
   validates :filename, presence: true
   validates :status, inclusion: { in: STATUSES }
   validates :import_type, inclusion: { in: IMPORT_TYPES }
 
-  scope :latest, -> { order(gec_list_date: :desc) }
+  scope :latest, -> { order(created_at: :desc, id: :desc) }
   scope :completed, -> { where(status: "completed") }
+
+  def raw_source_available?
+    raw_file_s3_key.present?
+  end
+
+  def import_artifact_available?
+    original_file_s3_key.present?
+  end
+
+  def downloadable_file_available?
+    raw_source_available? || import_artifact_available?
+  end
+
+  def imported_from_pdf?
+    metadata.is_a?(Hash) && metadata["pdf_qa"].present?
+  end
+
+  def raw_source_filename
+    raw_filename.presence
+  end
+
+  def downloadable_file_key
+    raw_file_s3_key.presence || original_file_s3_key.presence
+  end
+
+  def downloadable_filename
+    raw_filename.presence || original_filename.presence || filename
+  end
+
+  def downloadable_content_type
+    raw_content_type.presence || original_content_type.presence
+  end
 
   def change_summary
     {

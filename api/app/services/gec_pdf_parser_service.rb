@@ -11,9 +11,13 @@ class GecPdfParserService
 
   HEADER_TEXT = /Guam Election Commission\s*Voter Listing\s*as of\s*.+?\s*REG\. NO\.\s*NAME\s*(?:ADDRESS\s*)?BIRTH YEAR\s*PCT/i
   PARSE_TIMEOUT_SECONDS = 10
+  PREVIEW_TIMEOUT_SECONDS = 3
+  PREVIEW_MAX_PAGES = 3
+  PREVIEW_MAX_ROWS = 200
   MAX_ADDRESS_CHARS = 150
   REVIEW_MIN_ROWS = 10_000 # Guam full-list imports are ~60k+ rows; below this is likely partial/test data
   FAIL_MIN_ROWS = 1_000
+  PCT_REGEX = "\\d{1,2}[A-Z]?".freeze
 
   # Sorted longest-first so Regexp.union matches greedily (e.g. "AGANA HEIGHTS" before "AGANA HTS")
   VILLAGE_ALT_STR = [
@@ -21,9 +25,9 @@ class GecPdfParserService
     "CHALAN PAGO/ORDOT", "CHALAN PAGO", "ORDOT",
     "MONGMONG/TOTO/MAITE", "MONGMONG TOTO MAITE",
     "SANTA RITA-SUMAI", "SANTA RITA", "TALOFOFO",
-    "HAGATNA", "HAGAT", "DEDEDO", "BARRIGADA", "MANGILAO", "SINAJANA",
+    "HAGATNA", "HAGAT", "AGAT", "DEDEDO", "BARRIGADA", "MANGILAO", "SINAJANA",
     "TAMUNING", "YIGO", "YONA", "PITI", "HUMATAK", "MALESSO",
-    "INALAHAN", "INARAJAN", "GMF", "TUMON"
+    "UMATAC", "MERIZO", "ASAN", "INALAHAN", "INARAJAN", "GMF", "TUMON"
   ].sort_by { |v| -v.length }.map { |v| Regexp.escape(v) }.join("|")
 
   # Current GEC export format (line-based): page_no reg_no name address village dob pct ...
@@ -33,7 +37,7 @@ class GecPdfParserService
     "([A-Z0-9 #,\\.\\-\\/]{3,#{MAX_ADDRESS_CHARS}}?)\\s+" \
     "(#{VILLAGE_ALT_STR})\\s+" \
     "(\\d{1,2}\\/\\d{1,2}\\/\\d{2,4})\\s+" \
-    "(\\d{1,2})\\b"
+    "(#{PCT_REGEX})\\b"
   )
 
   LEGACY_ADDRESS_PREFIXES = "ROUTE|BLDG|BUILDING|UNIT|APT|APARTMENT".freeze
@@ -45,26 +49,70 @@ class GecPdfParserService
     "([A-Z0-9 #,\\.\\-\\/]{3,#{MAX_ADDRESS_CHARS}}?)\\s+" \
     "(#{VILLAGE_ALT_STR})\\s+96\\d{3}\\s+" \
     "(19\\d{2}|20\\d{2})\\s+" \
-    "(\\d{1,2})(?=\\s+\\d{4,7}|$)"
+    "(#{PCT_REGEX})(?=\\s+\\d{4,7}|$)"
   )
 
-  def initialize(file_path:)
+  def initialize(file_path:, progress_callback: nil)
     @file_path = file_path
+    @progress_callback = progress_callback
     @warnings = []
     @errors = []
   end
 
   def parse
+    parse_internal(
+      max_pages: nil,
+      max_rows: nil,
+      timeout_seconds: PARSE_TIMEOUT_SECONDS,
+      preview_mode: false
+    )
+  end
+
+  def parse_preview_sample(max_pages: PREVIEW_MAX_PAGES, max_rows: PREVIEW_MAX_ROWS)
+    parse_internal(
+      max_pages: max_pages,
+      max_rows: max_rows,
+      timeout_seconds: PREVIEW_TIMEOUT_SECONDS,
+      preview_mode: true
+    )
+  end
+
+  def write_normalized_csv(rows)
+    tf = Tempfile.new([ "gec_pdf_normalized", ".csv" ])
+    begin
+      CSV.open(tf.path, "w", encoding: "UTF-8") do |csv|
+        csv << [ "name", "village", "voter_registration_number", "dob", "dob_estimated", "birth_year", "pct", "address" ]
+        rows.each { |r| csv << [ r["name"], r["village"], r["voter_registration_number"], r["dob"], r["dob_estimated"], r["birth_year"], r["pct"], r["address"] ] }
+      end
+      tf.close
+      tf
+    rescue StandardError
+      tf.close!
+      raise
+    end
+  end
+
+  private
+
+  def parse_internal(max_pages:, max_rows:, timeout_seconds:, preview_mode:)
     reader = PDF::Reader.new(@file_path)
     rows = []
     seen = {}
+    pages_processed = 0
+    page_count = reader.page_count
+
+    report_progress(pages_processed: 0, page_count: page_count, preview_mode: preview_mode)
 
     reader.pages.each do |page|
+      break if max_pages.present? && pages_processed >= max_pages
+
       begin
-        Timeout.timeout(PARSE_TIMEOUT_SECONDS) do
+        Timeout.timeout(timeout_seconds) do
           text = page.text.to_s
           next if text.blank?
 
+          pages_processed += 1
+          report_progress(pages_processed: pages_processed, page_count: page_count, preview_mode: preview_mode)
           matched_rows = 0
 
           # 1) Primary parser: modern line-based export
@@ -91,14 +139,17 @@ class GecPdfParserService
               "village" => village_raw,
               "voter_registration_number" => reg_no,
               "dob" => dob_raw,
+              "dob_estimated" => true,
               "birth_year" => birth_year,
               "pct" => pct,
               "address" => normalize_text(address_raw)
             }
+
+            break if max_rows.present? && rows.size >= max_rows
           end
 
           # 2) Fallback parser: legacy flattened format
-          if matched_rows.zero?
+          if matched_rows.zero? && (!max_rows.present? || rows.size < max_rows)
             flat = text.gsub("\n", " ")
             flat = flat.gsub(HEADER_TEXT, " ")
             flat = flat.gsub(/\s+/, " ").strip
@@ -117,47 +168,45 @@ class GecPdfParserService
                 "village" => village_raw,
                 "voter_registration_number" => reg_no,
                 "dob" => birth_year_to_dob_placeholder(birth_year),
+                "dob_estimated" => true,
                 "birth_year" => birth_year,
                 "pct" => pct,
                 "address" => normalize_text(address_raw)
               }
+
+              break if max_rows.present? && rows.size >= max_rows
             end
           end
         end
       rescue Timeout::Error
+        if preview_mode
+          @warnings << "Preview skipped a slow page. Full validation will run during import."
+          next
+        end
         @errors << "PDF page parsing timed out (possible malformed layout)"
         break
       rescue StandardError => e
         @warnings << "Skipped page due to error: #{e.class}: #{e.message}"
         next
       end
+
+      break if max_rows.present? && rows.size >= max_rows
     end
 
-    qa = build_qa(rows, reader.page_count)
-    warn_if_low_quality(qa)
+    report_progress(pages_processed: pages_processed, page_count: page_count, preview_mode: preview_mode)
+
+    qa = if preview_mode
+      build_preview_qa(rows, page_count, pages_processed, max_pages, max_rows)
+    else
+      build_qa(rows, page_count)
+    end
+    warn_if_low_quality(qa) unless preview_mode
 
     Result.new(rows: rows, qa: qa, warnings: @warnings, errors: @errors)
   rescue StandardError => e
     @errors << e.message
     Result.new(rows: [], qa: {}, warnings: @warnings, errors: @errors)
   end
-
-  def write_normalized_csv(rows)
-    tf = Tempfile.new([ "gec_pdf_normalized", ".csv" ])
-    begin
-      CSV.open(tf.path, "w", encoding: "UTF-8") do |csv|
-        csv << [ "name", "village", "voter_registration_number", "dob", "birth_year", "pct", "address" ]
-        rows.each { |r| csv << [ r["name"], r["village"], r["voter_registration_number"], r["dob"], r["birth_year"], r["pct"], r["address"] ] }
-      end
-      tf.close
-      tf
-    rescue StandardError
-      tf.close!
-      raise
-    end
-  end
-
-  private
 
   def normalize_name(value)
     v = normalize_text(value)
@@ -227,11 +276,40 @@ class GecPdfParserService
     }
   end
 
+  def build_preview_qa(rows, page_count, pages_processed, max_pages, max_rows)
+    {
+      page_count: page_count,
+      pages_sampled: pages_processed,
+      row_count: rows.size,
+      quality_score: nil,
+      missing_name: rows.count { |r| r["name"].blank? },
+      missing_village: rows.count { |r| r["village"].blank? },
+      missing_reg: rows.count { |r| r["voter_registration_number"].blank? },
+      top_villages: rows.group_by { |r| r["village"] }.transform_values(&:count).sort_by { |_k, v| -v }.first(10).to_h,
+      status: "preview",
+      preview_mode: true,
+      note: "Sample preview only. Full PDF validation runs during import.",
+      sample_limited: (max_pages.present? && page_count > max_pages) || (max_rows.present? && rows.size >= max_rows)
+    }
+  end
+
   def warn_if_low_quality(qa)
     if qa[:status] == "review"
       @warnings << "Parser quality is REVIEW. Manual sample verification required before import."
     elsif qa[:status] == "fail"
       @warnings << "Parser quality is FAIL. Do not import this PDF directly."
     end
+  end
+
+  def report_progress(pages_processed:, page_count:, preview_mode:)
+    return if preview_mode
+    return unless @progress_callback
+
+    @progress_callback.call(
+      pages_processed: pages_processed,
+      page_count: page_count
+    )
+  rescue StandardError => e
+    Rails.logger.warn("GecPdfParserService progress callback failed: #{e.class}: #{e.message}")
   end
 end

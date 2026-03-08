@@ -173,6 +173,38 @@ export const getCampaignInfo = () => api.get('/campaign_info').then(r => r.data)
 export const getGecStats = () => api.get('/gec_voters/stats').then(r => r.data);
 export const getGecVoters = (params?: QueryParams) => api.get('/gec_voters', { params }).then(r => r.data);
 export const getGecImports = () => api.get('/gec_voters/imports').then(r => r.data);
+export const getGecImportViewData = (
+  importId: number,
+  page: number = 1,
+  perPage: number = 100,
+  q?: string,
+  village?: string
+) =>
+  api.get(`/gec_voters/imports/${importId}/view_data`, {
+    params: {
+      page,
+      per_page: perPage,
+      ...(q ? { q } : {}),
+      ...(village ? { village } : {}),
+    }
+  }).then(r => r.data);
+export const getGecImportOriginalView = (importId: number) =>
+  api.get<{ view_url: string; filename: string; content_type: string; inline_supported: boolean }>(`/gec_voters/imports/${importId}/view_original`).then(r => r.data);
+export const getGecImportChanges = (
+  importId: number,
+  page: number = 1,
+  perPage: number = 100,
+  type?: string,
+  q?: string
+) =>
+  api.get(`/gec_voters/imports/${importId}/changes`, {
+    params: {
+      page,
+      per_page: perPage,
+      ...(type ? { type } : {}),
+      ...(q ? { q } : {}),
+    }
+  }).then(r => r.data);
 export const uploadGecList = (
   file: File,
   gecListDate: string,

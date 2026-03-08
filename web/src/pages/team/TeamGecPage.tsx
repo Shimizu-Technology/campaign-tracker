@@ -1,6 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getGecStats, getGecImports, uploadGecList, bulkVetSupporters, previewGecList, downloadGecImportFile } from '../../lib/api';
+import {
+  getGecStats,
+  getGecImports,
+  uploadGecList,
+  bulkVetSupporters,
+  previewGecList,
+  downloadGecImportFile,
+  getGecImportViewData,
+  getGecImportOriginalView,
+  getGecImportChanges,
+} from '../../lib/api';
 import {
   Database,
   Upload,
@@ -10,31 +20,33 @@ import {
   Calendar,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
   Download,
+  ExternalLink,
+  FileSearch,
+  X,
 } from 'lucide-react';
 
-type PdfQaStatus = 'pass' | 'review' | 'fail';
+type PdfQaStatus = 'pass' | 'review' | 'fail' | 'preview';
+const CAMPAIGN_TIME_ZONE = 'Pacific/Guam';
 
 /**
- * Parse a date string as UTC to avoid timezone shift
- * (e.g. "2025-12-25" showing as Dec 24 in UTC-positive zones).
+ * Keep date-only values stable while displaying them in Guam time.
  * Handles: "2025-12-25", "2025-12-25T00:00:00", "2025-12-25T00:00:00Z"
  */
-function formatDateUTC(dateStr: string | null | undefined): string {
+function formatCampaignDate(dateStr: string | null | undefined): string {
   if (!dateStr) return '—';
   let normalized = dateStr;
   if (!dateStr.includes('T')) {
-    // Date-only string: append UTC time to prevent local-timezone interpretation
     normalized = dateStr + 'T00:00:00Z';
   } else if (!/[Zz]|[+-]\d{2}:\d{2}$/.test(dateStr)) {
-    // Has 'T' but no timezone designator: append 'Z' so it's treated as UTC
     normalized = dateStr + 'Z';
   }
   const d = new Date(normalized);
-  return d.toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'numeric', day: 'numeric' });
+  return d.toLocaleDateString('en-US', { timeZone: CAMPAIGN_TIME_ZONE, year: 'numeric', month: 'numeric', day: 'numeric' });
 }
 
-function formatDateTimeUTC(dateStr: string | null | undefined): string {
+function formatCampaignDateTime(dateStr: string | null | undefined): string {
   if (!dateStr) return '—';
   let normalized = dateStr;
   if (!dateStr.includes('T')) {
@@ -43,16 +55,43 @@ function formatDateTimeUTC(dateStr: string | null | undefined): string {
     normalized = dateStr + 'Z';
   }
   const d = new Date(normalized);
-  return d.toLocaleString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+  return d.toLocaleString('en-US', {
+    timeZone: CAMPAIGN_TIME_ZONE,
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  });
 }
 
 type PreviewRow = Record<string, unknown>;
+type ViewerTab = 'parsed' | 'changes' | 'original';
+type ImportChangeFilter = 'all' | 'new' | 'changed' | 'updated' | 'removed' | 'transferred';
+
+interface PreviewPagination {
+  page: number;
+  per_page: number;
+  total_pages: number;
+  total_rows: number;
+}
 
 interface PdfPreviewData {
   source_type: 'pdf';
-  qa: { status: PdfQaStatus; quality_score: number; row_count: number };
+  qa: {
+    status: PdfQaStatus;
+    quality_score: number | null;
+    row_count: number;
+    note?: string;
+    preview_mode?: boolean;
+    pages_sampled?: number;
+    page_count?: number;
+    sample_limited?: boolean;
+  };
   warnings: string[];
   row_count: number;
+  available_villages?: string[];
+  pagination?: PreviewPagination;
   parse_cache_key: string | null;
   preview_rows: PreviewRow[];
 }
@@ -60,9 +99,11 @@ interface PdfPreviewData {
 interface SpreadsheetPreviewData {
   source_type: 'spreadsheet';
   sheets: string[];
-  headers: Record<string, string>;
-  column_map: Record<string, string>;
+  headers: string[];
+  column_map: Record<string, number>;
   row_count: number;
+  available_villages?: string[];
+  pagination?: PreviewPagination;
   preview_rows: PreviewRow[];
 }
 
@@ -83,19 +124,165 @@ interface ImportRecord {
   status: string;
   created_at: string;
   uploaded_by_email: string | null;
+  has_import_artifact: boolean;
   has_original_file: boolean;
+  has_downloadable_file: boolean;
+  raw_filename: string | null;
+  original_filename: string | null;
+  raw_content_type: string | null;
+  original_content_type: string | null;
   metadata: {
     stage?: string;
     progress_percent?: number;
+    pages_processed?: number;
+    page_count?: number;
     matched_unchanged?: number;
     skipped?: number;
     unassigned?: number;
     errors?: string[];
+    row_error_details?: Array<{
+      row_number: number;
+      message: string;
+      source_name?: string | null;
+      voter_registration_number?: string | null;
+      first_name?: string | null;
+      last_name?: string | null;
+      village_name?: string | null;
+      birth_year?: number | string | null;
+      raw_values?: string[];
+    }>;
     error?: string;
     pdf_qa?: Record<string, unknown>;
+    pdf_warnings?: string[];
     mode?: string;
     [key: string]: unknown;
   };
+}
+
+function getImportStageLabel(stage: string, isPdfImport: boolean): string {
+  switch (stage) {
+    case 'queued':
+      return 'Queued';
+    case 'validating_pdf':
+      return 'Validating PDF';
+    case 'normalizing_pdf':
+      return 'Converting PDF';
+    case 'parsing':
+      return isPdfImport ? 'Importing Parsed Data' : 'Reading File';
+    case 'importing':
+      return 'Importing';
+    case 'matching':
+      return 'Matching Existing Voters';
+    case 'detecting_changes':
+      return 'Detecting Changes';
+    case 're_vetting':
+      return 'Re-vetting Supporters';
+    case 'saving':
+      return 'Saving Results';
+    case 'completed':
+      return 'Completed';
+    case 'failed':
+      return 'Failed';
+    default:
+      return stage.replace(/_/g, ' ');
+  }
+}
+
+function getImportStageMessage(
+  stage: string,
+  progressPercent: number,
+  isPdfImport: boolean,
+  metadata?: ImportRecord['metadata']
+): string {
+  if (progressPercent === 0 || stage === 'queued') {
+    return isPdfImport
+      ? 'Your PDF is queued. Full validation and import will run in the background.'
+      : 'Waiting to start. You can leave this page while the import stays queued.';
+  }
+
+  switch (stage) {
+    case 'validating_pdf':
+      if (metadata?.page_count && typeof metadata.pages_processed === 'number') {
+        return `Validated ${Number(metadata.pages_processed).toLocaleString()} of ${Number(metadata.page_count).toLocaleString()} pages. Large PDFs can take a few minutes.`;
+      }
+      return 'Checking the full PDF and confirming the parsed voter data before import.';
+    case 'normalizing_pdf':
+      return 'Converting the PDF into import-ready rows for the voter database.';
+    case 'parsing':
+      return isPdfImport
+        ? 'Importing the parsed PDF data. You can safely leave this page.'
+        : 'Reading the uploaded file and preparing rows for import.';
+    case 'importing':
+      return `${Math.max(5, Math.min(100, progressPercent))}% complete. Progress updates automatically.`;
+    case 'matching':
+      return 'Comparing this list against existing voters to find changes.';
+    case 'detecting_changes':
+      return 'Calculating adds, updates, transfers, and removals.';
+    case 'saving':
+      return 'Saving import results and finishing up.';
+    default:
+      return `${Math.max(5, Math.min(100, progressPercent))}% complete. Progress updates automatically.`;
+  }
+}
+
+interface ImportViewDataResponse {
+  import: ImportRecord;
+  preview: PreviewData;
+}
+
+interface ImportOriginalViewResponse {
+  view_url: string;
+  filename: string;
+  content_type: string;
+  inline_supported: boolean;
+}
+
+interface ImportChangeRecord {
+  id: number;
+  change_type: 'new' | 'updated' | 'removed' | 'transferred';
+  row_number: number | null;
+  first_name: string | null;
+  last_name: string | null;
+  voter_registration_number: string | null;
+  village_name: string | null;
+  previous_village_name: string | null;
+  birth_year: number | null;
+  dob: string | null;
+  details: {
+    source_name?: string | null;
+    reason?: string | null;
+    changed_fields?: Record<string, { before: unknown; after: unknown }>;
+    [key: string]: unknown;
+  };
+}
+
+interface ImportChangesResponse {
+  import: ImportRecord;
+  changes: ImportChangeRecord[];
+  counts: {
+    all: number;
+    new: number;
+    changed: number;
+    updated: number;
+    removed: number;
+    transferred: number;
+  };
+  filters: {
+    type: ImportChangeFilter;
+    q: string;
+  };
+  pagination: PreviewPagination;
+}
+
+function useDebouncedValue<T>(value: T, delayMs: number) {
+  const [debouncedValue, setDebouncedValue] = useState(value);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedValue(value), delayMs);
+    return () => window.clearTimeout(timeout);
+  }, [value, delayMs]);
+
+  return debouncedValue;
 }
 
 export default function TeamGecPage() {
@@ -109,6 +296,17 @@ export default function TeamGecPage() {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [confirmReview, setConfirmReview] = useState(false);
   const [expandedImportId, setExpandedImportId] = useState<number | null>(null);
+  const [viewerState, setViewerState] = useState<{ importId: number } | null>(null);
+  const [viewerTab, setViewerTab] = useState<ViewerTab>('parsed');
+  const [viewerPage, setViewerPage] = useState(1);
+  const [viewerSearchInput, setViewerSearchInput] = useState('');
+  const [viewerVillageFilter, setViewerVillageFilter] = useState('');
+  const [changeViewerPage, setChangeViewerPage] = useState(1);
+  const [changeViewerSearchInput, setChangeViewerSearchInput] = useState('');
+  const [changeViewerType, setChangeViewerType] = useState<ImportChangeFilter>('all');
+  const viewerPerPage = 100;
+  const debouncedViewerSearch = useDebouncedValue(viewerSearchInput.trim(), 250);
+  const debouncedChangeViewerSearch = useDebouncedValue(changeViewerSearchInput.trim(), 250);
 
   const { data: stats, isLoading: statsLoading } = useQuery({ queryKey: ['gec-stats'], queryFn: getGecStats });
   const { data: imports } = useQuery({
@@ -125,10 +323,12 @@ export default function TeamGecPage() {
   });
 
   const importRows = (imports?.imports || []) as ImportRecord[];
+  const selectedImport = viewerState ? (importRows.find((imp) => imp.id === viewerState.importId) ?? null) : null;
 
   const isPdfPreview = previewData?.source_type === 'pdf';
   const pdfStatus = isPdfPreview ? previewData.qa?.status : null;
-  const reviewNeedsConfirmation = pdfStatus === 'review' && !confirmReview;
+  const pdfPreviewRequiresConfirmation = Boolean(isPdfPreview && (previewData.qa?.preview_mode || pdfStatus === 'review'));
+  const reviewNeedsConfirmation = pdfPreviewRequiresConfirmation && !confirmReview;
   const activeImports = importRows.filter(
     (imp) => imp.status === 'processing' || imp.status === 'pending'
   );
@@ -138,6 +338,9 @@ export default function TeamGecPage() {
   const activeProgressDisplay = Math.max(5, Math.min(100, activeProgress));
   const activeStage = String(activeImport?.metadata?.stage || 'processing');
   const activeImportCount = activeImports.length;
+  const activeImportIsPdf = Boolean(activeImport?.raw_content_type?.includes('pdf') || activeImport?.metadata?.pdf_qa);
+  const activeStageLabel = getImportStageLabel(activeStage, activeImportIsPdf);
+  const activeStageMessage = getImportStageMessage(activeStage, activeProgress, activeImportIsPdf, activeImport?.metadata);
 
   const previouslyHadActiveImport = useRef(false);
   useEffect(() => {
@@ -146,6 +349,29 @@ export default function TeamGecPage() {
     }
     previouslyHadActiveImport.current = hasActiveImport;
   }, [hasActiveImport, queryClient]);
+
+  const importViewerQuery = useQuery<ImportViewDataResponse>({
+    queryKey: ['gec-import-view-data', viewerState?.importId, viewerPage, viewerPerPage, debouncedViewerSearch, viewerVillageFilter],
+    queryFn: () => getGecImportViewData(viewerState!.importId, viewerPage, viewerPerPage, debouncedViewerSearch, viewerVillageFilter || undefined),
+    enabled: Boolean(viewerState?.importId && selectedImport?.has_import_artifact),
+    staleTime: 30_000,
+    placeholderData: (previousData) => previousData,
+  });
+
+  const originalViewerQuery = useQuery<ImportOriginalViewResponse>({
+    queryKey: ['gec-import-original-view', viewerState?.importId],
+    queryFn: () => getGecImportOriginalView(viewerState!.importId),
+    enabled: Boolean(viewerState?.importId && selectedImport?.has_original_file),
+    staleTime: 60_000,
+  });
+
+  const importChangesQuery = useQuery<ImportChangesResponse>({
+    queryKey: ['gec-import-changes', viewerState?.importId, changeViewerPage, viewerPerPage, changeViewerType, debouncedChangeViewerSearch],
+    queryFn: () => getGecImportChanges(viewerState!.importId, changeViewerPage, viewerPerPage, changeViewerType, debouncedChangeViewerSearch || undefined),
+    enabled: Boolean(viewerState?.importId && selectedImport?.status === 'completed'),
+    staleTime: 30_000,
+    placeholderData: (previousData) => previousData,
+  });
 
   const previewMutation = useMutation({
     mutationFn: () => previewGecList(file!, sheetName || undefined),
@@ -213,6 +439,35 @@ export default function TeamGecPage() {
     onError: (err: Error) => setErrorMessage(`Bulk vetting failed: ${err.message}`),
   });
 
+  const openViewer = (imp: ImportRecord) => {
+    const initialTab: ViewerTab = imp.has_import_artifact
+      ? 'parsed'
+      : imp.status === 'completed'
+      ? 'changes'
+      : imp.has_original_file
+      ? 'original'
+      : 'parsed';
+    setViewerTab(initialTab);
+    setViewerPage(1);
+    setViewerSearchInput('');
+    setViewerVillageFilter('');
+    setChangeViewerPage(1);
+    setChangeViewerSearchInput('');
+    setChangeViewerType('all');
+    setViewerState({ importId: imp.id });
+  };
+
+  const closeViewer = () => {
+    setViewerState(null);
+    setViewerTab('parsed');
+    setViewerPage(1);
+    setViewerSearchInput('');
+    setViewerVillageFilter('');
+    setChangeViewerPage(1);
+    setChangeViewerSearchInput('');
+    setChangeViewerType('all');
+  };
+
   return (
     <div className="p-4 sm:p-6 space-y-6">
       <div>
@@ -240,7 +495,7 @@ export default function TeamGecPage() {
               <div className="text-xs text-gray-400">Villages</div>
             </div>
             <div className="min-w-0">
-              <div className="text-2xl font-bold text-gray-900 whitespace-nowrap">{formatDateUTC(stats.latest_list_date)}</div>
+              <div className="text-2xl font-bold text-gray-900 whitespace-nowrap">{formatCampaignDate(stats.latest_list_date)}</div>
               <div className="text-xs text-gray-400">List Date</div>
             </div>
             <div className="min-w-0">
@@ -283,15 +538,13 @@ export default function TeamGecPage() {
             <div className="text-sm font-semibold text-blue-900">
               {activeImportCount > 1 ? `${activeImportCount} imports in progress` : 'Background import in progress'}
             </div>
-            <div className="text-xs text-blue-700 capitalize">{activeStage.replace(/_/g, ' ')}</div>
+            <div className="text-xs text-blue-700">{activeStageLabel}</div>
           </div>
           <div className="w-full h-2 bg-blue-100 rounded-full overflow-hidden">
             <div className="h-full bg-blue-600 transition-all" style={{ width: `${activeProgressDisplay}%` }} />
           </div>
           <div className="mt-2 text-xs text-blue-700">
-            {activeProgress === 0
-              ? 'Waiting to start — safe to leave this page. Progress updates automatically.'
-              : `${activeProgressDisplay}% complete — safe to leave this page. Progress updates automatically.`}
+            {activeStageMessage}
           </div>
         </div>
       )}
@@ -405,25 +658,38 @@ export default function TeamGecPage() {
               {previewData.source_type === 'pdf' ? (
                 <>
                   <div className="space-y-2 text-sm">
-                    <div className="font-semibold text-gray-800">PDF QA Summary</div>
-                    <div className="text-gray-700">Rows parsed: <strong>{Number(previewData.row_count || 0).toLocaleString()}</strong></div>
-                    <div className="text-gray-700">Quality score: <strong>{previewData.qa?.quality_score ?? 'n/a'}</strong></div>
+                    <div className="font-semibold text-gray-800">PDF Preview Summary</div>
+                    <div className="text-gray-700">Rows sampled: <strong>{Number(previewData.row_count || 0).toLocaleString()}</strong></div>
+                    <div className="text-gray-700">
+                      Quality score: <strong>{previewData.qa?.preview_mode ? 'Calculated during full import' : (previewData.qa?.quality_score ?? 'Unavailable')}</strong>
+                    </div>
                     <div className="text-gray-700">Status: <strong className={`uppercase ${
                       previewData.qa?.status === 'fail'
                         ? 'text-red-600'
                         : previewData.qa?.status === 'review'
                         ? 'text-amber-600'
+                        : previewData.qa?.status === 'preview'
+                        ? 'text-blue-600'
                         : 'text-green-600'
                     }`}>{previewData.qa?.status ?? 'unknown'}</strong></div>
 
-                    {previewData.qa?.status === 'review' && (
+                    {previewData.qa?.preview_mode && (
+                      <div className="rounded-md border border-blue-200 bg-blue-50 px-2 py-2 text-xs text-blue-800">
+                        {previewData.qa?.note ?? 'This is a fast sample preview. Full PDF validation runs during import.'}
+                        {previewData.qa?.pages_sampled && previewData.qa?.page_count ? ` Sampled ${previewData.qa.pages_sampled} of ${previewData.qa.page_count} pages.` : ''}
+                      </div>
+                    )}
+
+                    {pdfPreviewRequiresConfirmation && (
                       <label className="flex items-center gap-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-2">
                         <input
                           type="checkbox"
                           checked={confirmReview}
                           onChange={e => setConfirmReview(e.target.checked)}
                         />
-                        I reviewed this PDF preview and want to proceed with import.
+                        {previewData.qa?.preview_mode
+                          ? 'I understand this is a sample preview and want to proceed with the background import even if full PDF validation later needs manual review.'
+                          : 'I reviewed this PDF preview and want to proceed with import.'}
                       </label>
                     )}
 
@@ -563,6 +829,7 @@ export default function TeamGecPage() {
                   const meta = imp.metadata || {};
                   const matchedUnchanged = Number(meta.matched_unchanged || 0);
                   const errors = meta.errors as string[] | undefined;
+                  const rowErrorDetails = meta.row_error_details as ImportRecord['metadata']['row_error_details'];
                   const errorMsg = meta.error as string | undefined;
                   const skipped = Number(meta.skipped || 0);
                   const unassigned = Number(meta.unassigned || 0);
@@ -576,14 +843,14 @@ export default function TeamGecPage() {
                       <td className="py-2 px-1 text-gray-400">
                         {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                       </td>
-                      <td className="py-2 px-3 text-gray-600">{formatDateUTC(imp.gec_list_date)}</td>
+                      <td className="py-2 px-3 text-gray-600">{formatCampaignDate(imp.gec_list_date)}</td>
                       <td className="py-2 px-3 text-gray-600 text-xs">{imp.filename}</td>
                       <td className="py-2 px-3 text-right font-medium">{(imp.total_records || 0).toLocaleString()}</td>
                       <td className="py-2 px-3 text-right text-green-600">{imp.new_records}</td>
                       <td className="py-2 px-3 text-right text-blue-600">{imp.updated_records}</td>
                       <td className="py-2 px-3 text-right text-red-600">{imp.removed_records || 0}</td>
                       <td className="py-2 px-3 text-right text-blue-600">{imp.transferred_records || 0}</td>
-                      <td className="py-2 px-3 text-gray-500 text-xs whitespace-nowrap">{formatDateTimeUTC(imp.created_at)}</td>
+                      <td className="py-2 px-3 text-gray-500 text-xs whitespace-nowrap">{formatCampaignDateTime(imp.created_at)}</td>
                       <td className="py-2 px-3 text-gray-500 text-xs">{imp.uploaded_by_email || '—'}</td>
                       <td className="py-2 px-3">
                         <span className="text-xs text-gray-500">{imp.import_type?.replace(/_/g, ' ')}</span>
@@ -609,7 +876,9 @@ export default function TeamGecPage() {
                             skipped={skipped}
                             unassigned={unassigned}
                             errors={errors}
+                            rowErrorDetails={rowErrorDetails}
                             errorMsg={errorMsg}
+                            onOpenViewer={openViewer}
                           />
                         </td>
                       </tr>
@@ -622,34 +891,59 @@ export default function TeamGecPage() {
           </div>
         </div>
       )}
+      {viewerState && selectedImport && (
+        <ImportViewerModal
+          imp={selectedImport}
+          viewerTab={viewerTab}
+          onChangeTab={setViewerTab}
+          onClose={closeViewer}
+          importViewData={importViewerQuery.data}
+          importViewLoading={importViewerQuery.isLoading}
+          importViewError={importViewerQuery.error instanceof Error ? importViewerQuery.error.message : null}
+          originalViewData={originalViewerQuery.data}
+          originalViewLoading={originalViewerQuery.isLoading}
+          originalViewError={originalViewerQuery.error instanceof Error ? originalViewerQuery.error.message : null}
+          onPageChange={setViewerPage}
+          changeViewData={importChangesQuery.data}
+          changeViewLoading={importChangesQuery.isLoading}
+          changeViewError={importChangesQuery.error instanceof Error ? importChangesQuery.error.message : null}
+          onChangePage={setChangeViewerPage}
+          viewerSearchInput={viewerSearchInput}
+          onViewerSearchInputChange={(value) => {
+            setViewerPage(1);
+            setViewerSearchInput(value);
+          }}
+          viewerVillageFilter={viewerVillageFilter}
+          onViewerVillageFilterChange={(value) => {
+            setViewerPage(1);
+            setViewerVillageFilter(value);
+          }}
+          changeViewerSearchInput={changeViewerSearchInput}
+          onChangeViewerSearchInputChange={(value) => {
+            setChangeViewerPage(1);
+            setChangeViewerSearchInput(value);
+          }}
+          changeViewerType={changeViewerType}
+          onChangeViewerTypeChange={(value) => {
+            setChangeViewerPage(1);
+            setChangeViewerType(value);
+          }}
+        />
+      )}
     </div>
   );
 }
 
-function ImportDetailPanel({ imp, matchedUnchanged, skipped, unassigned, errors, errorMsg }: {
+function ImportDetailPanel({ imp, matchedUnchanged, skipped, unassigned, errors, rowErrorDetails, errorMsg, onOpenViewer }: {
   imp: ImportRecord;
   matchedUnchanged: number;
   skipped: number;
   unassigned: number;
   errors?: string[];
+  rowErrorDetails?: ImportRecord['metadata']['row_error_details'];
   errorMsg?: string;
+  onOpenViewer: (imp: ImportRecord) => void;
 }) {
-  const [downloading, setDownloading] = useState(false);
-  const [downloadError, setDownloadError] = useState<string | null>(null);
-
-  const handleDownload = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setDownloading(true);
-    setDownloadError(null);
-    try {
-      await downloadGecImportFile(imp.id);
-    } catch (err) {
-      setDownloadError(err instanceof Error ? err.message : 'Download failed. The original file may not be available.');
-    } finally {
-      setDownloading(false);
-    }
-  };
-
   return (
     <div className="px-6 py-4 bg-gray-50 border-t border-gray-100">
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -657,7 +951,7 @@ function ImportDetailPanel({ imp, matchedUnchanged, skipped, unassigned, errors,
         <div className="space-y-1.5">
           <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Import Details</div>
           <div className="text-xs text-gray-600">
-            <span className="font-medium">Imported at:</span> {formatDateTimeUTC(imp.created_at)}
+            <span className="font-medium">Imported at:</span> {formatCampaignDateTime(imp.created_at)}
           </div>
           <div className="text-xs text-gray-600">
             <span className="font-medium">Imported by:</span> {imp.uploaded_by_email || '—'}
@@ -666,7 +960,7 @@ function ImportDetailPanel({ imp, matchedUnchanged, skipped, unassigned, errors,
             <span className="font-medium">Filename:</span> {imp.filename}
           </div>
           <div className="text-xs text-gray-600">
-            <span className="font-medium">List date:</span> {formatDateUTC(imp.gec_list_date)}
+            <span className="font-medium">List date:</span> {formatCampaignDate(imp.gec_list_date)}
           </div>
           <div className="text-xs text-gray-600">
             <span className="font-medium">Type:</span> {imp.import_type?.replace(/_/g, ' ')}
@@ -695,18 +989,19 @@ function ImportDetailPanel({ imp, matchedUnchanged, skipped, unassigned, errors,
           <div className="text-xs text-amber-700">Ambiguous DOBs: <strong>{imp.ambiguous_dob_count || 0}</strong></div>
           {skipped > 0 && <div className="text-xs text-gray-600">Skipped rows: <strong>{skipped}</strong></div>}
           {unassigned > 0 && <div className="text-xs text-gray-600">Unassigned village: <strong>{unassigned}</strong></div>}
-          {imp.has_original_file && (
-            <button
-              onClick={handleDownload}
-              disabled={downloading}
-              className="mt-2 flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:opacity-50 transition-colors"
-            >
-              {downloading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-              Download Original
-            </button>
-          )}
-          {downloadError && (
-            <div className="text-xs text-red-600 mt-1">{downloadError}</div>
+          {(imp.has_import_artifact || imp.has_original_file) && (
+            <div className="mt-2">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenViewer(imp);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
+              >
+                <FileSearch className="w-3.5 h-3.5" />
+                Open Import
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -723,8 +1018,847 @@ function ImportDetailPanel({ imp, matchedUnchanged, skipped, unassigned, errors,
           <ul className="text-xs text-amber-700 space-y-0.5 max-h-32 overflow-y-auto">
             {errors.map((err, i) => <li key={i}>{err}</li>)}
           </ul>
+          {rowErrorDetails && rowErrorDetails.length > 0 && (
+            <div className="mt-3 space-y-2">
+              {rowErrorDetails.map((detail) => (
+                <div key={`${detail.row_number}-${detail.message}`} className="rounded-md border border-amber-200 bg-white/70 px-3 py-2 text-xs text-amber-900">
+                  <div className="font-medium">Row {detail.row_number}</div>
+                  <div className="mt-0.5">{detail.message}</div>
+                  {detail.source_name && (
+                    <div className="mt-1 text-amber-800">
+                      Source name: <strong>{detail.source_name}</strong>
+                    </div>
+                  )}
+                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-amber-800">
+                    {detail.first_name && <span>First: <strong>{detail.first_name}</strong></span>}
+                    {detail.last_name && <span>Last: <strong>{detail.last_name}</strong></span>}
+                    {detail.voter_registration_number && <span>Reg No.: <strong>{detail.voter_registration_number}</strong></span>}
+                    {detail.village_name && <span>Village: <strong>{detail.village_name}</strong></span>}
+                    {detail.birth_year && <span>Birth year: <strong>{detail.birth_year}</strong></span>}
+                  </div>
+                  {detail.raw_values && detail.raw_values.length > 0 && (
+                    <div className="mt-1 text-amber-800">
+                      Raw row: <strong>{detail.raw_values.join(' | ')}</strong>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
+    </div>
+  );
+}
+
+function ImportViewerModal({
+  imp,
+  viewerTab,
+  onChangeTab,
+  onClose,
+  importViewData,
+  importViewLoading,
+  importViewError,
+  originalViewData,
+  originalViewLoading,
+  originalViewError,
+  onPageChange,
+  changeViewData,
+  changeViewLoading,
+  changeViewError,
+  onChangePage,
+  viewerSearchInput,
+  onViewerSearchInputChange,
+  viewerVillageFilter,
+  onViewerVillageFilterChange,
+  changeViewerSearchInput,
+  onChangeViewerSearchInputChange,
+  changeViewerType,
+  onChangeViewerTypeChange,
+}: {
+  imp: ImportRecord;
+  viewerTab: ViewerTab;
+  onChangeTab: (tab: ViewerTab) => void;
+  onClose: () => void;
+  importViewData?: ImportViewDataResponse;
+  importViewLoading: boolean;
+  importViewError: string | null;
+  originalViewData?: ImportOriginalViewResponse;
+  originalViewLoading: boolean;
+  originalViewError: string | null;
+  onPageChange: (page: number) => void;
+  changeViewData?: ImportChangesResponse;
+  changeViewLoading: boolean;
+  changeViewError: string | null;
+  onChangePage: (page: number) => void;
+  viewerSearchInput: string;
+  onViewerSearchInputChange: (value: string) => void;
+  viewerVillageFilter: string;
+  onViewerVillageFilterChange: (value: string) => void;
+  changeViewerSearchInput: string;
+  onChangeViewerSearchInputChange: (value: string) => void;
+  changeViewerType: ImportChangeFilter;
+  onChangeViewerTypeChange: (value: ImportChangeFilter) => void;
+}) {
+  const [downloading, setDownloading] = useState(false);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const showParsedTab = imp.has_import_artifact;
+  const showChangesTab = imp.status === 'completed';
+  const showOriginalTab = imp.has_original_file;
+
+  const handleDownload = async () => {
+    setDownloading(true);
+    setDownloadError(null);
+    try {
+      await downloadGecImportFile(imp.id);
+    } catch (err) {
+      setDownloadError(err instanceof Error ? err.message : 'Download failed.');
+    } finally {
+      setDownloading(false);
+    }
+  };
+
+  const openOriginalInNewTab = () => {
+    if (!originalViewData?.view_url) return;
+    window.open(originalViewData.view_url, '_blank', 'noopener,noreferrer');
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl shadow-xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 py-4 border-b border-gray-200 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <div className="text-xs font-semibold text-blue-600 uppercase tracking-wider">Import Transparency</div>
+            <h3 className="text-lg font-semibold text-gray-900 truncate">{imp.raw_filename || imp.original_filename || imp.filename}</h3>
+            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+              <span>Imported at: {formatCampaignDateTime(imp.created_at)}</span>
+              <span>Imported by: {imp.uploaded_by_email || '—'}</span>
+              <span>Type: {imp.import_type?.replace(/_/g, ' ')}</span>
+              <span>Status: {imp.status}</span>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 hover:text-gray-700 transition-colors"
+            aria-label="Close import viewer"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="px-5 pt-4 flex flex-wrap items-center gap-2 border-b border-gray-200">
+          {showParsedTab && (
+            <button
+              onClick={() => onChangeTab('parsed')}
+              className={`px-3 py-2 rounded-t-lg text-sm font-medium transition-colors ${
+                viewerTab === 'parsed'
+                  ? 'bg-blue-50 text-blue-700 border border-blue-200 border-b-white'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Imported Data
+            </button>
+          )}
+          {showChangesTab && (
+            <button
+              onClick={() => onChangeTab('changes')}
+              className={`px-3 py-2 rounded-t-lg text-sm font-medium transition-colors ${
+                viewerTab === 'changes'
+                  ? 'bg-blue-50 text-blue-700 border border-blue-200 border-b-white'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Changes
+            </button>
+          )}
+          {showOriginalTab && (
+            <button
+              onClick={() => onChangeTab('original')}
+              className={`px-3 py-2 rounded-t-lg text-sm font-medium transition-colors ${
+                viewerTab === 'original'
+                  ? 'bg-blue-50 text-blue-700 border border-blue-200 border-b-white'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Original File
+            </button>
+          )}
+          <div className="ml-auto flex items-center gap-2 pb-3">
+            {imp.has_downloadable_file && (
+              <button
+                onClick={handleDownload}
+                disabled={downloading}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50 transition-colors"
+              >
+                {downloading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                Download File
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 bg-gray-50">
+          {viewerTab === 'parsed' && showParsedTab ? (
+            <ParsedImportView
+              imp={importViewData?.import || imp}
+              preview={importViewData?.preview}
+              loading={importViewLoading}
+              error={importViewError}
+              onPageChange={onPageChange}
+              viewerSearchInput={viewerSearchInput}
+              onViewerSearchInputChange={onViewerSearchInputChange}
+              viewerVillageFilter={viewerVillageFilter}
+              onViewerVillageFilterChange={onViewerVillageFilterChange}
+            />
+          ) : viewerTab === 'changes' && showChangesTab ? (
+            <ImportChangesView
+              imp={changeViewData?.import || imp}
+              data={changeViewData}
+              loading={changeViewLoading}
+              error={changeViewError}
+              onPageChange={onChangePage}
+              searchInput={changeViewerSearchInput}
+              onSearchInputChange={onChangeViewerSearchInputChange}
+              changeType={changeViewerType}
+              onChangeTypeChange={onChangeViewerTypeChange}
+            />
+          ) : (
+            <OriginalImportView
+              data={originalViewData}
+              loading={originalViewLoading}
+              error={originalViewError}
+              hasOriginalFile={imp.has_original_file}
+              onOpenExternal={openOriginalInNewTab}
+              actionLabel="Open Original File"
+            />
+          )}
+          {downloadError && (
+            <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {downloadError}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ParsedImportView({
+  imp,
+  preview,
+  loading,
+  error,
+  onPageChange,
+  viewerSearchInput,
+  onViewerSearchInputChange,
+  viewerVillageFilter,
+  onViewerVillageFilterChange,
+}: {
+  imp: ImportRecord;
+  preview?: PreviewData;
+  loading: boolean;
+  error: string | null;
+  onPageChange: (page: number) => void;
+  viewerSearchInput: string;
+  onViewerSearchInputChange: (value: string) => void;
+  viewerVillageFilter: string;
+  onViewerVillageFilterChange: (value: string) => void;
+}) {
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16 text-gray-500">
+        <Loader2 className="w-5 h-5 animate-spin mr-2" />
+        Loading parsed import data...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        {error}
+      </div>
+    );
+  }
+
+  if (!preview) {
+    return (
+      <div className="rounded-lg border border-gray-200 bg-white px-4 py-6 text-sm text-gray-500">
+        Parsed import data is not available for this entry.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <InfoStat label="Imported Data" value={preview.source_type === 'pdf' ? 'PDF import' : 'Spreadsheet import'} />
+        <InfoStat label="Rows Detected" value={Number(preview.row_count || 0).toLocaleString()} />
+        <InfoStat label="Filename" value={imp.original_filename || imp.filename} />
+        <InfoStat label="Imported By" value={imp.uploaded_by_email || '—'} />
+      </div>
+
+      {preview.source_type === 'pdf' ? (
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-2">
+            <div className="text-sm text-gray-500">
+              This view shows what the app parsed and used during the import.
+            </div>
+            <div className="flex flex-wrap items-center gap-4 text-sm">
+              <div className="font-semibold text-gray-800">PDF QA Summary</div>
+              <div className="text-gray-600">Rows parsed: <strong>{Number(preview.row_count || 0).toLocaleString()}</strong></div>
+              <div className="text-gray-600">Quality score: <strong>{preview.qa?.quality_score ?? 'n/a'}</strong></div>
+              <div className={`text-sm font-semibold uppercase ${
+                preview.qa?.status === 'fail'
+                  ? 'text-red-600'
+                  : preview.qa?.status === 'review'
+                  ? 'text-amber-600'
+                  : 'text-green-600'
+              }`}>
+                {preview.qa?.status ?? 'unknown'}
+              </div>
+            </div>
+            {preview.warnings.length > 0 && (
+              <ul className="list-disc pl-5 text-sm text-amber-700 space-y-1">
+                {preview.warnings.map((warning, idx) => <li key={idx}>{warning}</li>)}
+              </ul>
+            )}
+          </div>
+          <ImportViewerFilters
+            preview={preview}
+            viewerSearchInput={viewerSearchInput}
+            onViewerSearchInputChange={onViewerSearchInputChange}
+            viewerVillageFilter={viewerVillageFilter}
+            onViewerVillageFilterChange={onViewerVillageFilterChange}
+          />
+          <PreviewRowsTable preview={preview} onPageChange={onPageChange} />
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-2">
+            <div className="text-sm font-semibold text-gray-800">Imported Spreadsheet Data</div>
+            <div className="text-sm text-gray-500">
+              This view shows what the app parsed and used during the import.
+            </div>
+            {preview.column_map && Object.keys(preview.column_map).length > 0 && (
+              <div className="text-sm text-gray-600">
+                <span className="font-medium">Columns mapped:</span>{' '}
+                {Object.entries(preview.column_map).map(([key, val]) => `${key} → ${val}`).join(', ')}
+              </div>
+            )}
+            {preview.sheets?.length > 1 && (
+              <div className="text-sm text-gray-500">Sheets detected: {preview.sheets.join(', ')}</div>
+            )}
+            {imp.has_original_file && !imp.raw_content_type?.includes('pdf') && (
+              <div className="text-sm text-gray-500">
+                The original spreadsheet file is available through <strong>Download File</strong> in the header.
+              </div>
+            )}
+          </div>
+          <ImportViewerFilters
+            preview={preview}
+            viewerSearchInput={viewerSearchInput}
+            onViewerSearchInputChange={onViewerSearchInputChange}
+            viewerVillageFilter={viewerVillageFilter}
+            onViewerVillageFilterChange={onViewerVillageFilterChange}
+          />
+          <PreviewRowsTable preview={preview} onPageChange={onPageChange} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ImportViewerFilters({
+  preview,
+  viewerSearchInput,
+  onViewerSearchInputChange,
+  viewerVillageFilter,
+  onViewerVillageFilterChange,
+}: {
+  preview: PreviewData;
+  viewerSearchInput: string;
+  onViewerSearchInputChange: (value: string) => void;
+  viewerVillageFilter: string;
+  onViewerVillageFilterChange: (value: string) => void;
+}) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-col md:flex-row gap-3">
+      <div className="flex-1">
+        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+          Search Imported Rows
+        </label>
+        <input
+          value={viewerSearchInput}
+          onChange={(e) => onViewerSearchInputChange(e.target.value)}
+          placeholder={preview.source_type === 'pdf' ? 'Search name, village, reg no., birth year' : 'Search name, village, reg no., DOB'}
+          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
+        />
+      </div>
+      <div className="md:w-56">
+        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+          Filter by Village
+        </label>
+        <select
+          value={viewerVillageFilter}
+          onChange={(e) => onViewerVillageFilterChange(e.target.value)}
+          className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-blue-200"
+        >
+          <option value="">All villages</option>
+          {preview.available_villages?.map((village) => (
+            <option key={village} value={village}>{village}</option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
+function ImportChangesView({
+  imp,
+  data,
+  loading,
+  error,
+  onPageChange,
+  searchInput,
+  onSearchInputChange,
+  changeType,
+  onChangeTypeChange,
+}: {
+  imp: ImportRecord;
+  data?: ImportChangesResponse;
+  loading: boolean;
+  error: string | null;
+  onPageChange: (page: number) => void;
+  searchInput: string;
+  onSearchInputChange: (value: string) => void;
+  changeType: ImportChangeFilter;
+  onChangeTypeChange: (value: ImportChangeFilter) => void;
+}) {
+  const counts = data?.counts ?? {
+    all: imp.new_records + imp.updated_records + imp.removed_records + imp.transferred_records,
+    new: imp.new_records,
+    changed: imp.updated_records + imp.transferred_records,
+    updated: imp.updated_records,
+    removed: imp.removed_records,
+    transferred: imp.transferred_records,
+  };
+
+  const filters: Array<{ key: ImportChangeFilter; label: string; count: number }> = [
+    { key: 'all', label: 'All Changes', count: counts.all },
+    { key: 'new', label: 'New', count: counts.new },
+    { key: 'changed', label: 'Changed', count: counts.changed },
+    { key: 'removed', label: 'Removed', count: counts.removed },
+    { key: 'transferred', label: 'Transferred', count: counts.transferred },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <InfoStat label="New" value={Number(counts.new || 0).toLocaleString()} />
+        <InfoStat label="Changed" value={Number(counts.changed || 0).toLocaleString()} />
+        <InfoStat label="Removed" value={Number(counts.removed || 0).toLocaleString()} />
+        <InfoStat label="Transferred" value={Number(counts.transferred || 0).toLocaleString()} />
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+        <div className="text-sm text-gray-500">
+          This view shows the actual voters this import added, changed, transferred, or removed.
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {filters.map((filter) => (
+            <button
+              key={filter.key}
+              onClick={() => onChangeTypeChange(filter.key)}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                changeType === filter.key
+                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                  : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'
+              }`}
+            >
+              {filter.label} ({Number(filter.count || 0).toLocaleString()})
+            </button>
+          ))}
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+            Search Changes
+          </label>
+          <input
+            value={searchInput}
+            onChange={(e) => onSearchInputChange(e.target.value)}
+            placeholder="Search name, village, or registration number"
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
+          />
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-16 text-gray-500">
+          <Loader2 className="w-5 h-5 animate-spin mr-2" />
+          Loading import changes...
+        </div>
+      ) : error ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      ) : !data || data.changes.length === 0 ? (
+        <div className="rounded-xl border border-gray-200 bg-white px-4 py-6 text-sm text-gray-500">
+          No matching change rows were found for this filter.
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead className="bg-gray-50 text-gray-500 uppercase text-[11px] tracking-wider">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold">Type</th>
+                  <th className="px-4 py-3 text-left font-semibold">Voter</th>
+                  <th className="px-4 py-3 text-left font-semibold">Reg No.</th>
+                  <th className="px-4 py-3 text-left font-semibold">Village</th>
+                  <th className="px-4 py-3 text-left font-semibold">Details</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {data.changes.map((change) => (
+                  <tr key={change.id} className="align-top">
+                    <td className="px-4 py-3">
+                      <span className={getChangeTypeBadgeClass(change.change_type)}>
+                        {formatChangeTypeLabel(change.change_type)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-900">
+                      <div className="font-medium">{[change.first_name, change.last_name].filter(Boolean).join(' ') || '—'}</div>
+                      <div className="text-xs text-gray-500">
+                        {change.dob ? formatCampaignDate(change.dob) : (change.birth_year ?? '—')}
+                        {change.row_number ? ` • Row ${change.row_number}` : ''}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">{change.voter_registration_number || '—'}</td>
+                    <td className="px-4 py-3 text-gray-700">
+                      <div>{change.village_name || '—'}</div>
+                      {change.previous_village_name && change.previous_village_name !== change.village_name && (
+                        <div className="text-xs text-gray-500">From {change.previous_village_name}</div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">
+                      <ChangeDetailsSummary change={change} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex items-center justify-between gap-3 px-4 py-3 border-t border-gray-200 bg-gray-50 text-sm text-gray-600">
+            <div>
+              Page {data.pagination.page} of {Math.max(1, data.pagination.total_pages)} • {Number(data.pagination.total_rows || 0).toLocaleString()} rows
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => onPageChange(Math.max(1, data.pagination.page - 1))}
+                disabled={data.pagination.page <= 1}
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-2 disabled:opacity-50"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Previous
+              </button>
+              <button
+                onClick={() => onPageChange(Math.min(data.pagination.total_pages || data.pagination.page, data.pagination.page + 1))}
+                disabled={data.pagination.page >= data.pagination.total_pages}
+                className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-2 disabled:opacity-50"
+              >
+                Next
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ChangeDetailsSummary({ change }: { change: ImportChangeRecord }) {
+  const changedFields = change.details?.changed_fields ? Object.entries(change.details.changed_fields) : [];
+
+  if (change.change_type === 'removed') {
+    return <div>Missing from this full-list import, so this voter was marked removed.</div>;
+  }
+
+  if (change.change_type === 'new') {
+    return <div>New voter added from this import.</div>;
+  }
+
+  if (changedFields.length === 0) {
+    return <div>Updated during this import.</div>;
+  }
+
+  return (
+    <div className="space-y-1">
+      {changedFields.map(([field, values]) => (
+        <div key={field}>
+          <span className="font-medium text-gray-700">{formatChangeFieldLabel(field)}:</span>{' '}
+          <span>{formatChangeFieldValue(values.before)} {'->'} {formatChangeFieldValue(values.after)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function formatChangeTypeLabel(changeType: ImportChangeRecord['change_type']): string {
+  switch (changeType) {
+    case 'new':
+      return 'New';
+    case 'updated':
+      return 'Updated';
+    case 'removed':
+      return 'Removed';
+    case 'transferred':
+      return 'Transferred';
+    default:
+      return changeType;
+  }
+}
+
+function getChangeTypeBadgeClass(changeType: ImportChangeRecord['change_type']): string {
+  const base = 'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold';
+  switch (changeType) {
+    case 'new':
+      return `${base} bg-green-50 text-green-700`;
+    case 'updated':
+      return `${base} bg-blue-50 text-blue-700`;
+    case 'removed':
+      return `${base} bg-red-50 text-red-700`;
+    case 'transferred':
+      return `${base} bg-indigo-50 text-indigo-700`;
+    default:
+      return `${base} bg-gray-100 text-gray-700`;
+  }
+}
+
+function formatChangeFieldLabel(field: string): string {
+  switch (field) {
+    case 'village_name':
+      return 'Village';
+    case 'voter_registration_number':
+      return 'Reg No.';
+    case 'birth_year':
+      return 'Birth year';
+    case 'dob':
+      return 'DOB';
+    default:
+      return field.replace(/_/g, ' ');
+  }
+}
+
+function formatChangeFieldValue(value: unknown): string {
+  if (value == null || value === '') return '—';
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) return formatCampaignDate(value);
+  return String(value);
+}
+
+function OriginalImportView({
+  data,
+  loading,
+  error,
+  hasOriginalFile,
+  onOpenExternal,
+  actionLabel,
+}: {
+  data?: ImportOriginalViewResponse;
+  loading: boolean;
+  error: string | null;
+  hasOriginalFile: boolean;
+  onOpenExternal: () => void;
+  actionLabel: string;
+}) {
+  if (!hasOriginalFile) {
+    return (
+      <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        This import does not have a preserved raw source file. Parsed import data and download remain available when the import artifact exists.
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16 text-gray-500">
+        <Loader2 className="w-5 h-5 animate-spin mr-2" />
+        Loading original file...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        {error}
+      </div>
+    );
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-sm font-semibold text-gray-800">{data.filename}</div>
+          <div className="text-sm text-gray-500">{data.content_type}</div>
+          <div className="text-sm text-gray-500 mt-1">This is the original file that was uploaded.</div>
+        </div>
+        <button
+          onClick={onOpenExternal}
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-100 transition-colors"
+        >
+          <ExternalLink className="w-4 h-4" />
+          {actionLabel}
+        </button>
+      </div>
+
+      {data.inline_supported ? (
+        <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+          <iframe
+            title={`Original file preview for ${data.filename}`}
+            src={data.view_url}
+            className="w-full h-[68vh] bg-white"
+          />
+        </div>
+      ) : (
+        <div className="rounded-xl border border-gray-200 bg-white p-5 space-y-3">
+          <div className="text-sm text-gray-700">
+            The original file is preserved and ready to open, but this file type is better handled by your browser or local spreadsheet app than an embedded in-app viewer.
+          </div>
+          <div className="text-sm text-gray-500">
+            Use <strong>{actionLabel}</strong> to inspect it directly, or use <strong>Download File</strong> from the header if you want a local copy.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PreviewRowsTable({ preview, onPageChange }: { preview: PreviewData; onPageChange: (page: number) => void }) {
+  if (!preview.preview_rows?.length) {
+    return (
+      <div className="rounded-xl border border-gray-200 bg-white px-4 py-6 text-sm text-gray-500">
+        No preview rows available.
+      </div>
+    );
+  }
+
+  const pagination = preview.pagination;
+  const startRow = pagination ? ((pagination.page - 1) * pagination.per_page) + 1 : 1;
+  const endRow = pagination ? Math.min(pagination.page * pagination.per_page, pagination.total_rows) : preview.preview_rows.length;
+
+  return preview.source_type === 'pdf' ? (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-xs border-b border-gray-200">
+        <div className="font-semibold text-gray-500 uppercase tracking-wider">
+          Imported Rows {pagination ? `(${startRow}-${endRow} of ${pagination.total_rows.toLocaleString()})` : ''}
+        </div>
+        {pagination && (
+          <PaginationControls pagination={pagination} onPageChange={onPageChange} />
+        )}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="text-left px-4 py-2 text-gray-500 font-medium">Reg No.</th>
+              <th className="text-left px-4 py-2 text-gray-500 font-medium">Name</th>
+              <th className="text-left px-4 py-2 text-gray-500 font-medium">Village</th>
+              <th className="text-left px-4 py-2 text-gray-500 font-medium">Birth Year</th>
+            </tr>
+          </thead>
+          <tbody>
+            {preview.preview_rows.map((row, idx) => (
+              <tr key={idx} className="border-t border-gray-100">
+                <td className="px-4 py-2 text-gray-600">{String(row.voter_registration_number ?? '')}</td>
+                <td className="px-4 py-2 text-gray-800">{String(row.name ?? '')}</td>
+                <td className="px-4 py-2 text-gray-600">{String(row.village ?? '')}</td>
+                <td className="px-4 py-2 text-gray-600">{String(row.birth_year ?? '')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  ) : (
+    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+      <div className="px-4 py-3 flex flex-wrap items-center justify-between gap-2 text-xs border-b border-gray-200">
+        <div className="font-semibold text-gray-500 uppercase tracking-wider">
+          Imported Rows {pagination ? `(${startRow}-${endRow} of ${pagination.total_rows.toLocaleString()})` : ''}
+        </div>
+        {pagination && (
+          <PaginationControls pagination={pagination} onPageChange={onPageChange} />
+        )}
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="text-left px-4 py-2 text-gray-500 font-medium">First Name</th>
+              <th className="text-left px-4 py-2 text-gray-500 font-medium">Last Name</th>
+              <th className="text-left px-4 py-2 text-gray-500 font-medium">Village</th>
+              <th className="text-left px-4 py-2 text-gray-500 font-medium">DOB / Year</th>
+              <th className="text-left px-4 py-2 text-gray-500 font-medium">Reg No.</th>
+            </tr>
+          </thead>
+          <tbody>
+            {preview.preview_rows.map((row, idx) => (
+              <tr key={idx} className="border-t border-gray-100">
+                <td className="px-4 py-2 text-gray-800">{String(row.first_name ?? '')}</td>
+                <td className="px-4 py-2 text-gray-800">{String(row.last_name ?? '')}</td>
+                <td className="px-4 py-2 text-gray-600">{String(row.village_name ?? row.village ?? '')}</td>
+                <td className="px-4 py-2 text-gray-600">{String(row.dob ?? row.birth_year ?? '')}</td>
+                <td className="px-4 py-2 text-gray-600">{String(row.voter_registration_number ?? '')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function PaginationControls({ pagination, onPageChange }: { pagination: PreviewPagination; onPageChange: (page: number) => void }) {
+  return (
+    <div className="flex items-center gap-2 text-xs text-gray-500">
+      <button
+        onClick={() => onPageChange(pagination.page - 1)}
+        disabled={pagination.page <= 1}
+        className="inline-flex items-center gap-1 px-2 py-1 rounded border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-40 transition-colors"
+      >
+        <ChevronLeft className="w-3.5 h-3.5" />
+        Prev
+      </button>
+      <span>Page {pagination.page} of {pagination.total_pages}</span>
+      <button
+        onClick={() => onPageChange(pagination.page + 1)}
+        disabled={pagination.page >= pagination.total_pages}
+        className="inline-flex items-center gap-1 px-2 py-1 rounded border border-gray-200 text-gray-600 hover:bg-gray-100 disabled:opacity-40 transition-colors"
+      >
+        Next
+        <ChevronRight className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+}
+
+function InfoStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-white rounded-xl border border-gray-200 px-4 py-3">
+      <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">{label}</div>
+      <div className="mt-1 text-sm text-gray-800 wrap-break-word">{value}</div>
     </div>
   );
 }
