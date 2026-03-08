@@ -259,6 +259,70 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     file&.close!
   end
 
+  test "sync pdf upload preserves normalized csv artifact" do
+    file = Tempfile.new([ "gec_sync_pdf", ".pdf" ])
+    file.binmode
+    file.write("%PDF-1.4 sample")
+    file.rewind
+
+    parsed_result = GecPdfParserService::Result.new(
+      rows: [
+        {
+          "name" => "CRUZ, JUAN",
+          "village" => "Barrigada",
+          "voter_registration_number" => "VR001",
+          "dob" => "03/15/1985",
+          "dob_estimated" => false,
+          "birth_year" => "1985",
+          "pct" => "1",
+          "address" => "123 TEST ST"
+        }
+      ],
+      qa: { status: "pass", row_count: 1, page_count: 1 },
+      warnings: [],
+      errors: []
+    )
+
+    parser = Object.new
+    parser.define_singleton_method(:parse) { parsed_result }
+    parser.define_singleton_method(:write_normalized_csv) do |rows|
+      tf = Tempfile.new([ "normalized_pdf", ".csv" ])
+      CSV.open(tf.path, "w") do |csv|
+        csv << [ "name", "village", "voter_registration_number", "dob", "dob_estimated", "birth_year", "pct", "address" ]
+        rows.each { |r| csv << [ r["name"], r["village"], r["voter_registration_number"], r["dob"], r["dob_estimated"], r["birth_year"], r["pct"], r["address"] ] }
+      end
+      tf
+    end
+
+    uploaded = []
+    upload = lambda do |key, data, **kwargs|
+      uploaded << { key: key, data: data, kwargs: kwargs }
+      key
+    end
+
+    with_singleton_stubs(GecPdfParserService, new: parser) do
+      with_singleton_stubs(S3Service, enabled?: true, upload: upload) do
+        post "/api/v1/gec_voters/upload",
+          params: {
+            file: Rack::Test::UploadedFile.new(file.path, "application/pdf", original_filename: "voter_list.pdf"),
+            gec_list_date: "2026-02-25",
+            async_import: "false",
+            confirm_review: "true"
+          },
+          headers: auth_headers(@admin)
+      end
+    end
+
+    assert_response :created
+    artifact_upload = uploaded.find { |entry| entry[:key].include?("/artifact/") }
+    refute_nil artifact_upload
+    assert_equal "text/csv", artifact_upload[:kwargs][:content_type]
+    assert_includes artifact_upload[:key], "voter_list.csv"
+    assert_includes artifact_upload[:data], "name,village,voter_registration_number,dob,dob_estimated,birth_year,pct,address"
+  ensure
+    file&.close!
+  end
+
   test "view_import_data returns parsed spreadsheet preview for existing import" do
     file = create_test_excel([
       [ "First Name", "Last Name", "Village", "Reg No" ],

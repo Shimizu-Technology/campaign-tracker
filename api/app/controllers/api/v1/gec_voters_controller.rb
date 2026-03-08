@@ -260,7 +260,7 @@ module Api
               preserve_raw_upload!(gec_import: result.gec_import, file: file)
               preserve_import_artifact!(
                 gec_import: result.gec_import,
-                file_path: import_file_path,
+                file_path: artifact_file_path_for_upload(import_file_path: import_file_path, csv_tempfile: csv_tempfile),
                 filename: artifact_filename_for_upload(file, import_file_path),
                 content_type: artifact_content_type_for_upload(file)
               )
@@ -714,6 +714,10 @@ module Api
         else
           File.basename(file.original_filename.presence || import_file_path)
         end
+      end
+
+      def artifact_file_path_for_upload(import_file_path:, csv_tempfile:)
+        csv_tempfile&.path.presence || import_file_path
       end
 
       def artifact_content_type_for_upload(file)
