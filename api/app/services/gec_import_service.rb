@@ -346,7 +346,13 @@ class GecImportService
   end
 
   def canonical_village_key(value)
-    normalize_village_name(value)&.downcase&.strip
+    raw = value.to_s.strip
+    return nil if raw.blank?
+
+    # Callers pass already-normalized or persisted village names, so avoid
+    # re-running village normalization (which can fall through to DB lookups)
+    # inside the hot import loop.
+    raw.downcase
   end
 
   def normalize_voter_registration_number(value)
