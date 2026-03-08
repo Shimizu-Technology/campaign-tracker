@@ -72,6 +72,7 @@ class GecImportService
   # Village name used for voters with no village match (GMF, military, off-island)
   UNASSIGNED_VILLAGE_NAME = "Unassigned"
   PLACEHOLDER_VOTER_REGISTRATION_NUMBERS = %w[NEW].freeze
+  VRN_LOOKUP_BATCH_SIZE = 5_000
 
   # Cache TTL for heartbeat and progress keys. Must exceed the longest
   # plausible import runtime (60K rows on a loaded DB can take >1 hour).
@@ -372,8 +373,10 @@ class GecImportService
     vrns = rows.filter_map { |row| normalize_voter_registration_number(row[vrn_column]) }.uniq
     return {} if vrns.empty?
 
-    GecVoter.active.where(voter_registration_number: vrns).each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |voter, lookup|
-      lookup[voter.voter_registration_number] << voter
+    vrns.each_slice(VRN_LOOKUP_BATCH_SIZE).each_with_object({}) do |slice, lookup|
+      GecVoter.active.where(voter_registration_number: slice).each do |voter|
+        (lookup[voter.voter_registration_number] ||= []) << voter
+      end
     end
   end
 
@@ -574,10 +577,21 @@ class GecImportService
     vn_lower = canonical_village_key(data[:village_name]) || data[:village_name].downcase
 
     record = nil
+    trusted_voter_registration_number = data[:voter_registration_number]
 
     if data[:voter_registration_number].present?
-      vrn_matches = @vrn_lookup[data[:voter_registration_number]] || []
-      record = vrn_matches.first if vrn_matches.size == 1
+      vrn_matches = @vrn_lookup.fetch(data[:voter_registration_number], [])
+
+      if vrn_matches.size == 1
+        candidate = vrn_matches.first
+        if same_voter_name?(candidate, data)
+          record = candidate
+        else
+          trusted_voter_registration_number = nil
+        end
+      elsif vrn_matches.size > 1
+        trusted_voter_registration_number = nil
+      end
     end
 
     # First: exact match on name + village (+ DOB or birth_year if available)
@@ -624,7 +638,7 @@ class GecImportService
         status: "active",
         removed_at: nil,
         removal_detected_by_import_id: nil,
-        voter_registration_number: data[:voter_registration_number] || record.voter_registration_number,
+        voter_registration_number: trusted_voter_registration_number || record.voter_registration_number,
         dob: data[:dob_estimated] ? record.dob : (data[:dob] || record.dob),
         dob_ambiguous: data[:dob_ambiguous].nil? ? record.dob_ambiguous : data[:dob_ambiguous],
         birth_year: data[:birth_year] || record.birth_year
@@ -689,7 +703,7 @@ class GecImportService
         dob_ambiguous: data[:dob_ambiguous],
         birth_year: data[:birth_year],
         village_name: data[:village_name],
-        voter_registration_number: data[:voter_registration_number],
+        voter_registration_number: trusted_voter_registration_number,
         gec_list_date: @gec_list_date,
         imported_at: @import_started_at,
         status: "active"
@@ -828,6 +842,11 @@ class GecImportService
       year = value.to_i
       year if year.between?(1900, Date.current.year)
     end
+  end
+
+  def same_voter_name?(candidate, data)
+    candidate.first_name.to_s.casecmp?(data[:first_name].to_s) &&
+      candidate.last_name.to_s.casecmp?(data[:last_name].to_s)
   end
 
   # Parse DOB with month/day swap detection.

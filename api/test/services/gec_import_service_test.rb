@@ -203,6 +203,73 @@ class GecImportServiceTest < ActiveSupport::TestCase
     file&.close!
   end
 
+  test "chunks voter registration preload queries for large imports" do
+    rows = (1..(GecImportService::VRN_LOOKUP_BATCH_SIZE + 1)).map { |i| [ "VR#{i}" ] }
+    sql = []
+    subscriber = lambda do |_name, _start, _finish, _id, payload|
+      next if payload[:name] == "SCHEMA"
+
+      sql << payload[:sql]
+    end
+
+    lookup = nil
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+      lookup = GecImportService.new(
+        file_path: "/tmp/fake.csv",
+        gec_list_date: Date.new(2026, 1, 25),
+        import_type: "changes_only"
+      ).send(:build_voter_registration_lookup, rows, { "voter_registration_number" => 0 })
+    end
+
+    assert_equal({}, lookup)
+    assert_equal 2, sql.grep(/FROM "gec_voters".*"voter_registration_number" (?:IN|=)/i).size
+  end
+
+  test "ignores conflicting vrn matches when names do not match" do
+    jane = GecVoter.create!(
+      first_name: "Jane",
+      last_name: "Smith",
+      village_name: "Dededo",
+      birth_year: 1980,
+      voter_registration_number: "123456",
+      gec_list_date: Date.new(2025, 12, 25),
+      imported_at: 1.month.ago,
+      status: "active"
+    )
+    john = GecVoter.create!(
+      first_name: "John",
+      last_name: "Doe",
+      village_name: "Barrigada",
+      birth_year: 1980,
+      voter_registration_number: nil,
+      gec_list_date: Date.new(2025, 12, 25),
+      imported_at: 1.month.ago,
+      status: "active"
+    )
+
+    file = create_test_csv([
+      [ "name", "village", "voter_registration_number", "dob", "dob_estimated", "birth_year", "pct", "address" ],
+      [ "DOE, JOHN", "Barrigada", "123456", "01/01/1980", "true", "1980", "1", "123 TEST ST" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 1, 25),
+      import_type: "changes_only"
+    ).call
+
+    assert result.success
+    assert_equal 0, result.stats[:updated]
+    assert_equal 1, result.stats[:matched_unchanged]
+
+    jane.reload
+    john.reload
+    assert_equal "123456", jane.voter_registration_number
+    assert_nil john.voter_registration_number
+  ensure
+    file&.close!
+  end
+
   test "official GEC combined-name format detects village column instead of address column" do
     Village.find_or_create_by!(name: "Dededo")
 
