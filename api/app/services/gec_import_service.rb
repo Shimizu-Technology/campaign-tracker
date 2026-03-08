@@ -380,7 +380,7 @@ class GecImportService
     }
   end
 
-  def log_change_row!(change_type:, current_values:, row_number: nil, details: {})
+  def log_change_row!(change_type:, current_values:, row_number: nil, details: {}, auto_flush: true)
     return unless @current_gec_import
 
     @change_rows_buffer << {
@@ -399,7 +399,7 @@ class GecImportService
       updated_at: Time.current
     }
 
-    flush_change_rows! if @change_rows_buffer.length >= 500
+    flush_change_rows! if auto_flush && @change_rows_buffer.length >= 500
   end
 
   def flush_change_rows!
@@ -714,7 +714,8 @@ class GecImportService
         },
         details: {
           reason: "missing_from_full_list"
-        }
+        },
+        auto_flush: false
       )
     end
 
