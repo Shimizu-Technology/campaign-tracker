@@ -357,11 +357,10 @@ export default function TeamGecPage() {
     placeholderData: (previousData) => previousData,
   });
 
-  const selectedImportIsPdf = selectedImport?.raw_content_type?.includes('pdf') || Boolean(selectedImport?.metadata?.pdf_qa);
   const originalViewerQuery = useQuery<ImportOriginalViewResponse>({
     queryKey: ['gec-import-original-view', viewerState?.importId],
     queryFn: () => getGecImportOriginalView(viewerState!.importId),
-    enabled: Boolean(viewerState?.importId && selectedImport?.has_original_file && selectedImportIsPdf),
+    enabled: Boolean(viewerState?.importId && selectedImport?.has_original_file),
     staleTime: 60_000,
   });
 
@@ -444,7 +443,9 @@ export default function TeamGecPage() {
       ? 'parsed'
       : imp.status === 'completed'
       ? 'changes'
-      : 'original';
+      : imp.has_original_file
+      ? 'original'
+      : 'parsed';
     setViewerTab(initialTab);
     setViewerPage(1);
     setViewerSearchInput('');
@@ -1100,7 +1101,7 @@ function ImportViewerModal({
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const showParsedTab = imp.has_import_artifact;
   const showChangesTab = imp.status === 'completed';
-  const showOriginalTab = imp.has_original_file && (imp.raw_content_type?.includes('pdf') || imp.metadata?.pdf_qa != null);
+  const showOriginalTab = imp.has_original_file;
 
   const handleDownload = async () => {
     setDownloading(true);

@@ -660,7 +660,7 @@ module Api
       def apply_change_search_filter(scope, query)
         like = "%#{ActiveRecord::Base.sanitize_sql_like(query.downcase)}%"
         scope.where(
-          "LOWER(COALESCE(first_name, '')) LIKE :q OR LOWER(COALESCE(last_name, '')) LIKE :q OR LOWER(COALESCE(village_name, '')) LIKE :q OR LOWER(COALESCE(previous_village_name, '')) LIKE :q OR LOWER(COALESCE(voter_registration_number, '')) LIKE :q",
+          "LOWER(first_name) LIKE :q OR LOWER(last_name) LIKE :q OR LOWER(village_name) LIKE :q OR LOWER(previous_village_name) LIKE :q OR LOWER(voter_registration_number) LIKE :q",
           q: like
         )
       end
