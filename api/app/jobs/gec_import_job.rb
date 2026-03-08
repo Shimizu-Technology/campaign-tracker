@@ -197,13 +197,6 @@ class GecImportJob < ApplicationJob
         artifact_content_type = "text/csv"
       end
 
-      preserve_import_artifact!(
-        gec_import,
-        file_path: service_file_path,
-        filename: artifact_filename,
-        content_type: artifact_content_type
-      )
-
       service = GecImportService.new(
         file_path: service_file_path,
         gec_list_date: Date.parse(gec_list_date),
@@ -224,6 +217,13 @@ class GecImportJob < ApplicationJob
       end
 
       if result.success
+        preserve_import_artifact!(
+          gec_import,
+          file_path: service_file_path,
+          filename: artifact_filename,
+          content_type: artifact_content_type
+        )
+
         merge_metadata!(result.gec_import, pdf_qa: pdf_qa, pdf_warnings: pdf_warnings) if pdf_qa.present? || pdf_warnings.any?
 
         begin

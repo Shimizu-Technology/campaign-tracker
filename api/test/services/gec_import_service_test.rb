@@ -152,6 +152,57 @@ class GecImportServiceTest < ActiveSupport::TestCase
     file&.close!
   end
 
+  test "preloads voter registration matches in a single query per import" do
+    GecVoter.create!(
+      first_name: "Juan",
+      last_name: "Cruz",
+      village_name: "Barrigada",
+      birth_year: 1985,
+      voter_registration_number: "VR001",
+      gec_list_date: Date.new(2025, 12, 25),
+      imported_at: 1.month.ago,
+      status: "active"
+    )
+    GecVoter.create!(
+      first_name: "Maria",
+      last_name: "Santos",
+      village_name: "Dededo",
+      birth_year: 1990,
+      voter_registration_number: "VR002",
+      gec_list_date: Date.new(2025, 12, 25),
+      imported_at: 1.month.ago,
+      status: "active"
+    )
+
+    file = create_test_csv([
+      [ "name", "village", "voter_registration_number", "dob", "dob_estimated", "birth_year", "pct", "address" ],
+      [ "CRUZ, JUAN", "Barrigada", "VR001", "01/01/1985", "true", "1985", "1", "123 TEST ST" ],
+      [ "SANTOS, MARIA", "Dededo", "VR002", "01/01/1990", "true", "1990", "2", "456 TEST ST" ]
+    ])
+
+    sql = []
+    subscriber = lambda do |_name, _start, _finish, _id, payload|
+      next if payload[:name] == "SCHEMA"
+
+      sql << payload[:sql]
+    end
+
+    result = nil
+    ActiveSupport::Notifications.subscribed(subscriber, "sql.active_record") do
+      result = GecImportService.new(
+        file_path: file.path,
+        gec_list_date: Date.new(2026, 1, 25),
+        import_type: "changes_only"
+      ).call
+    end
+
+    assert result.success
+    assert_equal 1, sql.grep(/FROM "gec_voters".*"voter_registration_number" IN/i).size
+    assert_equal 0, sql.grep(/FROM "gec_voters".*"voter_registration_number" =/i).size
+  ensure
+    file&.close!
+  end
+
   test "official GEC combined-name format detects village column instead of address column" do
     Village.find_or_create_by!(name: "Dededo")
 

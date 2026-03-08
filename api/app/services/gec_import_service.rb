@@ -106,6 +106,7 @@ class GecImportService
     @gec_import = gec_import
     @row_error_details = []
     @change_rows_buffer = []
+    @vrn_lookup = {}
     @parsing_progress_percent = parsing_progress_percent
     @importing_progress_start = importing_progress_start
     @importing_progress_end = importing_progress_end
@@ -140,6 +141,7 @@ class GecImportService
       rows = (2..sheet.last_row).map { |i| sheet.row(i) }
       @stats[:total] = rows.size
       @import_started_at = Time.current
+      @vrn_lookup = build_voter_registration_lookup(rows, column_map)
 
       ActiveRecord::Base.transaction do
         rows.each_with_index do |row, idx|
@@ -363,6 +365,18 @@ class GecImportService
     raw
   end
 
+  def build_voter_registration_lookup(rows, column_map)
+    vrn_column = column_map["voter_registration_number"]
+    return {} unless vrn_column
+
+    vrns = rows.filter_map { |row| normalize_voter_registration_number(row[vrn_column]) }.uniq
+    return {} if vrns.empty?
+
+    GecVoter.active.where(voter_registration_number: vrns).each_with_object(Hash.new { |hash, key| hash[key] = [] }) do |voter, lookup|
+      lookup[voter.voter_registration_number] << voter
+    end
+  end
+
   def parse_booleanish(value)
     return false if value.nil?
 
@@ -562,7 +576,7 @@ class GecImportService
     record = nil
 
     if data[:voter_registration_number].present?
-      vrn_matches = GecVoter.active.where(voter_registration_number: data[:voter_registration_number]).limit(2).to_a
+      vrn_matches = @vrn_lookup[data[:voter_registration_number]] || []
       record = vrn_matches.first if vrn_matches.size == 1
     end
 
