@@ -352,6 +352,8 @@ class GecImportServiceTest < ActiveSupport::TestCase
     assert result.success
     assert_equal 1, result.stats[:transferred]
     assert_equal 0, result.stats[:updated]
+    assert_equal 1, result.gec_import.reload.transferred_records
+    assert_equal 0, result.gec_import.updated_records
 
     juan = GecVoter.find_by(first_name: "Juan")
     assert_equal "Dededo", juan.village_name
