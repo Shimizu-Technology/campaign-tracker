@@ -1,7 +1,7 @@
 class CreateGecImportChanges < ActiveRecord::Migration[8.1]
   def change
     create_table :gec_import_changes do |t|
-      t.references :gec_import, null: false, foreign_key: true
+      t.references :gec_import, null: false, foreign_key: true, index: false
       t.string :change_type, null: false
       t.integer :row_number
       t.string :first_name

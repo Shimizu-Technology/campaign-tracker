@@ -279,7 +279,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_08_133000) do
     t.string "village_name"
     t.string "voter_registration_number"
     t.index ["gec_import_id", "change_type"], name: "index_gec_import_changes_on_gec_import_id_and_change_type"
-    t.index ["gec_import_id"], name: "index_gec_import_changes_on_gec_import_id"
     t.index ["voter_registration_number"], name: "index_gec_import_changes_on_voter_registration_number"
   end
 
