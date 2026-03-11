@@ -29,7 +29,7 @@ export default function TeamDashboardPage() {
 
   if (dashLoading) {
     return (
-      <div className="p-6">
+      <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-gray-200 rounded w-48" />
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -41,7 +41,7 @@ export default function TeamDashboardPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-xl font-bold text-gray-900">Data Team Dashboard</h1>

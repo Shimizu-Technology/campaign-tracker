@@ -103,7 +103,7 @@ export default function TeamVettingPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-xl font-bold text-gray-900">Vetting Queue</h1>

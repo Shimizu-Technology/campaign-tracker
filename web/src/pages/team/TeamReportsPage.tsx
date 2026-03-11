@@ -50,7 +50,7 @@ export default function TeamReportsPage() {
   const quickStats = reportsList?.quick_stats;
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       <div>
         <h1 className="text-xl font-bold text-gray-900">Reports</h1>
         <p className="text-sm text-gray-500 mt-0.5">Generate and download Excel reports for Rose and the team</p>
