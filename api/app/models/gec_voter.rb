@@ -77,6 +77,7 @@ class GecVoter < ApplicationRecord
         .where("LOWER(first_name) = ? AND LOWER(last_name) = ?", fn, ln)
         .where(birth_year: effective_birth_year)
         .where("LOWER(village_name) = ?", vn)
+        .order(:voter_registration_number)
         .to_a
 
       if name_year_village.any?
@@ -98,6 +99,7 @@ class GecVoter < ApplicationRecord
         .where("LOWER(first_name) = ? AND LOWER(last_name) = ?", fn, ln)
         .where(birth_year: effective_birth_year)
         .where.not("LOWER(village_name) = ?", vn)
+        .order(:voter_registration_number)
         .to_a
 
       if diff_village.any?
@@ -113,6 +115,7 @@ class GecVoter < ApplicationRecord
       name_year = active
         .where("LOWER(first_name) = ? AND LOWER(last_name) = ?", fn, ln)
         .where(birth_year: effective_birth_year)
+        .order(:voter_registration_number)
         .to_a
 
       if name_year.any?
