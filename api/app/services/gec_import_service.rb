@@ -108,6 +108,8 @@ class GecImportService
     @row_error_details = []
     @change_rows_buffer = []
     @vrn_lookup = {}
+    # Preload village names to avoid N+1 queries during village detection loop
+    @village_name_lookup = Village.pluck(:name).index_by { |n| n.downcase }
     @parsing_progress_percent = parsing_progress_percent
     @importing_progress_start = importing_progress_start
     @importing_progress_end = importing_progress_end
@@ -294,7 +296,7 @@ class GecImportService
     mapped = VILLAGE_NAME_MAP[raw.downcase]
     return mapped if mapped.present?
 
-    Village.where("LOWER(name) = ?", raw.downcase).pick(:name) || raw
+    @village_name_lookup[raw.downcase] || raw
   end
 
   def detect_known_village_name(value)
@@ -304,7 +306,7 @@ class GecImportService
     mapped = VILLAGE_NAME_MAP[raw.downcase]
     return mapped if mapped.present?
 
-    Village.where("LOWER(name) = ?", raw.downcase).pick(:name)
+    @village_name_lookup[raw.downcase]
   end
 
   def canonical_village_key(value)
