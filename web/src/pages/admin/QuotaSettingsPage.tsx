@@ -13,6 +13,11 @@ interface QuotaItem {
   period: string | null;
   target_date: string | null;
   updated_at: string | null;
+  // Stacking deficit fields — populated when campaign uses QuotaPeriod-based
+  // tracking (via quota_periods/:id endpoint). Not returned by /quotas endpoint.
+  // See VillageDetailPage for per-village deficit display.
+  prior_deficit?: number;
+  effective_target?: number;
 }
 
 interface QuotasResponse {
@@ -199,6 +204,7 @@ export default function QuotaSettingsPage() {
                 <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Region</th>
                 <th className="text-right px-4 py-3 font-medium text-[var(--text-secondary)]">Registered Voters</th>
                 <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Quota Target</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]" title="Shortfall carried over from prior submitted quota periods">Stacked</th>
                 <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Updated</th>
                 <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Action</th>
               </tr>
@@ -221,6 +227,18 @@ export default function QuotaSettingsPage() {
                         className="border border-[var(--border-soft)] rounded-xl px-3 py-2 min-h-[44px] w-32"
                       />
                     </td>
+                    <td className="px-4 py-3">
+                      {(row.prior_deficit ?? 0) > 0 ? (
+                        <span
+                          className="text-red-600 text-sm font-medium"
+                          title={`Missed ${row.prior_deficit} in prior periods — effective target: ${row.effective_target}`}
+                        >
+                          +{row.prior_deficit} carried
+                        </span>
+                      ) : (
+                        <span className="text-gray-400 text-sm">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-[var(--text-secondary)]">{row.updated_at ? new Date(row.updated_at).toLocaleString() : '—'}</td>
                     <td className="px-4 py-3">
                       <button
@@ -240,7 +258,7 @@ export default function QuotaSettingsPage() {
               })}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-[var(--text-muted)]">
+                  <td colSpan={7} className="px-4 py-8 text-center text-[var(--text-muted)]">
                     No villages match current search.
                   </td>
                 </tr>

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useParams, Link } from 'react-router-dom';
 import { getVillage } from '../../lib/api';
-import { MapPin, Info } from 'lucide-react';
+import { AlertTriangle, MapPin, Info } from 'lucide-react';
 
 interface PrecinctDetail {
   id: number;
@@ -27,6 +27,8 @@ interface VillageDetail {
   unverified_count?: number;
   supporter_count: number;
   quota_target: number;
+  prior_deficit: number;
+  effective_target: number;
   unassigned_precinct_count: number;
   precincts: PrecinctDetail[];
   blocks: BlockDetail[];
@@ -51,6 +53,8 @@ export default function VillageDetailPage() {
 
   const verified = v.verified_count ?? v.supporter_count;
   const unverified = v.unverified_count ?? 0;
+  const priorDeficit = v.prior_deficit ?? 0;
+  const effectiveTarget = v.effective_target ?? v.quota_target;
   const pct = v.quota_target > 0 ? ((verified / v.quota_target) * 100).toFixed(1) : '0';
 
   return (
@@ -86,6 +90,15 @@ export default function VillageDetailPage() {
               style={{ width: `${Math.min(Number(pct), 100)}%` }}
             />
           </div>
+          {priorDeficit > 0 && (
+            <div className="mt-2 flex items-center gap-1.5 text-sm text-red-600">
+              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+              <span>
+                <span className="font-semibold">{priorDeficit}</span> carried from prior period — effective target:{' '}
+                <span className="font-semibold">{effectiveTarget}</span>
+              </span>
+            </div>
+          )}
           <div className="flex items-start gap-2 mt-3 text-xs text-[var(--text-secondary)]">
             <Info className="w-3.5 h-3.5 mt-0.5 shrink-0" />
             <p>
