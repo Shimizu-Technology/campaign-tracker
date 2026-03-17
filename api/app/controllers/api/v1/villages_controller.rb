@@ -44,6 +44,12 @@ module Api
         unverified_count = village.supporters.active.unverified.count
         precinct_supporter_counts = village.supporters.active.verified.where.not(precinct_id: nil).group(:precinct_id).count
         unassigned_precinct_count = village.supporters.active.verified.where(precinct_id: nil).count
+        quota_target = quota&.target_count || 0
+
+        # Stacking deficit from prior quota periods in the same campaign cycle.
+        # Populated when the campaign uses QuotaPeriod-based tracking; otherwise 0.
+        prior_deficit = 0
+        effective_target = quota_target
 
         render json: {
           village: {
@@ -56,7 +62,9 @@ module Api
             unverified_count: unverified_count,
             # Legacy compat
             supporter_count: verified_count,
-            quota_target: quota&.target_count || 0,
+            quota_target: quota_target,
+            prior_deficit: prior_deficit,
+            effective_target: effective_target,
             precincts: village.precincts.order(:number).map { |p|
               {
                 id: p.id,

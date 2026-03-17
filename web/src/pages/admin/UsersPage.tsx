@@ -67,8 +67,14 @@ const ROLE_GUIDE: RoleGuideRow[] = [
     can: 'Full system access, manage users/roles, edit supporters, run operations tools',
   },
   {
-    role: 'district_coordinator',
+    role: 'data_team',
     level: 'Level 2',
+    who: 'Data verification team',
+    can: 'View and verify all supporters, run imports, manage quota periods, resolve GEC duplicates',
+  },
+  {
+    role: 'district_coordinator',
+    level: 'Level 3',
     who: 'District managers',
     can: 'Edit supporters and manage field ops for all villages in their assigned district',
   },
@@ -633,6 +639,14 @@ export default function UsersPage() {
               ))}
             </select>
           </div>
+          {newRole && (() => {
+            const guide = ROLE_GUIDE.find(r => r.role === newRole);
+            return guide ? (
+              <p className="mt-1 text-xs text-[var(--text-muted)]">
+                <span className="font-medium">{guide.who}</span> — {guide.can}
+              </p>
+            ) : null;
+          })()}
           {roleAssignmentType(newRole) !== 'none' && (
             <div className="mt-3 max-w-sm">
               <label className="block text-xs text-[var(--text-secondary)] mb-1">
@@ -898,6 +912,14 @@ export default function UsersPage() {
                               <option key={role} value={role}>{roleLabel(role)}</option>
                             ))}
                           </select>
+                          {draft.role && (() => {
+                            const guide = ROLE_GUIDE.find(r => r.role === draft.role);
+                            return guide ? (
+                              <p className="mt-1 text-xs text-[var(--text-muted)]">
+                                <span className="font-medium">{guide.who}</span> — {guide.can}
+                              </p>
+                            ) : null;
+                          })()}
                           {roleAssignmentType(draft.role) !== 'none' && (
                             <AssignmentDropdown
                               role={draft.role}
