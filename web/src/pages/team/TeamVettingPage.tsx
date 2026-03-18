@@ -95,9 +95,9 @@ export default function TeamVettingPage() {
 
   const bulkMutation = useMutation({
     mutationFn: async ({ ids }: { ids: number[] }) => Promise.all(ids.map((id) => approveSupporter(id))),
-    onSuccess: () => {
+    onSuccess: (_result, { ids }) => {
       captureAnalyticsEvent('supporter_review_bulk_approved', {
-        supporter_count: selectedIds.size,
+        supporter_count: ids.length,
         filter,
         district_id: districtId ? Number(districtId) : undefined,
         village_id: villageId ? Number(villageId) : undefined,
