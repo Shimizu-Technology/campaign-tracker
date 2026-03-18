@@ -490,6 +490,86 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Test Zulu, Sort", test_names.last
   end
 
+  test "index keeps existing filters when pipeline is public" do
+    other_village = Village.create!(name: "Other Public Village", region: "Test")
+    matching = Supporter.create!(
+      first_name: "Public", last_name: "Alpha", print_name: "Alpha, Public",
+      contact_number: "6715559102",
+      village: @village,
+      source: "public_signup",
+      attribution_method: "public_signup",
+      intake_status: "accepted",
+      public_review_status: "approved",
+      review_status: "approved",
+      status: "active",
+      verification_status: "verified",
+      registered_voter: true
+    )
+    wrong_village = Supporter.create!(
+      first_name: "Public", last_name: "Beta", print_name: "Beta, Public",
+      contact_number: "6715559103",
+      village: other_village,
+      source: "public_signup",
+      attribution_method: "public_signup",
+      intake_status: "accepted",
+      public_review_status: "approved",
+      review_status: "approved",
+      status: "active",
+      verification_status: "verified",
+      registered_voter: true
+    )
+
+    get "/api/v1/supporters",
+      params: { pipeline: "public", village_id: @village.id, search: "Public" },
+      headers: auth_headers(@user)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    ids = payload.fetch("supporters").map { |s| s.fetch("id") }
+    assert_includes ids, matching.id
+    assert_not_includes ids, wrong_village.id
+  end
+
+  test "export keeps existing filters when pipeline is public" do
+    other_village = Village.create!(name: "Other Export Village", region: "Test")
+    in_scope = Supporter.create!(
+      first_name: "Scoped", last_name: "Alpha", print_name: "Alpha, Scoped",
+      contact_number: "6715559104",
+      village: @village,
+      source: "public_signup",
+      attribution_method: "public_signup",
+      intake_status: "accepted",
+      public_review_status: "approved",
+      review_status: "approved",
+      status: "active",
+      verification_status: "verified",
+      registered_voter: true
+    )
+    out_of_scope = Supporter.create!(
+      first_name: "Other", last_name: "Beta", print_name: "Beta, Other",
+      contact_number: "6715559105",
+      village: other_village,
+      source: "public_signup",
+      attribution_method: "public_signup",
+      intake_status: "accepted",
+      public_review_status: "approved",
+      review_status: "approved",
+      status: "active",
+      verification_status: "verified",
+      registered_voter: true
+    )
+
+    get "/api/v1/supporters/export",
+      params: { format_type: "csv", pipeline: "public", village_id: @village.id, search: "Scoped" },
+      headers: auth_headers(@user)
+
+    assert_response :success
+    assert_includes response.body, in_scope.first_name
+    assert_includes response.body, in_scope.last_name
+    assert_not_includes response.body, out_of_scope.first_name
+    assert_not_includes response.body, out_of_scope.last_name
+  end
+
   test "show returns supporter details and audit logs" do
     supporter = Supporter.create!(
       first_name: "Show", last_name: "Supporter", print_name: "Show Supporter",

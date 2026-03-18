@@ -222,7 +222,7 @@ module Api
         # Pipeline filter: team input, public-origin official supporters, or
         # matched-to-GEC supporters for legacy quota views.
         supporters = supporters.team_input if params[:pipeline] == "team"
-        supporters = scope_supporters(Supporter.includes(:village, :precinct, :block).official_supporters.public_origin) if params[:pipeline] == "public"
+        supporters = supporters.public_origin if params[:pipeline] == "public"
         supporters = supporters.quota_eligible if params[:pipeline] == "quota"
         supporters = supporters.where(motorcade_available: true) if params[:motorcade_available] == "true"
         supporters = supporters.where(opt_in_email: true) if params[:opt_in_email] == "true"
@@ -798,7 +798,7 @@ module Api
         # Pipeline filter: team input, public-origin official supporters, or
         # matched-to-GEC supporters for legacy quota views.
         supporters = supporters.team_input if params[:pipeline] == "team"
-        supporters = scope_supporters(Supporter.includes(:village, :precinct).official_supporters.public_origin.order(created_at: :desc)) if params[:pipeline] == "public"
+        supporters = supporters.public_origin if params[:pipeline] == "public"
         supporters = supporters.quota_eligible if params[:pipeline] == "quota"
         supporters = supporters.where(motorcade_available: true) if params[:motorcade_available] == "true"
         supporters = supporters.where(opt_in_email: true) if params[:opt_in_email] == "true"
