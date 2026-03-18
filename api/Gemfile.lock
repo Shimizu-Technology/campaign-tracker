@@ -304,7 +304,7 @@ GEM
     regexp_parser (2.11.3)
     reline (0.6.3)
       io-console (~> 0.5)
-    resend (1.0.0)
+    resend (1.0.1)
       httparty (>= 0.21.0)
     roo (2.10.1)
       nokogiri (~> 1)
@@ -527,7 +527,7 @@ CHECKSUMS
   rdoc (7.2.0) sha256=8650f76cd4009c3b54955eb5d7e3a075c60a57276766ebf36f9085e8c9f23192
   regexp_parser (2.11.3) sha256=ca13f381a173b7a93450e53459075c9b76a10433caadcb2f1180f2c741fc55a4
   reline (0.6.3) sha256=1198b04973565b36ec0f11542ab3f5cfeeec34823f4e54cebde90968092b1835
-  resend (1.0.0) sha256=b64defd50a1967e8a6ef346b94dab4f1dd76628b36be556866e45db648d60a07
+  resend (1.0.1) sha256=6f8a0a4e545e45070515a346ca723639cd712e043e4d973d7619f1125daff660
   roo (2.10.1) sha256=cbb43bc955f9c110e74b721c835fb9bd3515b63af88ec709ac87fbf30f8be70e
   rqrcode (3.2.0) sha256=64c1494ca6bb67d731330f38b50e3fd09eeab4f5dcd04b608e21218d1d0b9542
   rqrcode_core (2.1.0) sha256=f303b85df89c1b8fc5ee8dc19808c9dc4330e6329b660d99d4a8cbb36ca13051
