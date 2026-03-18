@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getPublicReview, getVillages, acceptToQuota, rejectPublicReview } from '../../lib/api';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { captureAnalyticsEvent } from '../../lib/analytics';
 import { formatDateTime } from '../../lib/datetime';
 import {
   UserCheck,
@@ -57,7 +58,13 @@ export default function TeamPublicReviewPage() {
 
   const acceptMutation = useMutation({
     mutationFn: (id: number) => acceptToQuota(id),
-    onSuccess: () => {
+    onSuccess: (result) => {
+      captureAnalyticsEvent('public_signup_sent_to_supporter_review', {
+        review_bucket: reviewBucket,
+        village_filter: villageId ? Number(villageId) : undefined,
+        has_search_filter: Boolean(search),
+        source: (result as { supporter?: { source?: string } })?.supporter?.source,
+      });
       queryClient.invalidateQueries({ queryKey: ['public-review'] });
       queryClient.invalidateQueries({ queryKey: ['vetting-queue'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
@@ -68,7 +75,13 @@ export default function TeamPublicReviewPage() {
   });
   const rejectMutation = useMutation({
     mutationFn: (id: number) => rejectPublicReview(id),
-    onSuccess: () => {
+    onSuccess: (result) => {
+      captureAnalyticsEvent('public_signup_rejected', {
+        review_bucket: reviewBucket,
+        village_filter: villageId ? Number(villageId) : undefined,
+        has_search_filter: Boolean(search),
+        source: (result as { supporter?: { source?: string } })?.supporter?.source,
+      });
       queryClient.invalidateQueries({ queryKey: ['public-review'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       queryClient.invalidateQueries({ queryKey: ['reports-list'] });

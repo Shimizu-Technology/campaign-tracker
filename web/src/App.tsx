@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react';
 import { BrowserRouter, Link, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AdminLayout from './components/AdminLayout';
+import AnalyticsTracker from './components/AnalyticsTracker';
 import TeamLayout from './components/TeamLayout';
 import { useSession } from './hooks/useSession';
 import { Shield } from 'lucide-react';
@@ -121,6 +122,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <AnalyticsTracker />
         <Suspense fallback={<LazyFallback />}>
         <Routes>
           {/* Public — no auth required */}
