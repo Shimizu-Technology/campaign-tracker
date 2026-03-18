@@ -52,7 +52,7 @@ module Api
             can_upload_gec: can_upload_gec?,
             can_bulk_vet: can_bulk_vet?,
             can_review_public: can_review_public?,
-            default_route: can_access_data_team? ? "/data" : "/admin",
+            default_route: current_user.data_team? ? "/data" : "/admin",
             manageable_roles: manageable_roles_for_current_user
           }
         }

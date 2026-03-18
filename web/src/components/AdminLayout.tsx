@@ -1,6 +1,6 @@
 import { SignedIn, SignedOut, SignInButton, useAuth, useClerk } from '@clerk/clerk-react';
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, Navigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import api, { getSession } from '../lib/api';
 import AdminShell from './AdminShell';
@@ -282,6 +282,10 @@ function AuthorizedContent({ children }: { children: React.ReactNode }) {
         </div>
       </div>
     );
+  }
+
+  if (sessionData?.permissions?.default_route === '/data') {
+    return <Navigate to="/data" replace />;
   }
 
   return <AdminShell>{children}</AdminShell>;

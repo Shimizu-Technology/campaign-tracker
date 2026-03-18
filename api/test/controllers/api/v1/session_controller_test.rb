@@ -37,7 +37,7 @@ class Api::V1::SessionControllerTest < ActionDispatch::IntegrationTest
     assert_equal true, payload.dig("permissions", "can_send_sms")
     assert_equal true, payload.dig("permissions", "can_access_events")
     assert_equal true, payload.dig("permissions", "can_access_audit_logs")
-    assert_equal "/data", payload.dig("permissions", "default_route")
+    assert_equal "/admin", payload.dig("permissions", "default_route")
   end
 
   test "data team session permissions stay focused on data ops" do
