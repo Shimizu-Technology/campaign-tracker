@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { uploadImportPreview, parseImportRows, confirmImport, getVillages } from '../../lib/api';
+import { captureAnalyticsEvent } from '../../lib/analytics';
 import { useSession } from '../../hooks/useSession';
 import { Upload, FileSpreadsheet, ArrowRight, ArrowLeft, Check, AlertTriangle, Loader2 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
@@ -186,6 +187,13 @@ export default function ImportPage() {
       rows: rows.filter(r => !r._skip),
     }),
     onSuccess: (data) => {
+      captureAnalyticsEvent('supporter_import_confirmed', {
+        created_count: data?.created,
+        skipped_count: data?.skipped,
+        error_count: Array.isArray(data?.errors) ? data.errors.length : undefined,
+        village_id: villageId ? Number(villageId) : undefined,
+        row_count: rows.filter(r => !r._skip).length,
+      });
       setImportResult(data);
       setStep('complete');
     },

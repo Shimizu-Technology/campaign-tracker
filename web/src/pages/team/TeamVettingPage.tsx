@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getVettingQueue, getVillages, getDistricts, getPrecincts, approveSupporter, rejectSupporterReview } from '../../lib/api';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { captureAnalyticsEvent } from '../../lib/analytics';
 import {
   CheckCircle,
   XCircle,
@@ -67,7 +68,17 @@ export default function TeamVettingPage() {
 
   const approveMutation = useMutation({
     mutationFn: (id: number) => approveSupporter(id),
-    onSuccess: () => {
+    onSuccess: (result, supporterId) => {
+      captureAnalyticsEvent('supporter_review_approved', {
+        supporter_id: supporterId,
+        filter,
+        district_id: districtId ? Number(districtId) : undefined,
+        village_id: villageId ? Number(villageId) : undefined,
+        precinct_id: precinctId ? Number(precinctId) : undefined,
+        source_filter: source || undefined,
+        has_search_filter: Boolean(search),
+        verification_status: (result as { supporter?: { verification_status?: string } })?.supporter?.verification_status,
+      });
       queryClient.invalidateQueries({ queryKey: ['vetting-queue'] });
       queryClient.invalidateQueries({ queryKey: ['supporters'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
@@ -86,6 +97,15 @@ export default function TeamVettingPage() {
   const bulkMutation = useMutation({
     mutationFn: async ({ ids }: { ids: number[] }) => Promise.all(ids.map((id) => approveSupporter(id))),
     onSuccess: () => {
+      captureAnalyticsEvent('supporter_review_bulk_approved', {
+        supporter_count: selectedIds.size,
+        filter,
+        district_id: districtId ? Number(districtId) : undefined,
+        village_id: villageId ? Number(villageId) : undefined,
+        precinct_id: precinctId ? Number(precinctId) : undefined,
+        source_filter: source || undefined,
+        has_search_filter: Boolean(search),
+      });
       setSelectedIds(new Set());
       queryClient.invalidateQueries({ queryKey: ['vetting-queue'] });
       queryClient.invalidateQueries({ queryKey: ['supporters'] });
@@ -103,7 +123,17 @@ export default function TeamVettingPage() {
   });
   const rejectMutation = useMutation({
     mutationFn: (id: number) => rejectSupporterReview(id),
-    onSuccess: () => {
+    onSuccess: (result, supporterId) => {
+      captureAnalyticsEvent('supporter_review_rejected', {
+        supporter_id: supporterId,
+        filter,
+        district_id: districtId ? Number(districtId) : undefined,
+        village_id: villageId ? Number(villageId) : undefined,
+        precinct_id: precinctId ? Number(precinctId) : undefined,
+        source_filter: source || undefined,
+        has_search_filter: Boolean(search),
+        verification_status: (result as { supporter?: { verification_status?: string } })?.supporter?.verification_status,
+      });
       queryClient.invalidateQueries({ queryKey: ['vetting-queue'] });
       queryClient.invalidateQueries({ queryKey: ['supporters'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });

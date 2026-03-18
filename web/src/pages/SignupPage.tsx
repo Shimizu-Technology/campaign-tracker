@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { getVillages, createSupporter } from '../lib/api';
+import { captureAnalyticsEvent } from '../lib/analytics';
 import { DEFAULT_GUAM_PHONE_PREFIX } from '../lib/phone';
 import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -55,7 +56,18 @@ export default function SignupPage() {
 
   const signup = useMutation({
     mutationFn: (data: Record<string, unknown>) => createSupporter(data, leaderCode),
-    onSuccess: () => navigate('/thank-you'),
+    onSuccess: () => {
+      captureAnalyticsEvent('public_signup_submitted', {
+        has_leader_code: Boolean(leaderCode),
+        village_id: form.village_id ? Number(form.village_id) : undefined,
+        self_reported_registered_voter: form.registered_voter,
+        opted_in_email: form.opt_in_email,
+        opted_in_text: form.opt_in_text,
+        yard_sign: form.yard_sign,
+        motorcade_available: form.motorcade_available,
+      });
+      navigate('/thank-you');
+    },
   });
 
   const handleSubmit = (e: React.FormEvent) => {

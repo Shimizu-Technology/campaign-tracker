@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getReportsList, getVillages, getDistricts, getPrecincts, getReportPreview, downloadReport } from '../../lib/api';
+import { captureAnalyticsEvent } from '../../lib/analytics';
 import {
   FileSpreadsheet,
   Download,
@@ -65,6 +66,12 @@ export default function TeamReportsPage() {
         district_id: selectedDistrict || undefined,
         village_id: selectedVillage || undefined,
         precinct_id: selectedPrecinct || undefined,
+      });
+      captureAnalyticsEvent('report_downloaded', {
+        report_type: reportType,
+        district_id: selectedDistrict ? Number(selectedDistrict) : undefined,
+        village_id: selectedVillage ? Number(selectedVillage) : undefined,
+        precinct_id: selectedPrecinct ? Number(selectedPrecinct) : undefined,
       });
     } catch (err) {
       console.error('Download failed:', err);
