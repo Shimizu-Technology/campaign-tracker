@@ -154,6 +154,30 @@ class ReportGeneratorTest < ActiveSupport::TestCase
     assert_match(/quota-summary/, result[:filename])
   end
 
+  test "quota summary ignores stale campaign id when current period exists" do
+    cycle = CampaignCycle.create!(
+      name: "Quota Summary Test Cycle",
+      cycle_type: "general",
+      start_date: Date.current.beginning_of_year,
+      end_date: Date.current.end_of_year,
+      status: "active"
+    )
+    QuotaPeriod.create!(
+      campaign_cycle: cycle,
+      name: Date.current.strftime("%B %Y"),
+      start_date: Date.current.beginning_of_month,
+      end_date: Date.current.end_of_month,
+      due_date: Date.current.end_of_month,
+      quota_target: 100
+    )
+
+    result = ReportGenerator.new(report_type: "quota_summary", campaign_id: -1).generate
+    assert result[:package].is_a?(Axlsx::Package)
+
+    preview = ReportGenerator.new(report_type: "quota_summary", campaign_id: -1).preview
+    assert preview[:rows].is_a?(Array)
+  end
+
   test "raises on unknown report type" do
     assert_raises(ArgumentError) do
       ReportGenerator.new(report_type: "nonexistent").generate

@@ -310,10 +310,16 @@ class ReportGenerator
   # Per-village totals for the current period: target, approved count, progress
   def generate_quota_summary
     villages = filtered_villages
-
-    campaign = @campaign_id ? (Campaign.find_by(id: @campaign_id) || raise(ArgumentError, "Campaign not found")) : Campaign.active.first
     village_ids = villages.map(&:id)
     period = current_quota_period
+    campaign =
+      if period
+        nil
+      elsif @campaign_id
+        Campaign.find_by(id: @campaign_id) || raise(ArgumentError, "Campaign not found")
+      else
+        Campaign.active.first
+      end
 
     # Pre-fetch all counts in bulk (single query each instead of N per village)
     quota_targets =
@@ -491,9 +497,16 @@ class ReportGenerator
 
   def preview_quota_summary
     villages = filtered_villages
-    campaign = @campaign_id ? (Campaign.find_by(id: @campaign_id) || raise(ArgumentError, "Campaign not found")) : Campaign.active.first
     village_ids = villages.map(&:id)
     period = current_quota_period
+    campaign =
+      if period
+        nil
+      elsif @campaign_id
+        Campaign.find_by(id: @campaign_id) || raise(ArgumentError, "Campaign not found")
+      else
+        Campaign.active.first
+      end
 
     quota_targets =
       if period
