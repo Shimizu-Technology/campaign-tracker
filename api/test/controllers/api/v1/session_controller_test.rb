@@ -134,15 +134,28 @@ class Api::V1::SessionControllerTest < ActionDispatch::IntegrationTest
       verification_status: "verified",
       quota_period: period
     )
+    Supporter.create!(
+      first_name: "Session",
+      last_name: "Unverified",
+      contact_number: "6715550102",
+      village: village,
+      source: "staff_entry",
+      status: "active",
+      review_status: "approved",
+      public_review_status: "not_applicable",
+      verification_status: "unverified",
+      quota_period: period
+    )
 
     get "/api/v1/session", headers: auth_headers(@data_team)
 
     assert_response :success
     payload = JSON.parse(response.body)
-    assert_equal 1, payload.dig("counts", "official_supporters")
+    assert_equal 2, payload.dig("counts", "official_supporters")
     assert_equal 1, payload.dig("counts", "matched_to_gec")
+    assert_equal 1, payload.dig("counts", "quota_eligible")
     assert_equal 325, payload.dig("current_period", "quota_target")
-    assert_equal 1, payload.dig("current_period", "official_count")
+    assert_equal 2, payload.dig("current_period", "official_count")
     assert_equal 1, payload.dig("current_period", "matched_count")
   end
 end

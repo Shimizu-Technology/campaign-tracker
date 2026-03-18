@@ -28,7 +28,7 @@ module Api
             public_signups_pending: scope_supporters(Supporter.active.public_signups).count,
             official_supporters: scope_supporters(Supporter.working_supporters).count,
             matched_to_gec: scope_supporters(Supporter.working_supporters.verified).count,
-            quota_eligible: scope_supporters(Supporter.working_supporters).count
+            quota_eligible: scope_supporters(Supporter.quota_eligible).count
           },
           current_period: current_period_summary,
           permissions: {

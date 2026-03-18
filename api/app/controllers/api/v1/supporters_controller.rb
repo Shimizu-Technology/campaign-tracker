@@ -187,7 +187,7 @@ module Api
         scope_supporters(Supporter).where(id: supporters.map(&:id)).update_all(verification_update_attributes(new_status))
 
         # Audit log for each with accurate old status
-        supporters.find_each do |s|
+        supporters.each do |s|
           old_status = old_statuses[s.id] || "unknown"
           log_audit!(s, action: "verification_changed", changed_data: {
             "verification_status" => [ old_status, new_status ],
@@ -762,7 +762,7 @@ module Api
           total_needing_review: base.count,
           verified: base.verified.count,
           flagged: base.flagged.where(referred_from_village_id: nil).count,
-          unverified: base.flagged.where(referred_from_village_id: nil).count,
+          unverified: base.unverified.where(registered_voter: false).count,
           no_match: base.unverified.where(registered_voter: false).count,
           unregistered: base.unverified.where(registered_voter: false).count,
           referrals: base.where.not(referred_from_village_id: nil).count

@@ -628,6 +628,40 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "unverified", no_match.reload.verification_status
   end
 
+  test "bulk verify updates matched supporters successfully" do
+    GecVoter.create!(
+      first_name: "Bulk", last_name: "Verified", village_name: @village.name,
+      dob: Date.new(1988, 8, 8), gec_list_date: Date.new(2026, 2, 25),
+      imported_at: Time.current, status: "active"
+    )
+    supporter = Supporter.create!(
+      first_name: "Bulk", last_name: "Verified", print_name: "Bulk Verified",
+      dob: Date.new(1988, 8, 8),
+      contact_number: "6715559019",
+      village: @village,
+      source: "staff_entry",
+      status: "active",
+      verification_status: "flagged",
+      registered_voter: true
+    )
+    supporter.update_columns(
+      verification_status: "flagged",
+      registered_voter: true,
+      verified_at: nil,
+      verified_by_user_id: nil
+    )
+
+    post "/api/v1/supporters/bulk_verify",
+      params: { supporter_ids: [ supporter.id ], verification_status: "verified" },
+      headers: auth_headers(@user)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal 1, payload["updated"]
+    assert_equal "verified", payload["verification_status"]
+    assert_equal "verified", supporter.reload.verification_status
+  end
+
   test "update is forbidden for non editor roles" do
     precinct = Precinct.create!(number: "SP-5", village: @village, registered_voters: 100)
     supporter = Supporter.create!(
