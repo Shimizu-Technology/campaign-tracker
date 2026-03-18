@@ -5,6 +5,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import api, { getSession } from '../lib/api';
 import TeamShell from './TeamShell';
 import { useSession } from '../hooks/useSession';
+import { identifyStaffUser, isAnalyticsEnabled } from '../lib/analytics';
 
 function getHttpStatus(error: unknown): number | undefined {
   const maybeAxiosError = error as { response?: { status?: number } };
@@ -117,6 +118,17 @@ export default function TeamLayout({ children }: { children: React.ReactNode }) 
 
 function TeamAccessGuard({ children }: { children: React.ReactNode }) {
   const { data, isLoading } = useSession();
+  const identifiedUserRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isAnalyticsEnabled || !data?.user) return;
+
+    const identifyKey = `${data.user.id}:${data.user.role}`;
+    if (identifiedUserRef.current === identifyKey) return;
+
+    identifyStaffUser(data.user);
+    identifiedUserRef.current = identifyKey;
+  }, [data]);
 
   if (isLoading) {
     return (

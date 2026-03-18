@@ -4,6 +4,8 @@ import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import api, { getSession } from '../lib/api';
 import AdminShell from './AdminShell';
+import { useSession } from '../hooks/useSession';
+import { identifyStaffUser, isAnalyticsEnabled } from '../lib/analytics';
 
 function getHttpStatus(error: unknown): number | undefined {
   const maybeAxiosError = error as { response?: { status?: number } };
@@ -177,7 +179,9 @@ function AuthorizedContent({ children }: { children: React.ReactNode }) {
   const { getToken, isLoaded, isSignedIn, userId } = useAuth();
   const { signOut } = useClerk();
   const queryClient = useQueryClient();
+  const { data: sessionData } = useSession();
   const [sessionState, setSessionState] = useState<'loading' | 'authorized' | 'unauthorized'>('loading');
+  const identifiedUserRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!isLoaded || !isSignedIn) return;
@@ -232,6 +236,16 @@ function AuthorizedContent({ children }: { children: React.ReactNode }) {
 
     checkSession();
   }, [getToken, isLoaded, isSignedIn, queryClient, userId]);
+
+  useEffect(() => {
+    if (!isAnalyticsEnabled || sessionState !== 'authorized' || !sessionData?.user) return;
+
+    const identifyKey = `${sessionData.user.id}:${sessionData.user.role}`;
+    if (identifiedUserRef.current === identifyKey) return;
+
+    identifyStaffUser(sessionData.user);
+    identifiedUserRef.current = identifyKey;
+  }, [sessionData, sessionState]);
 
   if (sessionState === 'loading') {
     return (

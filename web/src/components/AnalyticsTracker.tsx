@@ -1,15 +1,13 @@
 import { useAuth } from '@clerk/clerk-react';
 import { useEffect, useRef } from 'react';
 import { useLocation } from 'react-router-dom';
-import { useSession } from '../hooks/useSession';
-import { capturePageview, identifyStaffUser, isAnalyticsEnabled, resetAnalytics } from '../lib/analytics';
+import { capturePageview, isAnalyticsEnabled, resetAnalytics } from '../lib/analytics';
 
 export default function AnalyticsTracker() {
   const location = useLocation();
   const { isLoaded, isSignedIn } = useAuth();
-  const { data: sessionData } = useSession();
   const lastPageKeyRef = useRef('');
-  const identifiedUserRef = useRef<string | null>(null);
+  const hadSignedInSessionRef = useRef(false);
 
   useEffect(() => {
     if (!isAnalyticsEnabled) return;
@@ -24,20 +22,16 @@ export default function AnalyticsTracker() {
   useEffect(() => {
     if (!isAnalyticsEnabled || !isLoaded) return;
 
-    if (!isSignedIn || !sessionData?.user) {
-      if (identifiedUserRef.current) {
+    if (!isSignedIn) {
+      if (hadSignedInSessionRef.current) {
         resetAnalytics();
-        identifiedUserRef.current = null;
+        hadSignedInSessionRef.current = false;
       }
       return;
     }
 
-    const identifyKey = `${sessionData.user.id}:${sessionData.user.role}`;
-    if (identifiedUserRef.current === identifyKey) return;
-
-    identifyStaffUser(sessionData.user);
-    identifiedUserRef.current = identifyKey;
-  }, [isLoaded, isSignedIn, sessionData]);
+    hadSignedInSessionRef.current = true;
+  }, [isLoaded, isSignedIn]);
 
   return null;
 }
