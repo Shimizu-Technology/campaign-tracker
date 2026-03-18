@@ -124,7 +124,7 @@ module Api
             matched_to_gec: Supporter.working_supporters.verified.count,
             current_quota_progress: current_period&.total_assigned.to_i,
             current_quota_target: current_period&.effective_quota_target.to_i,
-            quota_eligible: Supporter.working_supporters.count,
+            quota_eligible: Supporter.quota_eligible.count,
             total_verified: Supporter.working_supporters.verified.count,
             total_active: Supporter.working_supporters.count,
             public_signups: Supporter.active.public_signups.count,

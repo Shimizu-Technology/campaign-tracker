@@ -120,6 +120,7 @@ class Api::V1::ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 6, json["available_reports"].size
     assert_equal 3, json["quick_stats"]["official_supporters"]
     assert_equal 1, json["quick_stats"]["matched_to_gec"]
+    assert_equal 1, json["quick_stats"]["quota_eligible"]
     assert_equal 2, json["quick_stats"]["current_quota_progress"]
     assert_equal 1, json["quick_stats"]["transfer_list_size"]
     assert_equal 1, json["quick_stats"]["referral_list_size"]
