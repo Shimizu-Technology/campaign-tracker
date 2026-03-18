@@ -161,7 +161,7 @@ export default function LandingPage() {
             Tenorio Muna-Barnes for Guam &middot; Treasurer: Antoinette &ldquo;Toni&rdquo; Sanford &middot; PO Box 11031, Tamuning, Guam 96910
           </div>
           <div className="mt-3 text-center">
-            <Link to="/data" className="text-[11px] text-blue-300/50 hover:text-blue-200 transition-colors">
+            <Link to="/staff" className="text-[11px] text-blue-300/50 hover:text-blue-200 transition-colors">
               Staff portal
             </Link>
           </div>

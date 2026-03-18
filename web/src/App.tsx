@@ -10,6 +10,7 @@ import { Shield } from 'lucide-react';
 // Eagerly loaded (public pages — fast initial load)
 import LandingPage from './pages/LandingPage';
 import SignupPage from './pages/SignupPage';
+import StaffPortalPage from './pages/StaffPortalPage';
 import ThankYouPage from './pages/ThankYouPage';
 
 // Lazy loaded (admin pages — loaded on demand)
@@ -129,6 +130,7 @@ export default function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/signup/:leaderCode" element={<SignupPage />} />
+          <Route path="/staff" element={<StaffPortalPage />} />
           <Route path="/thank-you" element={<ThankYouPage />} />
 
           {/* Admin — requires Clerk auth */}
