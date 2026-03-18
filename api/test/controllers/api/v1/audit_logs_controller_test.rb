@@ -50,12 +50,12 @@ class Api::V1::AuditLogsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Supporter", payload.dig("audit_logs", 0, "auditable_type")
   end
 
-  test "coordinator can list audit logs" do
+  test "coordinator cannot list audit logs" do
     get "/api/v1/audit_logs", headers: auth_headers(@coordinator)
 
-    assert_response :success
+    assert_response :forbidden
     payload = JSON.parse(response.body)
-    assert payload["audit_logs"].any?
+    assert_equal "audit_logs_access_required", payload["code"]
   end
 
   test "village chief cannot list audit logs" do

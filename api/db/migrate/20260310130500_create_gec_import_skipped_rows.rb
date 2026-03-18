@@ -21,7 +21,7 @@ class CreateGecImportSkippedRows < ActiveRecord::Migration[8.1]
       t.datetime :resolved_at
 
       t.timestamps
-    end,
+    end
 
     add_index :gec_import_skipped_rows, [ :gec_import_id, :resolution_status ], name: "index_gec_import_skipped_rows_on_import_and_status"
     add_index :gec_import_skipped_rows, [ :gec_import_id, :row_number ], unique: true, name: "index_gec_import_skipped_rows_on_import_and_row"

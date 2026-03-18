@@ -113,15 +113,14 @@ class Api::V1::PollWatcherControllerTest < ActionDispatch::IntegrationTest
     assert_equal "poll_watcher_access_required", payload["code"]
   end
 
-  test "village chief can view strike list for assigned village precinct" do
+  test "village chief cannot view strike list endpoint" do
     get "/api/v1/poll_watcher/strike_list",
       params: { precinct_id: @precinct_one.id },
       headers: auth_headers(@chief)
 
-    assert_response :success
+    assert_response :forbidden
     payload = JSON.parse(response.body)
-    assert_equal @precinct_one.id, payload.dig("precinct", "id")
-    assert_equal @supporter_assigned.id, payload["supporters"].first["id"]
+    assert_equal "poll_watcher_access_required", payload["code"]
   end
 
   test "district coordinator cannot view strike list outside assigned district" do

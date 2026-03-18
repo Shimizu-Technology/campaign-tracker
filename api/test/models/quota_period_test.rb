@@ -100,7 +100,7 @@ class QuotaPeriodTest < ActiveSupport::TestCase
       period: "monthly"
     )
 
-    assert_equal({ @village.id => 450 }, @period.effective_village_targets(village_ids: [@village.id]))
+    assert_equal({ @village.id => 450 }, @period.effective_village_targets(village_ids: [ @village.id ]))
 
     breakdown = @period.village_breakdown
     assert_equal 1, breakdown.size
@@ -115,7 +115,7 @@ class QuotaPeriodTest < ActiveSupport::TestCase
       period: "monthly"
     )
 
-    assert_equal({}, @period.effective_village_targets(village_ids: [@village.id]))
+    assert_equal({}, @period.effective_village_targets(village_ids: [ @village.id ]))
     assert_equal [], @period.village_breakdown
     assert_equal true, @period.locked?
     assert_equal false, @period.editable?
