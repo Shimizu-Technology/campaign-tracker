@@ -68,9 +68,8 @@ export default function TeamVettingPage() {
 
   const approveMutation = useMutation({
     mutationFn: (id: number) => approveSupporter(id),
-    onSuccess: (result, supporterId) => {
+    onSuccess: (result) => {
       captureAnalyticsEvent('supporter_review_approved', {
-        supporter_id: supporterId,
         filter,
         district_id: districtId ? Number(districtId) : undefined,
         village_id: villageId ? Number(villageId) : undefined,
@@ -123,9 +122,8 @@ export default function TeamVettingPage() {
   });
   const rejectMutation = useMutation({
     mutationFn: (id: number) => rejectSupporterReview(id),
-    onSuccess: (result, supporterId) => {
+    onSuccess: (result) => {
       captureAnalyticsEvent('supporter_review_rejected', {
-        supporter_id: supporterId,
         filter,
         district_id: districtId ? Number(districtId) : undefined,
         village_id: villageId ? Number(villageId) : undefined,

@@ -22,6 +22,9 @@ const posthogOptions = {
   capture_pageleave: true,
   autocapture: true,
   disable_session_recording: false,
+  session_recording: {
+    maskAllInputs: true,
+  },
 }
 
 const app = (

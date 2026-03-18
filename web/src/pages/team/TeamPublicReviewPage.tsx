@@ -58,10 +58,9 @@ export default function TeamPublicReviewPage() {
 
   const acceptMutation = useMutation({
     mutationFn: (id: number) => acceptToQuota(id),
-    onSuccess: (result, supporterId) => {
+    onSuccess: (result) => {
       captureAnalyticsEvent('public_signup_sent_to_supporter_review', {
-        supporter_id: supporterId,
-        review_bucket,
+        review_bucket: reviewBucket,
         village_filter: villageId ? Number(villageId) : undefined,
         has_search_filter: Boolean(search),
         source: (result as { supporter?: { source?: string } })?.supporter?.source,
@@ -76,10 +75,9 @@ export default function TeamPublicReviewPage() {
   });
   const rejectMutation = useMutation({
     mutationFn: (id: number) => rejectPublicReview(id),
-    onSuccess: (result, supporterId) => {
+    onSuccess: (result) => {
       captureAnalyticsEvent('public_signup_rejected', {
-        supporter_id: supporterId,
-        review_bucket,
+        review_bucket: reviewBucket,
         village_filter: villageId ? Number(villageId) : undefined,
         has_search_filter: Boolean(search),
         source: (result as { supporter?: { source?: string } })?.supporter?.source,
