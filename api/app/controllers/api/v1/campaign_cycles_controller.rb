@@ -22,7 +22,7 @@ module Api
 
       # GET /api/v1/campaign_cycles/current
       def current
-        cycle = CampaignCycle.current.first
+        cycle = CampaignCycle.current.order(start_date: :desc, id: :desc).first
 
         unless cycle
           render json: { campaign_cycle: nil, message: "No active campaign cycle" }
@@ -94,13 +94,17 @@ module Api
           start_date: period.start_date,
           end_date: period.end_date,
           due_date: period.due_date,
-          quota_target: period.quota_target,
+          quota_target: period.effective_quota_target,
           status: period.status,
+          official_count: period.total_assigned,
+          matched_count: period.matched_count,
           eligible_count: period.eligible_count,
           total_assigned: period.total_assigned,
           days_until_due: period.days_until_due,
           overdue: period.overdue?,
           due_soon: period.due_soon?,
+          editable: period.editable?,
+          locked: period.locked?,
           village_breakdown: period.village_breakdown
         }
       end
@@ -112,12 +116,16 @@ module Api
           start_date: period.start_date,
           end_date: period.end_date,
           due_date: period.due_date,
-          quota_target: period.quota_target,
+          quota_target: period.effective_quota_target,
           status: period.status,
+          official_count: period.total_assigned,
+          matched_count: period.matched_count,
           eligible_count: period.eligible_count,
           days_until_due: period.days_until_due,
           overdue: period.overdue?,
-          due_soon: period.due_soon?
+          due_soon: period.due_soon?,
+          editable: period.editable?,
+          locked: period.locked?
         }
       end
     end

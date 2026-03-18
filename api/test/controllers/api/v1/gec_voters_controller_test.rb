@@ -10,6 +10,12 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
       name: "GEC Admin",
       role: "campaign_admin"
     )
+    @coordinator = User.create!(
+      clerk_id: "clerk-gec-test-coordinator-#{SecureRandom.hex(4)}",
+      email: "gec-coordinator-#{SecureRandom.hex(4)}@example.com",
+      name: "GEC Coordinator",
+      role: "district_coordinator"
+    )
 
     # Create some GEC voters for testing
     @gec_voter = GecVoter.create!(
@@ -50,6 +56,14 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     assert json["pagination"]["total"] >= 3
   end
 
+  test "district coordinator cannot access gec voter data ops endpoints" do
+    get "/api/v1/gec_voters", headers: auth_headers(@coordinator)
+
+    assert_response :forbidden
+    json = JSON.parse(response.body)
+    assert_equal "data_ops_access_required", json["code"]
+  end
+
   test "index filters by village" do
     get "/api/v1/gec_voters", params: { village: "Barrigada" }, headers: auth_headers(@admin)
 
@@ -75,6 +89,79 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     json = JSON.parse(response.body)
     assert json["total_voters"] >= 3
     assert json["villages"].is_a?(Array)
+    assert json.key?("official_village_count")
+    assert json.key?("unassigned_gec_voters")
+  end
+
+  test "stats canonicalize legacy village aliases into shared village buckets" do
+    humatak = Village.find_or_create_by!(name: "Humåtak")
+    malesso = Village.find_or_create_by!(name: "Malesso'")
+    unassigned = Village.find_or_create_by!(name: "Unassigned")
+
+    humatak_voter = GecVoter.create!(
+      first_name: "Legacy",
+      last_name: "Humatak",
+      village_name: "Humåtak",
+      village: humatak,
+      gec_list_date: Date.new(2026, 2, 25),
+      imported_at: Time.current
+    )
+    humatak_voter.update_columns(village_name: "HUMATAK", village_id: nil)
+
+    malesso_voter = GecVoter.create!(
+      first_name: "Legacy",
+      last_name: "Malesso",
+      village_name: "Malesso'",
+      village: malesso,
+      gec_list_date: Date.new(2026, 2, 25),
+      imported_at: Time.current
+    )
+    malesso_voter.update_columns(village_name: "MALESSO", village_id: nil)
+
+    GecVoter.create!(
+      first_name: "Legacy",
+      last_name: "Unassigned",
+      village_name: "Unassigned",
+      village: unassigned,
+      gec_list_date: Date.new(2026, 2, 25),
+      imported_at: Time.current
+    )
+
+    get "/api/v1/gec_voters/stats", headers: auth_headers(@admin)
+
+    assert_response :success
+    json = JSON.parse(response.body)
+    villages = json["villages"].index_by { |row| row["name"] }
+
+    assert_equal 1, villages["Humåtak"]["count"]
+    assert_equal 1, villages["Malesso'"]["count"]
+    assert_nil villages["HUMATAK"]
+    assert_nil villages["MALESSO"]
+    assert villages.key?("Unassigned")
+    assert_equal 1, json["unassigned_gec_voters"]
+    assert_equal villages.length - 1, json["official_village_count"]
+  end
+
+  test "stats routes unknown active village strings into unassigned bucket" do
+    unassigned = Village.find_or_create_by!(name: "Unassigned")
+
+    GecVoter.create!(
+      first_name: "Foreign",
+      last_name: "Address",
+      village_name: "FPO",
+      village: nil,
+      gec_list_date: Date.new(2026, 2, 25),
+      imported_at: Time.current
+    )
+
+    get "/api/v1/gec_voters/stats", headers: auth_headers(@admin)
+
+    assert_response :success
+    json = JSON.parse(response.body)
+    villages = json["villages"].index_by { |row| row["name"] }
+
+    assert villages.key?(unassigned.name)
+    assert_not villages.key?("FPO")
   end
 
   test "match finds exact match by name + dob + village" do
@@ -256,6 +343,36 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "voter_list.pdf", payload.filename
     assert_equal "application/pdf", payload.content_type
     assert_equal "queued", imp.metadata["stage"]
+  ensure
+    file&.close!
+  end
+
+  test "async pdf upload ignores provided sheet name" do
+    file = Tempfile.new([ "gec_async_pdf_sheet_name", ".pdf" ])
+    file.binmode
+    file.write("%PDF-1.4 sample")
+    file.rewind
+
+    with_singleton_stubs(S3Service, enabled?: false) do
+      with_singleton_stubs(GecPdfParserService, new: ->(*_args, **_kwargs) { raise "controller should not parse async pdf uploads" }) do
+        assert_enqueued_jobs 1, only: GecImportJob do
+          post "/api/v1/gec_voters/upload",
+            params: {
+              file: Rack::Test::UploadedFile.new(file.path, "application/pdf", original_filename: "voter_list.pdf"),
+              gec_list_date: "2026-02-25",
+              async_import: "true",
+              confirm_review: "true",
+              sheet_name: "Jan GEC List Test"
+            },
+            headers: auth_headers(@admin)
+        end
+      end
+    end
+
+    assert_response :accepted
+    job = enqueued_jobs.last
+    assert_equal "GecImportJob", job[:job].to_s
+    assert_nil job[:args].first[:sheet_name]
   ensure
     file&.close!
   end
@@ -610,6 +727,143 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, json["pagination"]["total_pages"]
     assert_equal 1, json["pagination"]["page"]
     assert_equal 1, json["changes"].length
+  end
+
+  test "view_import_changes exposes routed to unassigned rows for transparency" do
+    file = Tempfile.new([ "gec_unassigned_changes", ".csv" ])
+    CSV.open(file.path, "w") do |csv|
+      csv << [ "name", "village", "voter_registration_number", "dob", "dob_estimated", "birth_year", "pct", "address" ]
+      csv << [ "DOE, JANE", nil, "VR001", "01/01/1987", "true", "1987", "5", "USS EXAMPLE" ]
+      csv << [ "CRUZ, JUAN", "Barrigada", "VR002", "01/01/1985", "true", "1985", "1", "123 TEST ST" ]
+    end
+
+    gec_import = GecImport.create!(
+      gec_list_date: Date.new(2026, 2, 25),
+      filename: "gec_feb_2026.csv",
+      status: "completed",
+      total_records: 2,
+      original_file_s3_key: "gec-imports/1/artifact/gec_feb_2026.csv",
+      original_filename: "gec_feb_2026.csv",
+      metadata: { "unassigned" => 1 }
+    )
+
+    with_singleton_stubs(S3Service, download: File.binread(file.path)) do
+      get "/api/v1/gec_voters/imports/#{gec_import.id}/changes",
+        params: { type: "routed_to_unassigned" },
+        headers: auth_headers(@admin)
+    end
+
+    assert_response :success
+    json = JSON.parse(response.body)
+    assert_equal 1, json["counts"]["routed_to_unassigned"]
+    assert_equal "routed_to_unassigned", json["filters"]["type"]
+    assert_equal 1, json["pagination"]["total_rows"]
+    assert_equal "routed_to_unassigned", json["changes"].first["change_type"]
+    assert_equal "Unassigned", json["changes"].first["village_name"]
+    assert_match(/routed to Unassigned/i, json["changes"].first.dig("details", "reason"))
+    assert_equal "Unassigned", json["changes"].first.dig("details", "changed_fields", "village_name", "after")
+    assert_nil json["changes"].first.dig("details", "changed_fields", "village_name", "before")
+    assert_equal "DOE, JANE", json["changes"].first.dig("details", "source_name")
+  ensure
+    Rails.cache.clear
+    file&.close!
+  end
+
+  test "view_import_skipped_rows returns persisted skipped rows with counts" do
+    gec_import = GecImport.create!(
+      gec_list_date: Date.new(2026, 2, 25),
+      filename: "gec_feb_2026.xlsx",
+      status: "completed",
+      total_records: 3
+    )
+
+    GecImportSkippedRow.create!(
+      gec_import: gec_import,
+      row_number: 4,
+      message: "missing first_name or last_name",
+      last_name: "CRUZ",
+      village_name: "Barrigada",
+      birth_year: 1985,
+      raw_values: [ "CRUZ, JUAN", "Barrigada", "1985" ]
+    )
+    GecImportSkippedRow.create!(
+      gec_import: gec_import,
+      row_number: 5,
+      message: "missing first_name or last_name",
+      first_name: "MARIA",
+      village_name: "Barrigada",
+      birth_year: 1990,
+      resolution_status: "dismissed",
+      resolution_action: "dismiss",
+      resolved_at: Time.current,
+      resolved_by_user: @admin
+    )
+
+    get "/api/v1/gec_voters/imports/#{gec_import.id}/skipped_rows", headers: auth_headers(@admin)
+
+    assert_response :success
+    json = JSON.parse(response.body)
+    assert_equal 2, json["counts"]["all"]
+    assert_equal 1, json["counts"]["pending"]
+    assert_equal 1, json["counts"]["dismissed"]
+    assert_equal 2, json["import"]["skipped_rows_count"]
+    assert_equal 5, json["skipped_rows"].first["row_number"]
+  end
+
+  test "resolve_skipped_row previews and applies audited update" do
+    gec_import = GecImport.create!(
+      gec_list_date: Date.new(2026, 2, 25),
+      filename: "gec_feb_2026.xlsx",
+      status: "completed",
+      total_records: 1
+    )
+
+    skipped_row = GecImportSkippedRow.create!(
+      gec_import: gec_import,
+      row_number: 6,
+      message: "missing first_name or last_name",
+      village_name: "Barrigada",
+      birth_year: 1985
+    )
+
+    post "/api/v1/gec_voters/imports/#{gec_import.id}/skipped_rows/#{skipped_row.id}/preview_resolution",
+      params: {
+        corrected_values: {
+          first_name: "Juan",
+          last_name: "Cruz",
+          village_name: "Dededo",
+          dob: "1985-03-15"
+        },
+        selected_gec_voter_id: @gec_voter.id
+      },
+      headers: auth_headers(@admin)
+
+    assert_response :success
+    preview_json = JSON.parse(response.body)
+    assert_equal "ready_to_update", preview_json["preview"]["status"]
+    assert_equal "update", preview_json["preview"]["suggested_action"]
+
+    post "/api/v1/gec_voters/imports/#{gec_import.id}/skipped_rows/#{skipped_row.id}/resolve",
+      params: {
+        corrected_values: {
+          first_name: "Juan",
+          last_name: "Cruz",
+          village_name: "Dededo",
+          dob: "1985-03-15"
+        },
+        selected_gec_voter_id: @gec_voter.id
+      },
+      headers: auth_headers(@admin)
+
+    assert_response :success
+    json = JSON.parse(response.body)
+    skipped_row.reload
+    @gec_voter.reload
+
+    assert_equal "resolved_updated", skipped_row.resolution_status
+    assert_equal "Dededo", @gec_voter.village_name
+    assert_equal "resolved_updated", json["skipped_row"]["resolution_status"]
+    assert_equal 1, AuditLog.where(auditable: skipped_row, action: "gec_import_skipped_row_resolved").count
   end
 
   test "view_original returns inline viewer metadata for preserved raw pdf" do

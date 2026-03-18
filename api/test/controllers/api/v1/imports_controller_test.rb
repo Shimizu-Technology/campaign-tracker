@@ -55,4 +55,35 @@ class Api::V1::ImportsControllerTest < ActionDispatch::IntegrationTest
       assert_equal supporter.first_name, created_log.changed_data.dig("first_name", "to")
     end
   end
+
+  test "confirm routes imported supporters into pending supporter review" do
+    imported_name = "PendingImport#{SecureRandom.hex(2)}"
+
+    post "/api/v1/imports/confirm",
+      params: {
+        import_key: "b" * 32,
+        village_id: @village.id,
+        rows: [
+          {
+            "_row" => 1,
+            "first_name" => imported_name,
+            "last_name" => "Cruz",
+            "contact_number" => nil,
+            "registered_voter" => true
+          }
+        ]
+      },
+      headers: auth_headers(@user)
+
+    assert_response :success
+
+    supporter = Supporter.find_by!(first_name: imported_name, last_name: "Cruz")
+    assert_equal "bulk_import", supporter.source
+    assert_equal "bulk_import", supporter.attribution_method
+    assert_equal "accepted", supporter.intake_status
+    assert_equal "pending", supporter.review_status
+    assert_equal "not_applicable", supporter.public_review_status
+    assert_includes Supporter.pending_supporter_review, supporter
+    refute_includes Supporter.official_supporters, supporter
+  end
 end

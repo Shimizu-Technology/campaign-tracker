@@ -1,11 +1,10 @@
 import { SignedIn, SignedOut, SignInButton, useAuth, useClerk } from '@clerk/clerk-react';
 import { useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Navigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import api, { getSession } from '../lib/api';
 import TeamShell from './TeamShell';
 import { useSession } from '../hooks/useSession';
-import { Shield } from 'lucide-react';
 
 function getHttpStatus(error: unknown): number | undefined {
   const maybeAxiosError = error as { response?: { status?: number } };
@@ -36,7 +35,7 @@ function hasSufficientTokenLifetime(authHeader: string, minimumSecondsRemaining 
 }
 
 export default function TeamLayout({ children }: { children: React.ReactNode }) {
-  const { getToken } = useAuth();
+  const { getToken, userId } = useAuth();
   const { session } = useClerk();
   const queryClient = useQueryClient();
   const interceptorRef = useRef<number | null>(null);
@@ -88,8 +87,9 @@ export default function TeamLayout({ children }: { children: React.ReactNode }) 
 
   // Pre-fetch session data
   useEffect(() => {
-    queryClient.prefetchQuery({ queryKey: ['session'], queryFn: getSession });
-  }, [queryClient]);
+    if (!userId) return;
+    queryClient.prefetchQuery({ queryKey: ['session', userId], queryFn: getSession });
+  }, [queryClient, userId]);
 
   return (
     <>
@@ -101,8 +101,8 @@ export default function TeamLayout({ children }: { children: React.ReactNode }) 
       <SignedOut>
         <div className="min-h-screen flex items-center justify-center bg-gray-100">
           <div className="bg-white rounded-xl border border-gray-200 p-8 max-w-sm w-full text-center shadow-sm">
-            <h1 className="text-xl font-bold text-gray-900 mb-2">Data Team Portal</h1>
-            <p className="text-sm text-gray-500 mb-6">Sign in to access the data team tools.</p>
+            <h1 className="text-xl font-bold text-gray-900 mb-2">Data Ops Workspace</h1>
+            <p className="text-sm text-gray-500 mb-6">Sign in to access the daily voter operations tools.</p>
             <SignInButton mode="modal">
               <button className="w-full px-4 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
                 Sign In
@@ -129,20 +129,7 @@ function TeamAccessGuard({ children }: { children: React.ReactNode }) {
   // Only campaign_admin and data_team can access /team
   const role = data?.user?.role;
   if (role !== 'campaign_admin' && role !== 'data_team') {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
-        <div className="bg-white rounded-xl border border-gray-200 p-8 max-w-sm w-full text-center shadow-sm">
-          <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-red-50 flex items-center justify-center">
-            <Shield className="w-7 h-7 text-red-400" />
-          </div>
-          <h1 className="text-xl font-bold text-gray-900 mb-2">Access Restricted</h1>
-          <p className="text-sm text-gray-500 mb-6">The Data Team portal is only available to data team members.</p>
-          <Link to="/admin" className="inline-block px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
-            Go to Admin Panel
-          </Link>
-        </div>
-      </div>
-    );
+    return <Navigate to={data?.permissions?.default_route || '/admin'} replace />;
   }
 
   return <>{children}</>;

@@ -94,32 +94,48 @@ class GecVettingService
   private
 
   def apply_auto_verified!(gec_voter)
-    @supporter.update_columns(
+    updates = {
       verification_status: "verified",
-      verified_at: Time.current,
-      registered_voter: true
-    )
+      registered_voter: true,
+      referred_from_village_id: nil
+    }
+    updates[:verified_at] = Time.current if @supporter.verification_status != "verified" || @supporter.verified_at.blank?
+    apply_updates!(updates)
   end
 
   def apply_flagged!(gec_voter)
-    @supporter.update_columns(
+    apply_updates!(
       verification_status: "flagged",
-      registered_voter: true
+      registered_voter: true,
+      referred_from_village_id: nil,
+      verified_at: nil
     )
   end
 
   def apply_referral!(gec_voter)
     referred_village = Village.find_by("LOWER(name) = ?", gec_voter.village_name.downcase.strip)
-    @supporter.update_columns(
+    apply_updates!(
       verification_status: "flagged",
       registered_voter: true,
-      referred_from_village_id: referred_village&.id
+      referred_from_village_id: referred_village&.id,
+      verified_at: nil
     )
   end
 
   def apply_unregistered!
-    @supporter.update_columns(
-      registered_voter: false
+    apply_updates!(
+      verification_status: "unverified",
+      registered_voter: false,
+      referred_from_village_id: nil,
+      verified_at: nil
     )
+  end
+
+  def apply_updates!(attributes)
+    updates = attributes.each_with_object({}) do |(key, value), changed|
+      changed[key] = value if @supporter.public_send(key) != value
+    end
+
+    @supporter.update_columns(updates) if updates.present?
   end
 end

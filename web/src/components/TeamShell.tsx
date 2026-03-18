@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   Users,
   ShieldCheck,
+  Shield,
   Upload,
   FileSpreadsheet,
   UserCheck,
@@ -19,6 +20,9 @@ import {
   X,
   Home,
   Database,
+  MapPin,
+  Target,
+  Settings,
 } from 'lucide-react';
 
 interface NavItem {
@@ -62,7 +66,7 @@ export default function TeamShell({ children }: { children: React.ReactNode }) {
     {
       label: 'Review',
       items: [
-        { to: '/data/vetting', label: 'Vetting Queue', icon: ShieldCheck, badge: (counts?.flagged_supporters || 0) + (counts?.pending_vetting || 0) },
+        { to: '/data/vetting', label: 'Supporter Review Queue', icon: ShieldCheck, badge: counts?.pending_vetting || 0 },
         { to: '/data/public-review', label: 'Public Signups', icon: UserCheck, badge: counts?.public_signups_pending || 0 },
         { to: '/data/duplicates', label: 'Duplicates', icon: Copy },
       ],
@@ -74,6 +78,22 @@ export default function TeamShell({ children }: { children: React.ReactNode }) {
         { to: '/data/audit-logs', label: 'Activity Log', icon: ScrollText },
       ],
     },
+    ...((sessionData?.permissions?.can_manage_users ||
+      sessionData?.permissions?.can_manage_data_configuration ||
+      sessionData?.permissions?.can_manage_configuration)
+      ? [
+          {
+            label: 'Campaign Setup',
+            items: [
+              ...(sessionData?.permissions?.can_manage_users ? [ { to: '/data/users', label: 'Users', icon: Shield } ] : []),
+              ...(sessionData?.permissions?.can_manage_data_configuration ? [ { to: '/data/districts', label: 'Districts', icon: MapPin } ] : []),
+              ...(sessionData?.permissions?.can_manage_data_configuration ? [ { to: '/data/quotas', label: 'Quotas', icon: Target } ] : []),
+              ...(sessionData?.permissions?.can_manage_data_configuration ? [ { to: '/data/precincts', label: 'Precincts', icon: MapPin } ] : []),
+              ...(sessionData?.permissions?.can_manage_configuration ? [ { to: '/data/campaign-settings', label: 'SMS & Social Settings', icon: Settings } ] : []),
+            ],
+          },
+        ]
+      : []),
   ];
 
   const isActive = (to: string) => {
@@ -118,19 +138,19 @@ export default function TeamShell({ children }: { children: React.ReactNode }) {
         <Link to="/data" className="block group" onClick={() => setSidebarOpen(false)}>
           <div className="flex items-center gap-2 mb-1">
             <Database className="w-5 h-5 text-primary" />
-            <span className="text-sm font-bold text-gray-900">Data Team</span>
+            <span className="text-sm font-bold text-gray-900">Data Ops Workspace</span>
           </div>
           <p className="text-[11px] text-gray-400 font-medium">
-            Voter Operations
+            Daily voter operations
           </p>
         </Link>
       </div>
 
       {/* Quota Progress */}
-      {counts?.quota_eligible !== undefined && (
+      {counts?.official_supporters !== undefined && (
         <div className="mx-3 mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
-          <div className="text-[10px] font-semibold text-blue-600 uppercase tracking-wider mb-1">Quota Eligible</div>
-          <div className="text-2xl font-bold text-blue-900">{(counts.quota_eligible || 0).toLocaleString()}</div>
+          <div className="text-[10px] font-semibold text-blue-600 uppercase tracking-wider mb-1">Official Supporters</div>
+          <div className="text-2xl font-bold text-blue-900">{(counts.official_supporters || 0).toLocaleString()}</div>
         </div>
       )}
 
@@ -155,8 +175,8 @@ export default function TeamShell({ children }: { children: React.ReactNode }) {
             to="/admin"
             className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-all duration-150"
           >
-            <Home className="w-4 h-4 shrink-0 text-gray-400" />
-            <span>Full Admin Panel</span>
+            <Settings className="w-4 h-4 shrink-0 text-gray-400" />
+            <span>More Campaign Tools</span>
           </Link>
         </div>
       )}
@@ -245,7 +265,7 @@ export default function TeamShell({ children }: { children: React.ReactNode }) {
           >
             <Menu className="w-5 h-5" />
           </button>
-          <h1 className="text-sm font-bold text-gray-900 tracking-tight">Data Team</h1>
+          <h1 className="text-sm font-bold text-gray-900 tracking-tight">Data Ops</h1>
           <UserButton afterSignOutUrl="/" />
         </header>
 

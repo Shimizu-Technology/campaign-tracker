@@ -44,7 +44,7 @@ module Api
 
       def staff_supporter_params
         params.require(:supporter).permit(
-          :first_name, :last_name, :print_name, :contact_number, :dob, :email, :street_address,
+          :first_name, :middle_name, :last_name, :print_name, :contact_number, :dob, :email, :street_address,
           :village_id, :precinct_id, :block_id,
           :registered_voter, :yard_sign, :motorcade_available,
           :opt_in_email, :opt_in_text
@@ -55,6 +55,7 @@ module Api
         {
           id: supporter.id,
           first_name: supporter.first_name,
+          middle_name: supporter.middle_name,
           last_name: supporter.last_name,
           print_name: supporter.print_name,
           contact_number: supporter.contact_number,

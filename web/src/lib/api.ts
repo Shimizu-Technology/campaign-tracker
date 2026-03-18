@@ -205,6 +205,43 @@ export const getGecImportChanges = (
       ...(q ? { q } : {}),
     }
   }).then(r => r.data);
+export const getGecImportSkippedRows = (
+  importId: number,
+  page: number = 1,
+  perPage: number = 25,
+  status?: string,
+  q?: string
+) =>
+  api.get(`/gec_voters/imports/${importId}/skipped_rows`, {
+    params: {
+      page,
+      per_page: perPage,
+      ...(status ? { status } : {}),
+      ...(q ? { q } : {}),
+    }
+  }).then(r => r.data);
+export const previewGecImportSkippedRowResolution = (
+  importId: number,
+  skippedRowId: number,
+  correctedValues: Record<string, unknown>,
+  selectedGecVoterId?: number | null
+) =>
+  api.post(`/gec_voters/imports/${importId}/skipped_rows/${skippedRowId}/preview_resolution`, {
+    corrected_values: correctedValues,
+    ...(selectedGecVoterId ? { selected_gec_voter_id: selectedGecVoterId } : {}),
+  }).then(r => r.data);
+export const resolveGecImportSkippedRow = (
+  importId: number,
+  skippedRowId: number,
+  correctedValues: Record<string, unknown>,
+  selectedGecVoterId?: number | null
+) =>
+  api.post(`/gec_voters/imports/${importId}/skipped_rows/${skippedRowId}/resolve`, {
+    corrected_values: correctedValues,
+    ...(selectedGecVoterId ? { selected_gec_voter_id: selectedGecVoterId } : {}),
+  }).then(r => r.data);
+export const dismissGecImportSkippedRow = (importId: number, skippedRowId: number) =>
+  api.post(`/gec_voters/imports/${importId}/skipped_rows/${skippedRowId}/dismiss`).then(r => r.data);
 export const uploadGecList = (
   file: File,
   gecListDate: string,
@@ -246,6 +283,8 @@ export const matchGecVoter = (params: { first_name: string; last_name: string; d
 
 // Reports
 export const getReportsList = () => api.get('/reports').then(r => r.data);
+export const getReportPreview = (reportType: string, params?: QueryParams) =>
+  api.get(`/reports/${reportType}/preview`, { params }).then(r => r.data);
 export const downloadReport = (reportType: string, params?: QueryParams) =>
   api.get(`/reports/${reportType}`, { params, responseType: 'blob' }).then(r => {
     const url = window.URL.createObjectURL(new Blob([r.data]));
@@ -266,6 +305,9 @@ export const getVettingQueue = (params?: QueryParams) => api.get('/supporters/ve
 // Public Review
 export const getPublicReview = (params?: QueryParams) => api.get('/supporters/public_review', { params }).then(r => r.data);
 export const acceptToQuota = (id: number) => api.patch(`/supporters/${id}/accept_to_quota`).then(r => r.data);
+export const rejectPublicReview = (id: number) => api.patch(`/supporters/${id}/reject_public_review`).then(r => r.data);
+export const approveSupporter = (id: number) => api.patch(`/supporters/${id}/approve_supporter`).then(r => r.data);
+export const rejectSupporterReview = (id: number) => api.patch(`/supporters/${id}/reject_supporter`).then(r => r.data);
 
 export default api;
 

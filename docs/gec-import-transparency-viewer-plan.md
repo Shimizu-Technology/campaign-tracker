@@ -1,12 +1,12 @@
 # GEC Import Transparency Viewer Plan
 
-**Status:** Implemented with follow-up audit findings
-**Date:** 2026-03-08
+**Status:** Implemented with stabilization and rerun audit findings
+**Date:** 2026-03-10
 **Owner:** Campaign Tracker team
 
 ## Status Update
 
-This plan has now been implemented in the app, and the work uncovered several important facts about the source files and the import pipeline.
+This plan has now been implemented in the app, and follow-up import audits uncovered several important facts about the source files, parser behavior, and rerun stability.
 
 ### What is now working
 
@@ -19,22 +19,41 @@ This plan has now been implemented in the app, and the work uncovered several im
 
 ### Verified current state
 
-Using a clean local rerun with:
+Using clean local reruns with the current importer:
 
-1. December workbook as the baseline import
-2. January PDF through the normal app import job flow
+1. the February 25, 2026 official PDF can now be imported and re-imported with stable results
+2. the January 25, 2026 official PDF can also be imported and re-imported with stable results
+3. repeated same-file reruns no longer produce silent drift in `new`, `updated`, `transferred`, or `removed`
 
-the latest verified January import produced:
+### Latest verified February state
 
-- `50,541` total rows
-- `38,096` `new`
-- `611` `updated`
-- `1,773` `transferred`
-- `4,255` `removed`
-- `10,059` `matched_unchanged`
-- `2` skipped rows
+- `50,932` total rows
+- final stable February rerun: `50,932 matched_unchanged`
+- `0` `new`
+- `0` `updated`
+- `0` `transferred`
+- `0` `removed`
+- `0` skipped rows
 
-These import-summary numbers were verified to match the persisted row-level `GecImportChange` records for the latest clean import.
+### Latest verified January state
+
+- first January import from a clean February baseline: `50,936` total rows
+- this establishes a legitimate month-to-month delta from February:
+- `695` `new`
+- `14` `updated`
+- `50` `transferred`
+- `691` `removed`
+- `50,177` `matched_unchanged`
+- `0` skipped rows
+- second and third same-file January reruns after that baseline both produced:
+- `50,936 matched_unchanged`
+- `0` `new`
+- `0` `updated`
+- `0` `transferred`
+- `0` `removed`
+- `0` skipped rows
+
+These import-summary numbers were verified against the persisted row-level change records during the audit work.
 
 ## Source File Interpretation
 
@@ -73,7 +92,7 @@ The large mismatch between December and January was caused by both real source-f
 ### Source-file difference
 
 - December workbook baseline contained `16,431` rows
-- January GEC PDF contained `50,541` parsed rows
+- January GEC PDF now parses to `50,936` rows with the hardened parser
 
 That gap alone explains why the January import legitimately shows a very large `new` bucket when compared against the December baseline.
 
@@ -87,20 +106,40 @@ Fix:
 
 - placeholder VRNs like `NEW` are now normalized to `nil`
 
-#### 2. The January PDF parser was under-parsing the real GEC file
+#### 2. The January and February PDF parser needed richer line parsing
 
-The PDF parser originally dropped many valid rows because it did not support letter-suffixed precincts such as `4A` or `18E`, and it missed some real village spellings.
+The PDF parser originally dropped many valid rows because it did not support letter-suffixed precincts such as `4A` or `18E`, missed some real village spellings, and relied too heavily on a flattened fallback path that could mistake address fragments for names.
 
 Fix:
 
 - parser now supports letter-suffixed precincts
 - parser now recognizes more real village spellings from the GEC PDF
+- parser now prefers direct line-based parsing for legacy year-only rows before falling back to flattened scanning
+- village matching now uses a token boundary so names like `AGATHA` are not misread as village `AGAT`
 
 Impact:
 
-- January parse output increased from about `13k` rows to `50,541`
+- January parse output increased from about `13k` rows to `50,936`
+- February parse output increased from the unstable `50,550`/`53 skipped` state to a stable `50,932`/`0 skipped` state
 
-#### 3. Metadata-only DOB ambiguity changes were inflating `updated`
+#### 3. Simplified PDF-name matching caused rerun instability
+
+The PDF import path keeps only the first given name when splitting `LAST, FIRST MIDDLE`, which means multiple distinct voters can collapse onto the same simplified identity. Earlier importer behavior could silently update or transfer the wrong active voter when the same file was re-run.
+
+Fix:
+
+- non-VRN matching now only considers active voters
+- non-VRN matches must be unique or the row is skipped for review
+- a voter cannot be matched twice in the same import
+- collisions inside the same source file are detected up front
+- when each colliding row has a unique VRN, the importer safely treats them as distinct voters instead of collapsing them together
+
+Impact:
+
+- February same-file reruns now stay stable instead of producing phantom updates and transfers
+- the review bucket dropped from `551` ambiguous rows to `53`, and then to `0` after parser fixes recovered the malformed rows safely
+
+#### 4. Metadata-only DOB ambiguity changes were inflating `updated`
 
 Many rows were being counted as `updated` even though the only change was the parser-confidence flag around ambiguous DOB parsing.
 
@@ -108,7 +147,7 @@ Fix:
 
 - `dob_ambiguous`-only flips no longer count as public `updated` changes
 
-#### 4. Transfers were being double-counted as updates
+#### 5. Transfers were being double-counted as updates
 
 Transferred voters were correctly classified as `transferred`, but they were also being added into the import-level `updated_records` aggregate.
 
@@ -116,19 +155,52 @@ Fix:
 
 - transfers now remain separate from `updated_records`
 
+#### 6. January reruns exposed a narrower VRN trust gap
+
+After the broader stability work, January still showed a small rerun-only issue: five voters were imported as `new` on the first January run and then had their VRNs filled in on rerun. In each case the VRN was unique and the birth year matched, but the stored and incoming names differed because of surname updates or normalization differences.
+
+Fix:
+
+- trusted VRN matching now also accepts a unique VRN when there is at least one overlapping name component and the birth data still agrees
+
+Impact:
+
+- January same-file reruns now settle to all-zero changes just like February
+
+## Removed Record Audit
+
+The `475` removals seen during the first fully clean February run needed special review.
+
+### What they were
+
+- they were recorded as `missing_from_full_list` removals
+- they were not new skipped-row or parser failures
+- they were overwhelmingly February-dated records created by earlier unstable February test runs
+
+### What we found
+
+- once the importer reached a zero-skip clean February run, purge detection was no longer suppressed
+- that first clean purge removed stale February records that had been created by earlier imperfect imports
+- after those stale rows were cleared, the next February rerun produced `0 removed`
+
+### Interpretation
+
+The `475` count should not be interpreted as a real campaign-facing February voter disappearance event. It was mainly cleanup of local test artifacts that had accumulated while the importer was still being hardened.
+
 ## Confidence And Interpretation
 
 ### What we trust now
 
-- the January PDF parser output is now believable and QA-passing
+- the January and February PDF parser outputs are now believable and QA-passing
 - the import summary counts now match the persisted row-level change records
+- same-file reruns for both January and February now stabilize at all-zero changes
 - the biggest known false-positive sources in the comparison have been removed
-- the `Changes` tab is now materially trustworthy for import-level audit work
+- the `Changes` and `Skipped Rows` tabs are now materially trustworthy for import-level audit work
 
 ### What still requires human judgment
 
 - December-to-January should not be read as a perfect roster-to-roster delta because the two files appear to come from different upstream purposes
-- some apparent audit mismatches are name-collision cases where different people share the same first and last name across files
+- some apparent month-to-month deltas are still real voter-list differences, not bugs
 - January now supplies birth year instead of full DOB, which reduces match precision compared with older spreadsheet-style sources
 
 ## Recommended Operating Guidance

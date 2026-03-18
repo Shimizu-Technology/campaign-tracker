@@ -69,4 +69,41 @@ class CampaignCycleTest < ActiveSupport::TestCase
     default_cycle = CampaignCycle.new
     assert_equal 23, default_cycle.due_day
   end
+
+  test "current_quota_period prefers the active current cycle over archived overlapping periods" do
+    archived_cycle = CampaignCycle.create!(
+      name: "Archived General",
+      cycle_type: "general",
+      start_date: Date.current.beginning_of_year,
+      end_date: Date.current.end_of_year,
+      status: "archived"
+    )
+    archived_period = QuotaPeriod.create!(
+      campaign_cycle: archived_cycle,
+      name: Date.current.strftime("%B %Y"),
+      start_date: Date.current.beginning_of_month,
+      end_date: Date.current.end_of_month,
+      due_date: Date.current.end_of_month,
+      quota_target: 6000
+    )
+
+    active_cycle = CampaignCycle.create!(
+      name: "Active Primary",
+      cycle_type: "primary",
+      start_date: Date.current.beginning_of_year,
+      end_date: Date.current.end_of_year,
+      status: "active"
+    )
+    active_period = QuotaPeriod.create!(
+      campaign_cycle: active_cycle,
+      name: Date.current.strftime("%B %Y"),
+      start_date: Date.current.beginning_of_month,
+      end_date: Date.current.end_of_month,
+      due_date: Date.current.end_of_month,
+      quota_target: 6000
+    )
+
+    assert_equal active_period.id, CampaignCycle.current_quota_period.id
+    assert_not_equal archived_period.id, CampaignCycle.current_quota_period.id
+  end
 end

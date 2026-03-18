@@ -90,7 +90,7 @@ export default function SmsSettingsPage() {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="animate-pulse text-[var(--text-muted)] text-sm font-medium">Loading settings...</div>
+        <div className="animate-pulse text-(--text-muted) text-sm font-medium">Loading settings...</div>
       </div>
     );
   }
@@ -98,7 +98,10 @@ export default function SmsSettingsPage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto space-y-6">
       <div>
-        <h1 className="text-lg font-bold text-gray-900">Settings</h1>
+        <h1 className="text-lg font-bold text-gray-900">SMS &amp; Social Settings</h1>
+        <p className="text-sm text-(--text-secondary) mt-1">
+          Manage the welcome text template and the public campaign social links shown across the site.
+        </p>
       </div>
 
       <div className="space-y-6">
@@ -106,9 +109,9 @@ export default function SmsSettingsPage() {
         <div className="app-card p-6 space-y-4">
           <div className="flex items-center gap-2">
             <MessageSquare className="w-5 h-5 text-primary" />
-            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Welcome SMS Template</h2>
+            <h2 className="text-lg font-semibold text-(--text-primary)">Welcome SMS Template</h2>
           </div>
-          <p className="text-sm text-[var(--text-secondary)]">
+          <p className="text-sm text-(--text-secondary)">
             This message is sent automatically when a new supporter signs up (if they opt in to text messages).
           </p>
 
@@ -140,11 +143,11 @@ export default function SmsSettingsPage() {
               onChange={(e) => setTemplate(e.target.value)}
               rows={4}
               maxLength={320}
-              className="w-full border border-[var(--border-soft)] rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+              className="w-full border border-(--border-soft) rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
               placeholder="Enter your welcome SMS template..."
             />
             <div className="flex justify-between mt-1">
-              <span className={`text-xs ${charCount > 160 ? 'text-amber-600' : 'text-[var(--text-muted)]'}`}>
+              <span className={`text-xs ${charCount > 160 ? 'text-amber-600' : 'text-(--text-muted)'}`}>
                 {charCount}/320 chars · {smsSegments} SMS segment{smsSegments !== 1 ? 's' : ''}
               </span>
               {charCount > 160 && (
@@ -157,10 +160,10 @@ export default function SmsSettingsPage() {
 
           {/* Preview */}
           <div>
-            <p className="text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wide mb-2">Preview</p>
+            <p className="text-xs font-medium text-(--text-secondary) uppercase tracking-wide mb-2">Preview</p>
             <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-              <p className="text-sm text-[var(--text-primary)] whitespace-pre-wrap">{previewText || '(empty)'}</p>
-              <p className="text-xs text-[var(--text-muted)] mt-2">Sample: Maria Cruz from Tamuning</p>
+              <p className="text-sm text-(--text-primary) whitespace-pre-wrap">{previewText || '(empty)'}</p>
+              <p className="text-xs text-(--text-muted) mt-2">Sample: Maria Cruz from Tamuning</p>
             </div>
           </div>
 
@@ -177,7 +180,7 @@ export default function SmsSettingsPage() {
             <button
               onClick={() => resetMutation.mutate()}
               disabled={resetMutation.isPending}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[var(--surface-overlay)] text-[var(--text-primary)] rounded-lg hover:bg-gray-200 disabled:opacity-50 text-sm font-medium"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-(--surface-overlay) text-(--text-primary) rounded-lg hover:bg-gray-200 disabled:opacity-50 text-sm font-medium"
             >
               <RotateCcw className="w-4 h-4" />
               Reset to Default
@@ -197,10 +200,10 @@ export default function SmsSettingsPage() {
         {/* Social Media Links */}
         <div className="app-card p-6 space-y-4">
           <div className="flex items-center gap-2">
-            <Globe className="w-5 h-5 text-[#1B3A6B]" />
-            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Social Media Links</h2>
+            <Globe className="w-5 h-5 text-primary" />
+            <h2 className="text-lg font-semibold text-(--text-primary)">Social Media Links</h2>
           </div>
-          <p className="text-sm text-[var(--text-secondary)]">
+          <p className="text-sm text-(--text-secondary)">
             These links appear on the public landing page and thank-you page. Leave blank to hide a link.
           </p>
 
@@ -212,7 +215,7 @@ export default function SmsSettingsPage() {
               { key: 'twitter_url' as const, label: 'X (Twitter) URL', placeholder: 'https://x.com/yourhandle' },
             ]).map(({ key, label, placeholder }) => (
               <div key={key}>
-                <label className="block text-sm font-medium text-[var(--text-secondary)] mb-1">{label}</label>
+                <label className="block text-sm font-medium text-(--text-secondary) mb-1">{label}</label>
                 <input
                   type="url"
                   value={displaySocial[key]}
@@ -222,7 +225,7 @@ export default function SmsSettingsPage() {
                     [key]: e.target.value,
                   }))}
                   placeholder={placeholder}
-                  className="w-full border border-[var(--border-soft)] rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-[#1B3A6B] focus:border-transparent"
+                  className="w-full border border-(--border-soft) rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
                 />
               </div>
             ))}
@@ -232,7 +235,7 @@ export default function SmsSettingsPage() {
             <button
               onClick={() => saveSocialMutation.mutate(displaySocial)}
               disabled={saveSocialMutation.isPending || !hasSocialChanges}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#1B3A6B] text-white rounded-lg hover:bg-[#15305a] disabled:opacity-50 text-sm font-medium"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-lg hover:bg-[#15305a] disabled:opacity-50 text-sm font-medium"
             >
               <Save className="w-4 h-4" />
               {saveSocialMutation.isPending ? 'Saving...' : 'Save Links'}

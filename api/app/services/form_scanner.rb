@@ -18,6 +18,7 @@ class FormScanner
 
     Extract these fields (return null for any field you cannot read):
     - first_name: First/given name
+    - middle_name: Middle name(s), initial(s), or additional given name(s)
     - last_name: Last/family name
     - print_name: Full printed name (if first/last not clearly separable)
     - contact_number: Phone number (Guam numbers are typically 671-XXX-XXXX)
@@ -46,7 +47,7 @@ class FormScanner
     If you see multiple forms, extract only the first/most prominent one.
 
     Example response:
-    {"fields":{"first_name":"Juan","last_name":"Cruz","contact_number":"671-555-1234","email":null,"street_address":"123 Marine Corps Dr","dob":"1985-03-15","village":"Tamuning","precinct_number":"17","registered_voter":true,"yard_sign":false,"motorcade_available":true},"confidence":{"first_name":"high","last_name":"high","contact_number":"medium","email":null,"street_address":"high","dob":"low","village":"high","precinct_number":"medium","registered_voter":"high","yard_sign":"high","motorcade_available":"high"}}
+    {"fields":{"first_name":"Juan","middle_name":"Santos","last_name":"Cruz","contact_number":"671-555-1234","email":null,"street_address":"123 Marine Corps Dr","dob":"1985-03-15","village":"Tamuning","precinct_number":"17","registered_voter":true,"yard_sign":false,"motorcade_available":true},"confidence":{"first_name":"high","middle_name":"medium","last_name":"high","contact_number":"medium","email":null,"street_address":"high","dob":"low","village":"high","precinct_number":"medium","registered_voter":"high","yard_sign":"high","motorcade_available":"high"}}
   PROMPT
 
   BATCH_EXTRACTION_PROMPT = <<~PROMPT
@@ -58,8 +59,10 @@ class FormScanner
       "rows": [
         {
           "first_name": "...",
+          "middle_name": "...",
           "last_name": "...",
           "contact_number": "...",
+          "email": "...",
           "street_address": "...",
           "dob": "YYYY-MM-DD or null",
           "village": "...",
@@ -68,8 +71,10 @@ class FormScanner
           "motorcade_available": false,
           "confidence": {
             "first_name": "high|medium|low|null",
+            "middle_name": "high|medium|low|null",
             "last_name": "high|medium|low|null",
             "contact_number": "high|medium|low|null",
+            "email": "high|medium|low|null",
             "street_address": "high|medium|low|null",
             "dob": "high|medium|low|null",
             "village": "high|medium|low|null"
@@ -86,6 +91,7 @@ class FormScanner
       - Omit keys that are unknown instead of writing null.
       - Do NOT include keys outside the schema above.
       - Keep text fields short and literal to what is on the form (no commentary, no inferred city/state expansions).
+    - Extract email addresses when present in the Email Address column, even if only some rows have them.
     - For checkboxes, use true/false; if unknown, use null.
     - If no rows are readable, return {"rows":[]}.
     - Return minified JSON only (single line, no markdown fences, no explanations).
@@ -141,6 +147,13 @@ class FormScanner
 
       # Normalize village name to match our DB
       extracted["village_id"] = match_village(extracted["village"]) if extracted["village"]
+
+      if extracted["first_name"].blank? && extracted["last_name"].blank? && extracted["print_name"].present?
+        parts = split_print_name(extracted["print_name"])
+        extracted["first_name"] = parts[:first_name]
+        extracted["middle_name"] = parts[:middle_name] if extracted["middle_name"].blank?
+        extracted["last_name"] = parts[:last_name]
+      end
 
       { success: true, data: extracted, confidence: confidence, raw_response: content }
     end
@@ -333,9 +346,13 @@ class FormScanner
       issues << "Village missing" if village_id.blank?
 
       first_name = source["first_name"].to_s.strip
+      middle_name = source["middle_name"].to_s.strip.presence
       last_name = source["last_name"].to_s.strip
       if first_name.blank? && last_name.blank? && source["print_name"].present?
-        first_name, last_name = split_print_name(source["print_name"].to_s)
+        parts = split_print_name(source["print_name"].to_s)
+        first_name = parts[:first_name]
+        middle_name = parts[:middle_name]
+        last_name = parts[:last_name]
       end
 
       issues << "First name missing" if first_name.blank?
@@ -347,6 +364,7 @@ class FormScanner
         "_skip" => false,
         "_issues" => issues,
         "first_name" => first_name,
+        "middle_name" => middle_name,
         "last_name" => last_name,
         "contact_number" => source["contact_number"].to_s.strip,
         "email" => source["email"].to_s.strip.presence,
@@ -364,13 +382,7 @@ class FormScanner
     end
 
     def split_print_name(print_name)
-      if print_name.include?(",")
-        parts = print_name.split(",", 2).map(&:strip)
-        [ parts[1].to_s, parts[0].to_s ]
-      else
-        parts = print_name.split(/\s+/, 2)
-        [ parts[0].to_s, parts[1].to_s ]
-      end
+      NameParser.split_print_name(print_name)
     end
 
     def normalize_boolean(value, fallback:)

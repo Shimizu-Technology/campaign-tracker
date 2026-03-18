@@ -33,7 +33,11 @@ module Api
     # These settings can be overridden in specific environments using the files
     # in config/environments, which are processed later.
     #
-    # config.time_zone = "Central Time (US & Canada)"
+    # Campaign operations are Guam-local. Date.current / Time.zone must follow
+    # Pacific/Guam so quota periods and election-day workflows do not roll over
+    # based on the hosting provider's timezone.
+    config.time_zone = "Pacific/Guam"
+    config.active_record.default_timezone = :utc
     # config.eager_load_paths << Rails.root.join("extras")
 
     # Only loads a smaller set of middleware suitable for API only apps.

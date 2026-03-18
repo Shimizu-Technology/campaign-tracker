@@ -18,7 +18,11 @@ import {
 
 export default function TeamDashboardPage() {
   const { data: session } = useSession();
-  const { data: dashboard, isLoading: dashLoading } = useQuery({ queryKey: ['dashboard'], queryFn: getDashboard });
+  const { data: dashboard, isLoading: dashLoading } = useQuery({
+    queryKey: ['dashboard', session?.user?.id ?? 'anonymous'],
+    queryFn: getDashboard,
+    enabled: !!session?.user?.id,
+  });
   const { data: gecStats } = useQuery({ queryKey: ['gec-stats'], queryFn: getGecStats });
   const { data: reportsInfo } = useQuery({ queryKey: ['reports-list'], queryFn: getReportsList });
   const { data: cycleData } = useQuery({ queryKey: ['current-cycle'], queryFn: getCurrentCycle });
@@ -26,6 +30,38 @@ export default function TeamDashboardPage() {
   const counts = session?.counts;
   const summary = dashboard?.summary;
   const quickStats = reportsInfo?.quick_stats;
+  const period = cycleData?.current_period;
+  const periodProgress = Number(period?.official_count ?? period?.total_assigned ?? period?.eligible_count ?? 0);
+  const periodTarget = Number(period?.quota_target ?? 0);
+  const periodPct = periodTarget > 0 ? Math.round((periodProgress / periodTarget) * 100) : 0;
+  const villageMeta = new Map<number, Record<string, unknown>>(
+    (dashboard?.villages || []).map((v: Record<string, unknown>) => [Number(v.id), v])
+  );
+  const villageProgressRows = Array.isArray(period?.village_breakdown) && period.village_breakdown.length > 0
+    ? period.village_breakdown.map((row: Record<string, unknown>) => {
+        const villageId = Number(row.village_id);
+        const meta = villageMeta.get(villageId) || {};
+        return {
+          villageId,
+          villageName: String(row.village_name || ''),
+          target: Number(row.target || 0),
+          progress: Number(row.eligible || 0),
+          teamApprovedCount: Number(meta.team_input_count || 0),
+          publicApprovedCount: Number(meta.public_approved_count || 0),
+          teamPendingCount: Number(meta.team_pending_count || 0),
+          publicPendingCount: Number(meta.public_signup_count || 0),
+        };
+      })
+    : (dashboard?.villages || []).map((row: Record<string, unknown>) => ({
+        villageId: Number(row.id),
+        villageName: String(row.name || ''),
+        target: Number(row.quota_target || 0),
+        progress: Number(row.total_count || 0),
+        teamApprovedCount: Number(row.team_input_count || 0),
+        publicApprovedCount: Number(row.public_approved_count || 0),
+        teamPendingCount: Number(row.team_pending_count || 0),
+        publicPendingCount: Number(row.public_signup_count || 0),
+      }));
 
   if (dashLoading) {
     return (
@@ -44,53 +80,52 @@ export default function TeamDashboardPage() {
     <div className="p-4 sm:p-6 space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Data Team Dashboard</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Voter operations and quota tracking</p>
+        <h1 className="text-xl font-bold text-gray-900">Data Ops Workspace</h1>
+        <p className="text-sm text-gray-500 mt-0.5">Daily voter operations and quota tracking</p>
       </div>
 
       {/* Key Metrics */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
-          label="Quota Eligible"
-          value={summary?.quota_eligible_count ?? counts?.quota_eligible ?? 0}
+          label="Official Supporters"
+          value={summary?.total_supporters ?? counts?.official_supporters ?? 0}
           icon={CheckCircle}
           color="green"
-          detail="Verified team input"
+          detail="Approved active supporters"
         />
         <StatCard
-          label="Pending Vetting"
-          value={(counts?.flagged_supporters || 0) + (counts?.pending_vetting || 0)}
+          label="Supporter Review Queue"
+          value={counts?.pending_vetting || 0}
           icon={ShieldCheck}
           color="amber"
-          detail="Needs manual review"
+          detail="Pending submissions awaiting data-team approval"
           to="/data/vetting"
         />
         <StatCard
-          label="Public Signups"
+          label="Pending Public Signups"
           value={counts?.public_signups_pending || 0}
           icon={UserCheck}
           color="blue"
-          detail="Awaiting review"
+          detail="Waiting for intake review"
           to="/data/public-review"
         />
         <StatCard
-          label="Total Active"
-          value={summary?.total || 0}
+          label="Matched To GEC"
+          value={quickStats?.matched_to_gec ?? counts?.matched_to_gec ?? 0}
           icon={Users}
           color="gray"
-          detail="All sources"
+          detail="Official supporters matched to the voter list"
         />
       </div>
 
       {/* Current Quota Period */}
-      {cycleData?.current_period && (() => {
-        const p = cycleData.current_period;
-        const pct = p.quota_target > 0 ? Math.round((p.eligible_count / p.quota_target) * 100) : 0;
+      {period && (() => {
+        const p = period;
         return (
           <div className={`rounded-xl border p-5 ${p.overdue ? 'bg-red-50 border-red-200' : p.due_soon ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'}`}>
             <div className="flex items-center justify-between mb-3">
               <div>
-                <h2 className="text-sm font-semibold text-gray-700">{p.name} Quota</h2>
+                <h2 className="text-sm font-semibold text-gray-700">{p.name} Quota Progress</h2>
                 <p className="text-xs text-gray-400 mt-0.5">
                   Due {new Date(p.due_date).toLocaleDateString()}
                   {p.overdue && <span className="text-red-600 font-semibold ml-1">OVERDUE</span>}
@@ -98,19 +133,22 @@ export default function TeamDashboardPage() {
                 </p>
               </div>
               <div className="text-right">
-                <div className="text-2xl font-bold text-gray-900">{(p.eligible_count || 0).toLocaleString()}</div>
+                <div className="text-2xl font-bold text-gray-900">{periodProgress.toLocaleString()}</div>
                 <div className="text-xs text-gray-400">of {(p.quota_target || 0).toLocaleString()} target</div>
               </div>
             </div>
             <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
               <div
-                className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-green-500' : pct >= 75 ? 'bg-blue-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-400'}`}
-                style={{ width: `${Math.min(pct, 100)}%` }}
+                className={`h-full rounded-full transition-all ${periodPct >= 100 ? 'bg-green-500' : periodPct >= 75 ? 'bg-blue-500' : periodPct >= 50 ? 'bg-amber-500' : 'bg-red-400'}`}
+                style={{ width: `${Math.min(periodPct, 100)}%` }}
               />
             </div>
             <div className="flex justify-between mt-1.5 text-[10px] text-gray-400">
-              <span>{pct}% complete</span>
-              <span>{((p.quota_target || 0) - (p.eligible_count || 0)).toLocaleString()} remaining</span>
+              <span>{periodPct}% complete</span>
+              <span>{Math.max((p.quota_target || 0) - periodProgress, 0).toLocaleString()} remaining</span>
+            </div>
+            <div className="mt-2 text-[11px] text-gray-500">
+              Current progress counts supporters approved during this period. Matched to GEC: {(p.matched_count || 0).toLocaleString()}.
             </div>
           </div>
         );
@@ -148,6 +186,24 @@ export default function TeamDashboardPage() {
                 </span>
               </div>
               <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Official Villages</span>
+                <span className="font-semibold text-gray-900">
+                  {Number(gecStats.official_village_count ?? (gecStats.villages?.filter((v: { name: string }) => v.name !== 'Unassigned').length || 0)).toLocaleString()}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Unassigned GEC Voters</span>
+                <span className={`font-semibold ${(gecStats.unassigned_gec_voters || 0) > 0 ? 'text-amber-600' : 'text-gray-900'}`}>
+                  {gecStats.unassigned_gec_voters || 0}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-500">Latest Import Removed</span>
+                <span className={`font-semibold ${((gecStats.latest_import?.removed_records || 0) > 0) ? 'text-red-600' : 'text-gray-900'}`}>
+                  {gecStats.latest_import?.removed_records || 0}
+                </span>
+              </div>
+              <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Ambiguous DOBs</span>
                 <span className={`font-semibold ${gecStats.ambiguous_dob_count > 0 ? 'text-amber-600' : 'text-gray-900'}`}>
                   {gecStats.ambiguous_dob_count || 0}
@@ -174,13 +230,17 @@ export default function TeamDashboardPage() {
           <div className="space-y-2">
             {quickStats && (
               <>
-                <ReportStat label="Quota Eligible" value={quickStats.quota_eligible} />
-                <ReportStat label="Total Verified" value={quickStats.total_verified} />
-                <ReportStat label="Transfers/Referrals" value={quickStats.transfers} />
-                <ReportStat label="Purged Voters" value={quickStats.purged_voters} />
+                <ReportStat label="Official Supporters" value={quickStats.official_supporters ?? quickStats.total_active} />
+                <ReportStat label="Matched To GEC" value={quickStats.matched_to_gec ?? quickStats.total_verified} />
+                <ReportStat label="Referral List Size" value={quickStats.referral_list_size ?? 0} />
+                <ReportStat label="Mapping Issues" value={quickStats.mapping_issues_list_size ?? 0} />
+                <ReportStat label="Purge List Size" value={quickStats.purge_list_size ?? quickStats.purged_voters} />
                 <ReportStat label="Unregistered" value={quickStats.unregistered} />
               </>
             )}
+            <div className="text-[11px] text-gray-500 pt-1">
+              Referrals are official supporters submitted under the wrong village. Mapping Issues are GEC rows that became unassigned or could not be mapped cleanly.
+            </div>
             <Link
               to="/data/reports"
               className="mt-3 flex items-center gap-2 px-3 py-2 bg-blue-50 hover:bg-blue-100 rounded-lg text-sm font-medium text-blue-700 transition-colors"
@@ -193,33 +253,39 @@ export default function TeamDashboardPage() {
       </div>
 
       {/* Village breakdown */}
-      {dashboard?.villages && dashboard.villages.length > 0 && (
+      {villageProgressRows.length > 0 && (
         <div className="bg-white rounded-xl border border-gray-200 p-5">
           <h2 className="text-sm font-semibold text-gray-700 mb-4">Village Quota Progress</h2>
+          <p className="text-xs text-gray-500 mb-3">
+            Current Progress counts supporters approved during this quota period. The source columns break that out into
+            team-entered vs public-origin supporters, plus what is still pending in each queue.
+          </p>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-sm min-w-[920px]">
               <thead>
                 <tr className="border-b border-gray-100">
                   <th className="text-left py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Village</th>
                   <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Target</th>
-                  <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Quota Eligible</th>
-                  <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Team Input</th>
-                  <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Public</th>
+                  <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Current Progress</th>
+                  <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Team Approved</th>
+                  <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Public Approved</th>
+                  <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Team Pending</th>
+                  <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Public Pending</th>
                   <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Progress</th>
                 </tr>
               </thead>
               <tbody>
-                {dashboard.villages.map((v: Record<string, unknown>) => {
-                  const target = (v.quota_target as number) || 0;
-                  const eligible = (v.quota_eligible_count as number) || 0;
-                  const pct = target > 0 ? Math.round((eligible / target) * 100) : 0;
+                {villageProgressRows.map((v) => {
+                  const pct = v.target > 0 ? Math.round((v.progress / v.target) * 100) : 0;
                   return (
-                    <tr key={v.id as number} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="py-2 px-3 font-medium text-gray-900">{v.name as string}</td>
-                      <td className="py-2 px-3 text-right text-gray-600">{target}</td>
-                      <td className="py-2 px-3 text-right font-semibold text-green-700">{eligible}</td>
-                      <td className="py-2 px-3 text-right text-gray-600">{(v.team_input_count as number) || 0}</td>
-                      <td className="py-2 px-3 text-right text-gray-400">{(v.public_signup_count as number) || 0}</td>
+                    <tr key={v.villageId} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="py-2 px-3 font-medium text-gray-900">{v.villageName}</td>
+                      <td className="py-2 px-3 text-right text-gray-600">{v.target}</td>
+                      <td className="py-2 px-3 text-right font-semibold text-green-700">{v.progress}</td>
+                      <td className="py-2 px-3 text-right text-gray-600">{v.teamApprovedCount}</td>
+                      <td className="py-2 px-3 text-right text-gray-600">{v.publicApprovedCount}</td>
+                      <td className="py-2 px-3 text-right text-amber-700">{v.teamPendingCount}</td>
+                      <td className="py-2 px-3 text-right text-amber-700">{v.publicPendingCount}</td>
                       <td className="py-2 px-3 text-right">
                         <div className="flex items-center justify-end gap-2">
                           <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">

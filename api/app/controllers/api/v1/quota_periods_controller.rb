@@ -87,6 +87,12 @@ module Api
       end
 
       def period_detail_json(period)
+        submitted_summary = period.submission_summary.presence || {}
+        historical_breakdown = submitted_summary["village_breakdown"]
+        progress_count = submitted_summary["total_eligible"] || period.eligible_count
+        matched_count = submitted_summary["total_matched"] || period.matched_count
+        assigned_count = submitted_summary["total_assigned"] || period.total_assigned
+
         {
           id: period.id,
           name: period.name,
@@ -95,15 +101,18 @@ module Api
           start_date: period.start_date,
           end_date: period.end_date,
           due_date: period.due_date,
-          quota_target: period.quota_target,
+          quota_target: period.effective_quota_target,
           status: period.status,
-          eligible_count: period.eligible_count,
-          total_assigned: period.total_assigned,
+          eligible_count: progress_count,
+          matched_count: matched_count,
+          total_assigned: assigned_count,
           days_until_due: period.days_until_due,
           overdue: period.overdue?,
           due_soon: period.due_soon?,
+          editable: period.editable?,
+          locked: period.locked?,
           submission_summary: period.submission_summary,
-          village_breakdown: period.village_breakdown
+          village_breakdown: historical_breakdown || period.village_breakdown
         }
       end
     end

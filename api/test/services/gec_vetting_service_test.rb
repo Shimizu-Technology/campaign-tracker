@@ -59,6 +59,25 @@ class GecVettingServiceTest < ActiveSupport::TestCase
     assert_not supporter.registered_voter
   end
 
+  test "marks unregistered clears stale verified and referral state" do
+    supporter = create_supporter(first_name: "Unknown", last_name: "Person", dob: Date.new(2000, 1, 1), village: @village)
+    supporter.update_columns(
+      verification_status: "verified",
+      registered_voter: true,
+      referred_from_village_id: @other_village.id,
+      verified_at: 1.day.ago
+    )
+
+    result = GecVettingService.new(supporter).call
+
+    assert_equal :unregistered, result.status
+    supporter.reload
+    assert_equal "unverified", supporter.verification_status
+    assert_equal false, supporter.registered_voter
+    assert_nil supporter.referred_from_village_id
+    assert_nil supporter.verified_at
+  end
+
   test "skips when no GEC data loaded" do
     GecVoter.delete_all
 

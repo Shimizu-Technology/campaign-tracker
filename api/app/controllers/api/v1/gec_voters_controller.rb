@@ -8,7 +8,7 @@ module Api
       include Authenticatable
       include AuditLoggable
       before_action :authenticate_request
-      before_action :require_coordinator_or_above!
+      before_action :require_data_ops_access!
 
       # GET /api/v1/gec_voters
       # List GEC voters with optional filters
@@ -34,7 +34,7 @@ module Api
         voters = scope.offset((page - 1) * per_page).limit(per_page)
 
         render json: {
-          gec_voters: voters.as_json(only: [ :id, :first_name, :last_name, :dob, :village_name, :village_id, :voter_registration_number, :status, :dob_ambiguous, :gec_list_date ]),
+          gec_voters: voters.as_json(only: [ :id, :first_name, :middle_name, :last_name, :dob, :village_name, :village_id, :voter_registration_number, :status, :dob_ambiguous, :gec_list_date ]),
           pagination: { page: page, per_page: per_page, total: total, total_pages: (total.to_f / per_page).ceil }
         }
       end
@@ -45,10 +45,13 @@ module Api
         latest_date = GecVoter.active.maximum(:gec_list_date)
         latest_import = GecImport.completed.latest.first
 
-        village_counts = GecVoter.active
-          .group(:village_name)
-          .count
-          .sort_by { |_name, count| -count }
+        village_counts = GecVoter.active.includes(:village).each_with_object(Hash.new(0)) do |voter, counts|
+          name = voter.village&.name || GecImportService.normalize_village_name(voter.village_name, allow_unknown: false) || GecImportService::UNASSIGNED_VILLAGE_NAME
+          counts[name] += 1 if name.present?
+        end.sort_by { |(_name, count)| -count }
+        unassigned_name = GecImportService::UNASSIGNED_VILLAGE_NAME
+        official_village_count = village_counts.count { |(name, _count)| name != unassigned_name }
+        unassigned_gec_voters = village_counts.find { |(name, _count)| name == unassigned_name }&.last.to_i
 
         render json: {
           total_voters: GecVoter.active.count,
@@ -57,6 +60,8 @@ module Api
           latest_list_date: latest_date,
           latest_import: latest_import&.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :transferred_records, :re_vetted_count, :ambiguous_dob_count, :import_type, :status, :created_at ]),
           villages: village_counts.map { |name, count| { name: name, count: count } },
+          official_village_count: official_village_count,
+          unassigned_gec_voters: unassigned_gec_voters,
           ambiguous_dob_count: GecVoter.active.with_ambiguous_dob.count,
           last_change_summary: latest_import&.change_summary
         }
@@ -84,7 +89,7 @@ module Api
 
         gec_list_date = Date.parse(params[:gec_list_date]) rescue nil
         return render_api_error(message: "Invalid date format for gec_list_date", status: :unprocessable_entity, code: "invalid_date") unless gec_list_date
-        sheet_name = params[:sheet_name]
+        sheet_name = requested_sheet_name(file)
 
         import_type = %w[full_list changes_only].include?(params[:import_type]) ? params[:import_type] : "full_list"
 
@@ -334,7 +339,7 @@ module Api
         service = GecImportService.new(
           file_path: file.tempfile.path,
           gec_list_date: Date.today, # doesn't matter for preview
-          sheet_name: params[:sheet_name]
+          sheet_name: requested_sheet_name(file)
         )
 
         begin
@@ -361,8 +366,9 @@ module Api
       # List past GEC imports
       def imports
         imports = GecImport.includes(:uploaded_by_user).latest.limit(20)
+        skipped_counts = GecImportSkippedRow.where(gec_import_id: imports.map(&:id)).group(:gec_import_id, :resolution_status).count
         rows = imports.map do |imp|
-          json = import_json(imp)
+          json = import_json(imp, skipped_counts_by_import: skipped_counts)
           if %w[pending processing].include?(imp.status)
             cached = begin
               Rails.cache.read("gec_import_progress:#{imp.id}")
@@ -419,27 +425,38 @@ module Api
         type = params[:type].to_s.presence || "all"
         q = params[:q].to_s.strip
 
-        scope = gec_import.change_records.latest_first
-        scope = apply_change_type_filter(scope, type)
-        scope = apply_change_search_filter(scope, q) if q.present?
-
-        total_rows = scope.count
-        total_pages = total_rows.zero? ? 1 : (total_rows.to_f / per_page).ceil
-        page = [ page, total_pages ].min
-        rows = scope.offset((page - 1) * per_page).limit(per_page)
-
         raw_counts = gec_import.change_records.group(:change_type).count
+        routed_rows = import_routed_to_unassigned_rows(gec_import)
+        routed_rows = apply_routed_to_unassigned_search_filter(routed_rows, q) if q.present? && type == "routed_to_unassigned"
+
+        if type == "routed_to_unassigned"
+          total_rows = routed_rows.length
+          total_pages = total_rows.zero? ? 1 : (total_rows.to_f / per_page).ceil
+          page = [ page, total_pages ].min
+          offset = (page - 1) * per_page
+          rows = routed_rows.slice(offset, per_page) || []
+        else
+          scope = gec_import.change_records.latest_first
+          scope = apply_change_type_filter(scope, type)
+          scope = apply_change_search_filter(scope, q) if q.present?
+
+          total_rows = scope.count
+          total_pages = total_rows.zero? ? 1 : (total_rows.to_f / per_page).ceil
+          page = [ page, total_pages ].min
+          rows = scope.offset((page - 1) * per_page).limit(per_page)
+        end
 
         render json: {
           import: import_json(gec_import),
-          changes: rows.map { |row| import_change_json(row) },
+          changes: type == "routed_to_unassigned" ? rows : rows.map { |row| import_change_json(row) },
           counts: {
             all: raw_counts.values.sum,
             new: raw_counts["new"].to_i,
             changed: raw_counts["updated"].to_i + raw_counts["transferred"].to_i,
             updated: raw_counts["updated"].to_i,
             removed: raw_counts["removed"].to_i,
-            transferred: raw_counts["transferred"].to_i
+            transferred: raw_counts["transferred"].to_i,
+            routed_to_unassigned: gec_import.metadata["unassigned"].to_i
           },
           filters: {
             type: type,
@@ -451,6 +468,103 @@ module Api
             total_pages: total_pages,
             total_rows: total_rows
           }
+        }
+      end
+
+      # GET /api/v1/gec_voters/imports/:id/skipped_rows
+      def view_import_skipped_rows
+        gec_import = GecImport.includes(:uploaded_by_user).find_by(id: params[:id])
+        unless gec_import
+          return render_api_error(message: "Import not found", status: :not_found, code: "not_found")
+        end
+
+        per_page = [ (params[:per_page] || 25).to_i, 100 ].min
+        page = [ (params[:page] || 1).to_i, 1 ].max
+        status = params[:status].to_s.presence || "all"
+        q = params[:q].to_s.strip
+
+        scope = gec_import.skipped_rows.latest_first
+        scope = apply_skipped_row_status_filter(scope, status)
+        scope = apply_skipped_row_search_filter(scope, q) if q.present?
+
+        total_rows = scope.count
+        total_pages = total_rows.zero? ? 1 : (total_rows.to_f / per_page).ceil
+        page = [ page, total_pages ].min
+        rows = scope.offset((page - 1) * per_page).limit(per_page)
+
+        raw_counts = gec_import.skipped_rows.group(:resolution_status).count
+
+        render json: {
+          import: import_json(gec_import),
+          skipped_rows: rows.map { |row| import_skipped_row_json(row) },
+          counts: {
+            all: raw_counts.values.sum,
+            pending: raw_counts["pending"].to_i,
+            resolved: raw_counts["resolved_created"].to_i + raw_counts["resolved_updated"].to_i,
+            dismissed: raw_counts["dismissed"].to_i
+          },
+          filters: {
+            status: status,
+            q: q
+          },
+          pagination: {
+            page: page,
+            per_page: per_page,
+            total_pages: total_pages,
+            total_rows: total_rows
+          }
+        }
+      end
+
+      def preview_skipped_row_resolution
+        skipped_row = find_import_skipped_row
+        return unless skipped_row
+
+        result = skipped_row_resolution_service(skipped_row).preview
+        render json: {
+          skipped_row: import_skipped_row_json(skipped_row),
+          preview: skipped_row_resolution_json(result)
+        }
+      end
+
+      def resolve_skipped_row
+        skipped_row = find_import_skipped_row
+        return unless skipped_row
+
+        result = skipped_row_resolution_service(skipped_row).apply!
+        unless result.success
+          return render_api_error(
+            message: result.errors.first || "Could not resolve skipped row",
+            status: :unprocessable_entity,
+            code: "skipped_row_resolution_failed",
+            details: skipped_row_resolution_json(result)
+          )
+        end
+
+        render json: {
+          message: "Skipped row resolved successfully",
+          skipped_row: import_skipped_row_json(result.skipped_row),
+          preview: skipped_row_resolution_json(result)
+        }
+      end
+
+      def dismiss_skipped_row
+        skipped_row = find_import_skipped_row
+        return unless skipped_row
+
+        result = skipped_row_resolution_service(skipped_row).dismiss!
+        unless result.success
+          return render_api_error(
+            message: result.errors.first || "Could not dismiss skipped row",
+            status: :unprocessable_entity,
+            code: "skipped_row_dismiss_failed",
+            details: skipped_row_resolution_json(result)
+          )
+        end
+
+        render json: {
+          message: "Skipped row dismissed",
+          skipped_row: import_skipped_row_json(result.skipped_row)
         }
       end
 
@@ -527,7 +641,7 @@ module Api
         render json: {
           matches: matches.map do |m|
             {
-              gec_voter: m[:gec_voter].as_json(only: [ :id, :first_name, :last_name, :dob, :village_name, :voter_registration_number ]),
+              gec_voter: m[:gec_voter].as_json(only: [ :id, :first_name, :middle_name, :last_name, :dob, :village_name, :voter_registration_number ]),
               confidence: m[:confidence],
               match_type: m[:match_type]
             }
@@ -539,7 +653,7 @@ module Api
       # Re-vet all existing supporters against the current GEC list.
       # Useful after importing a new GEC list.
       def bulk_vet
-        scope = Supporter.active
+        scope = Supporter.working_supporters
 
         # Optional: only vet unverified supporters
         scope = scope.unverified if params[:unverified_only] == "true"
@@ -581,6 +695,12 @@ module Api
         content_type = file.respond_to?(:content_type) ? file.content_type.to_s : ""
 
         filename.downcase.end_with?(".pdf") || content_type.include?("pdf")
+      end
+
+      def requested_sheet_name(file)
+        return nil if pdf_file?(file)
+
+        params[:sheet_name].to_s.strip.presence
       end
 
       def build_pdf_parse_cache_key(file_path)
@@ -625,7 +745,7 @@ module Api
         )
       end
 
-      def import_json(imp)
+      def import_json(imp, skipped_counts_by_import: nil)
         json = imp.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :transferred_records, :re_vetted_count, :ambiguous_dob_count, :import_type, :status, :created_at, :metadata ])
         json["uploaded_by_email"] = imp.uploaded_by_user&.email
         json["has_import_artifact"] = imp.import_artifact_available?
@@ -635,6 +755,15 @@ module Api
         json["original_filename"] = imp.original_filename
         json["raw_content_type"] = imp.raw_content_type
         json["original_content_type"] = imp.original_content_type
+        counts_for_import = if skipped_counts_by_import
+          skipped_counts_by_import.each_with_object(Hash.new(0)) do |((import_id, status), count), memo|
+            memo[status] = count if import_id == imp.id
+          end
+        else
+          imp.skipped_rows.group(:resolution_status).count
+        end
+        json["skipped_rows_count"] = counts_for_import.values.sum
+        json["pending_skipped_rows_count"] = counts_for_import["pending"].to_i
         json
       end
 
@@ -644,6 +773,7 @@ module Api
           change_type: change.change_type,
           row_number: change.row_number,
           first_name: change.first_name,
+          middle_name: change.middle_name,
           last_name: change.last_name,
           voter_registration_number: change.voter_registration_number,
           village_name: change.village_name,
@@ -651,6 +781,99 @@ module Api
           birth_year: change.birth_year,
           dob: change.dob,
           details: change.details || {}
+        }
+      end
+
+      def import_routed_to_unassigned_rows(gec_import)
+        dataset = fetch_cached_import_viewer_dataset(gec_import)
+        return [] unless dataset.is_a?(Hash)
+
+        rows = Array(dataset["rows"])
+        source_type = dataset["source_type"].to_s
+
+        rows.each_with_index.filter_map do |row, index|
+          next unless ActiveModel::Type::Boolean.new.cast(row["routed_to_unassigned"])
+
+          {
+            id: "routed-to-unassigned-#{index + 1}",
+            change_type: "routed_to_unassigned",
+            row_number: index + 2,
+            first_name: row["first_name"],
+            middle_name: row["middle_name"],
+            last_name: row["last_name"],
+            voter_registration_number: row["voter_registration_number"],
+            village_name: GecImportService::UNASSIGNED_VILLAGE_NAME,
+            previous_village_name: routed_to_unassigned_source_village(row, source_type),
+            birth_year: row["birth_year"],
+            dob: row["dob"],
+            details: {
+              source_name: routed_to_unassigned_source_name(row),
+              source_village_name: routed_to_unassigned_source_village(row, source_type),
+              reason: "The importer could not safely match this row to a canonical Guam village, so it was routed to Unassigned for review transparency.",
+              changed_fields: {
+                village_name: {
+                  before: routed_to_unassigned_source_village(row, source_type).presence,
+                  after: GecImportService::UNASSIGNED_VILLAGE_NAME
+                }
+              }
+            }
+          }
+        end.reverse
+      end
+
+      def routed_to_unassigned_source_village(row, source_type)
+        field = source_type == "pdf" ? "source_village" : "source_village_name"
+        row[field].presence
+      end
+
+      def routed_to_unassigned_source_name(row)
+        row["name"].presence || NameParser.combine(
+          first_name: row["first_name"],
+          middle_name: row["middle_name"],
+          last_name: row["last_name"],
+          format: :last_comma_first
+        )
+      end
+
+      def import_skipped_row_json(skipped_row)
+        {
+          id: skipped_row.id,
+          row_number: skipped_row.row_number,
+          message: skipped_row.message,
+          source_name: skipped_row.source_name,
+          first_name: skipped_row.first_name,
+          middle_name: skipped_row.middle_name,
+          last_name: skipped_row.last_name,
+          voter_registration_number: skipped_row.voter_registration_number,
+          village_name: skipped_row.village_name,
+          birth_year: skipped_row.birth_year,
+          dob: skipped_row.dob,
+          raw_values: skipped_row.raw_values || [],
+          resolution_status: skipped_row.resolution_status,
+          resolution_action: skipped_row.resolution_action,
+          corrected_values: skipped_row.corrected_values || {},
+          resolution_details: skipped_row.resolution_details || {},
+          resolved_at: skipped_row.resolved_at,
+          resolved_by_email: skipped_row.resolved_by_user&.email,
+          resolved_gec_voter: skipped_row.resolved_gec_voter&.as_json(only: [ :id, :first_name, :middle_name, :last_name, :village_name, :voter_registration_number, :birth_year, :dob ])
+        }
+      end
+
+      def skipped_row_resolution_json(result)
+        {
+          status: result.status,
+          errors: result.errors || [],
+          suggested_action: result.suggested_action,
+          corrected_values: result.corrected_values || {},
+          target_voter: result.target_voter&.as_json(only: [ :id, :first_name, :middle_name, :last_name, :village_name, :voter_registration_number, :birth_year, :dob ]),
+          candidate_matches: Array(result.candidate_matches).map do |entry|
+            {
+              confidence: entry[:confidence],
+              match_type: entry[:match_type],
+              match_count: entry[:match_count],
+              gec_voter: entry[:gec_voter].as_json(only: [ :id, :first_name, :middle_name, :last_name, :village_name, :voter_registration_number, :birth_year, :dob ])
+            }
+          end
         }
       end
 
@@ -668,9 +891,68 @@ module Api
       def apply_change_search_filter(scope, query)
         like = "%#{ActiveRecord::Base.sanitize_sql_like(query.downcase)}%"
         scope.where(
-          "LOWER(first_name) LIKE :q OR LOWER(last_name) LIKE :q OR LOWER(village_name) LIKE :q OR LOWER(previous_village_name) LIKE :q OR LOWER(voter_registration_number) LIKE :q",
+          "LOWER(first_name) LIKE :q OR LOWER(COALESCE(middle_name, '')) LIKE :q OR LOWER(last_name) LIKE :q OR LOWER(village_name) LIKE :q OR LOWER(previous_village_name) LIKE :q OR LOWER(voter_registration_number) LIKE :q",
           q: like
         )
+      end
+
+      def apply_routed_to_unassigned_search_filter(rows, query)
+        like = query.downcase
+        rows.select do |row|
+          [
+            row[:first_name],
+            row[:middle_name],
+            row[:last_name],
+            row[:voter_registration_number],
+            row[:birth_year],
+            row[:village_name],
+            row[:previous_village_name],
+            row.dig(:details, :source_name),
+            row.dig(:details, :source_village_name)
+          ].any? { |value| value.to_s.downcase.include?(like) }
+        end
+      end
+
+      def apply_skipped_row_status_filter(scope, status)
+        case status
+        when "pending"
+          scope.where(resolution_status: "pending")
+        when "resolved"
+          scope.where(resolution_status: %w[resolved_created resolved_updated])
+        when "dismissed"
+          scope.where(resolution_status: "dismissed")
+        else
+          scope
+        end
+      end
+
+      def apply_skipped_row_search_filter(scope, query)
+        like = "%#{ActiveRecord::Base.sanitize_sql_like(query.downcase)}%"
+        scope.where(
+          "LOWER(COALESCE(first_name, '')) LIKE :q OR LOWER(COALESCE(middle_name, '')) LIKE :q OR LOWER(COALESCE(last_name, '')) LIKE :q OR LOWER(COALESCE(village_name, '')) LIKE :q OR LOWER(COALESCE(voter_registration_number, '')) LIKE :q OR LOWER(COALESCE(source_name, '')) LIKE :q",
+          q: like
+        )
+      end
+
+      def find_import_skipped_row
+        skipped_row = GecImportSkippedRow.includes(:resolved_by_user, :resolved_gec_voter).find_by(id: params[:skipped_row_id], gec_import_id: params[:id])
+        return skipped_row if skipped_row
+
+        render_api_error(message: "Skipped row not found", status: :not_found, code: "not_found")
+        nil
+      end
+
+      def skipped_row_resolution_service(skipped_row)
+        GecImportSkippedRowResolutionService.new(
+          skipped_row: skipped_row,
+          actor_user: current_user,
+          attributes: skipped_row_resolution_params.to_h,
+          selected_gec_voter_id: params[:selected_gec_voter_id]
+        )
+      end
+
+      def skipped_row_resolution_params
+        params.fetch(:corrected_values, ActionController::Parameters.new).permit(:first_name, :middle_name, :last_name, :village_name, :voter_registration_number, :birth_year, :dob)
       end
 
       def preserve_raw_upload!(gec_import:, file:)
@@ -804,7 +1086,7 @@ module Api
 
       def import_viewer_cache_key(gec_import)
         artifact_version = gec_import.original_file_s3_key.to_s
-        "gec_import_viewer:v3:#{gec_import.id}:#{Digest::SHA256.hexdigest(artifact_version)}"
+        "gec_import_viewer:v4:#{gec_import.id}:#{Digest::SHA256.hexdigest(artifact_version)}"
       end
 
       def import_viewer_cache_row_limit
@@ -834,11 +1116,22 @@ module Api
 
         dataset = if gec_import.imported_from_pdf?
           rows = preview_data[:preview_rows].map do |row|
+            routed_to_unassigned = row[:village_name].blank?
             {
-              "name" => [ row[:last_name], row[:first_name] ].compact.reject(&:blank?).join(", "),
-              "village" => row[:village_name],
+              "name" => NameParser.combine(
+                first_name: row[:first_name],
+                middle_name: row[:middle_name],
+                last_name: row[:last_name],
+                format: :last_comma_first
+              ),
+              "first_name" => row[:first_name],
+              "middle_name" => row[:middle_name],
+              "last_name" => row[:last_name],
+              "village" => row[:village_name].presence || GecImportService::UNASSIGNED_VILLAGE_NAME,
+              "source_village" => row[:village_name],
               "birth_year" => row[:birth_year],
-              "voter_registration_number" => row[:voter_registration_number]
+              "voter_registration_number" => row[:voter_registration_number],
+              "routed_to_unassigned" => routed_to_unassigned
             }
           end
           {
@@ -850,7 +1143,17 @@ module Api
             "available_villages" => rows.map { |row| row["village"] }.compact.uniq.sort
           }
         else
-          rows = preview_data[:preview_rows].map { |row| row.stringify_keys }
+          rows = preview_data[:preview_rows].map do |row|
+            normalized_row = row.stringify_keys
+            source_village = normalized_row["village_name"].presence || normalized_row["village"].presence
+            routed_to_unassigned = source_village.blank?
+
+            normalized_row.merge(
+              "source_village_name" => source_village,
+              "village_name" => source_village.presence || GecImportService::UNASSIGNED_VILLAGE_NAME,
+              "routed_to_unassigned" => routed_to_unassigned
+            )
+          end
           {
             "source_type" => "spreadsheet",
             "sheets" => preview_data[:sheets],
@@ -888,7 +1191,7 @@ module Api
           searchable_fields = if source_type == "pdf"
             %w[name village birth_year voter_registration_number]
           else
-            %w[first_name last_name village_name village birth_year dob voter_registration_number]
+            %w[first_name middle_name last_name village_name village birth_year dob voter_registration_number]
           end
           filtered = filtered.select do |row|
             searchable_fields.any? { |field| row[field].to_s.downcase.include?(query) }

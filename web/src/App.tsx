@@ -47,8 +47,8 @@ const TeamGecPage = lazy(() => import('./pages/team/TeamGecPage'));
 
 function LazyFallback() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[var(--surface-bg)]">
-      <div className="w-8 h-8 border-[3px] border-[var(--border-soft)] border-t-blue-500 rounded-full animate-spin" />
+    <div className="min-h-screen flex items-center justify-center bg-(--surface-bg)">
+      <div className="w-8 h-8 border-[3px] border-(--border-soft) border-t-blue-500 rounded-full animate-spin" />
     </div>
   );
 }
@@ -70,6 +70,7 @@ function PermissionRoute({
   permission:
     | 'can_manage_users'
     | 'can_manage_configuration'
+    | 'can_manage_data_configuration'
     | 'can_send_sms'
     | 'can_send_email'
     | 'can_edit_supporters'
@@ -90,10 +91,12 @@ function PermissionRoute({
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-32">
-        <div className="w-8 h-8 border-[3px] border-[var(--border-soft)] border-t-blue-500 rounded-full animate-spin" />
+        <div className="w-8 h-8 border-[3px] border-(--border-soft) border-t-blue-500 rounded-full animate-spin" />
       </div>
     );
   }
+
+  const defaultRoute = data?.permissions?.default_route || '/admin';
 
   if (!data?.permissions?.[permission]) {
     return (
@@ -102,10 +105,10 @@ function PermissionRoute({
           <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-red-500/10 flex items-center justify-center">
             <Shield className="w-7 h-7 text-red-400" />
           </div>
-          <h1 className="text-xl font-bold text-[var(--text-primary)] mb-2">Not Authorized</h1>
-          <p className="text-sm text-[var(--text-secondary)] mb-6 leading-relaxed">Your role does not have access to this tool.</p>
-          <Link to="/admin" className="app-btn-primary">
-            Back to Dashboard
+          <h1 className="text-xl font-bold text-(--text-primary) mb-2">Not Authorized</h1>
+          <p className="text-sm text-(--text-secondary) mb-6 leading-relaxed">Your role does not have access to this tool.</p>
+          <Link to={defaultRoute} className="app-btn-primary">
+            Back to Workspace
           </Link>
         </div>
       </div>
@@ -169,16 +172,7 @@ export default function App() {
               </AdminRoute>
             }
           />
-          <Route
-            path="/admin/import"
-            element={
-              <AdminRoute>
-                <PermissionRoute permission="can_edit_supporters">
-                  <ImportPage />
-                </PermissionRoute>
-              </AdminRoute>
-            }
-          />
+          <Route path="/admin/import" element={<Navigate to="/data/import" replace />} />
           <Route
             path="/admin/duplicates"
             element={
@@ -189,16 +183,7 @@ export default function App() {
               </AdminRoute>
             }
           />
-          <Route
-            path="/admin/vetting"
-            element={
-              <AdminRoute>
-                <PermissionRoute permission="can_view_supporters">
-                  <VettingPage />
-                </PermissionRoute>
-              </AdminRoute>
-            }
-          />
+          <Route path="/admin/vetting" element={<Navigate to="/data/vetting" replace />} />
           <Route
             path="/admin/villages/:id"
             element={
@@ -372,6 +357,16 @@ export default function App() {
           {/* Data Ops routes */}
           <Route path="/data" element={<TeamLayout><TeamDashboardPage /></TeamLayout>} />
           <Route path="/data/supporters" element={<TeamLayout><SupportersPage /></TeamLayout>} />
+          <Route
+            path="/data/supporters/:id"
+            element={
+              <TeamLayout>
+                <PermissionRoute permission="can_view_supporters">
+                  <SupporterDetailPage />
+                </PermissionRoute>
+              </TeamLayout>
+            }
+          />
           <Route path="/data/vetting" element={<TeamLayout><TeamVettingPage /></TeamLayout>} />
           <Route path="/data/reports" element={<TeamLayout><TeamReportsPage /></TeamLayout>} />
           <Route path="/data/public-review" element={<TeamLayout><TeamPublicReviewPage /></TeamLayout>} />
@@ -381,6 +376,56 @@ export default function App() {
           <Route path="/data/import" element={<TeamLayout><ImportPage /></TeamLayout>} />
           <Route path="/data/duplicates" element={<TeamLayout><DuplicatesPage /></TeamLayout>} />
           <Route path="/data/audit-logs" element={<TeamLayout><AuditLogsPage /></TeamLayout>} />
+          <Route
+            path="/data/users"
+            element={
+              <TeamLayout>
+                <PermissionRoute permission="can_manage_users">
+                  <UsersPage />
+                </PermissionRoute>
+              </TeamLayout>
+            }
+          />
+          <Route
+            path="/data/districts"
+            element={
+              <TeamLayout>
+                <PermissionRoute permission="can_manage_data_configuration">
+                  <DistrictsPage />
+                </PermissionRoute>
+              </TeamLayout>
+            }
+          />
+          <Route
+            path="/data/quotas"
+            element={
+              <TeamLayout>
+                <PermissionRoute permission="can_manage_data_configuration">
+                  <QuotaSettingsPage />
+                </PermissionRoute>
+              </TeamLayout>
+            }
+          />
+          <Route
+            path="/data/precincts"
+            element={
+              <TeamLayout>
+                <PermissionRoute permission="can_manage_data_configuration">
+                  <PrecinctSettingsPage />
+                </PermissionRoute>
+              </TeamLayout>
+            }
+          />
+          <Route
+            path="/data/campaign-settings"
+            element={
+              <TeamLayout>
+                <PermissionRoute permission="can_manage_configuration">
+                  <SmsSettingsPage />
+                </PermissionRoute>
+              </TeamLayout>
+            }
+          />
 
           {/* Legacy /team aliases (backward compatibility) */}
           <Route path="/team" element={<Navigate to="/data" replace />} />
@@ -394,6 +439,11 @@ export default function App() {
           <Route path="/team/import" element={<Navigate to="/data/import" replace />} />
           <Route path="/team/duplicates" element={<Navigate to="/data/duplicates" replace />} />
           <Route path="/team/audit-logs" element={<Navigate to="/data/audit-logs" replace />} />
+          <Route path="/team/users" element={<Navigate to="/data/users" replace />} />
+          <Route path="/team/districts" element={<Navigate to="/data/districts" replace />} />
+          <Route path="/team/quotas" element={<Navigate to="/data/quotas" replace />} />
+          <Route path="/team/precincts" element={<Navigate to="/data/precincts" replace />} />
+          <Route path="/team/campaign-settings" element={<Navigate to="/data/campaign-settings" replace />} />
         </Routes>
         </Suspense>
       </BrowserRouter>

@@ -7,6 +7,7 @@ class GecImport < ApplicationRecord
   belongs_to :uploaded_by_user, class_name: "User", optional: true
   has_one :upload_payload, class_name: "GecImportUpload", dependent: :destroy
   has_many :change_records, class_name: "GecImportChange", dependent: :destroy
+  has_many :skipped_rows, class_name: "GecImportSkippedRow", dependent: :destroy
 
   validates :gec_list_date, presence: true
   validates :filename, presence: true

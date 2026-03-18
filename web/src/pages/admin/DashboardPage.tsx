@@ -1,8 +1,20 @@
+import type { ComponentType } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getDashboard } from '../../lib/api';
 import { Link } from 'react-router-dom';
-import { TrendingUp, BarChart3, ShieldCheck, AlertTriangle, Layers, Users } from 'lucide-react';
+import {
+  CheckCircle,
+  ShieldCheck,
+  UserCheck,
+  Users,
+  Camera,
+  ClipboardPlus,
+  ClipboardCheck,
+  CalendarPlus,
+  TrendingUp,
+  MapPin,
+} from 'lucide-react';
 import DashboardSkeleton from '../../components/DashboardSkeleton';
+import { getCurrentCycle, getDashboard } from '../../lib/api';
 import { useSession } from '../../hooks/useSession';
 
 interface VillageData {
@@ -10,107 +22,78 @@ interface VillageData {
   name: string;
   region: string;
   registered_voters: number;
-  verified_count: number;
-  total_count: number;
-  unverified_count: number;
-  supporter_count: number;
-  today_count: number;
-  today_total_count: number;
-  week_count: number;
-  week_total_count: number;
   quota_target: number;
-  quota_percentage: number;
-  status: 'on_track' | 'behind' | 'critical';
-  pace_expected: number;
-  pace_diff: number;
-  pace_status: string;
-  pace_weekly_needed: number;
+  total_count: number;
+  team_input_count?: number;
+  public_approved_count?: number;
+  team_pending_count?: number;
+  public_signup_count?: number;
 }
 
 interface DashboardSummary {
-  verified_supporters: number;
   total_supporters: number;
-  unverified_supporters: number;
-  total_target: number;
-  total_percentage: number;
   total_registered_voters: number;
   total_villages: number;
-  total_precincts: number;
-  today_signups: number;
-  today_total_signups: number;
-  week_signups: number;
-  week_total_signups: number;
-  status: 'on_track' | 'behind' | 'critical';
-  pace_expected: number;
-  pace_diff: number;
-  pace_status: string;
-  pace_weekly_needed: number;
 }
 
 interface DashboardPayload {
   campaign?: {
     id?: number;
     name?: string;
-    candidate_names?: string;
-    show_pace?: boolean;
   };
   summary?: Partial<DashboardSummary>;
-  stats?: Partial<DashboardSummary>;
   villages?: VillageData[];
 }
 
-function statusBarColor(status: string) {
-  if (status === 'on_track') return 'bg-emerald-500';
-  if (status === 'behind') return 'bg-amber-500';
-  return 'bg-red-500';
+interface QuotaPeriodSummary {
+  id: number;
+  name: string;
+  due_date: string;
+  quota_target: number;
+  official_count?: number;
+  matched_count?: number;
+  total_assigned?: number;
+  eligible_count?: number;
+  days_until_due?: number;
+  overdue?: boolean;
+  due_soon?: boolean;
+  village_breakdown?: Array<Record<string, unknown>>;
 }
 
-function statusTextColor(status: string) {
-  if (status === 'on_track') return 'text-emerald-400';
-  if (status === 'behind') return 'text-amber-400';
-  return 'text-red-400';
-}
-
-function paceColor(paceStatus: string) {
-  if (paceStatus === 'ahead' || paceStatus === 'complete') return 'text-emerald-600';
-  if (paceStatus === 'slightly_behind') return 'text-amber-600';
-  if (paceStatus === 'behind' || paceStatus === 'overdue') return 'text-red-600';
-  return 'text-gray-500';
-}
-
-function paceLabel(diff: number, status: string) {
-  if (status === 'no_target' || status === 'no_deadline') return '—';
-  if (status === 'complete') return '✓ Goal reached';
-  if (status === 'overdue') return `${Math.abs(diff)} short`;
-  if (diff >= 0) return `${diff} ahead`;
-  return `${Math.abs(diff)} behind`;
+interface CurrentCycleResponse {
+  current_period?: QuotaPeriodSummary | null;
 }
 
 export default function DashboardPage() {
   const { data: sessionData } = useSession();
-  const { data, isLoading, isError } = useQuery<DashboardPayload>({
-    queryKey: ['dashboard'],
+  const { data: dashboard, isLoading, isError } = useQuery<DashboardPayload>({
+    queryKey: ['dashboard', sessionData?.user?.id ?? 'anonymous'],
     queryFn: getDashboard,
+    enabled: !!sessionData?.user?.id,
     retry: (failureCount, error) => {
       const status = (error as { response?: { status?: number } })?.response?.status;
       if (status === 401 || status === 403) return false;
       return failureCount < 1;
     },
   });
+  const { data: cycleData } = useQuery<CurrentCycleResponse>({
+    queryKey: ['current-cycle'],
+    queryFn: getCurrentCycle,
+  });
 
   if (isLoading) {
     return <DashboardSkeleton />;
   }
 
-  if (isError || !data) {
+  if (isError || !dashboard) {
     return (
       <div className="flex items-center justify-center py-32 px-4">
         <div className="text-center max-w-sm">
-          <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-[var(--surface-overlay)] flex items-center justify-center">
-            <Users className="w-8 h-8 text-[var(--text-muted)]" />
+          <div className="w-16 h-16 mx-auto mb-5 rounded-2xl bg-(--surface-overlay) flex items-center justify-center">
+            <Users className="w-8 h-8 text-(--text-muted)" />
           </div>
-          <h2 className="text-xl font-bold text-[var(--text-primary)] mb-2">Can&apos;t connect to server</h2>
-          <p className="text-[var(--text-secondary)] mb-6 text-sm leading-relaxed">Check your connection and try again.</p>
+          <h2 className="text-xl font-bold text-(--text-primary) mb-2">Can&apos;t connect to server</h2>
+          <p className="text-(--text-secondary) mb-6 text-sm leading-relaxed">Check your connection and try again.</p>
           <button onClick={() => window.location.reload()} className="app-btn-primary">
             Retry
           </button>
@@ -119,204 +102,256 @@ export default function DashboardPage() {
     );
   }
 
-  const summarySource = data.summary || data.stats || {};
-  const summary: DashboardSummary = {
-    verified_supporters: Number(summarySource.verified_supporters || 0),
-    total_supporters: Number(summarySource.total_supporters || 0),
-    unverified_supporters: Number(summarySource.unverified_supporters || 0),
-    total_target: Number(summarySource.total_target || 0),
-    total_percentage: Number(summarySource.total_percentage || 0),
-    total_registered_voters: Number(summarySource.total_registered_voters || 0),
-    total_villages: Number(summarySource.total_villages || 0),
-    total_precincts: Number(summarySource.total_precincts || 0),
-    today_signups: Number(summarySource.today_signups || 0),
-    today_total_signups: Number(summarySource.today_total_signups || 0),
-    week_signups: Number(summarySource.week_signups || 0),
-    week_total_signups: Number(summarySource.week_total_signups || 0),
-    status: (summarySource.status as DashboardSummary['status']) || 'critical',
-    pace_expected: Number(summarySource.pace_expected || 0),
-    pace_diff: Number(summarySource.pace_diff || 0),
-    pace_status: (summarySource.pace_status as string) || 'no_target',
-    pace_weekly_needed: Number(summarySource.pace_weekly_needed || 0),
-  };
-  const villages = Array.isArray(data.villages) ? data.villages : [];
-  const showPace = data.campaign?.show_pace === true;
+  const counts = sessionData?.counts;
+  const permissions = sessionData?.permissions;
+  const summary = dashboard.summary || {};
+  const villages = Array.isArray(dashboard.villages) ? dashboard.villages : [];
+  const period = cycleData?.current_period;
+  const periodProgress = Number(period?.official_count ?? period?.total_assigned ?? period?.eligible_count ?? 0);
+  const periodTarget = Number(period?.quota_target ?? 0);
+  const periodPct = periodTarget > 0 ? Math.round((periodProgress / periodTarget) * 100) : 0;
   const scopedVillageIds = sessionData?.user?.scoped_village_ids ?? null;
   const hasScopedVillageView = scopedVillageIds !== null;
+  const hasUnassignedBucket = villages.some((v) => v.name === 'Unassigned');
+  const officialVillageCount = Number(
+    summary.total_villages || villages.filter((v) => v.name !== 'Unassigned').length
+  );
+  const villageMeta = new Map<number, VillageData>(villages.map((v) => [v.id, v]));
+  const villageProgressRows = Array.isArray(period?.village_breakdown) && period.village_breakdown.length > 0
+    ? period.village_breakdown
+      .filter((row) => villageMeta.has(Number(row.village_id)))
+      .map((row) => {
+        const villageId = Number(row.village_id);
+        const meta = villageMeta.get(villageId);
+        return {
+          villageId,
+          villageName: String(row.village_name || ''),
+          target: Number(row.target || 0),
+          progress: Number(row.eligible || 0),
+          teamApprovedCount: Number(meta?.team_input_count || 0),
+          publicApprovedCount: Number(meta?.public_approved_count || 0),
+          teamPendingCount: Number(meta?.team_pending_count || 0),
+          publicPendingCount: Number(meta?.public_signup_count || 0),
+          route: `/admin/villages/${villageId}`,
+        };
+      })
+    : villages.map((row) => ({
+        villageId: row.id,
+        villageName: row.name,
+        target: Number(row.quota_target || 0),
+        progress: Number(row.total_count || 0),
+        teamApprovedCount: Number(row.team_input_count || 0),
+        publicApprovedCount: Number(row.public_approved_count || 0),
+        teamPendingCount: Number(row.team_pending_count || 0),
+        publicPendingCount: Number(row.public_signup_count || 0),
+        route: `/admin/villages/${row.id}`,
+      }));
 
-  const statCards = [
-    {
-      label: 'Verified Supporters',
-      value: summary.verified_supporters.toLocaleString(),
-      sub: `of ${summary.total_target.toLocaleString()} goal`,
-      icon: ShieldCheck,
-      iconBg: 'bg-blue-50',
-      iconColor: 'text-blue-500',
-    },
-    ...(summary.unverified_supporters > 0 ? [{
-      label: 'Pending Vetting',
-      value: summary.unverified_supporters.toLocaleString(),
-      sub: `${summary.total_supporters.toLocaleString()} total collected`,
-      icon: AlertTriangle,
-      iconBg: 'bg-amber-50',
-      iconColor: 'text-amber-500',
-      link: '/admin/vetting',
-    }] : []),
-    ...(showPace ? [{
-      label: 'Pace',
-      value: paceLabel(summary.pace_diff, summary.pace_status),
-      sub: summary.pace_weekly_needed > 0 ? `${summary.pace_weekly_needed}/week needed` : `${summary.total_percentage}% complete`,
-      subColor: paceColor(summary.pace_status),
-      icon: TrendingUp,
-      iconBg: summary.pace_status === 'ahead' || summary.pace_status === 'complete' ? 'bg-green-50' : summary.pace_status === 'slightly_behind' ? 'bg-amber-50' : 'bg-red-50',
-      iconColor: paceColor(summary.pace_status),
-    }] : []),
-    {
-      label: 'Total Collected',
-      value: summary.total_supporters.toLocaleString(),
-      sub: `${summary.verified_supporters.toLocaleString()} verified + ${summary.unverified_supporters.toLocaleString()} pending`,
-      icon: Layers,
-      iconBg: 'bg-teal-500/10',
-      iconColor: 'text-teal-400',
-    },
-    {
-      label: 'Today',
-      value: String(summary.today_signups),
-      sub: `${summary.week_signups} this week (verified)`,
-      icon: BarChart3,
-      iconBg: 'bg-violet-500/10',
-      iconColor: 'text-violet-400',
-    },
-  ];
+  const quickActions = [
+    permissions?.can_create_staff_supporters ? { to: '/admin/scan', icon: Camera, label: 'Scan Form' } : null,
+    permissions?.can_create_staff_supporters ? { to: '/admin/supporters/new', icon: ClipboardPlus, label: 'New Entry' } : null,
+    permissions?.can_view_supporters ? { to: '/admin/supporters', icon: ClipboardCheck, label: 'Supporters' } : null,
+    permissions?.can_access_events ? { to: '/admin/events', icon: CalendarPlus, label: 'Events' } : null,
+    permissions?.can_access_war_room ? { to: '/admin/war-room', icon: TrendingUp, label: 'War Room' } : null,
+    permissions?.can_access_poll_watcher ? { to: '/admin/poll-watcher', icon: MapPin, label: 'Poll Watcher' } : null,
+  ].filter(Boolean) as Array<{ to: string; icon: ComponentType<{ className?: string }>; label: string }>;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
-      {/* Page Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight">Dashboard</h1>
-        <p className="text-sm text-[var(--text-secondary)] mt-1">Island-wide campaign progress overview</p>
-      </div>
-
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 auto-rows-fr gap-4 mb-8">
-        {statCards.map((card) => {
-          const Icon = card.icon;
-          const cardContent = (
-            <div className={`app-card p-5 h-full flex flex-col ${('link' in card) ? 'app-card-hover cursor-pointer' : ''}`}>
-              <div className="flex items-center gap-3 mb-3">
-                <div className={`w-9 h-9 rounded-xl ${card.iconBg} flex items-center justify-center`}>
-                  <Icon className={`w-[18px] h-[18px] ${card.iconColor}`} />
-                </div>
-                <span className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wider">{card.label}</span>
-              </div>
-              <div className="text-3xl font-bold text-[var(--text-primary)] tracking-tight tabular-nums">{card.value}</div>
-              <div className={`text-sm mt-1 font-medium min-h-[2.75rem] leading-snug ${'subColor' in card && card.subColor ? card.subColor : 'text-[var(--text-secondary)]'}`}>
-                {card.sub}
-              </div>
-            </div>
-          );
-          if ('link' in card && card.link) {
-            return <Link key={card.label} to={card.link as string} className="block h-full">{cardContent}</Link>;
-          }
-          return <div key={card.label} className="h-full">{cardContent}</div>;
-        })}
-      </div>
-
-      {/* Overall Progress Bar */}
-      <div className="app-card p-5 mb-8">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-[var(--text-primary)]">Island-Wide Progress</span>
-            <span className="text-xs text-[var(--text-muted)]">(verified only)</span>
-          </div>
-          <span className="text-sm text-[var(--text-secondary)] font-medium tabular-nums">
-            {summary.verified_supporters.toLocaleString()} / {summary.total_target.toLocaleString()}
-          </span>
-        </div>
-        <div className="w-full bg-[var(--surface-overlay)] rounded-full h-3 overflow-hidden">
-          <div
-            className={`h-3 rounded-full transition-all duration-700 ease-out ${statusBarColor(summary.status)}`}
-            style={{ width: `${Math.min(summary.total_percentage, 100)}%` }}
-          />
-        </div>
-        {summary.unverified_supporters > 0 && (
-          <p className="text-xs text-[var(--text-muted)] mt-2">
-            {summary.unverified_supporters.toLocaleString()} additional supporters pending vetting
-          </p>
-        )}
-        {hasScopedVillageView && (
-          <p className="text-xs text-[var(--text-muted)] mt-1">
-            Top metrics are island-wide; village cards below are limited to your assigned area.
-          </p>
-        )}
-      </div>
-
-      {/* Village Grid */}
-      <div className="mb-5">
-        <h2 className="text-lg font-bold text-[var(--text-primary)] tracking-tight">Village Progress</h2>
-        <p className="text-sm text-[var(--text-secondary)] mt-0.5">
-          {hasScopedVillageView
-            ? `Showing ${villages.length} village${villages.length === 1 ? '' : 's'} in your assigned area`
-            : `${villages.length} villages across the island`}
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-(--text-primary) tracking-tight">Campaign Operations</h1>
+        <p className="text-sm text-(--text-secondary) mt-1">
+          Submit supporter data, monitor approved totals, and track what is still waiting on data-team review.
         </p>
       </div>
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {villages.map((v: VillageData) => {
-          const verified = v.verified_count ?? v.supporter_count ?? 0;
-          const unverified = v.unverified_count ?? 0;
-          return (
-            <Link
-              key={v.id}
-              to={`/admin/villages/${v.id}`}
-              className="group block app-card app-card-hover p-4"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <h3
-                  className="font-semibold text-[var(--text-primary)] group-hover:text-blue-400 transition-colors text-sm leading-snug pr-2 break-words"
-                  title={v.name}
-                >
-                  {v.name}
-                </h3>
-                <span className="text-[11px] text-[var(--text-muted)] font-medium uppercase tracking-wider">{v.region}</span>
-              </div>
-              <div className="flex items-center justify-between text-sm mb-2.5">
-                <div className="flex items-center gap-1.5">
-                  <span className="text-[var(--text-secondary)] font-medium tabular-nums">
-                    {verified} / {v.quota_target}
-                  </span>
-                  {unverified > 0 && (
-                    <span className="text-xs text-amber-500 tabular-nums" title={`${unverified} pending vetting`}>
-                      (+{unverified})
-                    </span>
-                  )}
-                </div>
-                <span className={`font-semibold tabular-nums ${statusTextColor(v.status)}`}>{v.quota_percentage}%</span>
-              </div>
-              <div className="w-full bg-[var(--surface-overlay)] rounded-full h-2 overflow-hidden">
-                <div
-                  className={`h-2 rounded-full transition-all duration-500 ${statusBarColor(v.status)}`}
-                  style={{ width: `${Math.min(v.quota_percentage, 100)}%` }}
-                />
-              </div>
-              <div className="mt-2.5 flex justify-between text-[11px] text-[var(--text-muted)]">
-                {showPace ? (
-                  <>
-                    <span className={`font-medium ${paceColor(v.pace_status)}`}>
-                      {paceLabel(v.pace_diff, v.pace_status)}
-                    </span>
-                    {v.pace_weekly_needed > 0 && (
-                      <span>{v.pace_weekly_needed}/wk needed</span>
-                    )}
-                  </>
-                ) : (
-                  <span>{v.registered_voters.toLocaleString()} registered voters</span>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <StatCard
+          label="Official Supporters"
+          value={Number(summary.total_supporters ?? counts?.official_supporters ?? 0)}
+          icon={CheckCircle}
+          color="green"
+          detail="Approved active supporters"
+          to={permissions?.can_view_supporters ? '/admin/supporters' : undefined}
+        />
+        <StatCard
+          label="Supporter Review Queue"
+          value={counts?.pending_vetting ?? 0}
+          icon={ShieldCheck}
+          color="amber"
+          detail="Submitted entries still waiting for data-team approval"
+          to={permissions?.can_access_data_team ? '/data/vetting' : undefined}
+        />
+        <StatCard
+          label="Pending Public Signups"
+          value={counts?.public_signups_pending ?? 0}
+          icon={UserCheck}
+          color="blue"
+          detail="Separate public submissions waiting on intake review"
+          to={permissions?.can_access_data_team ? '/data/public-review' : undefined}
+        />
+        <StatCard
+          label="Matched To GEC"
+          value={counts?.matched_to_gec ?? 0}
+          icon={Users}
+          color="gray"
+          detail="Official supporters matched to the voter list"
+        />
+      </div>
+
+      {period && (
+        <div className={`rounded-xl border p-5 ${period.overdue ? 'bg-red-50 border-red-200' : period.due_soon ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'}`}>
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-700">{period.name} Quota Progress</h2>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Due {new Date(period.due_date).toLocaleDateString()}
+                {period.overdue && <span className="text-red-600 font-semibold ml-1">OVERDUE</span>}
+                {period.due_soon && !period.overdue && (
+                  <span className="text-amber-600 font-semibold ml-1">({period.days_until_due} days left)</span>
                 )}
-                {v.today_count > 0 && <span className="text-emerald-600 font-medium">+{v.today_count} today</span>}
-              </div>
-            </Link>
-          );
-        })}
+              </p>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-gray-900">{periodProgress.toLocaleString()}</div>
+              <div className="text-xs text-gray-400">of {periodTarget.toLocaleString()} target</div>
+            </div>
+          </div>
+          <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all ${periodPct >= 100 ? 'bg-green-500' : periodPct >= 75 ? 'bg-blue-500' : periodPct >= 50 ? 'bg-amber-500' : 'bg-red-400'}`}
+              style={{ width: `${Math.min(periodPct, 100)}%` }}
+            />
+          </div>
+          <div className="flex justify-between mt-1.5 text-[10px] text-gray-400">
+            <span>{periodPct}% complete</span>
+            <span>{Math.max(periodTarget - periodProgress, 0).toLocaleString()} remaining</span>
+          </div>
+          <div className="mt-2 text-[11px] text-gray-500">
+            Current progress counts supporters approved during this period. Matched to GEC: {(period.matched_count || 0).toLocaleString()}.
+          </div>
+        </div>
+      )}
+
+      {quickActions.length > 0 && (
+        <div>
+          <h2 className="text-sm font-semibold text-gray-700 mb-3">Quick Actions</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+            {quickActions.map((action) => (
+              <QuickAction key={action.to} to={action.to} icon={action.icon} label={action.label} />
+            ))}
+          </div>
+          <p className="mt-3 text-xs text-gray-500">
+            Staff submissions created here go to the data team&apos;s review workflow before they count as official supporters.
+          </p>
+        </div>
+      )}
+
+      <div className="bg-white rounded-xl border border-gray-200 p-5">
+        <h2 className="text-sm font-semibold text-gray-700 mb-4">Village Quota Progress</h2>
+        <p className="text-xs text-gray-500 mb-3">
+          Current Progress counts supporters approved during this quota period. The source columns show how much has already been approved versus what is still waiting on review.
+        </p>
+        {hasScopedVillageView && (
+          <p className="text-xs text-gray-500 mb-3">
+            Top metrics stay island-wide for leadership awareness. This table is limited to your assigned area.
+          </p>
+        )}
+        {!hasScopedVillageView && (
+          <p className="text-xs text-gray-500 mb-3">
+            Showing {officialVillageCount} official villages across the island{hasUnassignedBucket ? ' plus the Unassigned bucket' : ''}.
+          </p>
+        )}
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[940px]">
+            <thead>
+              <tr className="border-b border-gray-100">
+                <th className="text-left py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Village</th>
+                <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Target</th>
+                <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Current Progress</th>
+                <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Team Approved</th>
+                <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Public Approved</th>
+                <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Team Pending</th>
+                <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Public Pending</th>
+                <th className="text-right py-2 px-3 text-xs font-semibold text-gray-400 uppercase">Progress</th>
+              </tr>
+            </thead>
+            <tbody>
+              {villageProgressRows.map((v) => {
+                const pct = v.target > 0 ? Math.round((v.progress / v.target) * 100) : 0;
+                return (
+                  <tr key={v.villageId} className="border-b border-gray-50 hover:bg-gray-50">
+                    <td className="py-2 px-3 font-medium text-gray-900">
+                      <Link to={v.route} className="hover:text-blue-600">
+                        {v.villageName}
+                      </Link>
+                    </td>
+                    <td className="py-2 px-3 text-right text-gray-600">{v.target}</td>
+                    <td className="py-2 px-3 text-right font-semibold text-green-700">{v.progress}</td>
+                    <td className="py-2 px-3 text-right text-gray-600">{v.teamApprovedCount}</td>
+                    <td className="py-2 px-3 text-right text-gray-600">{v.publicApprovedCount}</td>
+                    <td className="py-2 px-3 text-right text-amber-700">{v.teamPendingCount}</td>
+                    <td className="py-2 px-3 text-right text-amber-700">{v.publicPendingCount}</td>
+                    <td className="py-2 px-3 text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        <div className="w-16 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${pct >= 100 ? 'bg-green-500' : pct >= 50 ? 'bg-blue-500' : 'bg-amber-500'}`}
+                            style={{ width: `${Math.min(pct, 100)}%` }}
+                          />
+                        </div>
+                        <span className="text-xs font-medium text-gray-500 w-8 text-right">{pct}%</span>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
+  );
+}
+
+function StatCard({ label, value, icon: Icon, color, detail, to }: {
+  label: string;
+  value: number;
+  icon: ComponentType<{ className?: string }>;
+  color: string;
+  detail: string;
+  to?: string;
+}) {
+  const colorMap: Record<string, string> = {
+    green: 'bg-green-50 text-green-600 border-green-100',
+    amber: 'bg-amber-50 text-amber-600 border-amber-100',
+    blue: 'bg-blue-50 text-blue-600 border-blue-100',
+    gray: 'bg-gray-50 text-gray-600 border-gray-100',
+  };
+
+  const content = (
+    <div className={`p-4 rounded-xl border ${colorMap[color]} ${to ? 'hover:shadow-md transition-shadow cursor-pointer' : ''}`}>
+      <div className="flex items-center justify-between mb-2">
+        <Icon className="w-5 h-5 opacity-70" />
+        {to && <TrendingUp className="w-3.5 h-3.5 opacity-40" />}
+      </div>
+      <div className="text-2xl font-bold">{value.toLocaleString()}</div>
+      <div className="text-xs font-medium opacity-70 mt-0.5">{label}</div>
+      <div className="text-[10px] opacity-50 mt-0.5">{detail}</div>
+    </div>
+  );
+
+  return to ? <Link to={to}>{content}</Link> : content;
+}
+
+function QuickAction({ to, icon: Icon, label }: { to: string; icon: ComponentType<{ className?: string }>; label: string }) {
+  return (
+    <Link
+      to={to}
+      className="flex flex-col items-center gap-2 p-4 bg-white rounded-xl border border-gray-200 hover:border-blue-200 hover:shadow-sm transition-all text-center"
+    >
+      <Icon className="w-5 h-5 text-gray-500" />
+      <span className="text-xs font-medium text-gray-700">{label}</span>
+    </Link>
   );
 }

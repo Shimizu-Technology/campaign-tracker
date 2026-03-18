@@ -6,7 +6,7 @@ module Api
       include Authenticatable
       include AuditLoggable
       before_action :authenticate_request
-      before_action :require_coordinator_or_above!
+      before_action :require_data_ops_access!
 
       # POST /api/v1/imports/preview
       # Upload a file, parse it, return sheet metadata + sample rows for review.
@@ -197,15 +197,19 @@ module Api
 
           supporter = Supporter.new(
             first_name: row["first_name"],
+            middle_name: row["middle_name"],
             last_name: row["last_name"],
             contact_number: row["contact_number"],
             dob: parse_date(row["dob"]),
             email: row["email"],
             street_address: row["street_address"],
-            registered_voter: row["registered_voter"],
+            self_reported_registered_voter: row["registered_voter"],
             village: row_village,
             source: "bulk_import",
             attribution_method: "bulk_import",
+            intake_status: "accepted",
+            review_status: "pending",
+            public_review_status: "not_applicable",
             status: "active",
             turnout_status: "unknown",
             verification_status: "unverified",

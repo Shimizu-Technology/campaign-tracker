@@ -8,21 +8,20 @@ class DuplicateDetector
     return Supporter.none if supporter.nil?
 
     match_ids = Set.new
+    active_scope = Supporter.duplicate_review_candidates.where.not(id: supporter.id)
 
     # 1. Normalized phone match (uses index on normalized_phone)
     if supporter.normalized_phone.present?
-      Supporter.where.not(id: supporter.id)
-               .where(normalized_phone: supporter.normalized_phone)
-               .pluck(:id)
-               .each { |id| match_ids << id }
+      active_scope.where(normalized_phone: supporter.normalized_phone)
+                  .pluck(:id)
+                  .each { |id| match_ids << id }
     end
 
     # 2. Case-insensitive email match (uses index on email)
     if supporter.email.present?
-      Supporter.where.not(id: supporter.id)
-               .where("LOWER(email) = LOWER(?)", supporter.email.strip)
-               .pluck(:id)
-               .each { |id| match_ids << id }
+      active_scope.where("LOWER(email) = LOWER(?)", supporter.email.strip)
+                  .pluck(:id)
+                  .each { |id| match_ids << id }
     end
 
     # 3. Name + village match (uses composite index)
@@ -31,21 +30,19 @@ class DuplicateDetector
       ln = supporter.last_name.downcase.strip
 
       # Exact name match in same village
-      Supporter.where.not(id: supporter.id)
-               .where(village_id: supporter.village_id)
-               .where("LOWER(TRIM(first_name)) = ? AND LOWER(TRIM(last_name)) = ?", fn, ln)
-               .pluck(:id)
-               .each { |id| match_ids << id }
+      active_scope.where(village_id: supporter.village_id)
+                  .where("LOWER(TRIM(first_name)) = ? AND LOWER(TRIM(last_name)) = ?", fn, ln)
+                  .pluck(:id)
+                  .each { |id| match_ids << id }
 
       # Swapped name match (First <-> Last) in same village
-      Supporter.where.not(id: supporter.id)
-               .where(village_id: supporter.village_id)
-               .where("LOWER(TRIM(first_name)) = ? AND LOWER(TRIM(last_name)) = ?", ln, fn)
-               .pluck(:id)
-               .each { |id| match_ids << id }
+      active_scope.where(village_id: supporter.village_id)
+                  .where("LOWER(TRIM(first_name)) = ? AND LOWER(TRIM(last_name)) = ?", ln, fn)
+                  .pluck(:id)
+                  .each { |id| match_ids << id }
     end
 
-    Supporter.where(id: match_ids.to_a)
+    Supporter.duplicate_review_candidates.where(id: match_ids.to_a)
   end
 
   # Flag a supporter as potential duplicate and record which supporter it matches.
@@ -83,20 +80,46 @@ class DuplicateDetector
     when "merge"
       raise ArgumentError, "merge_into required for merge action" unless merge_into
 
+      impacted_active_ids = Supporter.active
+                                    .where("id = ? OR duplicate_of_id IN (?, ?)", merge_into.id, supporter.id, merge_into.id)
+                                    .pluck(:id)
       merge_supporters!(supporter, into: merge_into)
       supporter.update!(
         status: "duplicate",
         potential_duplicate: false,
+        duplicate_of_id: merge_into.id,
         duplicate_checked_at: Time.current,
         duplicate_notes: "Merged into supporter ##{merge_into.id}"
       )
+      reconcile_active_duplicates!(impacted_active_ids)
     end
+  end
+
+  def self.remove_candidate!(supporter)
+    impacted_supporter_ids = find_duplicates(supporter).pluck(:id)
+
+    supporter.update_columns(
+      potential_duplicate: false,
+      duplicate_of_id: nil,
+      duplicate_checked_at: Time.current,
+      duplicate_notes: nil
+    )
+
+    reconcile_duplicate_candidates!(impacted_supporter_ids)
   end
 
   # Scan all supporters for duplicates using bulk SQL queries.
   # Returns the number of newly flagged duplicates.
   def self.scan_all!
     count = 0
+
+    # Reset unresolved flags first so the scan becomes a full recomputation.
+    Supporter.where(potential_duplicate: true).update_all(
+      potential_duplicate: false,
+      duplicate_of_id: nil,
+      duplicate_notes: nil,
+      duplicate_checked_at: Time.current
+    )
 
     # Phase 1: Find phone duplicates in bulk via SQL
     phone_dupes = ActiveRecord::Base.connection.execute(<<-SQL)
@@ -109,6 +132,10 @@ class DuplicateDetector
         AND s1.normalized_phone != ''
       WHERE s1.status = 'active'
         AND s2.status = 'active'
+        AND s1.review_status != 'rejected'
+        AND s2.review_status != 'rejected'
+        AND s1.public_review_status != 'rejected'
+        AND s2.public_review_status != 'rejected'
       GROUP BY s1.id
     SQL
 
@@ -123,6 +150,10 @@ class DuplicateDetector
         AND s1.email != ''
       WHERE s1.status = 'active'
         AND s2.status = 'active'
+        AND s1.review_status != 'rejected'
+        AND s2.review_status != 'rejected'
+        AND s1.public_review_status != 'rejected'
+        AND s2.public_review_status != 'rejected'
       GROUP BY s1.id
     SQL
 
@@ -137,6 +168,10 @@ class DuplicateDetector
         AND s1.id > s2.id
       WHERE s1.status = 'active'
         AND s2.status = 'active'
+        AND s1.review_status != 'rejected'
+        AND s2.review_status != 'rejected'
+        AND s1.public_review_status != 'rejected'
+        AND s2.public_review_status != 'rejected'
         AND s1.first_name IS NOT NULL
         AND s1.last_name IS NOT NULL
       GROUP BY s1.id
@@ -236,6 +271,35 @@ class DuplicateDetector
     "Matches: #{reasons.join('; ')}"
   end
 
+  private_class_method def self.reconcile_active_duplicates!(supporter_ids)
+    reconcile_duplicate_candidates!(supporter_ids)
+  end
+
+  private_class_method def self.reconcile_duplicate_candidates!(supporter_ids)
+    supporter_ids.each do |supporter_id|
+      supporter = Supporter.duplicate_review_candidates.find_by(id: supporter_id)
+      next unless supporter
+
+      duplicates = find_duplicates(supporter).to_a
+      if duplicates.any?
+        original = duplicates.min_by { |record| [ record.created_at, record.id ] }
+        supporter.update_columns(
+          potential_duplicate: true,
+          duplicate_of_id: original.id,
+          duplicate_checked_at: nil,
+          duplicate_notes: build_notes(supporter, duplicates)
+        )
+      else
+        supporter.update_columns(
+          potential_duplicate: false,
+          duplicate_of_id: nil,
+          duplicate_checked_at: Time.current,
+          duplicate_notes: nil
+        )
+      end
+    end
+  end
+
   private_class_method def self.merge_supporters!(source, into:)
     # Transfer event RSVPs — preserve attended=true if either record attended
     source.event_rsvps.each do |rsvp|
@@ -250,12 +314,26 @@ class DuplicateDetector
     # Transfer contact attempts
     source.supporter_contact_attempts.update_all(supporter_id: into.id)
 
-    # Merge fields: keep into's values, fill unset (nil) from source
-    mergeable = %w[email registered_voter motorcade_available yard_sign opt_in_email opt_in_text]
+    # Merge fields with field-specific rules:
+    # - text fields copy into blank slots
+    # - authoritative voter lookup only fills nil
+    # - self-reported/preferences preserve any affirmative signal
+    mergeable = %w[email registered_voter self_reported_registered_voter motorcade_available yard_sign opt_in_email opt_in_text]
     mergeable.each do |field|
       into_val = into.send(field)
       source_val = source.send(field)
-      if into_val.nil? && !source_val.nil?
+
+      should_copy =
+        case field
+        when "email"
+          into_val.blank? && source_val.present?
+        when "registered_voter"
+          into_val.nil? && !source_val.nil?
+        else
+          (source_val == true && into_val != true) || (into_val.nil? && !source_val.nil?)
+        end
+
+      if should_copy
         into.send("#{field}=", source_val)
       end
     end

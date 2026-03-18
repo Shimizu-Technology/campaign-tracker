@@ -58,6 +58,26 @@ class ReportGeneratorTest < ActiveSupport::TestCase
       gec_list_date: Date.new(2026, 2, 25),
       imported_at: Time.current
     )
+    @transferred_voter = GecVoter.create!(
+      first_name: "Maria",
+      last_name: "Cruz",
+      dob: Date.new(1980, 1, 1),
+      village_name: "Barrigada",
+      previous_village_name: "Dededo",
+      voter_registration_number: "VR54321",
+      gec_list_date: Date.new(2026, 2, 25),
+      imported_at: Time.current
+    )
+    @mapping_issue_voter = GecVoter.create!(
+      first_name: "Jose",
+      last_name: "Santos",
+      dob: Date.new(1979, 2, 2),
+      village_name: GecImportService::UNASSIGNED_VILLAGE_NAME,
+      previous_village_name: "Yigo",
+      voter_registration_number: "VR99999",
+      gec_list_date: Date.new(2026, 2, 25),
+      imported_at: Time.current
+    )
   end
 
   test "generates support list" do
@@ -92,10 +112,40 @@ class ReportGeneratorTest < ActiveSupport::TestCase
     assert_match(/transfer-list/, result[:filename])
   end
 
+  test "transfer preview uses GEC transfer rows instead of supporter referrals" do
+    result = ReportGenerator.new(report_type: "transfer_list").preview
+    assert_equal 1, result[:total_count]
+    assert_equal "Maria", result[:rows].first[1]
+    assert_equal "Dededo", result[:rows].first[4]
+    assert_equal "Barrigada", result[:rows].first[5]
+  end
+
   test "generates referral list" do
     result = ReportGenerator.new(report_type: "referral_list").generate
     assert result[:package].is_a?(Axlsx::Package)
     assert_match(/referral-list/, result[:filename])
+  end
+
+  test "referral preview uses supporter village mismatch rows" do
+    result = ReportGenerator.new(report_type: "referral_list").preview
+    assert_equal 1, result[:total_count]
+    assert_equal "Ana", result[:rows].first[1]
+    assert_equal "Barrigada", result[:rows].first[4]
+    assert_equal "Dededo", result[:rows].first[5]
+  end
+
+  test "generates mapping issues list" do
+    result = ReportGenerator.new(report_type: "mapping_issues_list").generate
+    assert result[:package].is_a?(Axlsx::Package)
+    assert_match(/village-mapping-issues/, result[:filename])
+  end
+
+  test "mapping issues preview isolates unassigned transfer rows" do
+    result = ReportGenerator.new(report_type: "mapping_issues_list").preview
+    assert_equal 1, result[:total_count]
+    assert_equal "Jose", result[:rows].first[1]
+    assert_equal "Yigo", result[:rows].first[4]
+    assert_equal GecImportService::UNASSIGNED_VILLAGE_NAME, result[:rows].first[5]
   end
 
   test "generates quota summary" do

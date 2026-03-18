@@ -10,6 +10,10 @@ import {
   getGecImportViewData,
   getGecImportOriginalView,
   getGecImportChanges,
+  getGecImportSkippedRows,
+  previewGecImportSkippedRowResolution,
+  resolveGecImportSkippedRow,
+  dismissGecImportSkippedRow,
 } from '../../lib/api';
 import {
   Database,
@@ -65,9 +69,14 @@ function formatCampaignDateTime(dateStr: string | null | undefined): string {
   });
 }
 
+function displayImportFilename(imp: Pick<ImportRecord, 'raw_filename' | 'original_filename' | 'filename'>): string {
+  return imp.raw_filename || imp.original_filename || imp.filename;
+}
+
 type PreviewRow = Record<string, unknown>;
-type ViewerTab = 'parsed' | 'changes' | 'original';
-type ImportChangeFilter = 'all' | 'new' | 'changed' | 'updated' | 'removed' | 'transferred';
+type ViewerTab = 'parsed' | 'changes' | 'skipped' | 'original';
+type ImportChangeFilter = 'all' | 'new' | 'changed' | 'updated' | 'removed' | 'transferred' | 'routed_to_unassigned';
+type SkippedRowFilter = 'all' | 'pending' | 'resolved' | 'dismissed';
 
 interface PreviewPagination {
   page: number;
@@ -131,6 +140,8 @@ interface ImportRecord {
   original_filename: string | null;
   raw_content_type: string | null;
   original_content_type: string | null;
+  skipped_rows_count?: number;
+  pending_skipped_rows_count?: number;
   metadata: {
     stage?: string;
     progress_percent?: number;
@@ -139,6 +150,8 @@ interface ImportRecord {
     matched_unchanged?: number;
     skipped?: number;
     unassigned?: number;
+    review_required?: boolean;
+    removal_detection_suppressed?: boolean;
     errors?: string[];
     row_error_details?: Array<{
       row_number: number;
@@ -157,6 +170,18 @@ interface ImportRecord {
     mode?: string;
     [key: string]: unknown;
   };
+}
+
+function shouldContinueImportPolling(rows: ImportRecord[]) {
+  const now = Date.now();
+  return rows.some((row) => {
+    if (row.status === 'processing' || row.status === 'pending') return true;
+    if (row.status !== 'completed') return false;
+    if (row.has_import_artifact) return false;
+    const createdAt = Date.parse(String(row.created_at || ''));
+    if (Number.isNaN(createdAt)) return false;
+    return now - createdAt < 5 * 60 * 1000;
+  });
 }
 
 function getImportStageLabel(stage: string, isPdfImport: boolean): string {
@@ -238,10 +263,11 @@ interface ImportOriginalViewResponse {
 }
 
 interface ImportChangeRecord {
-  id: number;
-  change_type: 'new' | 'updated' | 'removed' | 'transferred';
+  id: number | string;
+  change_type: 'new' | 'updated' | 'removed' | 'transferred' | 'routed_to_unassigned';
   row_number: number | null;
   first_name: string | null;
+  middle_name?: string | null;
   last_name: string | null;
   voter_registration_number: string | null;
   village_name: string | null;
@@ -266,9 +292,73 @@ interface ImportChangesResponse {
     updated: number;
     removed: number;
     transferred: number;
+    routed_to_unassigned: number;
   };
   filters: {
     type: ImportChangeFilter;
+    q: string;
+  };
+  pagination: PreviewPagination;
+}
+
+interface SkippedRowResolvedVoter {
+  id: number;
+  first_name: string;
+  last_name: string;
+  village_name: string | null;
+  voter_registration_number: string | null;
+  birth_year: number | null;
+  dob: string | null;
+}
+
+interface ImportSkippedRowRecord {
+  id: number;
+  row_number: number;
+  message: string;
+  source_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  voter_registration_number: string | null;
+  village_name: string | null;
+  birth_year: number | null;
+  dob: string | null;
+  raw_values: string[];
+  resolution_status: 'pending' | 'resolved_created' | 'resolved_updated' | 'dismissed';
+  resolution_action: 'create' | 'update' | 'dismiss' | null;
+  corrected_values: Record<string, unknown>;
+  resolution_details: Record<string, unknown>;
+  resolved_at: string | null;
+  resolved_by_email: string | null;
+  resolved_gec_voter: SkippedRowResolvedVoter | null;
+}
+
+interface SkippedRowCandidateMatch {
+  confidence: 'exact' | 'high' | 'medium' | 'low';
+  match_type: string;
+  match_count: number;
+  gec_voter: SkippedRowResolvedVoter;
+}
+
+interface SkippedRowResolutionPreview {
+  status: 'invalid' | 'conflict' | 'ambiguous' | 'ready_to_create' | 'ready_to_update' | 'already_resolved' | 'resolved_created' | 'resolved_updated' | 'dismissed';
+  errors: string[];
+  suggested_action?: 'create' | 'update' | 'dismiss';
+  corrected_values: Record<string, unknown>;
+  target_voter?: SkippedRowResolvedVoter | null;
+  candidate_matches: SkippedRowCandidateMatch[];
+}
+
+interface ImportSkippedRowsResponse {
+  import: ImportRecord;
+  skipped_rows: ImportSkippedRowRecord[];
+  counts: {
+    all: number;
+    pending: number;
+    resolved: number;
+    dismissed: number;
+  };
+  filters: {
+    status: SkippedRowFilter;
     q: string;
   };
   pagination: PreviewPagination;
@@ -304,9 +394,14 @@ export default function TeamGecPage() {
   const [changeViewerPage, setChangeViewerPage] = useState(1);
   const [changeViewerSearchInput, setChangeViewerSearchInput] = useState('');
   const [changeViewerType, setChangeViewerType] = useState<ImportChangeFilter>('all');
+  const [skippedViewerPage, setSkippedViewerPage] = useState(1);
+  const [skippedViewerSearchInput, setSkippedViewerSearchInput] = useState('');
+  const [skippedViewerFilter, setSkippedViewerFilter] = useState<SkippedRowFilter>('all');
   const viewerPerPage = 100;
+  const skippedViewerPerPage = 25;
   const debouncedViewerSearch = useDebouncedValue(viewerSearchInput.trim(), 250);
   const debouncedChangeViewerSearch = useDebouncedValue(changeViewerSearchInput.trim(), 250);
+  const debouncedSkippedViewerSearch = useDebouncedValue(skippedViewerSearchInput.trim(), 250);
 
   const { data: stats, isLoading: statsLoading } = useQuery({ queryKey: ['gec-stats'], queryFn: getGecStats });
   const { data: imports } = useQuery({
@@ -316,14 +411,16 @@ export default function TeamGecPage() {
       // Keep polling (at a slower rate) when errored — the progress banner
       // stays frozen otherwise with no indication that updates have paused.
       if (query.state.status === 'error') return 10_000;
-      const data = query.state.data as { imports?: Array<Record<string, unknown>> } | undefined;
+      const data = query.state.data as { imports?: ImportRecord[] } | undefined;
       const rows = Array.isArray(data?.imports) ? data.imports : [];
-      return rows.some((r) => r.status === 'processing' || r.status === 'pending') ? 3000 : false;
+      return shouldContinueImportPolling(rows) ? 3000 : false;
     }
   });
 
   const importRows = (imports?.imports || []) as ImportRecord[];
   const selectedImport = viewerState ? (importRows.find((imp) => imp.id === viewerState.importId) ?? null) : null;
+  const selectedFileIsPdf = Boolean(file && (file.type.includes('pdf') || file.name.toLowerCase().endsWith('.pdf')));
+  const effectiveSheetName = selectedFileIsPdf ? undefined : (sheetName.trim() || undefined);
 
   const isPdfPreview = previewData?.source_type === 'pdf';
   const pdfStatus = isPdfPreview ? previewData.qa?.status : null;
@@ -373,8 +470,16 @@ export default function TeamGecPage() {
     placeholderData: (previousData) => previousData,
   });
 
+  const importSkippedRowsQuery = useQuery<ImportSkippedRowsResponse>({
+    queryKey: ['gec-import-skipped-rows', viewerState?.importId, skippedViewerPage, skippedViewerPerPage, skippedViewerFilter, debouncedSkippedViewerSearch],
+    queryFn: () => getGecImportSkippedRows(viewerState!.importId, skippedViewerPage, skippedViewerPerPage, skippedViewerFilter, debouncedSkippedViewerSearch || undefined),
+    enabled: Boolean(viewerState?.importId && selectedImport && (selectedImport.skipped_rows_count || selectedImport.metadata?.skipped)),
+    staleTime: 15_000,
+    placeholderData: (previousData) => previousData,
+  });
+
   const previewMutation = useMutation({
-    mutationFn: () => previewGecList(file!, sheetName || undefined),
+    mutationFn: () => previewGecList(file!, effectiveSheetName),
     onMutate: () => {
       setPreviewData(null);
       setConfirmReview(false);
@@ -389,7 +494,7 @@ export default function TeamGecPage() {
     mutationFn: () => uploadGecList(
       file!,
       listDate,
-      sheetName || undefined,
+      effectiveSheetName,
       importType,
       isPdfPreview ? previewData.parse_cache_key || undefined : undefined,
       confirmReview,
@@ -442,6 +547,8 @@ export default function TeamGecPage() {
   const openViewer = (imp: ImportRecord) => {
     const initialTab: ViewerTab = imp.has_import_artifact
       ? 'parsed'
+      : (imp.pending_skipped_rows_count || imp.skipped_rows_count || imp.metadata?.skipped)
+      ? 'skipped'
       : imp.status === 'completed'
       ? 'changes'
       : imp.has_original_file
@@ -454,6 +561,9 @@ export default function TeamGecPage() {
     setChangeViewerPage(1);
     setChangeViewerSearchInput('');
     setChangeViewerType('all');
+    setSkippedViewerPage(1);
+    setSkippedViewerSearchInput('');
+    setSkippedViewerFilter('all');
     setViewerState({ importId: imp.id });
   };
 
@@ -466,6 +576,9 @@ export default function TeamGecPage() {
     setChangeViewerPage(1);
     setChangeViewerSearchInput('');
     setChangeViewerType('all');
+    setSkippedViewerPage(1);
+    setSkippedViewerSearchInput('');
+    setSkippedViewerFilter('all');
   };
 
   return (
@@ -485,14 +598,16 @@ export default function TeamGecPage() {
           <div className="animate-pulse h-20 bg-gray-100 rounded-lg" />
         ) : stats?.total_voters ? (
           <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-x-6 gap-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-x-6 gap-y-4">
             <div className="min-w-0">
               <div className="text-2xl font-bold text-gray-900 whitespace-nowrap">{(stats.total_voters || 0).toLocaleString()}</div>
               <div className="text-xs text-gray-400">Active Voters</div>
             </div>
             <div className="min-w-0">
-              <div className="text-2xl font-bold text-gray-900 whitespace-nowrap">{stats.villages?.length || 0}</div>
-              <div className="text-xs text-gray-400">Villages</div>
+              <div className="text-2xl font-bold text-gray-900 whitespace-nowrap">
+                {Number(stats.official_village_count ?? (stats.villages?.filter((v: { name: string }) => v.name !== 'Unassigned').length || 0)).toLocaleString()}
+              </div>
+              <div className="text-xs text-gray-400">Official Villages</div>
             </div>
             <div className="min-w-0">
               <div className="text-2xl font-bold text-gray-900 whitespace-nowrap">{formatCampaignDate(stats.latest_list_date)}</div>
@@ -502,7 +617,7 @@ export default function TeamGecPage() {
               <div className={`text-2xl font-bold whitespace-nowrap ${stats.removed_voters > 0 ? 'text-red-600' : 'text-gray-900'}`}>
                 {stats.removed_voters || 0}
               </div>
-              <div className="text-xs text-gray-400">Purged</div>
+              <div className="text-xs text-gray-400">Current Removed GEC Voters</div>
             </div>
             <div className="min-w-0">
               <div className={`text-2xl font-bold whitespace-nowrap ${stats.transferred_voters > 0 ? 'text-blue-600' : 'text-gray-900'}`}>
@@ -516,10 +631,19 @@ export default function TeamGecPage() {
               </div>
               <div className="text-xs text-gray-400">Ambiguous DOBs</div>
             </div>
+            <div className="min-w-0">
+              <div className={`text-2xl font-bold whitespace-nowrap ${stats.unassigned_gec_voters > 0 ? 'text-amber-600' : 'text-gray-900'}`}>
+                {stats.unassigned_gec_voters || 0}
+              </div>
+              <div className="text-xs text-gray-400">Unassigned GEC Voters</div>
+            </div>
           </div>
 
           {/* Last import change summary */}
           <ChangeSummary summary={stats.last_change_summary} />
+          <div className="mt-2 text-xs text-gray-500">
+            `Current Removed GEC Voters` and `Unassigned GEC Voters` show the current live totals. `Last Import Changes` below shows what changed during the latest import only.
+          </div>
           </>
         ) : (
           <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-100 rounded-lg">
@@ -562,7 +686,11 @@ export default function TeamGecPage() {
               type="file"
               accept=".xlsx,.xls,.csv,.pdf"
               onChange={e => {
-                setFile(e.target.files?.[0] || null);
+                const nextFile = e.target.files?.[0] || null;
+                setFile(nextFile);
+                if (nextFile && (nextFile.type.includes('pdf') || nextFile.name.toLowerCase().endsWith('.pdf'))) {
+                  setSheetName('');
+                }
                 setPreviewData(null);
                 setConfirmReview(false);
                 setPreviewData(null);
@@ -610,9 +738,17 @@ export default function TeamGecPage() {
                 type="text"
                 value={sheetName}
                 onChange={e => { setSheetName(e.target.value); setPreviewData(null); setConfirmReview(false); }}
-                placeholder="e.g., Voter List"
-                className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder={selectedFileIsPdf ? 'Not used for PDF imports' : 'e.g., Voter List'}
+                disabled={selectedFileIsPdf}
+                className={`w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 ${
+                  selectedFileIsPdf ? 'bg-gray-100 text-gray-400 cursor-not-allowed' : ''
+                }`}
               />
+              {selectedFileIsPdf && (
+                <div className="mt-1 text-[11px] text-gray-500">
+                  PDF imports do not have worksheet tabs, so sheet names are ignored.
+                </div>
+              )}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -844,7 +980,7 @@ export default function TeamGecPage() {
                         {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
                       </td>
                       <td className="py-2 px-3 text-gray-600">{formatCampaignDate(imp.gec_list_date)}</td>
-                      <td className="py-2 px-3 text-gray-600 text-xs">{imp.filename}</td>
+                      <td className="py-2 px-3 text-gray-600 text-xs">{displayImportFilename(imp)}</td>
                       <td className="py-2 px-3 text-right font-medium">{(imp.total_records || 0).toLocaleString()}</td>
                       <td className="py-2 px-3 text-right text-green-600">{imp.new_records}</td>
                       <td className="py-2 px-3 text-right text-blue-600">{imp.updated_records}</td>
@@ -906,8 +1042,13 @@ export default function TeamGecPage() {
           onPageChange={setViewerPage}
           changeViewData={importChangesQuery.data}
           changeViewLoading={importChangesQuery.isLoading}
+          changeViewFetching={importChangesQuery.isFetching}
           changeViewError={importChangesQuery.error instanceof Error ? importChangesQuery.error.message : null}
           onChangePage={setChangeViewerPage}
+          skippedRowsData={importSkippedRowsQuery.data}
+          skippedRowsLoading={importSkippedRowsQuery.isLoading}
+          skippedRowsError={importSkippedRowsQuery.error instanceof Error ? importSkippedRowsQuery.error.message : null}
+          onSkippedRowsPageChange={setSkippedViewerPage}
           viewerSearchInput={viewerSearchInput}
           onViewerSearchInputChange={(value) => {
             setViewerPage(1);
@@ -927,6 +1068,16 @@ export default function TeamGecPage() {
           onChangeViewerTypeChange={(value) => {
             setChangeViewerPage(1);
             setChangeViewerType(value);
+          }}
+          skippedViewerSearchInput={skippedViewerSearchInput}
+          onSkippedViewerSearchInputChange={(value) => {
+            setSkippedViewerPage(1);
+            setSkippedViewerSearchInput(value);
+          }}
+          skippedViewerFilter={skippedViewerFilter}
+          onSkippedViewerFilterChange={(value) => {
+            setSkippedViewerPage(1);
+            setSkippedViewerFilter(value);
           }}
         />
       )}
@@ -957,7 +1108,7 @@ function ImportDetailPanel({ imp, matchedUnchanged, skipped, unassigned, errors,
             <span className="font-medium">Imported by:</span> {imp.uploaded_by_email || '—'}
           </div>
           <div className="text-xs text-gray-600">
-            <span className="font-medium">Filename:</span> {imp.filename}
+            <span className="font-medium">Filename:</span> {displayImportFilename(imp)}
           </div>
           <div className="text-xs text-gray-600">
             <span className="font-medium">List date:</span> {formatCampaignDate(imp.gec_list_date)}
@@ -973,13 +1124,13 @@ function ImportDetailPanel({ imp, matchedUnchanged, skipped, unassigned, errors,
           <div className="text-xs text-gray-600">Total processed: <strong>{(imp.total_records || 0).toLocaleString()}</strong></div>
           <div className="text-xs text-green-700">New records: <strong>{imp.new_records}</strong></div>
           <div className="text-xs text-blue-700">
-            Updated (changed): <strong>{imp.updated_records}</strong>
+            Updated records: <strong>{imp.updated_records}</strong>
             {matchedUnchanged > 0 && (
               <span className="text-gray-500 ml-1">({matchedUnchanged.toLocaleString()} matched unchanged)</span>
             )}
           </div>
           <div className="text-xs text-red-700">Removed / purged: <strong>{imp.removed_records || 0}</strong></div>
-          <div className="text-xs text-blue-700">Village transfers: <strong>{imp.transferred_records || 0}</strong></div>
+          <div className="text-xs text-indigo-700">Transferred villages: <strong>{imp.transferred_records || 0}</strong></div>
           <div className="text-xs text-gray-600">Re-vetted supporters: <strong>{imp.re_vetted_count || 0}</strong></div>
         </div>
 
@@ -988,7 +1139,10 @@ function ImportDetailPanel({ imp, matchedUnchanged, skipped, unassigned, errors,
           <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Additional</div>
           <div className="text-xs text-amber-700">Ambiguous DOBs: <strong>{imp.ambiguous_dob_count || 0}</strong></div>
           {skipped > 0 && <div className="text-xs text-gray-600">Skipped rows: <strong>{skipped}</strong></div>}
-          {unassigned > 0 && <div className="text-xs text-gray-600">Unassigned village: <strong>{unassigned}</strong></div>}
+          {(imp.pending_skipped_rows_count || 0) > 0 && <div className="text-xs text-amber-700">Pending skipped-row review: <strong>{imp.pending_skipped_rows_count}</strong></div>}
+          {imp.metadata?.review_required && <div className="text-xs text-amber-700">Review required: this import has unresolved rows that need staff attention.</div>}
+          {imp.metadata?.removal_detection_suppressed && <div className="text-xs text-amber-700">Removal detection was safely suppressed because unresolved rows could make purge results unreliable.</div>}
+          {unassigned > 0 && <div className="text-xs text-gray-600">Routed to Unassigned in this import: <strong>{unassigned}</strong></div>}
           {(imp.has_import_artifact || imp.has_original_file) && (
             <div className="mt-2">
               <button
@@ -999,7 +1153,7 @@ function ImportDetailPanel({ imp, matchedUnchanged, skipped, unassigned, errors,
                 className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
               >
                 <FileSearch className="w-3.5 h-3.5" />
-                Open Import
+                {skipped > 0 ? 'Open Import & Review Skipped Rows' : 'Open Import'}
               </button>
             </div>
           )}
@@ -1065,8 +1219,13 @@ function ImportViewerModal({
   onPageChange,
   changeViewData,
   changeViewLoading,
+  changeViewFetching,
   changeViewError,
   onChangePage,
+  skippedRowsData,
+  skippedRowsLoading,
+  skippedRowsError,
+  onSkippedRowsPageChange,
   viewerSearchInput,
   onViewerSearchInputChange,
   viewerVillageFilter,
@@ -1075,6 +1234,10 @@ function ImportViewerModal({
   onChangeViewerSearchInputChange,
   changeViewerType,
   onChangeViewerTypeChange,
+  skippedViewerSearchInput,
+  onSkippedViewerSearchInputChange,
+  skippedViewerFilter,
+  onSkippedViewerFilterChange,
 }: {
   imp: ImportRecord;
   viewerTab: ViewerTab;
@@ -1089,8 +1252,13 @@ function ImportViewerModal({
   onPageChange: (page: number) => void;
   changeViewData?: ImportChangesResponse;
   changeViewLoading: boolean;
+  changeViewFetching: boolean;
   changeViewError: string | null;
   onChangePage: (page: number) => void;
+  skippedRowsData?: ImportSkippedRowsResponse;
+  skippedRowsLoading: boolean;
+  skippedRowsError: string | null;
+  onSkippedRowsPageChange: (page: number) => void;
   viewerSearchInput: string;
   onViewerSearchInputChange: (value: string) => void;
   viewerVillageFilter: string;
@@ -1099,11 +1267,16 @@ function ImportViewerModal({
   onChangeViewerSearchInputChange: (value: string) => void;
   changeViewerType: ImportChangeFilter;
   onChangeViewerTypeChange: (value: ImportChangeFilter) => void;
+  skippedViewerSearchInput: string;
+  onSkippedViewerSearchInputChange: (value: string) => void;
+  skippedViewerFilter: SkippedRowFilter;
+  onSkippedViewerFilterChange: (value: SkippedRowFilter) => void;
 }) {
   const [downloading, setDownloading] = useState(false);
   const [downloadError, setDownloadError] = useState<string | null>(null);
   const showParsedTab = imp.has_import_artifact;
   const showChangesTab = imp.status === 'completed';
+  const showSkippedRowsTab = Number(imp.skipped_rows_count || imp.metadata?.skipped || 0) > 0;
   const showOriginalTab = imp.has_original_file;
 
   const handleDownload = async () => {
@@ -1174,7 +1347,19 @@ function ImportViewerModal({
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
-              Changes
+              All Changes
+            </button>
+          )}
+          {showSkippedRowsTab && (
+            <button
+              onClick={() => onChangeTab('skipped')}
+              className={`px-3 py-2 rounded-t-lg text-sm font-medium transition-colors ${
+                viewerTab === 'skipped'
+                  ? 'bg-blue-50 text-blue-700 border border-blue-200 border-b-white'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              Skipped Rows
             </button>
           )}
           {showOriginalTab && (
@@ -1220,13 +1405,25 @@ function ImportViewerModal({
             <ImportChangesView
               imp={changeViewData?.import || imp}
               data={changeViewData}
-              loading={changeViewLoading}
+              loading={changeViewLoading || changeViewFetching}
               error={changeViewError}
               onPageChange={onChangePage}
               searchInput={changeViewerSearchInput}
               onSearchInputChange={onChangeViewerSearchInputChange}
               changeType={changeViewerType}
               onChangeTypeChange={onChangeViewerTypeChange}
+            />
+          ) : viewerTab === 'skipped' && showSkippedRowsTab ? (
+            <ImportSkippedRowsView
+              imp={skippedRowsData?.import || imp}
+              data={skippedRowsData}
+              loading={skippedRowsLoading}
+              error={skippedRowsError}
+              onPageChange={onSkippedRowsPageChange}
+              searchInput={skippedViewerSearchInput}
+              onSearchInputChange={onSkippedViewerSearchInputChange}
+              statusFilter={skippedViewerFilter}
+              onStatusFilterChange={onSkippedViewerFilterChange}
             />
           ) : (
             <OriginalImportView
@@ -1300,7 +1497,7 @@ function ParsedImportView({
       <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <InfoStat label="Imported Data" value={preview.source_type === 'pdf' ? 'PDF import' : 'Spreadsheet import'} />
         <InfoStat label="Rows Detected" value={Number(preview.row_count || 0).toLocaleString()} />
-        <InfoStat label="Filename" value={imp.original_filename || imp.filename} />
+        <InfoStat label="Filename" value={displayImportFilename(imp)} />
         <InfoStat label="Imported By" value={imp.uploaded_by_email || '—'} />
       </div>
 
@@ -1329,6 +1526,9 @@ function ParsedImportView({
                 {preview.warnings.map((warning, idx) => <li key={idx}>{warning}</li>)}
               </ul>
             )}
+            <div className="text-sm text-gray-500">
+              Rows that were routed to <strong>Unassigned</strong> are highlighted below so staff can review exactly where the parser could not safely confirm a village.
+            </div>
           </div>
           <ImportViewerFilters
             preview={preview}
@@ -1448,28 +1648,31 @@ function ImportChangesView({
     updated: imp.updated_records,
     removed: imp.removed_records,
     transferred: imp.transferred_records,
+    routed_to_unassigned: Number(imp.metadata?.unassigned || 0),
   };
 
   const filters: Array<{ key: ImportChangeFilter; label: string; count: number }> = [
     { key: 'all', label: 'All Changes', count: counts.all },
     { key: 'new', label: 'New', count: counts.new },
-    { key: 'changed', label: 'Changed', count: counts.changed },
+    { key: 'updated', label: 'Updated', count: counts.updated },
     { key: 'removed', label: 'Removed', count: counts.removed },
     { key: 'transferred', label: 'Transferred', count: counts.transferred },
+    { key: 'routed_to_unassigned', label: 'Routed to Unassigned', count: counts.routed_to_unassigned },
   ];
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
         <InfoStat label="New" value={Number(counts.new || 0).toLocaleString()} />
-        <InfoStat label="Changed" value={Number(counts.changed || 0).toLocaleString()} />
+        <InfoStat label="Updated" value={Number(counts.updated || 0).toLocaleString()} />
         <InfoStat label="Removed" value={Number(counts.removed || 0).toLocaleString()} />
         <InfoStat label="Transferred" value={Number(counts.transferred || 0).toLocaleString()} />
+        <InfoStat label="Routed to Unassigned" value={Number(counts.routed_to_unassigned || 0).toLocaleString()} />
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
         <div className="text-sm text-gray-500">
-          This view shows the actual voters this import added, changed, transferred, or removed.
+          This view shows the actual voters this import added, updated, transferred, or removed. Rows routed to <strong>Unassigned</strong> are shown separately for import transparency.
         </div>
         <div className="flex flex-wrap gap-2">
           {filters.map((filter) => (
@@ -1510,7 +1713,9 @@ function ImportChangesView({
         </div>
       ) : !data || data.changes.length === 0 ? (
         <div className="rounded-xl border border-gray-200 bg-white px-4 py-6 text-sm text-gray-500">
-          No matching change rows were found for this filter.
+          {changeType === 'routed_to_unassigned'
+            ? 'No routed-to-Unassigned rows were found for this filter.'
+            : 'No matching change rows were found for this filter.'}
         </div>
       ) : (
         <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -1534,7 +1739,7 @@ function ImportChangesView({
                       </span>
                     </td>
                     <td className="px-4 py-3 text-gray-900">
-                      <div className="font-medium">{[change.first_name, change.last_name].filter(Boolean).join(' ') || '—'}</div>
+                      <div className="font-medium">{[change.first_name, change.middle_name, change.last_name].filter(Boolean).join(' ') || '—'}</div>
                       <div className="text-xs text-gray-500">
                         {change.dob ? formatCampaignDate(change.dob) : (change.birth_year ?? '—')}
                         {change.row_number ? ` • Row ${change.row_number}` : ''}
@@ -1595,6 +1800,29 @@ function ChangeDetailsSummary({ change }: { change: ImportChangeRecord }) {
     return <div>New voter added from this import.</div>;
   }
 
+  if (change.change_type === 'routed_to_unassigned') {
+    const sourceName = typeof change.details?.source_name === 'string' ? change.details.source_name : '';
+    const sourceVillageName = typeof change.details?.source_village_name === 'string' ? change.details.source_village_name : '';
+
+    return (
+      <div className="space-y-1">
+        <div>
+          <span className="font-medium text-gray-700">Village:</span>{' '}
+          <span>{sourceVillageName || 'No usable village text'} {'->'} Unassigned</span>
+        </div>
+        {sourceName && (
+          <div>
+            <span className="font-medium text-gray-700">Source row:</span>{' '}
+            <span>{sourceName}</span>
+          </div>
+        )}
+        <div>
+          {change.details?.reason || 'No usable village could be safely parsed from this import row, so it was routed to Unassigned.'}
+        </div>
+      </div>
+    );
+  }
+
   if (changedFields.length === 0) {
     return <div>Updated during this import.</div>;
   }
@@ -1611,6 +1839,463 @@ function ChangeDetailsSummary({ change }: { change: ImportChangeRecord }) {
   );
 }
 
+function ImportSkippedRowsView({
+  imp,
+  data,
+  loading,
+  error,
+  onPageChange,
+  searchInput,
+  onSearchInputChange,
+  statusFilter,
+  onStatusFilterChange,
+}: {
+  imp: ImportRecord;
+  data?: ImportSkippedRowsResponse;
+  loading: boolean;
+  error: string | null;
+  onPageChange: (page: number) => void;
+  searchInput: string;
+  onSearchInputChange: (value: string) => void;
+  statusFilter: SkippedRowFilter;
+  onStatusFilterChange: (value: SkippedRowFilter) => void;
+}) {
+  const queryClient = useQueryClient();
+  const [expandedRowId, setExpandedRowId] = useState<number | null>(null);
+  const [drafts, setDrafts] = useState<Record<number, Record<string, string>>>({});
+  const [previews, setPreviews] = useState<Record<number, SkippedRowResolutionPreview>>({});
+  const [selectedCandidateIds, setSelectedCandidateIds] = useState<Record<number, number | null>>({});
+  const [rowFeedback, setRowFeedback] = useState<Record<number, string | null>>({});
+
+  const previewMutation = useMutation({
+    mutationFn: ({ skippedRowId, correctedValues, selectedGecVoterId }: { skippedRowId: number; correctedValues: Record<string, unknown>; selectedGecVoterId?: number | null }) =>
+      previewGecImportSkippedRowResolution(imp.id, skippedRowId, correctedValues, selectedGecVoterId),
+    onSuccess: (response, variables) => {
+      setPreviews((current) => ({ ...current, [variables.skippedRowId]: response.preview }));
+      setRowFeedback((current) => ({ ...current, [variables.skippedRowId]: null }));
+    },
+    onError: (mutationError, variables) => {
+      const message = mutationError instanceof Error ? mutationError.message : 'Could not preview this skipped-row fix.';
+      setRowFeedback((current) => ({ ...current, [variables.skippedRowId]: message }));
+    },
+  });
+
+  const applyMutation = useMutation({
+    mutationFn: ({ skippedRowId, correctedValues, selectedGecVoterId }: { skippedRowId: number; correctedValues: Record<string, unknown>; selectedGecVoterId?: number | null }) =>
+      resolveGecImportSkippedRow(imp.id, skippedRowId, correctedValues, selectedGecVoterId),
+    onSuccess: (_, variables) => {
+      setRowFeedback((current) => ({ ...current, [variables.skippedRowId]: 'Fix applied successfully.' }));
+      setPreviews((current) => {
+        const next = { ...current };
+        delete next[variables.skippedRowId];
+        return next;
+      });
+      queryClient.invalidateQueries({ queryKey: ['gec-import-skipped-rows', imp.id] });
+      queryClient.invalidateQueries({ queryKey: ['gec-imports'] });
+      queryClient.invalidateQueries({ queryKey: ['gec-stats'] });
+    },
+    onError: (mutationError, variables) => {
+      const message = mutationError instanceof Error ? mutationError.message : 'Could not apply this skipped-row fix.';
+      setRowFeedback((current) => ({ ...current, [variables.skippedRowId]: message }));
+    },
+  });
+
+  const dismissMutation = useMutation({
+    mutationFn: (skippedRowId: number) => dismissGecImportSkippedRow(imp.id, skippedRowId),
+    onSuccess: (_, skippedRowId) => {
+      setRowFeedback((current) => ({ ...current, [skippedRowId]: 'Skipped row dismissed.' }));
+      queryClient.invalidateQueries({ queryKey: ['gec-import-skipped-rows', imp.id] });
+      queryClient.invalidateQueries({ queryKey: ['gec-imports'] });
+    },
+    onError: (mutationError, skippedRowId) => {
+      const message = mutationError instanceof Error ? mutationError.message : 'Could not dismiss this skipped row.';
+      setRowFeedback((current) => ({ ...current, [skippedRowId]: message }));
+    },
+  });
+
+  const counts = data?.counts ?? {
+    all: imp.skipped_rows_count || Number(imp.metadata?.skipped || 0),
+    pending: imp.pending_skipped_rows_count || Number(imp.metadata?.skipped || 0),
+    resolved: 0,
+    dismissed: 0,
+  };
+
+  const filters: Array<{ key: SkippedRowFilter; label: string; count: number }> = [
+    { key: 'all', label: 'All', count: counts.all },
+    { key: 'pending', label: 'Pending Review', count: counts.pending },
+    { key: 'resolved', label: 'Resolved', count: counts.resolved },
+    { key: 'dismissed', label: 'Dismissed', count: counts.dismissed },
+  ];
+
+  const rows = data?.skipped_rows || [];
+
+  const buildDraft = (row: ImportSkippedRowRecord) => {
+    const existing = drafts[row.id];
+    if (existing) return existing;
+    return {
+      first_name: String(row.corrected_values.first_name ?? row.first_name ?? ''),
+      last_name: String(row.corrected_values.last_name ?? row.last_name ?? ''),
+      village_name: String(row.corrected_values.village_name ?? row.village_name ?? ''),
+      voter_registration_number: String(row.corrected_values.voter_registration_number ?? row.voter_registration_number ?? ''),
+      birth_year: String(row.corrected_values.birth_year ?? row.birth_year ?? ''),
+      dob: String(row.corrected_values.dob ?? row.dob ?? ''),
+    };
+  };
+
+  const updateDraft = (rowId: number, field: string, value: string) => {
+    setDrafts((current) => ({
+      ...current,
+      [rowId]: {
+        ...(current[rowId] || {}),
+        [field]: value,
+      }
+    }));
+  };
+
+  const handlePreview = (row: ImportSkippedRowRecord, selectedGecVoterId?: number | null) => {
+    const draft = buildDraft(row);
+    previewMutation.mutate({
+      skippedRowId: row.id,
+      correctedValues: draft,
+      selectedGecVoterId,
+    });
+  };
+
+  const handleApply = (row: ImportSkippedRowRecord) => {
+    const draft = buildDraft(row);
+    applyMutation.mutate({
+      skippedRowId: row.id,
+      correctedValues: draft,
+      selectedGecVoterId: selectedCandidateIds[row.id],
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <InfoStat label="Pending Review" value={Number(counts.pending || 0).toLocaleString()} />
+        <InfoStat label="Resolved" value={Number(counts.resolved || 0).toLocaleString()} />
+        <InfoStat label="Dismissed" value={Number(counts.dismissed || 0).toLocaleString()} />
+        <InfoStat label="Total Skipped" value={Number(counts.all || 0).toLocaleString()} />
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+        <div className="space-y-1">
+          <div className="text-sm font-semibold text-gray-800">Review skipped rows</div>
+          <div className="text-sm text-gray-500">
+            Use this to manually fix rows the importer could not safely apply. The original skipped row stays unchanged, and every fix is saved with an audit trail.
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {filters.map((filter) => (
+            <button
+              key={filter.key}
+              onClick={() => onStatusFilterChange(filter.key)}
+              className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                statusFilter === filter.key
+                  ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                  : 'bg-gray-50 text-gray-600 border border-gray-200 hover:bg-gray-100'
+              }`}
+            >
+              {filter.label} ({Number(filter.count || 0).toLocaleString()})
+            </button>
+          ))}
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">
+            Search Skipped Rows
+          </label>
+          <input
+            value={searchInput}
+            onChange={(e) => onSearchInputChange(e.target.value)}
+            placeholder="Search name, village, or registration number"
+            className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
+          />
+        </div>
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center py-16 text-gray-500">
+          <Loader2 className="w-5 h-5 animate-spin mr-2" />
+          Loading skipped rows...
+        </div>
+      ) : error ? (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      ) : rows.length === 0 ? (
+        <div className="rounded-xl border border-gray-200 bg-white px-4 py-6 text-sm text-gray-500">
+          No skipped rows were found for this filter.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {rows.map((row) => {
+            const isExpanded = expandedRowId === row.id;
+            const draft = buildDraft(row);
+            const preview = previews[row.id];
+            const pending = row.resolution_status === 'pending';
+            const selectedCandidateId = selectedCandidateIds[row.id];
+            const rowBusy = previewMutation.isPending || applyMutation.isPending || dismissMutation.isPending;
+
+            return (
+              <div key={row.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+                <button
+                  onClick={() => setExpandedRowId(isExpanded ? null : row.id)}
+                  className="w-full px-4 py-4 flex items-start justify-between gap-4 text-left hover:bg-gray-50 transition-colors"
+                >
+                  <div className="min-w-0 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold text-gray-900">Row {row.row_number}</span>
+                      <span className={getSkippedRowStatusBadgeClass(row.resolution_status)}>
+                        {formatSkippedRowStatus(row.resolution_status)}
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-700">{row.message}</div>
+                    <div className="text-xs text-gray-500">
+                      {[row.first_name, row.last_name].filter(Boolean).join(' ') || row.source_name || 'Unnamed row'}
+                      {row.village_name ? ` • ${row.village_name}` : ''}
+                      {row.birth_year ? ` • ${row.birth_year}` : row.dob ? ` • ${formatCampaignDate(row.dob)}` : ''}
+                    </div>
+                  </div>
+                  {isExpanded ? <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" /> : <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />}
+                </button>
+
+                {isExpanded && (
+                  <div className="border-t border-gray-200 px-4 py-4 bg-gray-50 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-2">
+                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Original skipped row</div>
+                        <div className="text-sm text-gray-700">Reason: <strong>{row.message}</strong></div>
+                        {row.source_name && <div className="text-sm text-gray-700">Source name: <strong>{row.source_name}</strong></div>}
+                        <div className="flex flex-wrap gap-x-3 gap-y-1 text-sm text-gray-700">
+                          {row.first_name && <span>First: <strong>{row.first_name}</strong></span>}
+                          {row.last_name && <span>Last: <strong>{row.last_name}</strong></span>}
+                          {row.village_name && <span>Village: <strong>{row.village_name}</strong></span>}
+                          {row.voter_registration_number && <span>Reg No.: <strong>{row.voter_registration_number}</strong></span>}
+                          {row.birth_year && <span>Birth year: <strong>{row.birth_year}</strong></span>}
+                          {row.dob && <span>DOB: <strong>{formatCampaignDate(row.dob)}</strong></span>}
+                        </div>
+                        {row.raw_values.length > 0 && (
+                          <div className="text-sm text-gray-600">
+                            Raw row: <strong>{row.raw_values.join(' | ')}</strong>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="rounded-lg border border-gray-200 bg-white p-4 space-y-3">
+                        <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Resolution</div>
+                        {pending ? (
+                          <>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <label className="text-sm text-gray-700">
+                                <div className="mb-1 font-medium">First name</div>
+                                <input value={draft.first_name} onChange={(e) => updateDraft(row.id, 'first_name', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                              </label>
+                              <label className="text-sm text-gray-700">
+                                <div className="mb-1 font-medium">Last name</div>
+                                <input value={draft.last_name} onChange={(e) => updateDraft(row.id, 'last_name', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                              </label>
+                              <label className="text-sm text-gray-700">
+                                <div className="mb-1 font-medium">Village</div>
+                                <input value={draft.village_name} onChange={(e) => updateDraft(row.id, 'village_name', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                              </label>
+                              <label className="text-sm text-gray-700">
+                                <div className="mb-1 font-medium">Reg No.</div>
+                                <input value={draft.voter_registration_number} onChange={(e) => updateDraft(row.id, 'voter_registration_number', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                              </label>
+                              <label className="text-sm text-gray-700">
+                                <div className="mb-1 font-medium">Birth year</div>
+                                <input value={draft.birth_year} onChange={(e) => updateDraft(row.id, 'birth_year', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                              </label>
+                              <label className="text-sm text-gray-700">
+                                <div className="mb-1 font-medium">DOB</div>
+                                <input type="date" value={draft.dob} onChange={(e) => updateDraft(row.id, 'dob', e.target.value)} className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200" />
+                              </label>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                onClick={() => handlePreview(row)}
+                                disabled={rowBusy}
+                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-blue-200 bg-blue-50 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                              >
+                                {previewMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                                Check Fix
+                              </button>
+                              <button
+                                onClick={() => dismissMutation.mutate(row.id)}
+                                disabled={rowBusy}
+                                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-50"
+                              >
+                                Dismiss Row
+                              </button>
+                            </div>
+
+                            {preview && (
+                              <div className={`rounded-lg border px-3 py-3 text-sm ${
+                                preview.status === 'ready_to_create' || preview.status === 'ready_to_update'
+                                  ? 'border-green-200 bg-green-50 text-green-800'
+                                  : preview.status === 'ambiguous'
+                                  ? 'border-amber-200 bg-amber-50 text-amber-800'
+                                  : 'border-red-200 bg-red-50 text-red-700'
+                              }`}>
+                                {preview.status === 'ready_to_create' && <div>This fix will create a new voter record for this import date.</div>}
+                                {preview.status === 'ready_to_update' && (
+                                  <div>
+                                    This fix will update <strong>{[preview.target_voter?.first_name, preview.target_voter?.last_name].filter(Boolean).join(' ') || 'the selected voter'}</strong>
+                                    {preview.target_voter?.village_name ? ` in ${preview.target_voter.village_name}` : ''}.
+                                  </div>
+                                )}
+                                {preview.errors?.length > 0 && (
+                                  <div className="space-y-1">
+                                    {preview.errors.map((previewError, index) => <div key={index}>{previewError}</div>)}
+                                  </div>
+                                )}
+
+                                {preview.status === 'ambiguous' && preview.candidate_matches.length > 0 && (
+                                  <div className="mt-3 space-y-2">
+                                    <div className="font-medium">Select the voter this skipped row should update:</div>
+                                    {preview.candidate_matches.map((candidate) => (
+                                      <label key={candidate.gec_voter.id} className="flex items-start gap-2 rounded-lg border border-amber-200 bg-white px-3 py-2">
+                                        <input
+                                          type="radio"
+                                          checked={selectedCandidateId === candidate.gec_voter.id}
+                                          onChange={() => setSelectedCandidateIds((current) => ({ ...current, [row.id]: candidate.gec_voter.id }))}
+                                        />
+                                        <div>
+                                          <div className="font-medium text-gray-900">
+                                            {candidate.gec_voter.first_name} {candidate.gec_voter.last_name}
+                                          </div>
+                                          <div className="text-xs text-gray-600">
+                                            {candidate.gec_voter.village_name || '—'}
+                                            {candidate.gec_voter.birth_year ? ` • ${candidate.gec_voter.birth_year}` : candidate.gec_voter.dob ? ` • ${formatCampaignDate(candidate.gec_voter.dob)}` : ''}
+                                            {candidate.gec_voter.voter_registration_number ? ` • ${candidate.gec_voter.voter_registration_number}` : ''}
+                                          </div>
+                                          <div className="text-xs text-amber-700 mt-1">
+                                            Confidence: {candidate.confidence} • Match type: {candidate.match_type.replace(/_/g, ' ')}
+                                          </div>
+                                        </div>
+                                      </label>
+                                    ))}
+                                    <button
+                                      onClick={() => handlePreview(row, selectedCandidateId)}
+                                      disabled={!selectedCandidateId || rowBusy}
+                                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-amber-200 bg-white text-sm font-medium text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                                    >
+                                      Use Selected Voter
+                                    </button>
+                                  </div>
+                                )}
+
+                                {(preview.status === 'ready_to_create' || preview.status === 'ready_to_update') && (
+                                  <div className="mt-3">
+                                    <button
+                                      onClick={() => handleApply(row)}
+                                      disabled={rowBusy}
+                                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-green-200 bg-white text-sm font-medium text-green-800 hover:bg-green-100 disabled:opacity-50"
+                                    >
+                                      {applyMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                                      Apply Fix
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <div className="space-y-2 text-sm text-gray-700">
+                            <div>
+                              <strong>{formatSkippedRowStatus(row.resolution_status)}</strong>
+                              {row.resolved_at ? ` on ${formatCampaignDateTime(row.resolved_at)}` : ''}
+                              {row.resolved_by_email ? ` by ${row.resolved_by_email}` : ''}
+                            </div>
+                            {row.resolution_action && (
+                              <div>Action: <strong>{row.resolution_action}</strong></div>
+                            )}
+                            {row.resolved_gec_voter && (
+                              <div>
+                                Result voter: <strong>{row.resolved_gec_voter.first_name} {row.resolved_gec_voter.last_name}</strong>
+                                {row.resolved_gec_voter.village_name ? ` • ${row.resolved_gec_voter.village_name}` : ''}
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {rowFeedback[row.id] && (
+                          <div className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700">
+                            {rowFeedback[row.id]}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {data && (
+            <div className="flex items-center justify-between gap-3 px-1 py-1 text-sm text-gray-600">
+              <div>
+                Page {data.pagination.page} of {Math.max(1, data.pagination.total_pages)} • {Number(data.pagination.total_rows || 0).toLocaleString()} rows
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => onPageChange(Math.max(1, data.pagination.page - 1))}
+                  disabled={data.pagination.page <= 1}
+                  className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-2 disabled:opacity-50"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Previous
+                </button>
+                <button
+                  onClick={() => onPageChange(Math.min(data.pagination.total_pages || data.pagination.page, data.pagination.page + 1))}
+                  disabled={data.pagination.page >= data.pagination.total_pages}
+                  className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-3 py-2 disabled:opacity-50"
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatSkippedRowStatus(status: ImportSkippedRowRecord['resolution_status']): string {
+  switch (status) {
+    case 'pending':
+      return 'Pending Review';
+    case 'resolved_created':
+      return 'Resolved: Created';
+    case 'resolved_updated':
+      return 'Resolved: Updated';
+    case 'dismissed':
+      return 'Dismissed';
+    default:
+      return status;
+  }
+}
+
+function getSkippedRowStatusBadgeClass(status: ImportSkippedRowRecord['resolution_status']): string {
+  const base = 'inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold';
+  switch (status) {
+    case 'pending':
+      return `${base} bg-amber-50 text-amber-700`;
+    case 'resolved_created':
+      return `${base} bg-green-50 text-green-700`;
+    case 'resolved_updated':
+      return `${base} bg-blue-50 text-blue-700`;
+    case 'dismissed':
+      return `${base} bg-gray-100 text-gray-700`;
+    default:
+      return `${base} bg-gray-100 text-gray-700`;
+  }
+}
+
 function formatChangeTypeLabel(changeType: ImportChangeRecord['change_type']): string {
   switch (changeType) {
     case 'new':
@@ -1621,6 +2306,8 @@ function formatChangeTypeLabel(changeType: ImportChangeRecord['change_type']): s
       return 'Removed';
     case 'transferred':
       return 'Transferred';
+    case 'routed_to_unassigned':
+      return 'Routed to Unassigned';
     default:
       return changeType;
   }
@@ -1637,6 +2324,8 @@ function getChangeTypeBadgeClass(changeType: ImportChangeRecord['change_type']):
       return `${base} bg-red-50 text-red-700`;
     case 'transferred':
       return `${base} bg-indigo-50 text-indigo-700`;
+    case 'routed_to_unassigned':
+      return `${base} bg-amber-50 text-amber-800`;
     default:
       return `${base} bg-gray-100 text-gray-700`;
   }
@@ -1780,14 +2469,29 @@ function PreviewRowsTable({ preview, onPageChange }: { preview: PreviewData; onP
             </tr>
           </thead>
           <tbody>
-            {preview.preview_rows.map((row, idx) => (
-              <tr key={idx} className="border-t border-gray-100">
+            {preview.preview_rows.map((row, idx) => {
+              const routedToUnassigned = Boolean(row.routed_to_unassigned);
+              const sourceVillage = String(row.source_village ?? row.source_village_name ?? '');
+              return (
+              <tr key={idx} className={`border-t ${routedToUnassigned ? 'border-amber-100 bg-amber-50/40' : 'border-gray-100'}`}>
                 <td className="px-4 py-2 text-gray-600">{String(row.voter_registration_number ?? '')}</td>
                 <td className="px-4 py-2 text-gray-800">{String(row.name ?? '')}</td>
-                <td className="px-4 py-2 text-gray-600">{String(row.village ?? '')}</td>
+                <td className="px-4 py-2 text-gray-600">
+                  <div>{String(row.village ?? '')}</div>
+                  {routedToUnassigned && (
+                    <div className="mt-1 space-y-1">
+                      <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+                        Routed to Unassigned
+                      </span>
+                      <div className="text-[11px] text-amber-700">
+                        {sourceVillage ? `Source village text: ${sourceVillage}` : 'No usable village was parsed from this row.'}
+                      </div>
+                    </div>
+                  )}
+                </td>
                 <td className="px-4 py-2 text-gray-600">{String(row.birth_year ?? '')}</td>
               </tr>
-            ))}
+            )})}
           </tbody>
         </table>
       </div>
@@ -1814,15 +2518,30 @@ function PreviewRowsTable({ preview, onPageChange }: { preview: PreviewData; onP
             </tr>
           </thead>
           <tbody>
-            {preview.preview_rows.map((row, idx) => (
-              <tr key={idx} className="border-t border-gray-100">
+            {preview.preview_rows.map((row, idx) => {
+              const routedToUnassigned = Boolean(row.routed_to_unassigned);
+              const sourceVillage = String(row.source_village_name ?? row.source_village ?? '');
+              return (
+              <tr key={idx} className={`border-t ${routedToUnassigned ? 'border-amber-100 bg-amber-50/40' : 'border-gray-100'}`}>
                 <td className="px-4 py-2 text-gray-800">{String(row.first_name ?? '')}</td>
                 <td className="px-4 py-2 text-gray-800">{String(row.last_name ?? '')}</td>
-                <td className="px-4 py-2 text-gray-600">{String(row.village_name ?? row.village ?? '')}</td>
+                <td className="px-4 py-2 text-gray-600">
+                  <div>{String(row.village_name ?? row.village ?? '')}</div>
+                  {routedToUnassigned && (
+                    <div className="mt-1 space-y-1">
+                      <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+                        Routed to Unassigned
+                      </span>
+                      <div className="text-[11px] text-amber-700">
+                        {sourceVillage ? `Source village text: ${sourceVillage}` : 'No usable village was parsed from this row.'}
+                      </div>
+                    </div>
+                  )}
+                </td>
                 <td className="px-4 py-2 text-gray-600">{String(row.dob ?? row.birth_year ?? '')}</td>
                 <td className="px-4 py-2 text-gray-600">{String(row.voter_registration_number ?? '')}</td>
               </tr>
-            ))}
+            )})}
           </tbody>
         </table>
       </div>

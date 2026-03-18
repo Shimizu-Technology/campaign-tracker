@@ -22,6 +22,9 @@ Rails.application.routes.draw do
           patch :resolve_duplicate
           patch :outreach_status
           patch :accept_to_quota
+          patch :reject_public_review
+          patch :approve_supporter
+          patch :reject_supporter
         end
         collection do
           get :check_duplicate
@@ -80,6 +83,7 @@ Rails.application.routes.draw do
 
       # Reports (Excel export)
       get "reports", to: "reports#index"
+      get "reports/:report_type/preview", to: "reports#preview"
       get "reports/:report_type", to: "reports#show"
 
       # Campaign Cycles & Quota Periods
@@ -103,6 +107,10 @@ Rails.application.routes.draw do
           get :imports
           get "imports/:id/view_data", action: :view_import_data, as: :view_import_data
           get "imports/:id/changes", action: :view_import_changes, as: :view_import_changes
+          get "imports/:id/skipped_rows", action: :view_import_skipped_rows, as: :view_import_skipped_rows
+          post "imports/:id/skipped_rows/:skipped_row_id/preview_resolution", action: :preview_skipped_row_resolution, as: :preview_skipped_row_resolution
+          post "imports/:id/skipped_rows/:skipped_row_id/resolve", action: :resolve_skipped_row, as: :resolve_skipped_row
+          post "imports/:id/skipped_rows/:skipped_row_id/dismiss", action: :dismiss_skipped_row, as: :dismiss_skipped_row
           get "imports/:id/view_original", action: :view_original, as: :view_original
           get "imports/:id/download", action: :download_import, as: :download_import
           post :upload

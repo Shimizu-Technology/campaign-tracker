@@ -15,6 +15,8 @@ module Api
             {
               id: v.id,
               name: v.name,
+              district_id: v.district_id,
+              district_name: v.district&.name,
               region: v.region,
               registered_voters: v.registered_voters,
               precincts: v.precincts.order(:number).map { |p|
@@ -37,13 +39,32 @@ module Api
           )
         end
         campaign = Campaign.active.first
-
+        current_period = CampaignCycle.current_quota_period
         quota = village.quotas.where(campaign: campaign).first
-        verified_count = village.supporters.active.verified.count
+        official_supporters_count = village.supporters.official_supporters.count
+        matched_to_gec_count = village.supporters.official_supporters.verified.count
         total_count = village.supporters.active.count
-        unverified_count = village.supporters.active.unverified.count
-        precinct_supporter_counts = village.supporters.active.verified.where.not(precinct_id: nil).group(:precinct_id).count
-        unassigned_precinct_count = village.supporters.active.verified.where(precinct_id: nil).count
+        team_pending_count = village.supporters.pending_supporter_review.where(source: Supporter::TEAM_SOURCES).count
+        public_pending_count = village.supporters.active.public_signups.count
+        period_target = if current_period
+          current_period.effective_village_targets(village_ids: [ village.id ])[village.id].to_i
+        else
+          quota&.target_count.to_i
+        end
+        current_period_progress = if current_period
+          current_period.credited_supporters.where(village_id: village.id).count
+        else
+          0
+        end
+        current_period_matched_count = if current_period
+          current_period.matched_supporters.where(village_id: village.id).count
+        else
+          0
+        end
+        precinct_supporter_counts = village.supporters.official_supporters.where.not(precinct_id: nil).group(:precinct_id).count
+        unassigned_precinct_count = village.supporters.official_supporters.where(precinct_id: nil).count
+        latest_gec_list_date = GecVoter.active.maximum(:gec_list_date)
+        pending_review_count = team_pending_count + public_pending_count
 
         render json: {
           village: {
@@ -51,12 +72,25 @@ module Api
             name: village.name,
             region: village.region,
             registered_voters: village.registered_voters,
-            verified_count: verified_count,
-            total_count: total_count,
-            unverified_count: unverified_count,
+            official_supporters_count: official_supporters_count,
+            matched_to_gec_count: matched_to_gec_count,
+            current_period_progress: current_period_progress,
+            current_period_target: period_target,
+            current_period_matched_count: current_period_matched_count,
+            current_period_name: current_period&.name,
+            current_period_due_date: current_period&.due_date,
+            current_period_progress_pct: period_target.positive? ? (current_period_progress * 100.0 / period_target).round(1) : 0,
+            team_approved_count: village.supporters.team_input.count,
+            public_approved_count: village.supporters.official_supporters.public_origin.count,
+            team_pending_count: team_pending_count,
+            public_pending_count: public_pending_count,
+            latest_gec_list_date: latest_gec_list_date,
             # Legacy compat
-            supporter_count: verified_count,
-            quota_target: quota&.target_count || 0,
+            verified_count: matched_to_gec_count,
+            total_count: total_count,
+            unverified_count: pending_review_count,
+            supporter_count: official_supporters_count,
+            quota_target: period_target,
             precincts: village.precincts.order(:number).map { |p|
               {
                 id: p.id,
@@ -72,9 +106,9 @@ module Api
               {
                 id: b.id,
                 name: b.name,
-                verified_count: b.supporters.active.verified.count,
+                verified_count: b.supporters.official_supporters.verified.count,
                 total_count: b.supporters.active.count,
-                supporter_count: b.supporters.active.verified.count
+                supporter_count: b.supporters.official_supporters.count
               }
             }
           }

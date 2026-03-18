@@ -4,6 +4,7 @@ require "rails/test_help"
 require "active_job/test_helper"
 
 class ActiveSupport::TestCase
+  include ActiveSupport::Testing::TimeHelpers
 end
 
 class ActionDispatch::IntegrationTest

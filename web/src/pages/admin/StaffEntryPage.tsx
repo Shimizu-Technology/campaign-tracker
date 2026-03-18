@@ -11,6 +11,7 @@ interface Village {
 
 type StaffForm = {
   first_name: string;
+  middle_name: string;
   last_name: string;
   contact_number: string;
   email: string;
@@ -26,6 +27,7 @@ type StaffForm = {
 
 type ExtractedScanData = Partial<{
   first_name: string;
+  middle_name: string;
   last_name: string;
   print_name: string;
   contact_number: string;
@@ -38,8 +40,14 @@ type ExtractedScanData = Partial<{
   motorcade_available: boolean;
 }>;
 
+type SaveFeedback = {
+  name: string;
+  verificationStatus: 'unverified' | 'verified' | 'flagged' | string;
+};
+
 const emptyForm = {
   first_name: '',
+  middle_name: '',
   last_name: '',
   contact_number: '',
   email: '',
@@ -57,7 +65,7 @@ export default function StaffEntryPage() {
   const queryClient = useQueryClient();
   const [form, setForm] = useState(emptyForm);
   const [successCount, setSuccessCount] = useState(0);
-  const [showSuccess, setShowSuccess] = useState(false);
+  const [saveFeedback, setSaveFeedback] = useState<SaveFeedback | null>(null);
 
   const { data: villageData } = useQuery({
     queryKey: ['villages'],
@@ -121,19 +129,26 @@ export default function StaffEntryPage() {
         // Auto-fill form with extracted data
         const updates: StaffForm = { ...emptyForm };
         if (data.first_name) { updates.first_name = data.first_name; filled.add('first_name'); }
+        if (data.middle_name) { updates.middle_name = data.middle_name; filled.add('middle_name'); }
         if (data.last_name) { updates.last_name = data.last_name; filled.add('last_name'); }
         // Legacy: if OCR returns print_name but not first/last, try to split
         if (data.print_name && !data.first_name && !data.last_name) {
           const parts = data.print_name.includes(',')
-            ? data.print_name.split(',').map(s => s.trim()).reverse()
+            ? data.print_name.split(',').map((s) => s.trim())
             : data.print_name.trim().split(/\s+/);
-          if (parts.length >= 2) {
+          if (data.print_name.includes(',')) {
+            updates.last_name = parts[0] || '';
+            updates.first_name = parts[1]?.split(/\s+/)[0] || '';
+            updates.middle_name = parts[1]?.split(/\s+/).slice(1).join(' ') || '';
+          } else if (parts.length >= 2) {
             updates.first_name = parts[0];
-            updates.last_name = parts.slice(1).join(' ');
+            updates.middle_name = parts.slice(1, -1).join(' ');
+            updates.last_name = parts[parts.length - 1];
           } else {
-            updates.last_name = parts[0];
+            updates.last_name = parts[0] || '';
           }
           filled.add('first_name');
+          filled.add('middle_name');
           filled.add('last_name');
         }
         if (data.contact_number) { updates.contact_number = data.contact_number; filled.add('contact_number'); }
@@ -166,9 +181,15 @@ export default function StaffEntryPage() {
 
   const submit = useMutation({
     mutationFn: (data: Record<string, unknown>) => createSupporter(data, undefined, 'staff', scanAssistedEntry ? 'scan' : 'manual'),
-    onSuccess: () => {
+    onSuccess: (response) => {
+      const savedSupporter = response?.supporter as { first_name?: string; middle_name?: string; last_name?: string; verification_status?: string } | undefined;
+      const savedName = [savedSupporter?.first_name, savedSupporter?.middle_name, savedSupporter?.last_name].filter(Boolean).join(' ').trim() || 'Supporter';
+
       setSuccessCount(prev => prev + 1);
-      setShowSuccess(true);
+      setSaveFeedback({
+        name: savedName,
+        verificationStatus: savedSupporter?.verification_status || 'unverified',
+      });
       setDuplicateWarning('');
       // Reset form but keep village for bulk entry
       setForm({
@@ -178,7 +199,11 @@ export default function StaffEntryPage() {
       setScannedFields(new Set());
       setScanAssistedEntry(false);
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      setTimeout(() => setShowSuccess(false), 2000);
+      queryClient.invalidateQueries({ queryKey: ['supporters'] });
+      queryClient.invalidateQueries({ queryKey: ['vetting-queue'] });
+      queryClient.invalidateQueries({ queryKey: ['duplicates'] });
+      queryClient.invalidateQueries({ queryKey: ['public-review'] });
+      queryClient.invalidateQueries({ queryKey: ['session'] });
       // Focus name field for next entry
       document.getElementById('first_name')?.focus();
     },
@@ -188,6 +213,7 @@ export default function StaffEntryPage() {
     e.preventDefault();
     submit.mutate({
       ...form,
+      self_reported_registered_voter: form.registered_voter,
       contact_number: form.contact_number.trim() || null,
       village_id: Number(form.village_id),
     });
@@ -195,8 +221,38 @@ export default function StaffEntryPage() {
 
   const updateField = <K extends keyof StaffForm>(field: K, value: StaffForm[K]) => {
     setForm(prev => ({ ...prev, [field]: value }));
+    if (saveFeedback) setSaveFeedback(null);
     // Clear scan highlight when user edits
     setScannedFields(prev => { const next = new Set(prev); next.delete(field); return next; });
+  };
+
+  const successTone = (status: string) => {
+    if (status === 'verified') {
+      return {
+        container: 'bg-green-50 border-green-200 text-green-700',
+        badge: 'bg-green-100 text-green-700',
+        detail: 'Saved and sent to the Supporter Review Queue. The voter check found a current GEC match.',
+      };
+    }
+    if (status === 'flagged') {
+      return {
+        container: 'bg-amber-50 border-amber-200 text-amber-700',
+        badge: 'bg-amber-100 text-amber-700',
+        detail: 'Saved and sent to the Supporter Review Queue. The voter check needs manual follow-up.',
+      };
+    }
+    return {
+      container: 'bg-blue-50 border-blue-200 text-blue-700',
+      badge: 'bg-blue-100 text-blue-700',
+      detail: 'Saved and sent to the Supporter Review Queue. This person is not in the official supporter list until the data team approves them.',
+    };
+  };
+
+  const voterCheckBadgeLabel = (status: string) => {
+    if (status === 'verified') return 'Voter check: Matched to GEC';
+    if (status === 'flagged') return 'Voter check: Flagged for review';
+    if (status === 'unverified') return 'Voter check: Needs voter review';
+    return `Voter check: ${status.replace(/_/g, ' ')}`;
   };
 
   const inputClass = (field: string) =>
@@ -260,11 +316,22 @@ export default function StaffEntryPage() {
         </div>
       )}
 
-      {/* Success Toast */}
-      {showSuccess && (
+      {/* Success Feedback */}
+      {saveFeedback && (
         <div className="mt-4">
-          <div className="bg-green-50 border border-green-200 text-green-600 px-4 py-3 rounded-lg flex items-center gap-2">
-            <Check className="w-5 h-5" /> Supporter added! Ready for next entry.
+          <div className={`border px-4 py-3 rounded-lg flex items-start gap-3 ${successTone(saveFeedback.verificationStatus).container}`}>
+            <Check className="w-5 h-5 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <div className="font-semibold">
+                {saveFeedback.name} saved and sent to Supporter Review.
+              </div>
+              <div className="text-sm mt-1">
+                {successTone(saveFeedback.verificationStatus).detail}
+              </div>
+            </div>
+            <span className={`ml-auto shrink-0 text-xs font-semibold px-2 py-1 rounded-full ${successTone(saveFeedback.verificationStatus).badge}`}>
+              {voterCheckBadgeLabel(saveFeedback.verificationStatus)}
+            </span>
           </div>
         </div>
       )}
@@ -306,7 +373,7 @@ export default function StaffEntryPage() {
         </div>
 
         {/* Name */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div>
             <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">First Name *</label>
             <input
@@ -318,6 +385,16 @@ export default function StaffEntryPage() {
               onChange={e => updateField('first_name', e.target.value)}
               className={inputClass("first_name")}
               placeholder="First Name"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Middle Name</label>
+            <input
+              type="text"
+              value={form.middle_name}
+              onChange={e => updateField('middle_name', e.target.value)}
+              className={inputClass("middle_name")}
+              placeholder="Middle Name"
             />
           </div>
           <div>
@@ -386,7 +463,7 @@ export default function StaffEntryPage() {
         <div className="space-y-3 py-2">
           <label className="flex items-center gap-3">
             <input type="checkbox" checked={form.registered_voter} onChange={e => updateField('registered_voter', e.target.checked)} className="w-5 h-5 rounded text-primary" />
-            <span className="text-[var(--text-primary)]">Registered Voter</span>
+            <span className="text-[var(--text-primary)]">Self-reported registered voter</span>
           </label>
           <label className="flex items-center gap-3">
             <input type="checkbox" checked={form.yard_sign} onChange={e => updateField('yard_sign', e.target.checked)} className="w-5 h-5 rounded text-primary" />

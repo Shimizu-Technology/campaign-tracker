@@ -13,6 +13,7 @@ interface Village {
 
 type SignupForm = {
   first_name: string;
+  middle_name: string;
   last_name: string;
   contact_number: string;
   email: string;
@@ -32,6 +33,7 @@ export default function SignupPage() {
 
   const [form, setForm] = useState({
     first_name: '',
+    middle_name: '',
     last_name: '',
     contact_number: DEFAULT_GUAM_PHONE_PREFIX,
     email: '',
@@ -60,6 +62,7 @@ export default function SignupPage() {
     e.preventDefault();
     signup.mutate({
       ...form,
+      self_reported_registered_voter: form.registered_voter,
       village_id: Number(form.village_id),
     });
   };
@@ -96,7 +99,7 @@ export default function SignupPage() {
             <p className="text-sm text-gray-500">Please fill out the form below to join the campaign effort.</p>
           </div>
         {/* Name */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
             <input
@@ -106,6 +109,16 @@ export default function SignupPage() {
               onChange={e => updateField('first_name', e.target.value)}
               className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               placeholder="Juan"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Middle Name</label>
+            <input
+              type="text"
+              value={form.middle_name}
+              onChange={e => updateField('middle_name', e.target.value)}
+              className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              placeholder="Maria"
             />
           </div>
           <div>
@@ -194,7 +207,7 @@ export default function SignupPage() {
             onChange={e => updateField('registered_voter', e.target.checked)}
             className="w-5 h-5 text-primary rounded shrink-0"
           />
-          <span className="text-gray-700">I am a registered voter</span>
+          <span className="text-gray-700">I believe I am a registered voter</span>
         </label>
 
         {/* Yard Sign */}

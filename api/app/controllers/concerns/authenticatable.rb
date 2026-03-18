@@ -115,6 +115,16 @@ module Authenticatable
     end
   end
 
+  def require_data_ops_access!
+    return if can_access_data_team?
+
+    render_api_error(
+      message: "Data Ops access required",
+      status: :forbidden,
+      code: "data_ops_access_required"
+    )
+  end
+
   def require_coordinator_or_above!
     unless current_user&.admin? || current_user&.data_team? || current_user&.coordinator?
       render_api_error(
@@ -223,12 +233,16 @@ module Authenticatable
     current_user&.admin?
   end
 
+  def can_manage_data_configuration?
+    current_user&.admin? || current_user&.data_team?
+  end
+
   def can_send_sms?
-    current_user&.admin? || current_user&.data_team? || current_user&.coordinator?
+    current_user&.admin? || current_user&.coordinator?
   end
 
   def can_send_email?
-    current_user&.admin? || current_user&.data_team? || current_user&.coordinator?
+    current_user&.admin? || current_user&.coordinator?
   end
 
   def can_edit_supporters?
@@ -244,31 +258,51 @@ module Authenticatable
   end
 
   def can_access_events?
-    can_view_supporters?
+    current_user&.admin? || current_user&.coordinator? || current_user&.chief? || current_user&.leader?
   end
 
   def can_access_qr?
-    can_view_supporters?
+    current_user&.admin? || current_user&.coordinator? || current_user&.chief? || current_user&.leader?
   end
 
   def can_access_leaderboard?
-    can_view_supporters?
+    current_user&.admin? || current_user&.coordinator? || current_user&.chief? || current_user&.leader?
   end
 
   def can_access_war_room?
-    current_user&.admin? || current_user&.data_team? || current_user&.coordinator? || current_user&.chief? || current_user&.poll_watcher?
+    current_user&.admin? || current_user&.coordinator? || current_user&.chief? || current_user&.poll_watcher?
   end
 
   def can_access_poll_watcher?
-    can_access_war_room?
+    current_user&.admin? || current_user&.coordinator? || current_user&.poll_watcher?
   end
 
   def can_access_duplicates?
-    current_user&.admin? || current_user&.data_team? || current_user&.coordinator?
+    current_user&.admin? || current_user&.data_team?
   end
 
   def can_access_audit_logs?
-    current_user&.admin? || current_user&.data_team? || current_user&.coordinator?
+    current_user&.admin? || current_user&.data_team?
+  end
+
+  def can_access_data_team?
+    current_user&.admin? || current_user&.data_team?
+  end
+
+  def can_access_reports?
+    can_access_data_team?
+  end
+
+  def can_upload_gec?
+    can_access_data_team?
+  end
+
+  def can_bulk_vet?
+    can_access_data_team?
+  end
+
+  def can_review_public?
+    can_access_data_team?
   end
 
   # Returns the village IDs this user is scoped to, or nil for full access

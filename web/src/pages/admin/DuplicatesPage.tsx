@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getDuplicates, resolveDuplicate, scanDuplicates, getVillages } from '../../lib/api';
-import { Link } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, CheckCircle, Search, ArrowRight, X } from 'lucide-react';
 import { useSession } from '../../hooks/useSession';
+import { formatDateTime } from '../../lib/datetime';
 
 interface Supporter {
   id: number;
@@ -22,6 +23,8 @@ interface Supporter {
   source: string;
   created_at: string;
   verification_status: string;
+  review_status?: string;
+  public_review_status?: string;
 }
 
 interface Village {
@@ -35,31 +38,81 @@ interface DuplicateGroup {
   match: Supporter | { id: number; name: string; contact_number: string } | null;
 }
 
-function formatDate(iso: string) {
-  const d = new Date(iso);
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
 function sourceLabel(source: string) {
   return source?.replace(/_/g, ' ') || 'Unknown';
 }
 
 function verificationBadge(status: string) {
-  if (status === 'verified') return <span className="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700">Verified</span>;
-  if (status === 'flagged') return <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700">Flagged</span>;
-  return <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-700">Unverified</span>;
+  if (status === 'verified') return <span className="text-[11px] font-medium text-green-700">Voter check: Matched to GEC</span>;
+  if (status === 'flagged') return <span className="text-[11px] font-medium text-amber-700">Voter check: Flagged for review</span>;
+  return <span className="text-[11px] font-medium text-slate-600">Voter check: Needs voter review</span>;
 }
 
-function SupporterCard({ supporter, isFullRecord }: { supporter: Supporter | { id: number; name: string; contact_number: string }; isFullRecord: boolean }) {
+function supporterApprovalStatusLabel(supporter: Pick<Supporter, 'source' | 'review_status' | 'public_review_status'>) {
+  if ((supporter.source === 'public_signup' || supporter.source === 'qr_signup') && supporter.public_review_status === 'pending') {
+    return 'Pending Public Review';
+  }
+  if (supporter.review_status === 'pending') {
+    return 'Pending Supporter Review';
+  }
+  if (supporter.review_status === 'rejected') {
+    return 'Rejected Submission';
+  }
+  if ((supporter.source === 'public_signup' || supporter.source === 'qr_signup') && supporter.review_status === 'approved') {
+    return 'Approved Public Supporter';
+  }
+  if (supporter.source === 'staff_entry') return 'Approved Staff Supporter';
+  if (supporter.source === 'bulk_import') return 'Approved Imported Supporter';
+  return 'Campaign Supporter';
+}
+
+function supporterApprovalStatusClass(supporter: Pick<Supporter, 'source' | 'review_status' | 'public_review_status'>) {
+  if ((supporter.source === 'public_signup' || supporter.source === 'qr_signup') && supporter.public_review_status === 'pending') {
+    return 'bg-amber-100 text-amber-700';
+  }
+  if (supporter.review_status === 'pending') {
+    return 'bg-blue-100 text-blue-700';
+  }
+  if (supporter.review_status === 'rejected') {
+    return 'bg-red-100 text-red-700';
+  }
+  if ((supporter.source === 'public_signup' || supporter.source === 'qr_signup') && supporter.review_status === 'approved') {
+    return 'bg-blue-100 text-blue-700';
+  }
+  if (supporter.source === 'staff_entry') return 'bg-purple-100 text-purple-700';
+  if (supporter.source === 'bulk_import') return 'bg-slate-100 text-slate-700';
+  return 'bg-gray-100 text-gray-700';
+}
+
+function SupporterCard({
+  supporter,
+  isFullRecord,
+  recordLabel,
+  supporterBasePath,
+}: {
+  supporter: Supporter | { id: number; name: string; contact_number: string };
+  isFullRecord: boolean;
+  recordLabel?: string;
+  supporterBasePath: string;
+}) {
   if (!isFullRecord) {
     const s = supporter as { id: number; name: string; contact_number: string };
     return (
       <div className="flex-1 min-w-0 p-4 bg-[var(--surface-bg)] rounded-xl">
-        <Link to={`/admin/supporters/${s.id}`} className="font-medium text-primary hover:underline">
-          {s.name}
-        </Link>
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <div className="min-w-0">
+            {recordLabel && (
+              <div className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)] mb-1">
+                {recordLabel}
+              </div>
+            )}
+            <Link to={`${supporterBasePath}/${s.id}`} className="font-medium text-primary hover:underline">
+              {s.name}
+            </Link>
+          </div>
+        </div>
         <p className="text-sm text-[var(--text-secondary)] mt-1">{s.contact_number}</p>
-        <p className="text-xs text-[var(--text-muted)] mt-1">Limited info — view full record</p>
+        <p className="text-xs text-[var(--text-muted)] mt-2">Limited info shown here. Open the full record for more detail.</p>
       </div>
     );
   }
@@ -67,17 +120,32 @@ function SupporterCard({ supporter, isFullRecord }: { supporter: Supporter | { i
   const s = supporter as Supporter;
   return (
     <div className="flex-1 min-w-0 p-4 bg-[var(--surface-bg)] rounded-xl">
-      <div className="flex items-center gap-2 mb-2">
-        <Link to={`/admin/supporters/${s.id}`} className="font-semibold text-primary hover:underline">
-          {s.first_name} {s.last_name}
-        </Link>
-        {verificationBadge(s.verification_status)}
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="min-w-0">
+          {recordLabel && (
+            <div className="text-[11px] uppercase tracking-[0.08em] text-[var(--text-muted)] mb-1">
+              {recordLabel}
+            </div>
+          )}
+          <Link to={`${supporterBasePath}/${s.id}`} className="font-semibold text-primary hover:underline">
+            {s.first_name} {s.last_name}
+          </Link>
+        </div>
+        <span className={`shrink-0 text-[11px] px-2.5 py-1 rounded-full font-medium ${supporterApprovalStatusClass(s)}`}>
+          {supporterApprovalStatusLabel(s)}
+        </span>
       </div>
-      <div className="space-y-1 text-sm text-[var(--text-secondary)]">
+      <div className="space-y-1.5 text-sm text-[var(--text-secondary)]">
         <p>{s.contact_number || 'No phone'}</p>
         {s.email && <p>{s.email}</p>}
         <p>{s.village_name}{s.precinct_number ? ` · Precinct ${s.precinct_number}` : ''}</p>
-        <p className="text-xs text-[var(--text-muted)]">{sourceLabel(s.source)} · {formatDate(s.created_at)}</p>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-[11px] text-[var(--text-muted)]">
+          <span>{sourceLabel(s.source)}</span>
+          <span>Created {formatDateTime(s.created_at)}</span>
+        </div>
+        <div className="pt-1">
+          {verificationBadge(s.verification_status)}
+        </div>
       </div>
     </div>
   );
@@ -87,6 +155,10 @@ export default function DuplicatesPage() {
   const [villageFilter, setVillageFilter] = useState<string>('');
   const queryClient = useQueryClient();
   const { data: sessionData } = useSession();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const supporterBasePath = location.pathname.startsWith('/data') ? '/data/supporters' : '/admin/supporters';
+  const focusSupporterId = Number(searchParams.get('focus_supporter_id') || '');
 
   const { data: dupData, isLoading } = useQuery({
     queryKey: ['duplicates', villageFilter],
@@ -160,6 +232,15 @@ export default function DuplicatesPage() {
     return result;
   }, [supporters]);
 
+  useEffect(() => {
+    if (!focusSupporterId || groups.length === 0) return;
+
+    const target = document.querySelector<HTMLElement>(`[data-duplicate-group="${focusSupporterId}"]`);
+    if (!target) return;
+
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [focusSupporterId, groups]);
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       {/* Header */}
@@ -210,22 +291,36 @@ export default function DuplicatesPage() {
             const s = group.supporter;
             const match = group.match;
             const matchIsFullRecord = match ? 'first_name' in match : false;
+            const fullMatch = matchIsFullRecord ? match as Supporter : null;
+            const isFocusedGroup =
+              focusSupporterId > 0 &&
+              (s.id === focusSupporterId || ('id' in (match || {}) && (match as { id?: number }).id === focusSupporterId));
+            const leftLabel = fullMatch
+              ? new Date(s.created_at) >= new Date(fullMatch.created_at) ? 'Newer record' : 'Existing record'
+              : 'Selected record';
+            const rightLabel = fullMatch
+              ? new Date(s.created_at) >= new Date(fullMatch.created_at) ? 'Existing record' : 'Newer record'
+              : 'Matched record';
 
             return (
-              <div key={group.key} className="app-card overflow-hidden">
+              <div
+                key={group.key}
+                data-duplicate-group={isFocusedGroup ? focusSupporterId : undefined}
+                className={`app-card overflow-hidden ${isFocusedGroup ? 'ring-2 ring-amber-300' : ''}`}
+              >
                 {/* Match reason header */}
                 <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-amber-500" />
                   <span className="text-sm font-medium text-amber-800">Potential Duplicate</span>
                   {s.duplicate_notes && (
-                    <span className="text-xs text-amber-600 ml-2">Matches: {s.duplicate_notes}</span>
+                    <span className="text-xs text-amber-600 ml-2">{s.duplicate_notes}</span>
                   )}
                 </div>
 
                 {/* Side-by-side comparison */}
                 <div className="p-4">
                   <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-3 items-start">
-                    <SupporterCard supporter={s} isFullRecord={true} />
+                    <SupporterCard supporter={s} isFullRecord={true} recordLabel={leftLabel} supporterBasePath={supporterBasePath} />
 
                     <div className="hidden md:flex items-center justify-center px-2">
                       <ArrowRight className="w-5 h-5 text-[var(--text-muted)] rotate-0" />
@@ -235,7 +330,7 @@ export default function DuplicatesPage() {
                     </div>
 
                     {match ? (
-                      <SupporterCard supporter={match} isFullRecord={matchIsFullRecord} />
+                      <SupporterCard supporter={match} isFullRecord={matchIsFullRecord} recordLabel={rightLabel} supporterBasePath={supporterBasePath} />
                     ) : (
                       <div className="flex-1 min-w-0 p-4 bg-[var(--surface-bg)] rounded-xl text-center text-sm text-[var(--text-muted)]">
                         Match record not found

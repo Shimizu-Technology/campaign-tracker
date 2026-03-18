@@ -11,6 +11,10 @@ module Api
       def index
         campaign = Campaign.active.first
         villages = Village.order(:name)
+        current_period = CampaignCycle.current_quota_period
+        current_period_targets = current_period&.effective_village_targets(include_legacy_fallback: true) || {}
+        current_period_village_quotas = current_period&.village_quotas&.index_by(&:village_id) || {}
+        latest_gec_list_date = GecVoter.active.maximum(:gec_list_date)
         existing_quotas = if campaign
           Quota.where(campaign_id: campaign.id, village_id: villages.pluck(:id)).index_by(&:village_id)
         else
@@ -19,18 +23,26 @@ module Api
 
         render json: {
           campaign: campaign&.slice(:id, :name, :election_year),
+          latest_gec_list_date: latest_gec_list_date,
+          current_period: current_period && {
+            id: current_period.id,
+            name: current_period.name,
+            due_date: current_period.due_date,
+            quota_target: current_period.effective_quota_target
+          },
           quotas: villages.map { |village|
             quota = existing_quotas[village.id]
+            current_village_quota = current_period_village_quotas[village.id]
             {
               village_id: village.id,
               village_name: village.name,
               region: village.region,
               registered_voters: village.registered_voters,
               quota_id: quota&.id,
-              target_count: quota&.target_count || 0,
+              target_count: current_period_targets[village.id] || quota&.target_count || 0,
               period: quota&.period,
               target_date: quota&.target_date,
-              updated_at: quota&.updated_at&.iso8601
+              updated_at: current_village_quota&.updated_at&.iso8601 || quota&.updated_at&.iso8601
             }
           }
         }
@@ -51,16 +63,26 @@ module Api
           )
         end
 
+        legacy_targets = Quota.where(campaign: campaign).pluck(:village_id, :target_count).to_h
         quota = Quota.find_or_initialize_by(campaign: campaign, village: village)
-        original_target = quota.persisted? ? quota.target_count : nil
+        original_target = quota.persisted? ? quota.target_count : legacy_targets[village.id]
+        current_period = CampaignCycle.current_quota_period
+        legacy_targets[village.id] = original_target if original_target.present?
+        lock_historical_period_targets!(current_period, legacy_targets)
         quota.target_count = target_count
         quota.period = quota.period.presence || "quarterly"
         quota.target_date = quota.target_date.presence
 
         if quota.save
+          sync_current_period_village_target!(village, target_count)
           changed_data = { target_count: [ original_target, quota.target_count ] }
           changed_data[:period] = [ nil, quota.period ] if original_target.nil?
           log_quota_audit!(quota, changed_data: changed_data)
+          CampaignBroadcast.stats_update({
+            action: "quota_updated",
+            village_id: village.id,
+            village_name: village.name
+          })
 
           render json: {
             quota: {
@@ -94,6 +116,31 @@ module Api
           status: :unprocessable_entity,
           code: "campaign_not_found"
         )
+      end
+
+      def sync_current_period_village_target!(village, target_count)
+        current_period = CampaignCycle.current_quota_period
+        return unless current_period
+
+        village_quota = current_period.village_quotas.find_or_initialize_by(village: village)
+        village_quota.target = target_count
+        village_quota.save!
+      end
+
+      def lock_historical_period_targets!(current_period, legacy_targets)
+        return unless current_period
+
+        current_period.campaign_cycle.quota_periods
+          .where("end_date < ?", current_period.start_date)
+          .find_each do |period|
+            legacy_targets.each do |village_id, target_count|
+              next unless target_count.present?
+
+              period.village_quotas.find_or_create_by!(village_id: village_id) do |village_quota|
+                village_quota.target = target_count
+              end
+            end
+          end
       end
 
       def log_quota_audit!(quota, changed_data:)

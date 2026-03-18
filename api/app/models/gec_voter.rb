@@ -163,7 +163,10 @@ class GecVoter < ApplicationRecord
   def resolve_village
     return if village_id.present? || village_name.blank?
 
-    found = Village.find_by("LOWER(name) = ?", village_name.downcase.strip)
+    canonical_name = GecImportService.normalize_village_name(village_name, allow_unknown: false) || GecImportService::UNASSIGNED_VILLAGE_NAME
+    self.village_name = canonical_name
+
+    found = Village.find_by("LOWER(name) = ?", canonical_name.downcase)
     self.village_id = found&.id
   end
 end

@@ -35,6 +35,52 @@ class GecImportServiceTest < ActiveSupport::TestCase
     assert_equal @village.id, juan.village_id
   end
 
+  test "canonicalizes imported village aliases onto existing village records" do
+    humatak = Village.find_or_create_by!(name: "Humåtak")
+    malesso = Village.find_or_create_by!(name: "Malesso'")
+    mtm = Village.find_or_create_by!(name: "Mongmong/Toto/Maite")
+
+    file = create_test_csv([
+      [ "name", "village", "voter_registration_number", "dob", "dob_estimated", "birth_year", "pct", "address" ],
+      [ "CRUZ, JUAN", "HUMATAK", "VR001", "01/01/1985", "true", "1985", "1", "123 TEST ST" ],
+      [ "SANTOS, MARIA", "MALESSO", "VR002", "01/01/1990", "true", "1990", "2", "456 TEST ST" ],
+      [ "PEREZ, PATRINA", "MONGMONG", "VR003", "01/01/1984", "true", "1984", "8A", "116 PETMANENTE ST" ],
+      [ "GILL, LILLIAN", "TOTO", "VR004", "01/01/1995", "true", "1995", "6", "166 CHALAN RS SANCHEZ" ],
+      [ "GURWELL, DANNY", "MAITE", "VR005", "01/01/1964", "true", "1964", "11A", "472 RT 8 STE 1B-496" ],
+      [ "APIAG, RAPHON", "MTM", "VR006", "01/01/1982", "true", "1982", "8A", "123 TEST ST" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      import_type: "changes_only"
+    ).call
+
+    assert result.success
+
+    juan = GecVoter.find_by!(voter_registration_number: "VR001")
+    maria = GecVoter.find_by!(voter_registration_number: "VR002")
+    pat = GecVoter.find_by!(voter_registration_number: "VR003")
+    lillian = GecVoter.find_by!(voter_registration_number: "VR004")
+    danny = GecVoter.find_by!(voter_registration_number: "VR005")
+    raphon = GecVoter.find_by!(voter_registration_number: "VR006")
+
+    assert_equal "Humåtak", juan.village_name
+    assert_equal humatak.id, juan.village_id
+    assert_equal "Malesso'", maria.village_name
+    assert_equal malesso.id, maria.village_id
+    assert_equal "Mongmong/Toto/Maite", pat.village_name
+    assert_equal mtm.id, pat.village_id
+    assert_equal "Mongmong/Toto/Maite", lillian.village_name
+    assert_equal mtm.id, lillian.village_id
+    assert_equal "Mongmong/Toto/Maite", danny.village_name
+    assert_equal mtm.id, danny.village_id
+    assert_equal "Mongmong/Toto/Maite", raphon.village_name
+    assert_equal mtm.id, raphon.village_id
+  ensure
+    file&.close!
+  end
+
   test "updates existing voters on re-import" do
     GecVoter.create!(
       first_name: "Juan",
@@ -111,6 +157,353 @@ class GecImportServiceTest < ActiveSupport::TestCase
     assert_equal 2, result.stats[:skipped]
     assert_equal 2, result.gec_import.metadata["row_error_details"].length
     assert_equal "missing first_name or last_name", result.gec_import.metadata["row_error_details"].first["message"]
+    assert_equal 2, result.gec_import.skipped_rows.count
+    assert_equal [ 3, 4 ], result.gec_import.skipped_rows.order(:row_number).pluck(:row_number)
+  end
+
+  test "skips ambiguous exact matches instead of updating an arbitrary active voter" do
+    GecVoter.create!(
+      first_name: "MARIE",
+      middle_name: "FLORES",
+      last_name: "CRUZ",
+      village_name: "Tamuning",
+      birth_year: 1955,
+      voter_registration_number: "VR001",
+      gec_list_date: Date.new(2026, 1, 25),
+      imported_at: 1.month.ago,
+      status: "active"
+    )
+    GecVoter.create!(
+      first_name: "MARIE",
+      middle_name: "FLORES",
+      last_name: "CRUZ",
+      village_name: "Tamuning",
+      birth_year: 1955,
+      voter_registration_number: "VR002",
+      gec_list_date: Date.new(2026, 1, 25),
+      imported_at: 1.month.ago,
+      status: "active"
+    )
+
+    file = create_test_csv([
+      [ "name", "village", "voter_registration_number", "dob", "dob_estimated", "birth_year", "pct", "address" ],
+      [ "CRUZ, MARIE FLORES", "Tamuning", "VR999", "01/01/1955", "true", "1955", "4", "PO BOX 123" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      import_type: "changes_only"
+    ).call
+
+    assert result.success
+    assert_equal 1, result.stats[:skipped]
+    assert_equal 0, result.stats[:updated]
+    assert_equal 0, result.stats[:transferred]
+    assert_match(/ambiguous exact match/i, result.gec_import.metadata["row_error_details"].first["message"])
+    assert_equal %w[VR001 VR002], GecVoter.active.where(first_name: "MARIE", last_name: "CRUZ", village_name: "Tamuning", birth_year: 1955).order(:voter_registration_number).pluck(:voter_registration_number)
+  ensure
+    file&.close!
+  end
+
+  test "preserves middle names from combined GEC name columns" do
+    file = create_test_csv([
+      [ "name", "village", "voter_registration_number", "dob", "dob_estimated", "birth_year", "pct", "address" ],
+      [ "ADAMS, ISABEL ANN", "Hagatna", "VR-MIDDLE-1", "01/01/1987", "true", "1987", "1", "147 9TH ST" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      import_type: "changes_only"
+    ).call
+
+    assert result.success
+    voter = GecVoter.find_by!(voter_registration_number: "VR-MIDDLE-1")
+    assert_equal "ISABEL", voter.first_name
+    assert_equal "ANN", voter.middle_name
+    assert_equal "ADAMS", voter.last_name
+  ensure
+    file&.close!
+  end
+
+  test "skips ambiguous transfer matches instead of silently moving a voter" do
+    GecVoter.create!(
+      first_name: "JOSEPH",
+      last_name: "CRUZ",
+      village_name: "Malesso'",
+      birth_year: 1967,
+      voter_registration_number: "VR100",
+      gec_list_date: Date.new(2026, 1, 25),
+      imported_at: 1.month.ago,
+      status: "active"
+    )
+    GecVoter.create!(
+      first_name: "JOSEPH",
+      last_name: "CRUZ",
+      village_name: "Barrigada",
+      birth_year: 1967,
+      voter_registration_number: "VR200",
+      gec_list_date: Date.new(2026, 1, 25),
+      imported_at: 1.month.ago,
+      status: "active"
+    )
+
+    file = create_test_csv([
+      [ "name", "village", "voter_registration_number", "dob", "dob_estimated", "birth_year", "pct", "address" ],
+      [ "CRUZ, JOSEPH B", "Hagåtña", "VR300", "01/01/1967", "true", "1967", "9", "PO BOX 555" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      import_type: "changes_only"
+    ).call
+
+    assert result.success
+    assert_equal 1, result.stats[:skipped]
+    assert_equal 0, result.stats[:new]
+    assert_equal 0, result.stats[:updated]
+    assert_equal 0, result.stats[:transferred]
+    assert_match(/ambiguous transfer match/i, result.gec_import.metadata["row_error_details"].first["message"])
+  ensure
+    file&.close!
+  end
+
+  test "ignores removed historical voters when matching current import rows" do
+    GecVoter.create!(
+      first_name: "EILEEN",
+      middle_name: "C.",
+      last_name: "SANCHEZ",
+      village_name: "Hågat",
+      birth_year: 1973,
+      voter_registration_number: "VR-ACTIVE",
+      gec_list_date: Date.new(2026, 1, 25),
+      imported_at: 1.month.ago,
+      status: "active"
+    )
+    GecVoter.create!(
+      first_name: "EILEEN",
+      middle_name: "C.",
+      last_name: "SANCHEZ",
+      village_name: "Hågat",
+      birth_year: 1973,
+      voter_registration_number: "VR-REMOVED",
+      gec_list_date: Date.new(2025, 12, 25),
+      imported_at: 2.months.ago,
+      status: "removed",
+      removed_at: 1.month.ago
+    )
+
+    file = create_test_csv([
+      [ "name", "village", "voter_registration_number", "dob", "dob_estimated", "birth_year", "pct", "address" ],
+      [ "SANCHEZ, EILEEN C.", "Agat", "VR-ACTIVE", "01/01/1973", "true", "1973", "4A", "PO BOX 8608" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      import_type: "changes_only"
+    ).call
+
+    assert result.success
+    assert_equal 1, result.stats[:matched_unchanged]
+    assert_equal 0, result.stats[:updated]
+    assert_equal 0, result.stats[:skipped]
+    assert_equal "removed", GecVoter.find_by(voter_registration_number: "VR-REMOVED").status
+    assert_equal "active", GecVoter.find_by(voter_registration_number: "VR-ACTIVE").status
+  ensure
+    file&.close!
+  end
+
+  test "skips malformed parsed source names without a comma" do
+    file = create_test_csv([
+      [ "name", "village", "voter_registration_number", "dob", "dob_estimated", "birth_year", "pct", "address" ],
+      [ "N MARINE CORPS DR", "Hagatna", "", "01/01/1983", "true", "1983", "10", "PO BOX 1" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      import_type: "changes_only"
+    ).call
+
+    assert result.success
+    assert_equal 1, result.stats[:skipped]
+    assert_match(/malformed source name/i, result.gec_import.metadata["row_error_details"].first["message"])
+  ensure
+    file&.close!
+  end
+
+  test "creates distinct voters when source identity collisions have unique vrns" do
+    GecVoter.create!(
+      first_name: "MARIE",
+      middle_name: "FLORES",
+      last_name: "CRUZ",
+      village_name: "Tamuning",
+      birth_year: 1955,
+      voter_registration_number: "VR001",
+      gec_list_date: Date.new(2026, 1, 25),
+      imported_at: 1.month.ago,
+      status: "active"
+    )
+
+    file = create_test_csv([
+      [ "name", "village", "voter_registration_number", "dob", "dob_estimated", "birth_year", "pct", "address" ],
+      [ "CRUZ, MARIE FLORES", "Tamuning", "VR001", "01/01/1955", "true", "1955", "4", "PO BOX 1" ],
+      [ "CRUZ, MARIE MENDIOLA", "Hagåtña", "VR002", "01/01/1955", "true", "1955", "1", "PO BOX 2" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      import_type: "changes_only"
+    ).call
+
+    assert result.success
+    assert_equal 1, result.stats[:matched_unchanged]
+    assert_equal 1, result.stats[:new]
+    assert_equal 0, result.stats[:skipped]
+    assert_equal 0, result.stats[:updated]
+    assert_equal 0, result.stats[:transferred]
+    assert_nil result.gec_import.metadata["row_error_details"].presence
+
+    assert_equal %w[VR001 VR002], GecVoter.active.where(first_name: "MARIE", last_name: "CRUZ", birth_year: 1955).order(:voter_registration_number).pluck(:voter_registration_number)
+  ensure
+    file&.close!
+  end
+
+  test "allows source identity collisions when each row has a unique trusted vrn match" do
+    GecVoter.create!(
+      first_name: "MARIE",
+      middle_name: "FLORES",
+      last_name: "CRUZ",
+      village_name: "Tamuning",
+      birth_year: 1955,
+      voter_registration_number: "VR001",
+      gec_list_date: Date.new(2026, 1, 25),
+      imported_at: 1.month.ago,
+      status: "active"
+    )
+    GecVoter.create!(
+      first_name: "MARIE",
+      middle_name: "MENDIOLA",
+      last_name: "CRUZ",
+      village_name: "Hagåtña",
+      birth_year: 1955,
+      voter_registration_number: "VR002",
+      gec_list_date: Date.new(2026, 1, 25),
+      imported_at: 1.month.ago,
+      status: "active"
+    )
+
+    file = create_test_csv([
+      [ "name", "village", "voter_registration_number", "dob", "dob_estimated", "birth_year", "pct", "address" ],
+      [ "CRUZ, MARIE FLORES", "Tamuning", "VR001", "01/01/1955", "true", "1955", "4", "PO BOX 1" ],
+      [ "CRUZ, MARIE MENDIOLA", "Hagåtña", "VR002", "01/01/1955", "true", "1955", "1", "PO BOX 2" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      import_type: "changes_only"
+    ).call
+
+    assert result.success
+    assert_equal 2, result.stats[:matched_unchanged]
+    assert_equal 0, result.stats[:skipped]
+    assert_nil result.gec_import.metadata["row_error_details"].presence
+  ensure
+    file&.close!
+  end
+
+  test "skips rows when source identity collisions cannot be resolved by vrn" do
+    GecVoter.create!(
+      first_name: "MARIE",
+      middle_name: "FLORES",
+      last_name: "CRUZ",
+      village_name: "Tamuning",
+      birth_year: 1955,
+      voter_registration_number: "VR001",
+      gec_list_date: Date.new(2026, 1, 25),
+      imported_at: 1.month.ago,
+      status: "active"
+    )
+
+    file = create_test_csv([
+      [ "name", "village", "voter_registration_number", "dob", "dob_estimated", "birth_year", "pct", "address" ],
+      [ "CRUZ, MARIE FLORES", "Tamuning", "VR001", "01/01/1955", "true", "1955", "4", "PO BOX 1" ],
+      [ "CRUZ, MARIE MENDIOLA", "Hagåtña", "", "01/01/1955", "true", "1955", "1", "PO BOX 2" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      import_type: "changes_only"
+    ).call
+
+    assert result.success
+    assert_equal 1, result.stats[:matched_unchanged]
+    assert_equal 1, result.stats[:skipped]
+    assert_match(/ambiguous source identity/i, result.gec_import.metadata["row_error_details"].first["message"])
+  ensure
+    file&.close!
+  end
+
+  test "full_list import suppresses removals when skipped rows require review" do
+    GecVoter.create!(
+      first_name: "MARIE",
+      last_name: "CRUZ",
+      village_name: "Tamuning",
+      birth_year: 1955,
+      voter_registration_number: "VR001",
+      gec_list_date: Date.new(2026, 1, 25),
+      imported_at: 1.month.ago,
+      status: "active"
+    )
+    GecVoter.create!(
+      first_name: "MARIE",
+      last_name: "CRUZ",
+      village_name: "Hagåtña",
+      birth_year: 1955,
+      voter_registration_number: "VR002",
+      gec_list_date: Date.new(2026, 1, 25),
+      imported_at: 1.month.ago,
+      status: "active"
+    )
+    untouched = GecVoter.create!(
+      first_name: "PEDRO",
+      last_name: "SANTOS",
+      village_name: "Dededo",
+      birth_year: 1980,
+      voter_registration_number: "VR999",
+      gec_list_date: Date.new(2026, 1, 25),
+      imported_at: 1.month.ago,
+      status: "active"
+    )
+
+    file = create_test_csv([
+      [ "name", "village", "voter_registration_number", "dob", "dob_estimated", "birth_year", "pct", "address" ],
+      [ "CRUZ, MARIE FLORES", "Tamuning", "VR001", "01/01/1955", "true", "1955", "4", "PO BOX 1" ],
+      [ "CRUZ, MARIE MENDIOLA", "Hagåtña", "", "01/01/1955", "true", "1955", "1", "PO BOX 2" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      import_type: "full_list"
+    ).call
+
+    assert result.success
+    assert_equal 1, result.stats[:skipped]
+    assert_equal 0, result.stats[:removed]
+    assert_equal true, result.gec_import.metadata["removal_detection_suppressed"]
+    assert_equal true, result.gec_import.metadata["review_required"]
+
+    untouched.reload
+    assert_equal "active", untouched.status
+  ensure
+    file&.close!
   end
 
   test "pdf-style birth-year import matches existing voter by vrn and canonical village" do
@@ -308,6 +701,43 @@ class GecImportServiceTest < ActiveSupport::TestCase
     file&.close!
   end
 
+  test "vrn match trusts shared name component plus birth year for surname changes" do
+    existing = GecVoter.create!(
+      first_name: "WANA",
+      last_name: "WINTTERLE",
+      village_name: "Tamuning",
+      birth_year: 1990,
+      voter_registration_number: "1879",
+      gec_list_date: Date.new(2026, 2, 25),
+      imported_at: 1.month.ago,
+      status: "active"
+    )
+
+    file = create_test_csv([
+      [ "name", "village", "voter_registration_number", "dob", "dob_estimated", "birth_year", "pct", "address" ],
+      [ "CRUZ, WANA FRANCES D.", "Malesso", "1879", "01/01/1990", "true", "1990", "18B", "PO BOX 9306" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 1, 25),
+      import_type: "changes_only"
+    ).call
+
+    assert result.success
+    assert_equal 0, result.stats[:new]
+    assert_equal 0, result.stats[:updated]
+    assert_equal 1, result.stats[:transferred]
+
+    existing.reload
+    assert_equal "WANA", existing.first_name
+    assert_equal "CRUZ", existing.last_name
+    assert_equal "Malesso'", existing.village_name
+    assert_equal "1879", existing.voter_registration_number
+  ensure
+    file&.close!
+  end
+
   test "official GEC combined-name format detects village column instead of address column" do
     Village.find_or_create_by!(name: "Dededo")
 
@@ -352,6 +782,25 @@ class GecImportServiceTest < ActiveSupport::TestCase
       [ "ADRIAN", "ADA", nil, "Unassigned", 1980 ],
       [ "WILLIAM", "AFLLEJE", nil, "Unassigned", 1959 ]
     ], voters
+  ensure
+    file&.close!
+  end
+
+  test "unknown import village names are routed to unassigned" do
+    file = create_test_csv([
+      [ "name", "village", "voter_registration_number", "dob", "dob_estimated", "birth_year", "pct", "address" ],
+      [ "TESTER, OFF ISLAND", "FPO", "VR-UNK-1", "01/01/1987", "true", "1987", "5", "USS EXAMPLE" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      import_type: "changes_only"
+    ).call
+
+    assert result.success
+    voter = GecVoter.find_by!(voter_registration_number: "VR-UNK-1")
+    assert_equal "Unassigned", voter.village_name
   ensure
     file&.close!
   end
@@ -569,14 +1018,13 @@ class GecImportServiceTest < ActiveSupport::TestCase
 
     assert result.success
     assert_equal 0, result.stats[:transferred]
-    assert_equal 1, result.stats[:new]
-
-    yigo_row = GecVoter.find_by(first_name: "Juan", last_name: "Cruz", village_name: "Yigo")
-    assert_not_nil yigo_row
-    assert_nil yigo_row.previous_village_name
+    assert_equal 0, result.stats[:new]
+    assert_equal 1, result.stats[:skipped]
+    assert_match(/ambiguous transfer match/i, result.gec_import.metadata["row_error_details"].first["message"])
+    assert_nil GecVoter.find_by(first_name: "Juan", last_name: "Cruz", village_name: "Yigo")
   end
 
-  test "full_list import re-flags verified supporters when voter is removed" do
+  test "full_list import marks previously verified supporters as no match when voter is removed" do
     # GEC voter
     GecVoter.create!(
       first_name: "Juan", last_name: "Cruz", village_name: "Barrigada",
@@ -608,8 +1056,38 @@ class GecImportServiceTest < ActiveSupport::TestCase
     assert_equal 1, result.stats[:re_vetted]
 
     supporter = Supporter.find_by(first_name: "Juan", last_name: "Cruz")
-    assert_equal "flagged", supporter.verification_status
+    assert_equal "unverified", supporter.verification_status
     assert_equal false, supporter.registered_voter
+  end
+
+  test "full_list import re-vets active supporters who become newly matched" do
+    village = Village.find_or_create_by!(name: "Barrigada")
+    supporter = Supporter.create!(
+      first_name: "Marissa", last_name: "Public", village: village,
+      dob: Date.new(1992, 4, 9),
+      contact_number: "671-555-6789", status: "active",
+      source: "public_signup", attribution_method: "public_signup"
+    )
+    supporter.update_columns(verification_status: "unverified", registered_voter: false)
+
+    file = create_test_excel([
+      [ "First Name", "Last Name", "Date of Birth", "Village", "Reg No" ],
+      [ "Marissa", "Public", Date.new(1992, 4, 9), "Barrigada", "VR555" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      import_type: "full_list"
+    ).call
+
+    assert result.success
+    assert_equal 1, result.stats[:re_vetted]
+
+    supporter.reload
+    assert_equal "verified", supporter.verification_status
+    assert_equal true, supporter.registered_voter
+    assert_not_nil supporter.verified_at
   end
 
   test "tracks matched_unchanged when re-importing identical data" do

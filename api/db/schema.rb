@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_08_220000) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_16_123000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -273,6 +273,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_08_220000) do
     t.string "first_name"
     t.bigint "gec_import_id", null: false
     t.string "last_name"
+    t.string "middle_name"
     t.string "previous_village_name"
     t.integer "row_number"
     t.datetime "updated_at", null: false
@@ -285,6 +286,34 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_08_220000) do
     t.index "lower((voter_registration_number)::text) gin_trgm_ops", name: "idx_gec_import_changes_vrn_trgm", using: :gin
     t.index ["gec_import_id", "change_type"], name: "index_gec_import_changes_on_gec_import_id_and_change_type"
     t.index ["voter_registration_number"], name: "index_gec_import_changes_on_voter_registration_number"
+  end
+
+  create_table "gec_import_skipped_rows", force: :cascade do |t|
+    t.integer "birth_year"
+    t.jsonb "corrected_values", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.date "dob"
+    t.string "first_name"
+    t.bigint "gec_import_id", null: false
+    t.string "last_name"
+    t.string "message", null: false
+    t.string "middle_name"
+    t.jsonb "raw_values", default: [], null: false
+    t.string "resolution_action"
+    t.jsonb "resolution_details", default: {}, null: false
+    t.string "resolution_status", default: "pending", null: false
+    t.datetime "resolved_at"
+    t.bigint "resolved_by_user_id"
+    t.bigint "resolved_gec_voter_id"
+    t.integer "row_number", null: false
+    t.string "source_name"
+    t.datetime "updated_at", null: false
+    t.string "village_name"
+    t.string "voter_registration_number"
+    t.index ["gec_import_id", "resolution_status"], name: "index_gec_import_skipped_rows_on_import_and_status"
+    t.index ["gec_import_id", "row_number"], name: "index_gec_import_skipped_rows_on_import_and_row", unique: true
+    t.index ["resolved_by_user_id"], name: "index_gec_import_skipped_rows_on_resolved_by_user_id"
+    t.index ["resolved_gec_voter_id"], name: "index_gec_import_skipped_rows_on_resolved_gec_voter_id"
   end
 
   create_table "gec_import_uploads", force: :cascade do |t|
@@ -332,6 +361,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_08_220000) do
     t.date "gec_list_date", null: false
     t.datetime "imported_at", null: false
     t.string "last_name", null: false
+    t.string "middle_name"
     t.string "previous_village_name"
     t.bigint "removal_detected_by_import_id"
     t.datetime "removed_at"
@@ -533,8 +563,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_08_220000) do
     t.string "email"
     t.integer "entered_by_user_id"
     t.string "first_name"
+    t.string "intake_status", default: "accepted", null: false
     t.string "last_name"
     t.string "leader_code"
+    t.string "middle_name"
     t.boolean "motorcade_available"
     t.string "normalized_phone"
     t.boolean "opt_in_email", default: false, null: false
@@ -542,6 +574,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_08_220000) do
     t.boolean "potential_duplicate", default: false, null: false
     t.bigint "precinct_id"
     t.string "print_name"
+    t.string "public_review_status", default: "not_applicable", null: false
+    t.datetime "public_reviewed_at"
+    t.bigint "public_reviewed_by_user_id"
     t.bigint "quota_period_id"
     t.bigint "referral_code_id"
     t.integer "referred_from_village_id"
@@ -549,6 +584,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_08_220000) do
     t.datetime "registration_outreach_date"
     t.text "registration_outreach_notes"
     t.string "registration_outreach_status"
+    t.string "review_status", default: "approved", null: false
+    t.datetime "reviewed_at"
+    t.bigint "reviewed_by_user_id"
+    t.boolean "self_reported_registered_voter"
     t.string "source"
     t.string "status"
     t.string "street_address"
@@ -572,6 +611,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_08_220000) do
     t.index ["created_at"], name: "index_supporters_on_created_at"
     t.index ["duplicate_of_id"], name: "index_supporters_on_duplicate_of_id"
     t.index ["entered_by_user_id"], name: "index_supporters_on_entered_by_user_id"
+    t.index ["intake_status"], name: "index_supporters_on_intake_status"
     t.index ["last_name", "first_name"], name: "index_supporters_on_last_name_and_first_name"
     t.index ["last_name"], name: "index_supporters_on_last_name"
     t.index ["leader_code"], name: "index_supporters_on_leader_code"
@@ -581,8 +621,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_08_220000) do
     t.index ["precinct_id", "turnout_status"], name: "index_supporters_on_precinct_id_and_turnout_status"
     t.index ["precinct_id"], name: "index_supporters_on_precinct_id"
     t.index ["print_name", "village_id"], name: "index_supporters_on_name_village"
+    t.index ["public_review_status"], name: "index_supporters_on_public_review_status"
+    t.index ["public_reviewed_by_user_id"], name: "index_supporters_on_public_reviewed_by_user_id"
     t.index ["quota_period_id"], name: "index_supporters_on_quota_period_id"
     t.index ["referral_code_id"], name: "index_supporters_on_referral_code_id"
+    t.index ["review_status"], name: "index_supporters_on_review_status"
+    t.index ["reviewed_by_user_id"], name: "index_supporters_on_reviewed_by_user_id"
+    t.index ["self_reported_registered_voter"], name: "index_supporters_on_self_reported_registered_voter"
     t.index ["source"], name: "index_supporters_on_source"
     t.index ["status", "village_id", "motorcade_available"], name: "idx_on_status_village_id_motorcade_available_edb4af7743"
     t.index ["status", "village_id"], name: "index_supporters_on_status_and_village_id"
@@ -667,6 +712,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_08_220000) do
   add_foreign_key "events", "campaigns"
   add_foreign_key "events", "villages"
   add_foreign_key "gec_import_changes", "gec_imports"
+  add_foreign_key "gec_import_skipped_rows", "gec_imports"
+  add_foreign_key "gec_import_skipped_rows", "gec_voters", column: "resolved_gec_voter_id"
+  add_foreign_key "gec_import_skipped_rows", "users", column: "resolved_by_user_id"
   add_foreign_key "gec_import_uploads", "gec_imports"
   add_foreign_key "gec_imports", "users", column: "uploaded_by_user_id"
   add_foreign_key "gec_voters", "villages"

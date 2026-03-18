@@ -4,12 +4,13 @@
 # Handles DOB month/day swap detection and village resolution.
 class GecImportService
   REQUIRED_COLUMNS = %w[first_name last_name].freeze  # May be satisfied by combined_name
-  OPTIONAL_COLUMNS = %w[dob birth_year village voter_registration_number dob_estimated].freeze
+  OPTIONAL_COLUMNS = %w[middle_name dob birth_year village voter_registration_number dob_estimated].freeze
   MAX_STORED_ROW_ERRORS = 50
 
   # Column name aliases to handle different GEC Excel formats
   COLUMN_ALIASES = {
     "first_name" => [ "first_name", "first name", "fname", "given_name", "given name" ],
+    "middle_name" => [ "middle_name", "middle name", "mname" ],
     "last_name" => [ "last_name", "last name", "lname", "surname", "family_name", "family name" ],
     # GEC official format: combined "NAME" column in "LAST, FIRST MIDDLE" format
     "combined_name" => [ "name" ],
@@ -31,11 +32,11 @@ class GecImportService
     # Inalåhan variants
     "inarajan" => "Inalåhan", "inalahan" => "Inalåhan", "inajaran" => "Inalåhan", "inarjan" => "Inalåhan",
     # Malesso' variants
-    "merizo" => "Malesso'", "malesso'" => "Malesso'",
+    "merizo" => "Malesso'", "malesso" => "Malesso'", "malesso'" => "Malesso'",
     # Talo'fo'fo' variants
     "talofofo" => "Talo'fo'fo'", "talo'fo'fo'" => "Talo'fo'fo'", "talo'fo'fo" => "Talo'fo'fo'", "talofo'fo" => "Talo'fo'fo'",
     # Humåtak variants
-    "umatac" => "Humåtak",
+    "umatac" => "Humåtak", "humatak" => "Humåtak",
     # Sånta Rita-Sumai variants
     "santa rita" => "Sånta Rita-Sumai", "santa rita-sumai" => "Sånta Rita-Sumai",
     # Chalan Pago/Ordot variants
@@ -45,7 +46,7 @@ class GecImportService
     "agana hts" => "Agana Heights", "agana heights" => "Agana Heights",
     # Mongmong/Toto/Maite variants
     "mongmong" => "Mongmong/Toto/Maite", "toto" => "Mongmong/Toto/Maite", "maite" => "Mongmong/Toto/Maite",
-    "mongmong/toto/mait" => "Mongmong/Toto/Maite",
+    "mongmong/toto/mait" => "Mongmong/Toto/Maite", "mtm" => "Mongmong/Toto/Maite",
     # Asan-Ma'ina variants
     "asan" => "Asan-Ma'ina", "maina" => "Asan-Ma'ina",
     # Direct matches (just lowercase versions)
@@ -69,6 +70,34 @@ class GecImportService
     "absentee" => "Unassigned"
   }.freeze
 
+  OFFICIAL_VILLAGE_NAMES = [
+    "Agana Heights",
+    "Asan-Ma'ina",
+    "Barrigada",
+    "Chalan Pago/Ordot",
+    "Dededo",
+    "Hagåtña",
+    "Hågat",
+    "Humåtak",
+    "Inalåhan",
+    "Malesso'",
+    "Mangilao",
+    "Mongmong/Toto/Maite",
+    "Piti",
+    "Sinajana",
+    "Sånta Rita-Sumai",
+    "Talo'fo'fo'",
+    "Tamuning",
+    "Yigo",
+    "Yona"
+  ].freeze
+
+  OFFICIAL_VILLAGE_LOOKUP = OFFICIAL_VILLAGE_NAMES.each_with_object({}) do |name, lookup|
+    key = name.downcase
+    lookup[key] = name
+    lookup[I18n.transliterate(name).downcase] = name
+  end.freeze
+
   # Village name used for voters with no village match (GMF, military, off-island)
   UNASSIGNED_VILLAGE_NAME = "Unassigned"
   PLACEHOLDER_VOTER_REGISTRATION_NUMBERS = %w[NEW].freeze
@@ -82,6 +111,85 @@ class GecImportService
 
 
   Result = Struct.new(:success, :gec_import, :errors, :stats, keyword_init: true)
+
+  class << self
+    def normalized_name_component(value)
+      value.to_s.downcase.gsub(/[^a-z0-9]/, "")
+    end
+
+    def overlapping_name_component?(candidate, data)
+      candidate_first = normalized_name_component(candidate.first_name)
+      candidate_last = normalized_name_component(candidate.last_name)
+      data_first = normalized_name_component(data[:first_name])
+      data_last = normalized_name_component(data[:last_name])
+
+      (candidate_first.present? && candidate_first == data_first) ||
+        (candidate_last.present? && candidate_last == data_last)
+    end
+
+    def normalize_village_name(value, allow_unknown: true)
+      raw = value.to_s.strip
+      return nil if raw.blank?
+
+      mapped = VILLAGE_NAME_MAP[raw.downcase]
+      return mapped if mapped.present?
+
+      official_match = OFFICIAL_VILLAGE_LOOKUP[raw.downcase] || OFFICIAL_VILLAGE_LOOKUP[I18n.transliterate(raw).downcase]
+      return official_match if official_match.present?
+
+      canonical = Village.where("LOWER(name) = ?", raw.downcase).pick(:name)
+      return canonical if canonical.present?
+
+      allow_unknown ? raw : nil
+    end
+
+    def normalize_voter_registration_number(value)
+      raw = value.to_s.strip
+      return nil if raw.blank?
+      return nil if PLACEHOLDER_VOTER_REGISTRATION_NUMBERS.include?(raw.upcase)
+
+      raw
+    end
+
+    def parse_birth_year(value)
+      return nil if value.blank?
+
+      case value
+      when Integer
+        value if value.between?(1900, Date.current.year)
+      when Date, DateTime, Time
+        year = value.year
+        year if year.between?(1900, Date.current.year)
+      when String
+        year = value.strip.to_i
+        year if year.between?(1900, Date.current.year)
+      when Float
+        year = value.to_i
+        year if year.between?(1900, Date.current.year)
+      end
+    end
+
+    def same_voter_name?(candidate, data)
+      candidate.first_name.to_s.casecmp?(data[:first_name].to_s) &&
+        candidate.last_name.to_s.casecmp?(data[:last_name].to_s)
+    end
+
+    def trusted_vrn_match?(candidate, data)
+      return true if same_voter_name?(candidate, data)
+
+      overlapping_name = overlapping_name_component?(candidate, data)
+      same_village = candidate.village_name.to_s.strip.downcase == data[:village_name].to_s.strip.downcase
+      return false unless same_village || overlapping_name
+
+      if data[:dob].present? && !data[:dob_estimated]
+        candidate.dob == data[:dob]
+      elsif data[:birth_year].present?
+        candidate.birth_year == data[:birth_year]
+      else
+        false
+      end
+    end
+  end
 
   def initialize(
     file_path:,
@@ -107,6 +215,10 @@ class GecImportService
     @gec_import = gec_import
     @row_error_details = []
     @change_rows_buffer = []
+    @skipped_rows_buffer = []
+    @source_identity_collision_keys = Set.new
+    @source_identity_groups = {}
+    @removal_detection_suppressed = false
     @vrn_lookup = {}
     @parsing_progress_percent = parsing_progress_percent
     @importing_progress_start = importing_progress_start
@@ -142,6 +254,10 @@ class GecImportService
       rows = (2..sheet.last_row).map { |i| sheet.row(i) }
       @stats[:total] = rows.size
       @import_started_at = Time.current
+      @source_identity_groups = build_source_identity_groups(rows, column_map)
+      @source_identity_collision_keys = @source_identity_groups.each_with_object(Set.new) do |(key, group), collisions|
+        collisions.add(key) if source_identity_requires_review?(group)
+      end
       @vrn_lookup = build_voter_registration_lookup(rows, column_map)
 
       ActiveRecord::Base.transaction do
@@ -162,11 +278,14 @@ class GecImportService
         end
 
         # For full list imports, detect purged voters (in DB but not in file)
-        if @import_type == "full_list" && @seen_voter_ids.any?
+        if @import_type == "full_list" && @seen_voter_ids.any? && removal_detection_allowed?
           detect_purged_voters(gec_import)
+        elsif @import_type == "full_list" && @stats[:skipped] > 0
+          @removal_detection_suppressed = true
         end
 
         flush_change_rows!
+        flush_skipped_rows!
       end
 
       # Re-vet affected supporters (outside transaction for performance)
@@ -188,6 +307,8 @@ class GecImportService
           "matched_unchanged" => @stats[:matched_unchanged],
           "skipped" => @stats[:skipped],
           "unassigned" => @stats[:unassigned],
+          "review_required" => review_required?,
+          "removal_detection_suppressed" => @removal_detection_suppressed,
           "errors" => @errors.first(MAX_STORED_ROW_ERRORS),
           "row_error_details" => @row_error_details
         })
@@ -288,13 +409,7 @@ class GecImportService
   end
 
   def normalize_village_name(value)
-    raw = value.to_s.strip
-    return nil if raw.blank?
-
-    mapped = VILLAGE_NAME_MAP[raw.downcase]
-    return mapped if mapped.present?
-
-    Village.where("LOWER(name) = ?", raw.downcase).pick(:name) || raw
+    self.class.normalize_village_name(value)
   end
 
   def detect_known_village_name(value)
@@ -318,11 +433,7 @@ class GecImportService
   end
 
   def normalize_voter_registration_number(value)
-    raw = value.to_s.strip
-    return nil if raw.blank?
-    return nil if PLACEHOLDER_VOTER_REGISTRATION_NUMBERS.include?(raw.upcase)
-
-    raw
+    self.class.normalize_voter_registration_number(value)
   end
 
   def build_voter_registration_lookup(rows, column_map)
@@ -339,14 +450,121 @@ class GecImportService
     end
   end
 
+  def build_source_identity_groups(rows, column_map)
+    rows.each_with_object({}) do |row, groups|
+      data = parse_row(row, column_map)
+      key = source_identity_key(data)
+      next unless key
+
+      group = (groups[key] ||= {
+        row_count: 0,
+        vrns: Set.new,
+        blank_vrn_count: 0
+      })
+      group[:row_count] += 1
+
+      if data[:voter_registration_number].present?
+        group[:vrns].add(data[:voter_registration_number])
+      else
+        group[:blank_vrn_count] += 1
+      end
+    end
+  end
+
   def parse_booleanish(value)
     return false if value.nil?
 
     ActiveModel::Type::Boolean.new.cast(value)
   end
 
+  def source_identity_collision?(data)
+    key = source_identity_key(data)
+    key.present? && @source_identity_collision_keys.include?(key)
+  end
+
+  def source_identity_vrn_resolvable?(data)
+    key = source_identity_key(data)
+    return false unless key.present?
+
+    group = @source_identity_groups[key]
+    return false unless group
+
+    group[:row_count] > 1 &&
+      group[:blank_vrn_count].zero? &&
+      group[:vrns].size == group[:row_count]
+  end
+
+  def source_identity_key(data)
+    first_name = data[:first_name].to_s.strip.downcase
+    last_name = data[:last_name].to_s.strip.downcase
+    return nil if first_name.blank? || last_name.blank?
+
+    birth_marker =
+      if data[:dob].present? && !data[:dob_estimated]
+        "dob:#{data[:dob].iso8601}"
+      elsif data[:birth_year].present?
+        "year:#{data[:birth_year]}"
+      end
+    return nil if birth_marker.blank?
+
+    [ first_name, last_name, birth_marker ].join("|")
+  end
+
+  def source_identity_requires_review?(group)
+    return false if group[:row_count] <= 1
+
+    !(group[:blank_vrn_count].zero? && group[:vrns].size == group[:row_count])
+  end
+
+  def review_required?
+    @stats[:skipped] > 0
+  end
+
+  def removal_detection_allowed?
+    return true unless @import_type == "full_list"
+    return true if @stats[:skipped].zero?
+
+    @removal_detection_suppressed = true
+    false
+  end
+
+  def resolve_unique_candidate(scope, row:, row_number:, data:, ambiguity_message:)
+    candidates = scope.limit(2).to_a
+    return candidates.first if candidates.one?
+    return nil if candidates.empty?
+
+    remember_row_error!(
+      row_number: row_number,
+      message: ambiguity_message,
+      row: row,
+      data: data
+    )
+    @stats[:skipped] += 1
+    :ambiguous
+  end
+
   def remember_row_error!(row_number:, message:, row:, data:)
     @errors << "Row #{row_number}: #{message}"
+
+    now = Time.current
+    @skipped_rows_buffer << {
+      gec_import_id: @current_gec_import.id,
+      row_number: row_number,
+      message: message,
+      source_name: data[:source_name],
+      voter_registration_number: data[:voter_registration_number],
+      first_name: data[:first_name],
+      middle_name: data[:middle_name],
+      last_name: data[:last_name],
+      village_name: data[:village_name],
+      birth_year: data[:birth_year],
+      dob: data[:dob],
+      raw_values: Array(row).map { |value| value.to_s.strip }.reject(&:blank?).first(10),
+      created_at: now,
+      updated_at: now
+    } if @current_gec_import
+
+    flush_skipped_rows! if @skipped_rows_buffer.length >= 500
     return if @row_error_details.length >= MAX_STORED_ROW_ERRORS
 
     @row_error_details << {
@@ -355,6 +573,7 @@ class GecImportService
       "source_name" => data[:source_name],
       "voter_registration_number" => data[:voter_registration_number],
       "first_name" => data[:first_name],
+      "middle_name" => data[:middle_name],
       "last_name" => data[:last_name],
       "village_name" => data[:village_name],
       "birth_year" => data[:birth_year],
@@ -370,6 +589,7 @@ class GecImportService
       change_type: change_type,
       row_number: row_number,
       first_name: current_values[:first_name],
+      middle_name: current_values[:middle_name],
       last_name: current_values[:last_name],
       voter_registration_number: current_values[:voter_registration_number],
       village_name: current_values[:village_name],
@@ -389,6 +609,13 @@ class GecImportService
 
     GecImportChange.insert_all!(@change_rows_buffer)
     @change_rows_buffer.clear
+  end
+
+  def flush_skipped_rows!
+    return if @skipped_rows_buffer.empty?
+
+    GecImportSkippedRow.insert_all!(@skipped_rows_buffer)
+    @skipped_rows_buffer.clear
   end
 
   def build_changed_fields(before_values, after_values)
@@ -420,22 +647,20 @@ class GecImportService
 
   def parse_row(row, column_map)
     first_name = nil
+    middle_name = nil
     last_name = nil
 
     if column_map["combined_name"]
-      # GEC format: "NAME" column has "LAST, FIRST MIDDLE" format
       combined = row[column_map["combined_name"]]&.to_s&.strip
-      if combined&.include?(",")
-        last_part, first_part = combined.split(",", 2)
-        last_name = last_part.strip
-        first_name = first_part.strip.split(" ").first  # Take first word of given name
-      elsif combined.present?
-        parts = combined.split(" ")
-        last_name = parts.last
-        first_name = parts.first(parts.size - 1).join(" ")
+      if combined.present?
+        parts = NameParser.split_gec_name(combined)
+        first_name = parts[:first_name]
+        middle_name = parts[:middle_name]
+        last_name = parts[:last_name]
       end
     else
       first_name = row[column_map["first_name"]]&.to_s&.strip
+      middle_name = row[column_map["middle_name"]]&.to_s&.strip.presence if column_map["middle_name"]
       last_name = row[column_map["last_name"]]&.to_s&.strip
     end
 
@@ -496,6 +721,7 @@ class GecImportService
 
     {
       first_name: first_name,
+      middle_name: middle_name,
       last_name: last_name,
       dob: dob,
       dob_estimated: dob_estimated,
@@ -521,12 +747,26 @@ class GecImportService
       return
     end
 
+    if data[:source_name].present? && !data[:source_name].include?(",")
+      remember_row_error!(
+        row_number: row_number,
+        message: "malformed source name: could not safely parse the voter name from this row",
+        row: row,
+        data: data
+      )
+      @stats[:skipped] += 1
+      return
+    end
+
     if data[:village_name].blank?
       # Route to "Unassigned" village instead of skipping
       # This captures GMF/military/off-island voters who have no standard village
       data[:village_name] = UNASSIGNED_VILLAGE_NAME
       @stats[:unassigned] += 1
     end
+
+    collision_blocking = source_identity_collision?(data)
+    collision_vrn_resolvable = source_identity_vrn_resolvable?(data)
 
     @stats[:ambiguous_dob] += 1 if data[:dob_ambiguous]
 
@@ -553,39 +793,87 @@ class GecImportService
       end
     end
 
+    if collision_blocking && record.nil?
+      remember_row_error!(
+        row_number: row_number,
+        message: "ambiguous source identity: multiple rows in this file collapse to the same simplified name and birth data",
+        row: row,
+        data: data
+      )
+      @stats[:skipped] += 1
+      return
+    end
+
     # First: exact match on name + village (+ DOB or birth_year if available)
-    if record.nil?
-      scope = GecVoter.where("LOWER(first_name) = ? AND LOWER(last_name) = ? AND LOWER(village_name) = ?", fn_lower, ln_lower, vn_lower)
+    if record.nil? && !collision_vrn_resolvable
+      scope = GecVoter.active.where("LOWER(first_name) = ? AND LOWER(last_name) = ? AND LOWER(village_name) = ?", fn_lower, ln_lower, vn_lower)
       if data[:dob].present? && !data[:dob_estimated]
         scope = scope.where(dob: data[:dob])
       elsif data[:birth_year].present?
         scope = scope.where(birth_year: data[:birth_year])
       end
-      record = scope.first
+      record = resolve_unique_candidate(
+        scope,
+        row: row,
+        row_number: row_number,
+        data: data,
+        ambiguity_message: "ambiguous exact match: multiple active voters share the same name, village, and birth data"
+      )
+      return if record == :ambiguous
     end
 
     # Second: name + (DOB or birth_year) only (detects village transfer)
-    if record.nil?
+    if record.nil? && !collision_vrn_resolvable
       if data[:dob].present? && !data[:dob_estimated]
-        record = GecVoter.where("LOWER(first_name) = ? AND LOWER(last_name) = ?", fn_lower, ln_lower)
-          .where(dob: data[:dob]).first
+        record = resolve_unique_candidate(
+          GecVoter.active.where("LOWER(first_name) = ? AND LOWER(last_name) = ?", fn_lower, ln_lower).where(dob: data[:dob]),
+          row: row,
+          row_number: row_number,
+          data: data,
+          ambiguity_message: "ambiguous transfer match: multiple active voters share the same name and date of birth"
+        )
+        return if record == :ambiguous
       elsif data[:birth_year].present?
-        candidates = GecVoter.where("LOWER(first_name) = ? AND LOWER(last_name) = ?", fn_lower, ln_lower)
+        candidates = GecVoter.active.where("LOWER(first_name) = ? AND LOWER(last_name) = ?", fn_lower, ln_lower)
           .where(birth_year: data[:birth_year])
 
         # Birth-year-only matching can have legitimate duplicates across villages.
-        # Only auto-transfer when there's exactly one candidate.
-        record = candidates.count == 1 ? candidates.first : nil
+        # Only auto-transfer when there's exactly one active candidate.
+        candidate_records = candidates.limit(2).to_a
+        if candidate_records.one?
+          record = candidate_records.first
+        elsif candidate_records.many?
+          remember_row_error!(
+            row_number: row_number,
+            message: "ambiguous transfer match: multiple active voters share the same name and birth year",
+            row: row,
+            data: data
+          )
+          @stats[:skipped] += 1
+          return
+        end
       end
     end
 
     if record
+      if @seen_voter_ids.include?(record.id)
+        remember_row_error!(
+          row_number: row_number,
+          message: "ambiguous repeated match: this row maps to a voter already matched earlier in the import",
+          row: row,
+          data: data
+        )
+        @stats[:skipped] += 1
+        return
+      end
+
       # Detect village transfer
       old_village = canonical_village_key(record.village_name)
       new_village = canonical_village_key(data[:village_name])
       village_changed = old_village.present? && new_village.present? && old_village != new_village
       previous_values = {
         first_name: record.first_name,
+        middle_name: record.middle_name,
         last_name: record.last_name,
         village_name: record.village_name,
         voter_registration_number: record.voter_registration_number,
@@ -595,6 +883,7 @@ class GecImportService
 
       attrs = {
         first_name: data[:first_name],
+        middle_name: data[:middle_name],
         last_name: data[:last_name],
         gec_list_date: @gec_list_date,
         imported_at: @import_started_at,
@@ -623,6 +912,7 @@ class GecImportService
       # Also exclude dob_ambiguous-only flips from the public "updated" bucket.
       # Those are parser confidence changes, not voter-record changes.
       actually_changed = record.first_name != attrs[:first_name] ||
+        record.middle_name != attrs[:middle_name] ||
         record.last_name != attrs[:last_name] ||
         village_changed ||
         record.status != attrs[:status] ||
@@ -639,6 +929,7 @@ class GecImportService
           row_number: row_number,
           current_values: {
             first_name: record.first_name,
+            middle_name: record.middle_name,
             last_name: record.last_name,
             village_name: record.village_name,
             previous_village_name: previous_values[:village_name],
@@ -649,6 +940,7 @@ class GecImportService
           details: {
             changed_fields: build_changed_fields(previous_values, {
               first_name: record.first_name,
+              middle_name: record.middle_name,
               last_name: record.last_name,
               village_name: record.village_name,
               voter_registration_number: record.voter_registration_number,
@@ -665,6 +957,7 @@ class GecImportService
     else
       voter = GecVoter.create!(
         first_name: data[:first_name],
+        middle_name: data[:middle_name],
         last_name: data[:last_name],
         dob: data[:dob_estimated] ? nil : data[:dob],
         dob_ambiguous: data[:dob_ambiguous],
@@ -681,6 +974,7 @@ class GecImportService
         row_number: row_number,
         current_values: {
           first_name: voter.first_name,
+          middle_name: voter.middle_name,
           last_name: voter.last_name,
           village_name: voter.village_name,
           voter_registration_number: voter.voter_registration_number,
@@ -706,6 +1000,7 @@ class GecImportService
         change_type: "removed",
         current_values: {
           first_name: gv.first_name,
+          middle_name: gv.middle_name,
           last_name: gv.last_name,
           village_name: gv.village_name,
           previous_village_name: gv.previous_village_name,
@@ -729,63 +1024,19 @@ class GecImportService
     @stats[:removed] = count
   end
 
-  # Re-vet supporters whose GEC voter record changed (village transfer or re-appeared).
-  # Also flags supporters matched to now-removed voters.
-  def re_vet_affected_supporters(gec_import)
+  # Re-vet all active supporters against the latest GEC data after each import.
+  # This keeps supporter voter-check statuses current when people appear, move,
+  # disappear, or become newly resolvable in a newer monthly list.
+  def re_vet_affected_supporters(_gec_import)
     count = 0
+    supporters = Supporter.working_supporters.includes(:village)
 
-    # Supporters linked to transferred voters need re-vetting
-    if @stats[:transferred] > 0
-      transferred_voters = GecVoter.where.not(previous_village_name: nil)
-        .where(gec_list_date: @gec_list_date)
-
-      transferred_voters.find_each do |gv|
-        # Find supporters in the OLD village with matching name
-        old_village = Village.find_by("LOWER(name) = ?", gv.previous_village_name.downcase.strip)
-        next unless old_village
-
-        affected = Supporter.active.where(village_id: old_village.id)
-          .where("LOWER(first_name) = ? AND LOWER(last_name) = ?",
-            gv.first_name.downcase, gv.last_name.downcase)
-          .where(verification_status: "verified")
-
-        affected.find_each do |supporter|
-          supporter.update_columns(
-            verification_status: "flagged",
-            updated_at: Time.current
-          )
-          count += 1
-        end
-      end
-    end
-
-    # Supporters matched to now-removed voters need flagging.
-    # Match by name + village to avoid flagging unrelated supporters with same name elsewhere.
-    if @stats[:removed] > 0
-      removed_voters = GecVoter.removed
-        .where(removal_detected_by_import_id: gec_import.id)
-
-      removed_voters.find_each do |gv|
-        # Find the village object from gv.village_name
-        removed_village = Village.find_by("LOWER(name) = ?", gv.village_name.downcase.strip)
-        next unless removed_village
-
-        affected = Supporter.active
-          .where(village_id: removed_village.id)
-          .where(
-            "LOWER(first_name) = ? AND LOWER(last_name) = ?",
-            gv.first_name.downcase, gv.last_name.downcase
-          ).where(verification_status: "verified")
-
-        affected.find_each do |supporter|
-          supporter.update_columns(
-            verification_status: "flagged",
-            registered_voter: false,
-            updated_at: Time.current
-          )
-          count += 1
-        end
-      end
+    supporters.find_each do |supporter|
+      before = supporter.attributes.slice("verification_status", "registered_voter", "referred_from_village_id", "verified_at")
+      GecVettingService.new(supporter, gec_data_loaded: true).call
+      supporter.reload
+      after = supporter.attributes.slice("verification_status", "registered_voter", "referred_from_village_id", "verified_at")
+      count += 1 if before != after
     end
 
     count
@@ -794,41 +1045,15 @@ class GecImportService
   # Parse a year-only birth year value (new GEC format).
   # Accepts: integer (1985), string ("1985"), or a Date/DateTime (extracts year).
   def parse_birth_year(value)
-    return nil if value.blank?
-
-    case value
-    when Integer
-      value if value.between?(1900, Date.current.year)
-    when Date, DateTime, Time
-      year = value.year
-      year if year.between?(1900, Date.current.year)
-    when String
-      year = value.strip.to_i
-      year if year.between?(1900, Date.current.year)
-    when Float
-      year = value.to_i
-      year if year.between?(1900, Date.current.year)
-    end
+    self.class.parse_birth_year(value)
   end
 
   def same_voter_name?(candidate, data)
-    candidate.first_name.to_s.casecmp?(data[:first_name].to_s) &&
-      candidate.last_name.to_s.casecmp?(data[:last_name].to_s)
+    self.class.same_voter_name?(candidate, data)
   end
 
   def trusted_vrn_match?(candidate, data)
-    return true if same_voter_name?(candidate, data)
-
-    same_village = canonical_village_key(candidate.village_name) == canonical_village_key(data[:village_name])
-    return false unless same_village
-
-    if data[:dob].present? && !data[:dob_estimated]
-      candidate.dob == data[:dob]
-    elsif data[:birth_year].present?
-      candidate.birth_year == data[:birth_year]
-    else
-      false
-    end
+    self.class.trusted_vrn_match?(candidate, data)
   end
 
   # Parse DOB with month/day swap detection.

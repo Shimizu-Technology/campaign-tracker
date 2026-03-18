@@ -53,6 +53,10 @@ class CampaignCycle < ApplicationRecord
     quota_periods.where("start_date <= ? AND end_date >= ?", Date.current, Date.current).first
   end
 
+  def self.current_quota_period
+    current.order(start_date: :desc, id: :desc).first&.current_period
+  end
+
   private
 
   def end_date_after_start_date

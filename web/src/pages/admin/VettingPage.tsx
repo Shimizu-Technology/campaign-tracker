@@ -41,6 +41,11 @@ interface Village {
   name: string;
 }
 
+function canMarkVerifiedVoter(supporter: Pick<Supporter, 'registered_voter' | 'verification_status'>) {
+  if (supporter.verification_status === 'verified') return false;
+  return supporter.registered_voter;
+}
+
 export default function VettingPage() {
   const [searchParams] = useSearchParams();
   const initialVillageFilter = searchParams.get('village_id') || '';
@@ -106,6 +111,8 @@ export default function VettingPage() {
   const villages: Village[] = scopedVillageIds === null
     ? villagesAll
     : villagesAll.filter((v) => scopedVillageIds.includes(v.id));
+  const selectedSupporters = supporters.filter((supporter) => selectedIds.has(supporter.id));
+  const selectedCanVerify = selectedSupporters.length > 0 && selectedSupporters.every((supporter) => canMarkVerifiedVoter(supporter));
 
   useEffect(() => {
     if (scopedVillageIds === null) return;
@@ -141,9 +148,9 @@ export default function VettingPage() {
       case 'verified':
         return <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-600"><CheckCircle className="w-3 h-3" /> Verified</span>;
       case 'flagged':
-        return <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-600"><XCircle className="w-3 h-3" /> Flagged</span>;
+        return <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-600"><XCircle className="w-3 h-3" /> Needs Review</span>;
       default:
-        return <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-600"><AlertTriangle className="w-3 h-3" /> Unverified</span>;
+        return <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-600"><AlertTriangle className="w-3 h-3" /> Pending Review</span>;
     }
   };
 
@@ -155,16 +162,16 @@ export default function VettingPage() {
         <div>
           <h1 className="text-2xl font-bold text-[var(--text-primary)] flex items-center gap-2">
             <ShieldCheck className="w-7 h-7 text-primary" />
-            Vetting Queue
+            Voter Check Queue
           </h1>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
             {statusFilter === 'unverified'
-              ? `${supporters.length} supporter${supporters.length !== 1 ? 's' : ''} pending review`
+              ? `${supporters.length} supporter${supporters.length !== 1 ? 's' : ''} pending voter-check review`
               : `${supporters.length} supporter${supporters.length !== 1 ? 's' : ''} shown`
             }
           </p>
           <p className="text-xs text-[var(--text-muted)] mt-1">
-            Removed supporters are excluded from this queue. View them in Supporters with the lifecycle filter set to Removed.
+            This queue is for accepted supporters whose GEC voter check still needs attention. Removed supporters are excluded from this queue.
           </p>
         </div>
 
@@ -174,11 +181,12 @@ export default function VettingPage() {
             <span className="text-sm text-[var(--text-secondary)]">{selectedIds.size} selected</span>
             <button
               onClick={() => bulkMutation.mutate({ ids: Array.from(selectedIds), status: 'verified' })}
-              disabled={bulkMutation.isPending}
+              disabled={bulkMutation.isPending || !selectedCanVerify}
               className="inline-flex items-center gap-1 px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+              title={selectedCanVerify ? 'Mark selected supporters as verified voters' : 'Only supporters with a current GEC match can be marked as verified voters'}
             >
               <CheckCircle className="w-4 h-4" />
-              Approve All
+              Mark Verified Voter
             </button>
             <button
               onClick={() => bulkMutation.mutate({ ids: Array.from(selectedIds), status: 'flagged' })}
@@ -201,9 +209,9 @@ export default function VettingPage() {
             onChange={(e) => { setStatusFilter(e.target.value); setSelectedIds(new Set()); }}
             className="rounded-lg border border-[var(--border-soft)] px-3 py-1.5 text-sm"
           >
-            <option value="unverified">Unverified</option>
+            <option value="unverified">Pending Review</option>
             <option value="verified">Verified</option>
-            <option value="flagged">Flagged</option>
+            <option value="flagged">Needs Review</option>
             <option value="">All</option>
           </select>
         </div>
@@ -242,7 +250,7 @@ export default function VettingPage() {
           </h3>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
             {statusFilter === 'unverified'
-              ? 'No supporters pending review. Great job!'
+              ? 'No accepted supporters need voter-check review. Great job!'
               : 'No supporters match the current filters.'}
           </p>
         </div>
@@ -261,6 +269,7 @@ export default function VettingPage() {
 
           {supporters.map((s) => {
             const isExpanded = expandedId === s.id;
+            const canVerify = canMarkVerifiedVoter(s);
             return (
               <div key={s.id} className={`app-card p-4 transition-colors ${s.potential_duplicate ? 'border-l-4 border-l-amber-400' : ''}`}>
                 <div className="flex items-start gap-3">
@@ -343,12 +352,12 @@ export default function VettingPage() {
                     {s.verification_status !== 'verified' && (
                       <button
                         onClick={() => verifyMutation.mutate({ id: s.id, status: 'verified' })}
-                        disabled={verifyMutation.isPending}
+                        disabled={verifyMutation.isPending || !canVerify}
                         className="inline-flex items-center gap-1 px-2.5 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-                        title="Approve"
+                        title={canVerify ? 'Mark verified voter' : 'A current GEC match is required before this supporter can be marked as a verified voter'}
                       >
                         <CheckCircle className="w-3.5 h-3.5" />
-                        <span className="hidden sm:inline">Approve</span>
+                        <span className="hidden sm:inline">Mark Verified Voter</span>
                       </button>
                     )}
 
