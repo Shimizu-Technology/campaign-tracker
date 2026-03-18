@@ -1,5 +1,6 @@
 class User < ApplicationRecord
-  ROLES = %w[campaign_admin district_coordinator village_chief block_leader poll_watcher].freeze
+  ROLES = %w[campaign_admin data_team district_coordinator village_chief block_leader poll_watcher].freeze
+  EMAIL_FORMAT = URI::MailTo::EMAIL_REGEXP
 
   has_many :entered_supporters, class_name: "Supporter", foreign_key: :entered_by_user_id, dependent: :nullify
   has_many :turnout_updated_supporters, class_name: "Supporter", foreign_key: :turnout_updated_by_user_id, dependent: :nullify
@@ -9,6 +10,7 @@ class User < ApplicationRecord
 
   validates :clerk_id, presence: true, uniqueness: true
   validates :email, presence: true, uniqueness: true
+  validates :email, format: { with: EMAIL_FORMAT }
   validates :role, inclusion: { in: ROLES }
 
   scope :admins, -> { where(role: "campaign_admin") }
@@ -30,6 +32,10 @@ class User < ApplicationRecord
 
   def leader?
     role == "block_leader"
+  end
+
+  def data_team?
+    role == "data_team"
   end
 
   def poll_watcher?

@@ -18,6 +18,7 @@ interface BatchRow {
   _skip: boolean;
   _issues: string[];
   first_name: string;
+  middle_name: string;
   last_name: string;
   contact_number: string;
   email: string;
@@ -127,6 +128,28 @@ function parseDateInput(value: string) {
   return date;
 }
 
+function formatDateParts(date: Date, separator: '-' | '/') {
+  const year = String(date.getUTCFullYear());
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+
+  return separator === '-'
+    ? `${year}-${month}-${day}`
+    : `${month}/${day}/${year}`;
+}
+
+function formatDateForDisplay(value: string) {
+  const parsed = parseDateInput(value);
+  if (!parsed) return value.trim();
+  return formatDateParts(parsed, '/');
+}
+
+function formatDateForSubmission(value: string) {
+  const parsed = parseDateInput(value);
+  if (!parsed) return value.trim();
+  return formatDateParts(parsed, '-');
+}
+
 function analyzeRowIssues(row: BatchRow): RowIssue[] {
   const issues = new Map<string, RowIssue>();
   const addIssue = (code: string, message: string, severity: IssueSeverity) => {
@@ -155,7 +178,7 @@ function analyzeRowIssues(row: BatchRow): RowIssue[] {
   }
 
   if (dob && !parseDateInput(dob)) {
-    addIssue('dob_invalid', 'DOB format invalid (use YYYY-MM-DD or MM/DD/YYYY)', 'warning');
+    addIssue('dob_invalid', 'DOB format invalid (use MM/DD/YYYY)', 'warning');
   }
 
   if (address && hasStatesideAddressHint(address)) {
@@ -232,11 +255,12 @@ export default function ScanFormPage() {
         _skip: Boolean(row._skip),
         _issues: Array.isArray(row._issues) ? row._issues.map((x) => String(x)) : [],
         first_name: String(row.first_name || ''),
+        middle_name: String(row.middle_name || ''),
         last_name: String(row.last_name || ''),
         contact_number: normalizePhone(String(row.contact_number || '')),
         email: String(row.email || ''),
         street_address: String(row.street_address || ''),
-        dob: String(row.dob || ''),
+        dob: formatDateForDisplay(String(row.dob || '')),
         village_id: row.village_id ? Number(row.village_id) : Number(defaultVillageId),
         registered_voter: row.registered_voter == null ? true : Boolean(row.registered_voter),
         yard_sign: Boolean(row.yard_sign),
@@ -293,13 +317,14 @@ export default function ScanFormPage() {
           await createSupporter(
             {
               first_name: row.first_name.trim(),
+              middle_name: row.middle_name.trim() || null,
               last_name: row.last_name.trim(),
               contact_number: row.contact_number.trim() || null,
               email: row.email.trim() || null,
               street_address: row.street_address.trim() || null,
-              dob: row.dob.trim() || null,
+              dob: row.dob.trim() ? formatDateForSubmission(row.dob) : null,
               village_id: row.village_id,
-              registered_voter: row.registered_voter,
+              self_reported_registered_voter: row.registered_voter,
               yard_sign: row.yard_sign,
               motorcade_available: row.motorcade_available,
               opt_in_email: row.opt_in_email ?? false,
@@ -639,12 +664,18 @@ export default function ScanFormPage() {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <input
                       value={row.first_name}
                       onChange={(e) => updateRow(index, 'first_name', e.target.value)}
                       placeholder="First name *"
                       className={`px-3 py-2 border rounded-xl ${inputBorderForConfidence(row.confidence?.first_name || null)}`}
+                    />
+                    <input
+                      value={row.middle_name}
+                      onChange={(e) => updateRow(index, 'middle_name', e.target.value)}
+                      placeholder="Middle name"
+                      className={`px-3 py-2 border rounded-xl ${inputBorderForConfidence(row.confidence?.middle_name || null)}`}
                     />
                     <input
                       value={row.last_name}
@@ -677,21 +708,22 @@ export default function ScanFormPage() {
                     <input
                       value={row.dob}
                       onChange={(e) => updateRow(index, 'dob', e.target.value)}
-                      placeholder="DOB (YYYY-MM-DD)"
+                      onBlur={(e) => updateRow(index, 'dob', formatDateForDisplay(e.target.value))}
+                      placeholder="DOB (MM/DD/YYYY)"
                       className={`px-3 py-2 border rounded-xl ${inputBorderForConfidence(row.confidence?.dob || null)}`}
                     />
                     <input
                       value={row.email}
                       onChange={(e) => updateRow(index, 'email', e.target.value)}
                       placeholder="Email"
-                      className="px-3 py-2 border rounded-xl border-[var(--border-soft)]"
+                      className={`px-3 py-2 border rounded-xl ${inputBorderForConfidence(row.confidence?.email || null)}`}
                     />
                   </div>
 
                   <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
                     <label className="inline-flex items-center gap-2">
                       <input type="checkbox" checked={row.registered_voter} onChange={(e) => updateRow(index, 'registered_voter', e.target.checked)} />
-                      Registered voter
+                      Self-reported registered voter
                     </label>
                     <label className="inline-flex items-center gap-2">
                       <input type="checkbox" checked={row.yard_sign} onChange={(e) => updateRow(index, 'yard_sign', e.target.checked)} />

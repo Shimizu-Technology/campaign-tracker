@@ -1,3 +1,4 @@
+import { useAuth } from '@clerk/clerk-react';
 import { useQuery } from '@tanstack/react-query';
 import { getSession } from '../lib/api';
 
@@ -14,10 +15,29 @@ export interface SessionResponse {
   };
   counts: {
     pending_vetting: number;
+    flagged_supporters: number;
+    public_signups_pending: number;
+    official_supporters: number;
+    matched_to_gec: number;
+    quota_eligible: number;
   };
+  current_period?: {
+    id: number;
+    name: string;
+    due_date: string;
+    quota_target: number;
+    official_count: number;
+    matched_count: number;
+    eligible_count: number;
+    days_until_due: number;
+    overdue: boolean;
+    due_soon: boolean;
+    status: string;
+  } | null;
   permissions: {
     can_manage_users: boolean;
     can_manage_configuration: boolean;
+    can_manage_data_configuration: boolean;
     can_send_sms: boolean;
     can_send_email: boolean;
     can_edit_supporters: boolean;
@@ -30,14 +50,23 @@ export interface SessionResponse {
     can_access_poll_watcher: boolean;
     can_access_duplicates: boolean;
     can_access_audit_logs: boolean;
+    can_access_data_team: boolean;
+    can_access_reports: boolean;
+    can_upload_gec: boolean;
+    can_bulk_vet: boolean;
+    can_review_public: boolean;
+    default_route: string;
     manageable_roles: string[];
   };
 }
 
 export function useSession() {
+  const { isLoaded, userId } = useAuth();
+
   return useQuery<SessionResponse>({
-    queryKey: ['session'],
+    queryKey: ['session', userId ?? 'anonymous'],
     queryFn: getSession,
+    enabled: isLoaded && !!userId,
     staleTime: 60_000,
     // Avoid long exponential retries for auth/permission failures.
     retry: (failureCount, error) => {

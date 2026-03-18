@@ -12,11 +12,22 @@ class Api::V1::QuotasControllerTest < ActionDispatch::IntegrationTest
       region: "Central"
     )
     Precinct.create!(village: @village, number: "Q1", alpha_range: "A-Z", registered_voters: 1234)
+    @second_village = Village.create!(
+      name: "Barrigada",
+      region: "Central"
+    )
+    Precinct.create!(village: @second_village, number: "Q2", alpha_range: "A-Z", registered_voters: 2345)
     @quota = Quota.create!(
       campaign: @campaign,
       village: @village,
       period: "quarterly",
       target_count: 250
+    )
+    @second_quota = Quota.create!(
+      campaign: @campaign,
+      village: @second_village,
+      period: "quarterly",
+      target_count: 175
     )
     @admin = User.create!(
       clerk_id: "clerk-admin-quota",
@@ -36,6 +47,31 @@ class Api::V1::QuotasControllerTest < ActionDispatch::IntegrationTest
       name: "Quota Leader",
       role: "block_leader"
     )
+    @cycle = CampaignCycle.create!(
+      name: "Quota Cycle",
+      cycle_type: "general",
+      start_date: Date.current.beginning_of_year,
+      end_date: Date.current.end_of_year,
+      status: "active"
+    )
+    @period = QuotaPeriod.create!(
+      campaign_cycle: @cycle,
+      name: Date.current.strftime("%B %Y"),
+      start_date: Date.current.beginning_of_month,
+      end_date: Date.current.end_of_month,
+      due_date: Date.current.end_of_month,
+      quota_target: 6000
+    )
+    GecVoter.create!(
+      first_name: "Latest",
+      last_name: "Voter",
+      village_name: @village.name,
+      village: @village,
+      voter_registration_number: "VRN-1001",
+      status: "active",
+      gec_list_date: Date.new(2026, 2, 25),
+      imported_at: Time.current
+    )
   end
 
   test "non coordinator cannot access quotas index" do
@@ -54,6 +90,9 @@ class Api::V1::QuotasControllerTest < ActionDispatch::IntegrationTest
     row = payload["quotas"].find { |q| q["village_id"] == @village.id }
     assert_not_nil row
     assert_equal 250, row["target_count"]
+    assert_equal @period.name, payload.dig("current_period", "name")
+    assert_equal 425, payload.dig("current_period", "quota_target")
+    assert_equal "2026-02-25", payload["latest_gec_list_date"]
   end
 
   test "admin can update existing quota and audit is written" do
@@ -70,6 +109,28 @@ class Api::V1::QuotasControllerTest < ActionDispatch::IntegrationTest
     assert_equal 375, audit.changed_data.dig("target_count", "to")
     assert_equal @admin.id, audit.actor_user_id
     assert_equal "Adjusted weekly goal", audit.metadata["change_note"]
+    assert_equal 375, @period.village_quotas.find_by!(village: @village).target
+  end
+
+  test "updating current month locks a full past period target snapshot before changing current period" do
+    past_period = QuotaPeriod.create!(
+      campaign_cycle: @cycle,
+      name: (Date.current - 1.month).strftime("%B %Y"),
+      start_date: (Date.current - 1.month).beginning_of_month,
+      end_date: (Date.current - 1.month).end_of_month,
+      due_date: (Date.current - 1.month).end_of_month,
+      quota_target: 6000,
+      status: "open"
+    )
+
+    patch "/api/v1/quotas/#{@village.id}",
+      params: { quota: { target_count: 375 } },
+      headers: auth_headers(@admin)
+
+    assert_response :success
+    assert_equal 250, past_period.village_quotas.find_by!(village: @village).target
+    assert_equal 175, past_period.village_quotas.find_by!(village: @second_village).target
+    assert_equal 375, @period.village_quotas.find_by!(village: @village).target
   end
 
   test "admin can create village quota when missing" do

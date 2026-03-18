@@ -61,4 +61,8 @@ gem "resend", "~> 1.0"
 # Excel/spreadsheet parsing for bulk import
 gem "roo", "~> 2.10"
 
+# PDF parsing for GEC monthly list ingestion pipeline
+gem "pdf-reader", "~> 2.15"
+
 gem "caxlsx", "~> 4.1"
+gem "aws-sdk-s3", "~> 1.0"

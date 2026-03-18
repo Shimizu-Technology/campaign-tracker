@@ -4,18 +4,21 @@ module Api
   module V1
     class DashboardController < ApplicationController
       include Authenticatable
+
+      OFFICIAL_UNASSIGNED_VILLAGE_NAME = "Unassigned"
+
       before_action :authenticate_request, only: [ :show ]
 
       # GET /api/v1/stats (public — no auth)
       def stats
         render json: {
           # Verified = the official count
-          verified_supporters: Supporter.active.verified.count,
-          total_supporters: Supporter.active.count,
-          unverified_supporters: Supporter.active.unverified.count,
-          flagged_supporters: Supporter.active.flagged.count,
-          potential_duplicates: Supporter.active.potential_duplicates_only.count,
-          total_villages: Village.count,
+          verified_supporters: Supporter.working_supporters.verified.count,
+          total_supporters: Supporter.working_supporters.count,
+          unverified_supporters: Supporter.working_supporters.unverified.count,
+          flagged_supporters: Supporter.working_supporters.flagged.count,
+          potential_duplicates: Supporter.working_supporters.potential_duplicates_only.count,
+          total_villages: official_village_scope.count,
           campaign_name: Campaign.active.first&.name || "Josh & Tina 2026"
         }
       end
@@ -36,15 +39,15 @@ module Api
         all_village_ids = Village.pluck(:id)
         village_ids = villages_base.map(&:id)
         # Verified supporters are the "real" counts for quota tracking
-        verified_counts = Supporter.active.verified.where(village_id: village_ids).group(:village_id).count
+        verified_counts = Supporter.working_supporters.verified.where(village_id: village_ids).group(:village_id).count
         # Total includes unverified — shown as secondary metric
-        total_counts = Supporter.active.where(village_id: village_ids).group(:village_id).count
-        unverified_counts = Supporter.active.unverified.where(village_id: village_ids).group(:village_id).count
+        total_counts = Supporter.working_supporters.where(village_id: village_ids).group(:village_id).count
+        unverified_counts = Supporter.working_supporters.unverified.where(village_id: village_ids).group(:village_id).count
         # "Today/Week (verified)" should reflect when a supporter was vetted.
-        today_counts = Supporter.active.verified_today.where(village_id: village_ids).group(:village_id).count
-        week_counts = Supporter.active.verified_this_week.where(village_id: village_ids).group(:village_id).count
-        today_total_counts = Supporter.active.today.where(village_id: village_ids).group(:village_id).count
-        week_total_counts = Supporter.active.this_week.where(village_id: village_ids).group(:village_id).count
+        today_counts = Supporter.working_supporters.verified_today.where(village_id: village_ids).group(:village_id).count
+        week_counts = Supporter.working_supporters.verified_this_week.where(village_id: village_ids).group(:village_id).count
+        today_total_counts = Supporter.working_supporters.today.where(village_id: village_ids).group(:village_id).count
+        week_total_counts = Supporter.working_supporters.this_week.where(village_id: village_ids).group(:village_id).count
         quota_targets = if campaign
           Quota.where(campaign_id: campaign.id, village_id: village_ids).group(:village_id).sum(:target_count)
         else
@@ -61,6 +64,13 @@ module Api
           {}
         end
         campaign_started_at = campaign&.started_at || campaign&.created_at&.to_date || Date.current
+
+        # Pipeline/source counts per village
+        team_counts = Supporter.team_input.where(village_id: village_ids).group(:village_id).count
+        public_approved_counts = Supporter.official_supporters.public_origin.where(village_id: village_ids).group(:village_id).count
+        team_pending_counts = Supporter.pending_supporter_review.where(source: Supporter::TEAM_SOURCES, village_id: village_ids).group(:village_id).count
+        public_counts = Supporter.active.public_signups.where(village_id: village_ids).group(:village_id).count
+        quota_eligible_counts = Supporter.quota_eligible.where(village_id: village_ids).group(:village_id).count
 
         villages = villages_base.map do |village|
           verified_count = verified_counts[village.id] || 0
@@ -105,28 +115,37 @@ module Api
             pace_expected: pace[:expected],
             pace_diff: pace[:diff],
             pace_status: pace[:status],
-            pace_weekly_needed: pace[:weekly_needed]
+            pace_weekly_needed: pace[:weekly_needed],
+            # Pipeline separation
+            team_input_count: team_counts[village.id] || 0,
+            public_approved_count: public_approved_counts[village.id] || 0,
+            team_pending_count: team_pending_counts[village.id] || 0,
+            public_signup_count: public_counts[village.id] || 0,
+            quota_eligible_count: quota_eligible_counts[village.id] || 0
           }
         end
 
         # Summary cards are island-wide for all roles, even when village cards are scoped.
-        global_verified = Supporter.active.verified.count
-        global_total = Supporter.active.count
-        global_unverified = Supporter.active.unverified.count
-        global_today_verified = Supporter.active.verified_today.count
-        global_week_verified = Supporter.active.verified_this_week.count
-        global_today_total = Supporter.active.today.count
-        global_week_total = Supporter.active.this_week.count
+        global_verified = Supporter.working_supporters.verified.count
+        global_total = Supporter.working_supporters.count
+        global_unverified = Supporter.working_supporters.unverified.count
+        global_today_verified = Supporter.working_supporters.verified_today.count
+        global_week_verified = Supporter.working_supporters.verified_this_week.count
+        global_today_total = Supporter.working_supporters.today.count
+        global_week_total = Supporter.working_supporters.this_week.count
         global_total_target = if campaign
           Quota.where(campaign_id: campaign.id, village_id: all_village_ids).sum(:target_count)
         else
           0
         end
         # Quota percentage based on verified only
+        global_team_input = Supporter.team_input.count
+        global_public_signups = Supporter.active.public_signups.count
+        global_quota_eligible = Supporter.quota_eligible.count
         global_total_percentage = global_total_target > 0 ? (global_verified * 100.0 / global_total_target).round(1) : 0
         all_villages = Village.all
         global_total_registered_voters = all_villages.sum { |v| v.registered_voters.to_i }
-        global_total_villages = Village.count
+        global_total_villages = official_village_scope.count
         global_total_precincts = all_villages.sum { |v| v.precinct_count.to_i }
         global_target_dates = if campaign
           Quota.where(campaign_id: campaign.id).group(:village_id).maximum(:target_date)
@@ -165,13 +184,21 @@ module Api
             pace_expected: overall_pace[:expected],
             pace_diff: overall_pace[:diff],
             pace_status: overall_pace[:status],
-            pace_weekly_needed: overall_pace[:weekly_needed]
+            pace_weekly_needed: overall_pace[:weekly_needed],
+            # Pipeline separation
+            team_input_count: global_team_input,
+            public_signup_count: global_public_signups,
+            quota_eligible_count: global_quota_eligible
           },
           villages: villages
         }
       end
 
       private
+
+      def official_village_scope
+        Village.where.not(name: OFFICIAL_UNASSIGNED_VILLAGE_NAME)
+      end
 
       # Calculate pace metrics for a given supporter count against a target.
       # Returns expected count by now, diff (actual - expected), status, and weekly rate needed.

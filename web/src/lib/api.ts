@@ -169,4 +169,158 @@ export const updateSettings = (data: JsonRecord) => api.patch('/settings', data)
 // Campaign Info (public)
 export const getCampaignInfo = () => api.get('/campaign_info').then(r => r.data);
 
+// GEC Voter List
+export const getGecStats = () => api.get('/gec_voters/stats').then(r => r.data);
+export const getGecVoters = (params?: QueryParams) => api.get('/gec_voters', { params }).then(r => r.data);
+export const getGecImports = () => api.get('/gec_voters/imports').then(r => r.data);
+export const getGecImportViewData = (
+  importId: number,
+  page: number = 1,
+  perPage: number = 100,
+  q?: string,
+  village?: string
+) =>
+  api.get(`/gec_voters/imports/${importId}/view_data`, {
+    params: {
+      page,
+      per_page: perPage,
+      ...(q ? { q } : {}),
+      ...(village ? { village } : {}),
+    }
+  }).then(r => r.data);
+export const getGecImportOriginalView = (importId: number) =>
+  api.get<{ view_url: string; filename: string; content_type: string; inline_supported: boolean }>(`/gec_voters/imports/${importId}/view_original`).then(r => r.data);
+export const getGecImportChanges = (
+  importId: number,
+  page: number = 1,
+  perPage: number = 100,
+  type?: string,
+  q?: string
+) =>
+  api.get(`/gec_voters/imports/${importId}/changes`, {
+    params: {
+      page,
+      per_page: perPage,
+      ...(type ? { type } : {}),
+      ...(q ? { q } : {}),
+    }
+  }).then(r => r.data);
+export const getGecImportSkippedRows = (
+  importId: number,
+  page: number = 1,
+  perPage: number = 25,
+  status?: string,
+  q?: string
+) =>
+  api.get(`/gec_voters/imports/${importId}/skipped_rows`, {
+    params: {
+      page,
+      per_page: perPage,
+      ...(status ? { status } : {}),
+      ...(q ? { q } : {}),
+    }
+  }).then(r => r.data);
+export const previewGecImportSkippedRowResolution = (
+  importId: number,
+  skippedRowId: number,
+  correctedValues: Record<string, unknown>,
+  selectedGecVoterId?: number | null
+) =>
+  api.post(`/gec_voters/imports/${importId}/skipped_rows/${skippedRowId}/preview_resolution`, {
+    corrected_values: correctedValues,
+    ...(selectedGecVoterId ? { selected_gec_voter_id: selectedGecVoterId } : {}),
+  }).then(r => r.data);
+export const resolveGecImportSkippedRow = (
+  importId: number,
+  skippedRowId: number,
+  correctedValues: Record<string, unknown>,
+  selectedGecVoterId?: number | null
+) =>
+  api.post(`/gec_voters/imports/${importId}/skipped_rows/${skippedRowId}/resolve`, {
+    corrected_values: correctedValues,
+    ...(selectedGecVoterId ? { selected_gec_voter_id: selectedGecVoterId } : {}),
+  }).then(r => r.data);
+export const dismissGecImportSkippedRow = (importId: number, skippedRowId: number) =>
+  api.post(`/gec_voters/imports/${importId}/skipped_rows/${skippedRowId}/dismiss`).then(r => r.data);
+export const uploadGecList = (
+  file: File,
+  gecListDate: string,
+  sheetName?: string,
+  importType: string = 'full_list',
+  parseCacheKey?: string,
+  confirmReview: boolean = false,
+  asyncImport: boolean = true
+) => {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('gec_list_date', gecListDate);
+  form.append('import_type', importType);
+  if (sheetName) form.append('sheet_name', sheetName);
+  if (parseCacheKey) form.append('parse_cache_key', parseCacheKey);
+  if (confirmReview) form.append('confirm_review', 'true');
+  form.append('async_import', asyncImport ? 'true' : 'false');
+  return api.post('/gec_voters/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
+};
+export const previewGecList = (file: File, sheetName?: string) => {
+  const form = new FormData();
+  form.append('file', file);
+  if (sheetName) form.append('sheet_name', sheetName);
+  return api.post('/gec_voters/preview', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
+};
+export const bulkVetSupporters = (params?: QueryParams) => api.post('/gec_voters/bulk_vet', params).then(r => r.data);
+export const downloadGecImportFile = (importId: number) =>
+  api.get<{ download_url: string; filename: string }>(`/gec_voters/imports/${importId}/download`).then(r => {
+    const { download_url, filename } = r.data;
+    const a = document.createElement('a');
+    a.href = download_url;
+    a.download = filename; // Hint only — ignored for cross-origin S3 URLs; actual filename set by Content-Disposition header
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  });
+export const matchGecVoter = (params: { first_name: string; last_name: string; dob?: string; village_name?: string }) =>
+  api.post('/gec_voters/match', params).then(r => r.data);
+
+// Reports
+export const getReportsList = () => api.get('/reports').then(r => r.data);
+export const getReportPreview = (reportType: string, params?: QueryParams) =>
+  api.get(`/reports/${reportType}/preview`, { params }).then(r => r.data);
+export const downloadReport = (reportType: string, params?: QueryParams) =>
+  api.get(`/reports/${reportType}`, { params, responseType: 'blob' }).then(r => {
+    const url = window.URL.createObjectURL(new Blob([r.data]));
+    const link = document.createElement('a');
+    link.href = url;
+    const disposition = r.headers['content-disposition'];
+    const filename = disposition?.match(/filename="?(.+?)"?$/)?.[1] || `${reportType}.xlsx`;
+    link.setAttribute('download', filename);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  });
+
+// Vetting Queue
+export const getVettingQueue = (params?: QueryParams) => api.get('/supporters/vetting_queue', { params }).then(r => r.data);
+
+// Public Review
+export const getPublicReview = (params?: QueryParams) => api.get('/supporters/public_review', { params }).then(r => r.data);
+export const acceptToQuota = (id: number) => api.patch(`/supporters/${id}/accept_to_quota`).then(r => r.data);
+export const rejectPublicReview = (id: number) => api.patch(`/supporters/${id}/reject_public_review`).then(r => r.data);
+export const approveSupporter = (id: number) => api.patch(`/supporters/${id}/approve_supporter`).then(r => r.data);
+export const rejectSupporterReview = (id: number) => api.patch(`/supporters/${id}/reject_supporter`).then(r => r.data);
+
 export default api;
+
+// Campaign Cycles
+export const getCampaignCycles = (params?: QueryParams) => api.get('/campaign_cycles', { params }).then(r => r.data);
+export const getCurrentCycle = () => api.get('/campaign_cycles/current').then(r => r.data);
+export const createCampaignCycle = (data: Record<string, unknown>) => api.post('/campaign_cycles', data).then(r => r.data);
+export const updateCampaignCycle = (id: number, data: Record<string, unknown>) => api.patch(`/campaign_cycles/${id}`, data).then(r => r.data);
+
+// Quota Periods
+export const getQuotaPeriod = (id: number) => api.get(`/quota_periods/${id}`).then(r => r.data);
+export const updateQuotaPeriod = (id: number, data: Record<string, unknown>) => api.patch(`/quota_periods/${id}`, data).then(r => r.data);
+export const submitQuotaPeriod = (id: number) => api.post(`/quota_periods/${id}/submit`).then(r => r.data);
+export const getVillageQuotas = (periodId: number) => api.get(`/quota_periods/${periodId}/village_quotas`).then(r => r.data);
+export const updateVillageQuotas = (periodId: number, quotas: Array<{ village_id: number; target: number }>) =>
+  api.patch(`/quota_periods/${periodId}/village_quotas`, { village_quotas: quotas }).then(r => r.data);

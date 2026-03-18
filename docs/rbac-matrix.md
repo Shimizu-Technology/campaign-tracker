@@ -1,6 +1,6 @@
 # Campaign Tracker RBAC Matrix
 
-Last updated: 2026-02-13
+Last updated: 2026-03-02
 
 This document defines which roles can access which parts of the app.  
 It is the operational reference for QA, onboarding, and future permission changes.
@@ -11,6 +11,7 @@ It is the operational reference for QA, onboarding, and future permission change
 
 - `campaign_admin`
 - `district_coordinator`
+- `data_team`
 - `village_chief`
 - `block_leader`
 - `poll_watcher`
@@ -19,20 +20,20 @@ It is the operational reference for QA, onboarding, and future permission change
 
 ## Permission Rules (Current)
 
-| Capability | campaign_admin | district_coordinator | village_chief | block_leader | poll_watcher |
-|---|---|---|---|---|---|
-| Dashboard (`/admin`) | ✅ | ✅ | ✅ | ✅ | ✅ |
-| View supporters (`/admin/supporters`, `/admin/supporters/:id`) | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Create staff entry (`/admin/supporters/new`) | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Edit supporter fields | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Village detail (`/admin/villages/:id`) | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Events + check-in (`/admin/events*`) | ✅ | ✅ | ✅ | ✅ | ❌ |
-| QR tools (`/admin/qr`) | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Leaderboard (`/admin/leaderboard`) | ✅ | ✅ | ✅ | ✅ | ❌ |
-| War room (`/admin/war-room`) | ✅ | ✅ | ✅ | ❌ | ✅ |
-| Poll watcher (`/admin/poll-watcher`) | ✅ | ✅ | ✅ | ❌ | ✅ |
-| SMS center (`/admin/sms`) | ✅ | ✅ | ❌ | ❌ | ❌ |
-| User management (`/admin/users`) | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Capability | campaign_admin | data_team | district_coordinator | village_chief | block_leader | poll_watcher |
+|---|---|---|---|---|---|---|
+| Dashboard (`/admin`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| View supporters (`/admin/supporters`, `/admin/supporters/:id`) | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Create staff entry (`/admin/supporters/new`) | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Edit supporter fields | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Village detail (`/admin/villages/:id`) | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Events + check-in (`/admin/events*`) | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| QR tools (`/admin/qr`) | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Leaderboard (`/admin/leaderboard`) | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| War room (`/admin/war-room`) | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
+| Poll watcher (`/admin/poll-watcher`) | ✅ | ✅ | ✅ | ✅ | ❌ | ✅ |
+| SMS center (`/admin/sms`) | ✅ | ✅ | ✅ | ❌ | ❌ | ❌ |
+| User management (`/admin/users`) | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
 
 ---
 
@@ -47,6 +48,11 @@ Coordinator limitations:
 
 - Can manage only: `village_chief`, `block_leader`, `poll_watcher`
 - Cannot assign or modify: `campaign_admin`, `district_coordinator`
+
+Data-team notes:
+
+- `data_team` has coordinator-level operational access for supporter data, reports, and GEC workflows.
+- `data_team` **cannot** manage users/roles.
 
 ---
 

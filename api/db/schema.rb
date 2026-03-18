@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_02_24_080000) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_16_123000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -35,6 +35,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_080000) do
     t.datetime "updated_at", null: false
     t.bigint "village_id", null: false
     t.index ["village_id"], name: "index_blocks_on_village_id"
+  end
+
+  create_table "campaign_cycles", force: :cascade do |t|
+    t.boolean "carry_forward_data", default: true, null: false
+    t.datetime "created_at", null: false
+    t.string "cycle_type", default: "primary", null: false
+    t.date "end_date", null: false
+    t.integer "monthly_quota_target", default: 6000
+    t.string "name", null: false
+    t.jsonb "settings", default: {}, null: false
+    t.date "start_date", null: false
+    t.string "status", default: "active", null: false
+    t.datetime "updated_at", null: false
+    t.index ["start_date", "end_date"], name: "index_campaign_cycles_on_start_date_and_end_date"
+    t.index ["status"], name: "index_campaign_cycles_on_status"
   end
 
   create_table "campaigns", force: :cascade do |t|
@@ -249,6 +264,126 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_080000) do
     t.index ["village_id"], name: "index_events_on_village_id"
   end
 
+  create_table "gec_import_changes", force: :cascade do |t|
+    t.integer "birth_year"
+    t.string "change_type", null: false
+    t.datetime "created_at", null: false
+    t.jsonb "details", default: {}, null: false
+    t.date "dob"
+    t.string "first_name"
+    t.bigint "gec_import_id", null: false
+    t.string "last_name"
+    t.string "middle_name"
+    t.string "previous_village_name"
+    t.integer "row_number"
+    t.datetime "updated_at", null: false
+    t.string "village_name"
+    t.string "voter_registration_number"
+    t.index "lower((first_name)::text) gin_trgm_ops", name: "idx_gec_import_changes_first_name_trgm", using: :gin
+    t.index "lower((last_name)::text) gin_trgm_ops", name: "idx_gec_import_changes_last_name_trgm", using: :gin
+    t.index "lower((previous_village_name)::text) gin_trgm_ops", name: "idx_gec_import_changes_prev_village_trgm", using: :gin
+    t.index "lower((village_name)::text) gin_trgm_ops", name: "idx_gec_import_changes_village_name_trgm", using: :gin
+    t.index "lower((voter_registration_number)::text) gin_trgm_ops", name: "idx_gec_import_changes_vrn_trgm", using: :gin
+    t.index ["gec_import_id", "change_type"], name: "index_gec_import_changes_on_gec_import_id_and_change_type"
+    t.index ["voter_registration_number"], name: "index_gec_import_changes_on_voter_registration_number"
+  end
+
+  create_table "gec_import_skipped_rows", force: :cascade do |t|
+    t.integer "birth_year"
+    t.jsonb "corrected_values", default: {}, null: false
+    t.datetime "created_at", null: false
+    t.date "dob"
+    t.string "first_name"
+    t.bigint "gec_import_id", null: false
+    t.string "last_name"
+    t.string "message", null: false
+    t.string "middle_name"
+    t.jsonb "raw_values", default: [], null: false
+    t.string "resolution_action"
+    t.jsonb "resolution_details", default: {}, null: false
+    t.string "resolution_status", default: "pending", null: false
+    t.datetime "resolved_at"
+    t.bigint "resolved_by_user_id"
+    t.bigint "resolved_gec_voter_id"
+    t.integer "row_number", null: false
+    t.string "source_name"
+    t.datetime "updated_at", null: false
+    t.string "village_name"
+    t.string "voter_registration_number"
+    t.index ["gec_import_id", "resolution_status"], name: "index_gec_import_skipped_rows_on_import_and_status"
+    t.index ["gec_import_id", "row_number"], name: "index_gec_import_skipped_rows_on_import_and_row", unique: true
+    t.index ["resolved_by_user_id"], name: "index_gec_import_skipped_rows_on_resolved_by_user_id"
+    t.index ["resolved_gec_voter_id"], name: "index_gec_import_skipped_rows_on_resolved_gec_voter_id"
+  end
+
+  create_table "gec_import_uploads", force: :cascade do |t|
+    t.string "content_type"
+    t.datetime "created_at", null: false
+    t.binary "file_data", null: false
+    t.string "filename", null: false
+    t.bigint "gec_import_id", null: false
+    t.datetime "updated_at", null: false
+    t.index ["gec_import_id"], name: "index_gec_import_uploads_on_gec_import_id", unique: true
+  end
+
+  create_table "gec_imports", force: :cascade do |t|
+    t.integer "ambiguous_dob_count", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.string "filename", null: false
+    t.date "gec_list_date", null: false
+    t.string "import_type", default: "full_list", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.integer "new_records", default: 0, null: false
+    t.string "original_content_type"
+    t.string "original_file_s3_key"
+    t.string "original_filename"
+    t.string "raw_content_type"
+    t.string "raw_file_s3_key"
+    t.string "raw_filename"
+    t.integer "re_vetted_count", default: 0, null: false
+    t.integer "removed_records", default: 0, null: false
+    t.string "status", default: "pending", null: false
+    t.integer "total_records", default: 0, null: false
+    t.integer "transferred_records", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.integer "updated_records", default: 0, null: false
+    t.bigint "uploaded_by_user_id"
+    t.index ["gec_list_date"], name: "index_gec_imports_on_gec_list_date"
+    t.index ["uploaded_by_user_id"], name: "index_gec_imports_on_uploaded_by_user_id"
+  end
+
+  create_table "gec_voters", force: :cascade do |t|
+    t.integer "birth_year"
+    t.datetime "created_at", null: false
+    t.date "dob"
+    t.boolean "dob_ambiguous", default: false, null: false
+    t.string "first_name", null: false
+    t.date "gec_list_date", null: false
+    t.datetime "imported_at", null: false
+    t.string "last_name", null: false
+    t.string "middle_name"
+    t.string "previous_village_name"
+    t.bigint "removal_detected_by_import_id"
+    t.datetime "removed_at"
+    t.string "status", default: "active", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "village_id"
+    t.string "village_name", null: false
+    t.string "voter_registration_number"
+    t.index "lower((first_name)::text), lower((last_name)::text), birth_year", name: "index_gec_voters_on_lower_names_and_birth_year"
+    t.index "lower((first_name)::text), lower((last_name)::text), dob", name: "index_gec_voters_on_lower_names_and_dob"
+    t.index "lower((first_name)::text), lower((last_name)::text), lower((village_name)::text)", name: "index_gec_voters_on_lower_names_and_village"
+    t.index ["gec_list_date"], name: "index_gec_voters_on_gec_list_date"
+    t.index ["last_name", "first_name", "birth_year"], name: "index_gec_voters_on_name_and_birth_year"
+    t.index ["last_name", "first_name", "dob"], name: "index_gec_voters_on_name_and_dob"
+    t.index ["removed_at"], name: "index_gec_voters_on_removed_at", where: "(removed_at IS NOT NULL)"
+    t.index ["status"], name: "index_gec_voters_on_status"
+    t.index ["village_id", "last_name"], name: "index_gec_voters_on_village_and_last_name"
+    t.index ["village_id"], name: "index_gec_voters_on_village_id"
+    t.index ["village_name"], name: "index_gec_voters_on_village_name"
+    t.index ["voter_registration_number"], name: "index_gec_voters_on_voter_registration_number"
+  end
+
   create_table "pay_periods", force: :cascade do |t|
     t.bigint "approved_by_id"
     t.datetime "committed_at"
@@ -337,6 +472,23 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_080000) do
     t.index ["village_id"], name: "index_precincts_on_village_id"
   end
 
+  create_table "quota_periods", force: :cascade do |t|
+    t.bigint "campaign_cycle_id", null: false
+    t.datetime "created_at", null: false
+    t.date "due_date", null: false
+    t.date "end_date", null: false
+    t.string "name", null: false
+    t.integer "quota_target", default: 6000, null: false
+    t.date "start_date", null: false
+    t.string "status", default: "open", null: false
+    t.jsonb "submission_summary", default: {}, null: false
+    t.datetime "updated_at", null: false
+    t.index ["campaign_cycle_id", "start_date"], name: "index_quota_periods_on_campaign_cycle_id_and_start_date", unique: true
+    t.index ["campaign_cycle_id"], name: "index_quota_periods_on_campaign_cycle_id"
+    t.index ["due_date"], name: "index_quota_periods_on_due_date"
+    t.index ["status"], name: "index_quota_periods_on_status"
+  end
+
   create_table "quotas", force: :cascade do |t|
     t.bigint "campaign_id", null: false
     t.datetime "created_at", null: false
@@ -384,23 +536,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_080000) do
     t.index ["status"], name: "index_sms_blasts_on_status"
   end
 
-  create_table "sprint_goals", force: :cascade do |t|
-    t.bigint "campaign_id", null: false
-    t.datetime "created_at", null: false
-    t.integer "current_count", default: 0
-    t.date "end_date", null: false
-    t.string "period_type", default: "custom"
-    t.date "start_date", null: false
-    t.string "status", default: "active"
-    t.integer "target_count", null: false
-    t.string "title", null: false
-    t.datetime "updated_at", null: false
-    t.bigint "village_id"
-    t.index ["campaign_id", "status"], name: "index_sprint_goals_on_campaign_id_and_status"
-    t.index ["campaign_id"], name: "index_sprint_goals_on_campaign_id"
-    t.index ["village_id"], name: "index_sprint_goals_on_village_id"
-  end
-
   create_table "supporter_contact_attempts", force: :cascade do |t|
     t.string "channel", null: false
     t.datetime "created_at", null: false
@@ -428,8 +563,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_080000) do
     t.string "email"
     t.integer "entered_by_user_id"
     t.string "first_name"
+    t.string "intake_status", default: "accepted", null: false
     t.string "last_name"
     t.string "leader_code"
+    t.string "middle_name"
     t.boolean "motorcade_available"
     t.string "normalized_phone"
     t.boolean "opt_in_email", default: false, null: false
@@ -437,12 +574,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_080000) do
     t.boolean "potential_duplicate", default: false, null: false
     t.bigint "precinct_id"
     t.string "print_name"
+    t.string "public_review_status", default: "not_applicable", null: false
+    t.datetime "public_reviewed_at"
+    t.bigint "public_reviewed_by_user_id"
+    t.bigint "quota_period_id"
     t.bigint "referral_code_id"
     t.integer "referred_from_village_id"
     t.boolean "registered_voter"
     t.datetime "registration_outreach_date"
     t.text "registration_outreach_notes"
     t.string "registration_outreach_status"
+    t.string "review_status", default: "approved", null: false
+    t.datetime "reviewed_at"
+    t.bigint "reviewed_by_user_id"
+    t.boolean "self_reported_registered_voter"
     t.string "source"
     t.string "status"
     t.string "street_address"
@@ -466,6 +611,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_080000) do
     t.index ["created_at"], name: "index_supporters_on_created_at"
     t.index ["duplicate_of_id"], name: "index_supporters_on_duplicate_of_id"
     t.index ["entered_by_user_id"], name: "index_supporters_on_entered_by_user_id"
+    t.index ["intake_status"], name: "index_supporters_on_intake_status"
     t.index ["last_name", "first_name"], name: "index_supporters_on_last_name_and_first_name"
     t.index ["last_name"], name: "index_supporters_on_last_name"
     t.index ["leader_code"], name: "index_supporters_on_leader_code"
@@ -475,7 +621,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_080000) do
     t.index ["precinct_id", "turnout_status"], name: "index_supporters_on_precinct_id_and_turnout_status"
     t.index ["precinct_id"], name: "index_supporters_on_precinct_id"
     t.index ["print_name", "village_id"], name: "index_supporters_on_name_village"
+    t.index ["public_review_status"], name: "index_supporters_on_public_review_status"
+    t.index ["public_reviewed_by_user_id"], name: "index_supporters_on_public_reviewed_by_user_id"
+    t.index ["quota_period_id"], name: "index_supporters_on_quota_period_id"
     t.index ["referral_code_id"], name: "index_supporters_on_referral_code_id"
+    t.index ["review_status"], name: "index_supporters_on_review_status"
+    t.index ["reviewed_by_user_id"], name: "index_supporters_on_reviewed_by_user_id"
+    t.index ["self_reported_registered_voter"], name: "index_supporters_on_self_reported_registered_voter"
     t.index ["source"], name: "index_supporters_on_source"
     t.index ["status", "village_id", "motorcade_available"], name: "idx_on_status_village_id_motorcade_available_edb4af7743"
     t.index ["status", "village_id"], name: "index_supporters_on_status_and_village_id"
@@ -520,6 +672,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_080000) do
     t.index ["role"], name: "index_users_on_role"
   end
 
+  create_table "village_quotas", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "quota_period_id", null: false
+    t.integer "submitted_count", default: 0
+    t.integer "target", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "village_id", null: false
+    t.index ["quota_period_id", "village_id"], name: "index_village_quotas_on_quota_period_id_and_village_id", unique: true
+    t.index ["quota_period_id"], name: "index_village_quotas_on_quota_period_id"
+    t.index ["village_id"], name: "index_village_quotas_on_village_id"
+  end
+
   create_table "villages", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.bigint "district_id"
@@ -547,12 +711,20 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_080000) do
   add_foreign_key "event_rsvps", "supporters"
   add_foreign_key "events", "campaigns"
   add_foreign_key "events", "villages"
+  add_foreign_key "gec_import_changes", "gec_imports"
+  add_foreign_key "gec_import_skipped_rows", "gec_imports"
+  add_foreign_key "gec_import_skipped_rows", "gec_voters", column: "resolved_gec_voter_id"
+  add_foreign_key "gec_import_skipped_rows", "users", column: "resolved_by_user_id"
+  add_foreign_key "gec_import_uploads", "gec_imports"
+  add_foreign_key "gec_imports", "users", column: "uploaded_by_user_id"
+  add_foreign_key "gec_voters", "villages"
   add_foreign_key "pay_periods", "companies"
   add_foreign_key "payroll_items", "employees"
   add_foreign_key "payroll_items", "pay_periods"
   add_foreign_key "poll_reports", "precincts"
   add_foreign_key "poll_reports", "users"
   add_foreign_key "precincts", "villages"
+  add_foreign_key "quota_periods", "campaign_cycles"
   add_foreign_key "quotas", "campaigns"
   add_foreign_key "quotas", "districts"
   add_foreign_key "quotas", "villages"
@@ -560,15 +732,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_02_24_080000) do
   add_foreign_key "referral_codes", "users", column: "created_by_user_id"
   add_foreign_key "referral_codes", "villages"
   add_foreign_key "sms_blasts", "users", column: "initiated_by_user_id"
-  add_foreign_key "sprint_goals", "campaigns"
-  add_foreign_key "sprint_goals", "villages"
   add_foreign_key "supporter_contact_attempts", "supporters"
   add_foreign_key "supporter_contact_attempts", "users", column: "recorded_by_user_id"
   add_foreign_key "supporters", "blocks"
   add_foreign_key "supporters", "precincts"
+  add_foreign_key "supporters", "quota_periods"
   add_foreign_key "supporters", "referral_codes"
   add_foreign_key "supporters", "supporters", column: "duplicate_of_id"
   add_foreign_key "supporters", "users", column: "turnout_updated_by_user_id"
   add_foreign_key "supporters", "villages"
+  add_foreign_key "village_quotas", "quota_periods"
+  add_foreign_key "village_quotas", "villages"
   add_foreign_key "villages", "districts"
 end

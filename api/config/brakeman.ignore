@@ -13,6 +13,6 @@
       "note": "File extension is validated against allowlist (.xlsx/.xls/.csv) before use — no path traversal risk"
     }
   ],
-  "updated": "2026-02-14",
+  "updated": "2026-03-07",
   "brakeman_version": "8.0.2"
 }

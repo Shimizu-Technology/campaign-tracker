@@ -64,29 +64,35 @@ const ROLE_GUIDE: RoleGuideRow[] = [
     role: 'campaign_admin',
     level: 'Level 1',
     who: 'Campaign leadership / trusted admins',
-    can: 'Full system access, manage users/roles, edit supporters, run operations tools',
+    can: 'Full system access across Data Ops and campaign tools, including setup, users, outreach, and election-day operations',
+  },
+  {
+    role: 'data_team',
+    level: 'Level 2',
+    who: 'Monthly voter-list and reporting staff',
+    can: 'Import GEC lists, vet supporters, review public signups, resolve duplicates, audit changes, and generate reports island-wide',
   },
   {
     role: 'district_coordinator',
-    level: 'Level 2',
+    level: 'Level 3',
     who: 'District managers',
-    can: 'Edit supporters and manage field ops for all villages in their assigned district',
+    can: 'Manage supporter activity and field operations for all villages in their assigned district',
   },
   {
     role: 'village_chief',
-    level: 'Level 3',
+    level: 'Level 4',
     who: 'Village coordinators',
     can: 'View and coordinate village execution for their assigned village',
   },
   {
     role: 'block_leader',
-    level: 'Level 4',
+    level: 'Level 5',
     who: 'Street/block organizers',
     can: 'Submit and track supporter activity for their assigned village',
   },
   {
     role: 'poll_watcher',
-    level: 'Level 5',
+    level: 'Level 6',
     who: 'Election day reporting staff',
     can: 'Submit polling/turnout updates for their assigned village on election day',
   },
@@ -95,6 +101,7 @@ const ROLE_GUIDE: RoleGuideRow[] = [
 type PermissionKey =
   | 'can_manage_users'
   | 'can_manage_configuration'
+  | 'can_manage_data_configuration'
   | 'can_send_sms'
   | 'can_send_email'
   | 'can_edit_supporters'
@@ -106,11 +113,17 @@ type PermissionKey =
   | 'can_access_war_room'
   | 'can_access_poll_watcher'
   | 'can_access_duplicates'
-  | 'can_access_audit_logs';
+  | 'can_access_audit_logs'
+  | 'can_access_data_team'
+  | 'can_access_reports'
+  | 'can_upload_gec'
+  | 'can_bulk_vet'
+  | 'can_review_public';
 
 const PERMISSION_KEYS: PermissionKey[] = [
   'can_manage_users',
   'can_manage_configuration',
+  'can_manage_data_configuration',
   'can_send_sms',
   'can_send_email',
   'can_edit_supporters',
@@ -123,11 +136,17 @@ const PERMISSION_KEYS: PermissionKey[] = [
   'can_access_poll_watcher',
   'can_access_duplicates',
   'can_access_audit_logs',
+  'can_access_data_team',
+  'can_access_reports',
+  'can_upload_gec',
+  'can_bulk_vet',
+  'can_review_public',
 ];
 
 const PERMISSION_LABELS: Record<PermissionKey, string> = {
   can_manage_users: 'Manage users',
   can_manage_configuration: 'Manage configuration',
+  can_manage_data_configuration: 'Manage data configuration',
   can_send_sms: 'Send SMS',
   can_send_email: 'Send email',
   can_edit_supporters: 'Edit supporters',
@@ -140,13 +159,33 @@ const PERMISSION_LABELS: Record<PermissionKey, string> = {
   can_access_poll_watcher: 'Poll Watcher',
   can_access_duplicates: 'Duplicates review',
   can_access_audit_logs: 'Activity log',
+  can_access_data_team: 'Data Ops workspace',
+  can_access_reports: 'Reports',
+  can_upload_gec: 'GEC imports',
+  can_bulk_vet: 'Bulk vetting',
+  can_review_public: 'Public signup review',
 };
 
-// Keep in sync with api/app/controllers/concerns/authenticatable.rb — permission check methods (lines 238-272)
+// Keep in sync with api/app/controllers/concerns/authenticatable.rb permission methods.
 const ROLE_PERMISSION_MAP: Record<string, PermissionKey[]> = {
   campaign_admin: PERMISSION_KEYS,
-  district_coordinator: PERMISSION_KEYS,
-  village_chief: [
+  data_team: [
+    'can_view_supporters',
+    'can_edit_supporters',
+    'can_create_staff_supporters',
+    'can_access_duplicates',
+    'can_access_audit_logs',
+    'can_access_data_team',
+    'can_access_reports',
+    'can_upload_gec',
+    'can_bulk_vet',
+    'can_review_public',
+  ],
+  district_coordinator: [
+    'can_manage_users',
+    'can_send_sms',
+    'can_send_email',
+    'can_edit_supporters',
     'can_view_supporters',
     'can_create_staff_supporters',
     'can_access_events',
@@ -154,6 +193,14 @@ const ROLE_PERMISSION_MAP: Record<string, PermissionKey[]> = {
     'can_access_leaderboard',
     'can_access_war_room',
     'can_access_poll_watcher',
+  ],
+  village_chief: [
+    'can_view_supporters',
+    'can_create_staff_supporters',
+    'can_access_events',
+    'can_access_qr',
+    'can_access_leaderboard',
+    'can_access_war_room',
   ],
   block_leader: [
     'can_view_supporters',
@@ -174,7 +221,7 @@ function roleLabel(role: string) {
 
 /** Which area assignment field does this role need? */
 function roleAssignmentType(role: string): 'none' | 'district' | 'village' {
-  if (role === 'campaign_admin') return 'none';
+  if (role === 'campaign_admin' || role === 'data_team') return 'none';
   if (role === 'district_coordinator') return 'district';
   return 'village'; // village_chief, block_leader, poll_watcher
 }
@@ -295,6 +342,7 @@ function RolePermissionsDisclosure({ role }: { role: string }) {
 
 function roleScopeRule(role: string): string {
   if (role === 'campaign_admin') return 'Scope rule: full access to all villages';
+  if (role === 'data_team') return 'Scope rule: island-wide Data Ops access';
   if (role === 'district_coordinator') return 'Scope rule: assigned district (or all villages if no district assigned)';
   return 'Scope rule: assigned village only';
 }
@@ -307,6 +355,7 @@ function scopeLabelForRole(
   districts: DistrictOption[]
 ): string {
   if (role === 'campaign_admin') return 'Scope: all villages';
+  if (role === 'data_team') return 'Scope: island-wide Data Ops';
   if (role === 'district_coordinator') {
     if (!assignedDistrictId) return 'Scope: all villages (no district assigned)';
     const district = districts.find((d) => d.id === assignedDistrictId);

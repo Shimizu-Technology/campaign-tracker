@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
-import { Users, BarChart3, CalendarHeart, Heart } from 'lucide-react';
+import { BarChart3, CalendarHeart, Heart } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { getStats, getCampaignInfo } from '../lib/api';
+import { getCampaignInfo } from '../lib/api';
 
 function InstagramIcon({ className }: { className?: string }) {
   return (
@@ -20,19 +20,11 @@ function FacebookIcon({ className }: { className?: string }) {
 }
 
 export default function LandingPage() {
-  const { data } = useQuery({
-    queryKey: ['stats'],
-    queryFn: getStats,
-    staleTime: 60_000,
-  });
-
   const { data: campaignInfo } = useQuery({
     queryKey: ['campaignInfo'],
     queryFn: getCampaignInfo,
     staleTime: 300_000,
   });
-
-  const totalSupporters = data?.total_supporters || 0;
 
   return (
     <div className="min-h-screen flex flex-col bg-linear-to-br from-primary to-primary-dark text-white">
@@ -44,12 +36,6 @@ export default function LandingPage() {
             <p className="text-lg md:text-xl font-bold tracking-tight">Josh & Tina 2026</p>
             <p className="text-xs text-blue-200/80">For Governor & Lt. Governor of Guam</p>
           </div>
-          <Link
-            to="/admin"
-            className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-sm font-medium min-h-[44px] flex items-center transition-colors"
-          >
-            Staff Dashboard
-          </Link>
         </div>
 
         {/* Hero */}
@@ -64,13 +50,6 @@ export default function LandingPage() {
             Join a people-powered campaign movement for Guam. Sign up to support,
             stay informed, and help us build momentum.
           </p>
-          {totalSupporters > 0 && (
-            <div className="mt-6 inline-flex items-center gap-2 bg-white/10 backdrop-blur px-5 py-2.5 rounded-full border border-white/10">
-              <Users className="w-4 h-4 text-blue-200" />
-              <span className="text-xl font-bold">{totalSupporters.toLocaleString()}</span>
-              <span className="text-blue-200 text-sm">supporters and counting</span>
-            </div>
-          )}
         </div>
 
         {/* CTA */}
@@ -180,6 +159,11 @@ export default function LandingPage() {
           {/* Legal */}
           <div className="mt-6 pt-4 border-t border-white/5 text-[11px] text-blue-300/50 text-center">
             Tenorio Muna-Barnes for Guam &middot; Treasurer: Antoinette &ldquo;Toni&rdquo; Sanford &middot; PO Box 11031, Tamuning, Guam 96910
+          </div>
+          <div className="mt-3 text-center">
+            <Link to="/data" className="text-[11px] text-blue-300/50 hover:text-blue-200 transition-colors">
+              Staff portal
+            </Link>
           </div>
         </div>
       </footer>

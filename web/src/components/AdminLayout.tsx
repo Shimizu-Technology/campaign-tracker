@@ -140,7 +140,7 @@ function AuthTokenSync({ onReady }: { onReady: () => void }) {
 }
 
 function AuthorizedContent({ children }: { children: React.ReactNode }) {
-  const { isLoaded, isSignedIn } = useAuth();
+  const { isLoaded, isSignedIn, userId } = useAuth();
   const { signOut } = useClerk();
   const queryClient = useQueryClient();
   const [sessionState, setSessionState] = useState<'loading' | 'authorized' | 'unauthorized'>('loading');
@@ -153,7 +153,7 @@ function AuthorizedContent({ children }: { children: React.ReactNode }) {
         // Use fetchQuery so the result is cached under ['session'] —
         // this eliminates the duplicate /session call from useSession()
         await queryClient.fetchQuery({
-          queryKey: ['session'],
+          queryKey: ['session', userId ?? 'anonymous'],
           queryFn: getSession,
           staleTime: 60_000,
           // Keep this gate snappy. Long retry backoff here is perceived as
@@ -172,7 +172,7 @@ function AuthorizedContent({ children }: { children: React.ReactNode }) {
     };
 
     checkSession();
-  }, [isLoaded, isSignedIn, queryClient]);
+  }, [isLoaded, isSignedIn, queryClient, userId]);
 
   if (sessionState === 'loading') {
     return (

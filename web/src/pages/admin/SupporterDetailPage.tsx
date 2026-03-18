@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useParams } from 'react-router-dom';
-import { AlertTriangle, Pencil, Save, UserRound, X } from 'lucide-react';
-import { getSupporter, getVillages, updateSupporter, verifySupporter, updateOutreachStatus } from '../../lib/api';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { AlertTriangle, ChevronLeft, Pencil, Save, UserRound, X } from 'lucide-react';
+import { acceptToQuota, getSupporter, getVillages, updateSupporter, verifySupporter, updateOutreachStatus } from '../../lib/api';
 import { formatDateTime } from '../../lib/datetime';
+import { useSession } from '../../hooks/useSession';
 
 interface VillageOption {
   id: number;
@@ -14,6 +15,7 @@ interface VillageOption {
 interface SupporterDetail {
   id: number;
   first_name: string;
+  middle_name: string | null;
   last_name: string;
   print_name: string;
   contact_number: string;
@@ -24,21 +26,31 @@ interface SupporterDetail {
   village_name: string;
   precinct_id: number | null;
   precinct_number: string | null;
+  self_reported_registered_voter: boolean | null;
   registered_voter: boolean;
   yard_sign: boolean;
   motorcade_available: boolean;
   opt_in_email: boolean;
   opt_in_text: boolean;
   verification_status: string;
+  referred_from_village_id?: number | null;
   verified_at: string | null;
   verified_by_user_id: number | null;
   potential_duplicate: boolean;
   duplicate_of_id: number | null;
   duplicate_notes: string | null;
+  intake_status: string;
+  review_status: string;
+  public_review_status: string;
+  reviewed_at?: string | null;
+  reviewed_by_user_id?: number | null;
+  public_reviewed_at?: string | null;
+  public_reviewed_by_user_id?: number | null;
   registration_outreach_status: string | null;
   registration_outreach_notes: string | null;
   registration_outreach_date: string | null;
   source: string;
+  attribution_method?: string | null;
   status: string;
   leader_code?: string | null;
   referral_code_id?: number | null;
@@ -55,7 +67,7 @@ interface AuditLogItem {
   action_label?: string;
   actor_name?: string;
   actor_role?: string;
-  changed_data: Record<string, { from: unknown; to: unknown }>;
+  changed_data: Record<string, unknown>;
   created_at: string;
 }
 
@@ -66,6 +78,7 @@ interface SupporterPermissions {
 const AUDIT_FIELD_LABELS: Record<string, string> = {
   id: 'Record ID',
   first_name: 'First Name',
+  middle_name: 'Middle Name',
   last_name: 'Last Name',
   print_name: 'Name',
   contact_number: 'Phone',
@@ -75,17 +88,24 @@ const AUDIT_FIELD_LABELS: Record<string, string> = {
   village_id: 'Village ID',
   precinct_id: 'Precinct ID',
   source: 'Source',
+  intake_status: 'Supporter status',
+  review_status: 'Review status',
+  public_review_status: 'Public review status',
   leader_code: 'Referral code',
   status: 'Status',
   verification_status: 'Verification status',
   attribution_method: 'Entry method',
   referral_code_id: 'Referrer',
-  registered_voter: 'Registered voter',
+  self_reported_registered_voter: 'Self-reported registered voter',
+  registered_voter: 'GEC found registered voter',
   yard_sign: 'Yard sign',
   motorcade_available: 'Motorcade available',
   opt_in_email: 'Opt-in email',
   opt_in_text: 'Opt-in text',
   created_at: 'Created at',
+  resolution: 'Duplicate resolution',
+  merge_into_id: 'Merged into supporter',
+  merged_supporter_id: 'Merged duplicate supporter',
 };
 
 const AUDIT_VALUE_LABELS: Record<string, Record<string, string>> = {
@@ -104,9 +124,9 @@ const AUDIT_VALUE_LABELS: Record<string, Record<string, string>> = {
     removed: 'Removed',
   },
   verification_status: {
-    unverified: 'Unverified',
-    verified: 'Verified',
-    flagged: 'Flagged',
+    unverified: 'Needs voter review',
+    verified: 'Matched to GEC',
+    flagged: 'Flagged for review',
   },
   attribution_method: {
     qr_self_signup: 'Referred (QR)',
@@ -115,10 +135,30 @@ const AUDIT_VALUE_LABELS: Record<string, Record<string, string>> = {
     bulk_import: 'Imported',
     public_signup: 'Public signup',
   },
+  intake_status: {
+    accepted: 'Accepted',
+    pending_public_review: 'Pending public review',
+  },
+  review_status: {
+    pending: 'Pending supporter review',
+    approved: 'Approved',
+    rejected: 'Rejected',
+  },
+  public_review_status: {
+    not_applicable: 'Not applicable',
+    pending: 'Pending public review',
+    approved: 'Approved in public review',
+    rejected: 'Rejected in public review',
+  },
+  resolution: {
+    dismiss: 'Not a duplicate',
+    merge: 'Merged duplicate',
+  },
 };
 
-const TECHNICAL_AUDIT_FIELDS = new Set([ 'id', 'normalized_phone' ]);
+const TECHNICAL_AUDIT_FIELDS = new Set([ 'id', 'normalized_phone', 'merge_into_id' ]);
 const PRIMARY_AUDIT_FIELD_ORDER = [
+  'merged_supporter_id',
   'verification_status',
   'status',
   'attribution_method',
@@ -126,11 +166,13 @@ const PRIMARY_AUDIT_FIELD_ORDER = [
   'village_id',
   'precinct_id',
   'first_name',
+  'middle_name',
   'last_name',
   'print_name',
   'contact_number',
   'email',
   'street_address',
+  'self_reported_registered_voter',
   'registered_voter',
   'yard_sign',
   'motorcade_available',
@@ -167,14 +209,132 @@ function humanizeAuditValue(value: unknown, field?: string) {
   return String(value);
 }
 
+function auditDiffParts(diff: unknown): { from: unknown; to: unknown } {
+  if (diff && typeof diff === 'object' && !Array.isArray(diff) && ('from' in diff || 'to' in diff)) {
+    const record = diff as { from?: unknown; to?: unknown };
+    return { from: record.from, to: record.to };
+  }
+
+  return { from: null, to: diff };
+}
+
+function isEmptyAuditValue(value: unknown) {
+  return value === null || value === undefined || value === '';
+}
+
+function isMeaningfulAuditDiff(diff: unknown) {
+  const normalized = auditDiffParts(diff);
+  if (isEmptyAuditValue(normalized.from) && isEmptyAuditValue(normalized.to)) return false;
+  return normalized.from !== normalized.to;
+}
+
 function auditFieldLabel(field: string) {
   return AUDIT_FIELD_LABELS[field] || field.replaceAll('_', ' ');
 }
 
+function verificationStatusLabel(supporter: Pick<SupporterDetail, 'verification_status' | 'registered_voter' | 'referred_from_village_id'>) {
+  if (supporter.verification_status === 'verified') return 'Matched to GEC';
+  if (supporter.referred_from_village_id) return 'Village Referral';
+  if (supporter.verification_status === 'flagged') return 'Flagged for review';
+  if (supporter.verification_status === 'unverified' && !supporter.registered_voter) return 'No GEC Match';
+  return 'Needs voter review';
+}
+
+function verificationStatusDetail(supporter: Pick<SupporterDetail, 'verification_status' | 'registered_voter' | 'referred_from_village_id'>) {
+  if (supporter.verification_status === 'verified') {
+    return 'This supporter has a current GEC match and can be treated as matched to the voter list.';
+  }
+  if (supporter.referred_from_village_id) {
+    return 'This supporter appears to be registered in a different village and should be reviewed by staff.';
+  }
+  if (supporter.verification_status === 'flagged') {
+    return 'This supporter needs voter-check follow-up before staff should treat the match as confirmed.';
+  }
+  if (supporter.verification_status === 'unverified' && !supporter.registered_voter) {
+    return 'This supporter was not found in the current GEC voter list.';
+  }
+  return 'This supporter still needs voter-check review.';
+}
+
+function isNoGecMatch(supporter: Pick<SupporterDetail, 'verification_status' | 'registered_voter' | 'referred_from_village_id'>) {
+  return supporter.verification_status === 'unverified' && !supporter.registered_voter && !supporter.referred_from_village_id;
+}
+
+function isPublicOrigin(supporter: Pick<SupporterDetail, 'source'>) {
+  return supporter.source === 'public_signup' || supporter.source === 'qr_signup';
+}
+
+function isPendingPublicSignup(supporter: Pick<SupporterDetail, 'source' | 'public_review_status'>) {
+  return isPublicOrigin(supporter) && supporter.public_review_status === 'pending';
+}
+
+function isApprovedPublicSignup(supporter: Pick<SupporterDetail, 'source' | 'review_status' | 'public_review_status'>) {
+  return isPublicOrigin(supporter) && supporter.public_review_status === 'approved' && supporter.review_status === 'approved';
+}
+
+function supporterStatusLabel(supporter: Pick<SupporterDetail, 'source' | 'review_status' | 'public_review_status'>) {
+  if (isPendingPublicSignup(supporter)) return 'Pending public review';
+  if (supporter.review_status === 'pending') return 'Pending supporter review';
+  if (supporter.review_status === 'rejected') return 'Rejected submission';
+  if (isApprovedPublicSignup(supporter)) return 'Approved public supporter';
+  if (supporter.source === 'staff_entry') return 'Approved Staff Supporter';
+  if (supporter.source === 'bulk_import') return 'Approved Imported Supporter';
+  return 'Approved campaign supporter';
+}
+
+function supporterStatusDetail(supporter: Pick<SupporterDetail, 'source' | 'review_status' | 'public_review_status'>) {
+  if (isPendingPublicSignup(supporter)) {
+    return 'This supporter came from the public signup form and is waiting for public-review approval before entering the main supporter review queue.';
+  }
+  if (supporter.review_status === 'pending') {
+    return 'This submission is waiting for data-team approval before it joins the official supporter list.';
+  }
+  if (supporter.review_status === 'rejected') {
+    return 'This submission was rejected and is kept only for audit and possible follow-up.';
+  }
+  if (isApprovedPublicSignup(supporter)) {
+    return 'This supporter came from the public signup form and has been fully approved into the official supporter list.';
+  }
+  if (supporter.source === 'staff_entry') {
+    return 'This supporter was entered by staff and has been approved into the official supporter list.';
+  }
+  if (supporter.source === 'bulk_import') {
+    return 'This supporter was added through a campaign import and has been approved into the official supporter list.';
+  }
+  return 'This supporter is already part of the official supporter list.';
+}
+
+function activitySourceLabel(supporter: Pick<SupporterDetail, 'source' | 'attribution_method'>) {
+  if (supporter.source === 'public_signup' || supporter.source === 'qr_signup') return 'Public signup';
+  if (supporter.attribution_method === 'staff_scan') return 'Blue form scan';
+  if (supporter.source === 'staff_entry') return 'Staff entry';
+  if (supporter.source === 'bulk_import') return 'Excel import';
+  return supporter.source === 'referral' ? 'Referral' : 'Supporter record';
+}
+
+function activityActionLabel(supporter: Pick<SupporterDetail, 'source' | 'attribution_method'>) {
+  if (supporter.source === 'public_signup' || supporter.source === 'qr_signup') return 'Signed up';
+  if (supporter.attribution_method === 'staff_scan' || supporter.source === 'staff_entry') return 'Entered';
+  if (supporter.source === 'bulk_import') return 'Imported';
+  return 'Created';
+}
+
+function fullName(supporter: Pick<SupporterDetail, 'first_name' | 'middle_name' | 'last_name'>) {
+  return [ supporter.first_name, supporter.middle_name, supporter.last_name ].filter(Boolean).join(' ');
+}
+
+function supportDetailBackLabel(returnTo: string) {
+  if (returnTo.includes('/villages/')) return 'Back to Village';
+  if (returnTo.includes('/supporters')) return 'Back to Supporters';
+  return 'Back';
+}
+
 export default function SupporterDetailPage() {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
   const supporterId = Number(id);
   const queryClient = useQueryClient();
+  const { data: sessionData } = useSession();
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['supporter', supporterId],
@@ -189,6 +349,7 @@ export default function SupporterDetailPage() {
   const supporter: SupporterDetail | undefined = data?.supporter;
   const permissions: SupporterPermissions | undefined = data?.permissions;
   const auditLogs: AuditLogItem[] = data?.audit_logs || [];
+  const returnTo = searchParams.get('return_to') || '';
   const villages: VillageOption[] = useMemo(() => villagesData?.villages || [], [villagesData]);
   const villageNameById = useMemo(
     () => new Map(villages.map((village) => [ village.id, village.name ])),
@@ -202,11 +363,14 @@ export default function SupporterDetailPage() {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState<Partial<SupporterDetail> | null>(null);
   const canEdit = permissions?.can_edit ?? false;
+  const canReviewPublic = sessionData?.permissions?.can_review_public ?? false;
+  const canMarkVerifiedVoter = supporter ? !isNoGecMatch(supporter) : false;
 
   const baseForm = useMemo(() => {
     if (!supporter) return null;
     return {
       first_name: supporter.first_name,
+      middle_name: supporter.middle_name || '',
       last_name: supporter.last_name,
       contact_number: supporter.contact_number,
       email: supporter.email || '',
@@ -214,6 +378,7 @@ export default function SupporterDetailPage() {
       street_address: supporter.street_address || '',
       village_id: supporter.village_id,
       precinct_id: supporter.precinct_id,
+      self_reported_registered_voter: supporter.self_reported_registered_voter,
       registered_voter: supporter.registered_voter,
       yard_sign: supporter.yard_sign,
       motorcade_available: supporter.motorcade_available,
@@ -242,6 +407,20 @@ export default function SupporterDetailPage() {
       queryClient.invalidateQueries({ queryKey: ['supporters'] });
       queryClient.invalidateQueries({ queryKey: ['village'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
+
+  const acceptMutation = useMutation({
+    mutationFn: () => acceptToQuota(supporterId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['supporter', supporterId] });
+      queryClient.invalidateQueries({ queryKey: ['supporters'] });
+      queryClient.invalidateQueries({ queryKey: ['public-review'] });
+      queryClient.invalidateQueries({ queryKey: ['vetting-queue'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      queryClient.invalidateQueries({ queryKey: ['reports-list'] });
+      queryClient.invalidateQueries({ queryKey: ['session'] });
+      refetch();
     },
   });
 
@@ -285,20 +464,31 @@ export default function SupporterDetailPage() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       <div>
+        {returnTo && (
+          <Link
+            to={returnTo}
+            className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 mb-3"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            {supportDetailBackLabel(returnTo)}
+          </Link>
+        )}
         <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
-          <UserRound className="w-5 h-5 text-primary" /> {supporter.first_name} {supporter.last_name}
+          <UserRound className="w-5 h-5 text-primary" /> {fullName(supporter)}
         </h1>
         <p className="text-gray-500 text-sm">
-          Signed up {formatDateTime(supporter.created_at)} · {supporter.source === 'qr_signup' ? 'Public Signup' : 'Staff Entry'}
+          {activityActionLabel(supporter)} {formatDateTime(supporter.created_at)} · {activitySourceLabel(supporter)}
         </p>
         <div className="flex items-center gap-2 mt-1">
+          <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+            {supporterStatusLabel(supporter)}
+          </span>
           <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
             supporter.verification_status === 'verified' ? 'bg-green-100 text-green-800' :
             supporter.verification_status === 'flagged' ? 'bg-red-100 text-red-800' :
             'bg-yellow-100 text-yellow-800'
           }`}>
-            {supporter.verification_status === 'verified' ? 'Verified' :
-             supporter.verification_status === 'flagged' ? 'Flagged' : 'Unverified'}
+            {verificationStatusLabel(supporter)}
           </span>
           {supporter.status === 'removed' && (
             <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-600">
@@ -367,13 +557,20 @@ export default function SupporterDetailPage() {
               View only — editing requires campaign admin or district coordinator role.
             </p>
           )}
-          <div className="grid md:grid-cols-2 gap-3">
+          <div className="grid md:grid-cols-3 gap-3">
             <input
               value={String(currentForm.first_name || '')}
               onChange={(e) => updateDraft({ first_name: e.target.value })}
               className="border border-[var(--border-soft)] rounded-xl px-3 py-2 disabled:bg-[var(--surface-bg)] disabled:text-[var(--text-primary)]"
               disabled={!isEditing}
               placeholder="First Name"
+            />
+            <input
+              value={String(currentForm.middle_name || '')}
+              onChange={(e) => updateDraft({ middle_name: e.target.value })}
+              className="border border-[var(--border-soft)] rounded-xl px-3 py-2 disabled:bg-[var(--surface-bg)] disabled:text-[var(--text-primary)]"
+              disabled={!isEditing}
+              placeholder="Middle Name"
             />
             <input
               value={String(currentForm.last_name || '')}
@@ -437,11 +634,11 @@ export default function SupporterDetailPage() {
             <label className="flex items-center gap-2">
               <input
                 type="checkbox"
-                checked={Boolean(currentForm.registered_voter)}
-                onChange={(e) => updateDraft({ registered_voter: e.target.checked })}
+                checked={Boolean(currentForm.self_reported_registered_voter)}
+                onChange={(e) => updateDraft({ self_reported_registered_voter: e.target.checked })}
                 disabled={!isEditing}
               />
-              Registered voter
+              Self-reported registered voter
             </label>
             <label className="flex items-center gap-2">
               <input
@@ -485,17 +682,47 @@ export default function SupporterDetailPage() {
         </section>
 
         <section className="app-card p-4">
-          <h2 className="font-semibold text-[var(--text-primary)] mb-2">Verification</h2>
+          <h2 className="font-semibold text-[var(--text-primary)] mb-2">Supporter Status</h2>
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-[var(--text-secondary)]">Current status:</span>
+              <span className="text-sm text-[var(--text-secondary)]">Current supporter status:</span>
+              <span className="inline-block px-3 py-1.5 rounded-full text-sm font-semibold bg-slate-100 text-slate-700">
+                {supporterStatusLabel(supporter)}
+              </span>
+            </div>
+            <p className="text-sm text-[var(--text-secondary)]">
+              {supporterStatusDetail(supporter)}
+            </p>
+
+            {isPendingPublicSignup(supporter) && canReviewPublic && (
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!window.confirm('Approve this public signup and send it to the supporter review queue?')) return;
+                    acceptMutation.mutate();
+                  }}
+                  disabled={acceptMutation.isPending}
+                  className="min-h-[40px] px-3.5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {acceptMutation.isPending ? 'Sending...' : 'Send to Supporter Review'}
+                </button>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="app-card p-4">
+          <h2 className="font-semibold text-[var(--text-primary)] mb-2">Voter Check</h2>
+          <div className="space-y-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-[var(--text-secondary)]">Current voter check:</span>
               <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-semibold ${
                 supporter.verification_status === 'verified' ? 'bg-green-100 text-green-700' :
                 supporter.verification_status === 'flagged' ? 'bg-red-100 text-red-700' :
                 'bg-yellow-100 text-yellow-800'
               }`}>
-                {supporter.verification_status === 'verified' ? 'Verified' :
-                 supporter.verification_status === 'flagged' ? 'Flagged' : 'Unverified'}
+                {verificationStatusLabel(supporter)}
               </span>
               {supporter.status === 'removed' && (
                 <span className="inline-block px-3 py-1.5 rounded-full text-sm font-semibold bg-gray-200 text-gray-700">
@@ -503,26 +730,31 @@ export default function SupporterDetailPage() {
                 </span>
               )}
             </div>
+            <p className="text-sm text-[var(--text-secondary)]">
+              {verificationStatusDetail(supporter)}
+            </p>
 
             {canEdit && (
               <>
-                <p className="text-sm text-[var(--text-secondary)]">Change verification:</p>
+                <p className="text-sm text-[var(--text-secondary)]">Update voter check:</p>
                 <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    disabled={supporter.verification_status === 'verified'}
-                    onClick={async () => {
-                      try {
-                        await verifySupporter(supporter.id, 'verified');
-                        refetch();
-                      } catch {
-                        alert('Failed to verify supporter. You may not have permission.');
-                      }
-                    }}
-                    className="min-h-[40px] px-3.5 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    Set Verified
-                  </button>
+                  {canMarkVerifiedVoter && (
+                    <button
+                      type="button"
+                      disabled={supporter.verification_status === 'verified'}
+                      onClick={async () => {
+                        try {
+                          await verifySupporter(supporter.id, 'verified');
+                          refetch();
+                        } catch {
+                          alert('Failed to mark supporter as matched to GEC. A current GEC match is required.');
+                        }
+                      }}
+                      className="min-h-[40px] px-3.5 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Mark Matched To GEC
+                    </button>
+                  )}
                   <button
                     type="button"
                     disabled={supporter.verification_status === 'flagged'}
@@ -536,7 +768,7 @@ export default function SupporterDetailPage() {
                     }}
                     className="min-h-[40px] px-3.5 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Set Flagged
+                    Flag For Review
                   </button>
                   <button
                     type="button"
@@ -551,9 +783,15 @@ export default function SupporterDetailPage() {
                     }}
                     className="min-h-[40px] px-3.5 py-2 border border-[var(--border-soft)] text-[var(--text-primary)] text-sm font-medium rounded-lg hover:bg-[var(--surface-bg)] disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Reset Verification
+                    Reset Voter Check
                   </button>
                 </div>
+
+                {!canMarkVerifiedVoter && (
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    Marking someone as matched to GEC is only available when the supporter has a current GEC match. This supporter can stay on the official supporter list even without a current GEC match.
+                  </p>
+                )}
 
                 <div className="pt-1">
                   {supporter.status !== 'removed' ? (
@@ -594,13 +832,13 @@ export default function SupporterDetailPage() {
 
             {canEdit && (
               <p className="text-xs text-[var(--text-secondary)]">
-                Only one verification status can be active at a time.
+                Supporter approval and voter check are tracked separately. Supporter status controls whether this record belongs in the official supporter list, while voter check shows whether the person matched the current GEC voter list.
               </p>
             )}
           </div>
           {supporter.verified_at && (
             <p className="text-xs text-[var(--text-muted)] mt-2">
-              Last updated: {formatDateTime(supporter.verified_at)}
+              Voter check last updated: {formatDateTime(supporter.verified_at)}
             </p>
           )}
         </section>
@@ -609,7 +847,15 @@ export default function SupporterDetailPage() {
           <h2 className="font-semibold text-[var(--text-primary)] mb-2">Voter Registration Outreach</h2>
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-[var(--text-secondary)]">Registered voter:</span>
+              <span className="text-sm text-[var(--text-secondary)]">Self-reported registered voter:</span>
+              <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-semibold ${
+                supporter.self_reported_registered_voter ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
+              }`}>
+                {supporter.self_reported_registered_voter == null ? 'Unknown' : supporter.self_reported_registered_voter ? 'Yes' : 'No'}
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-[var(--text-secondary)]">GEC found registered voter:</span>
               <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-semibold ${
                 supporter.registered_voter ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-800'
               }`}>
@@ -723,13 +969,17 @@ export default function SupporterDetailPage() {
                   const normalizedB = bIdx === -1 ? Number.MAX_SAFE_INTEGER : bIdx;
                   return normalizedA - normalizedB;
                 });
-                const primaryChanges = sortedChangedFields.filter(([field]) => !TECHNICAL_AUDIT_FIELDS.has(field));
-                const technicalChanges = sortedChangedFields.filter(([field]) => TECHNICAL_AUDIT_FIELDS.has(field));
+                const primaryChanges = sortedChangedFields.filter(([field, diff]) => !TECHNICAL_AUDIT_FIELDS.has(field) && isMeaningfulAuditDiff(diff));
+                const technicalChanges = sortedChangedFields.filter(([field, diff]) => TECHNICAL_AUDIT_FIELDS.has(field) && isMeaningfulAuditDiff(diff));
                 const actionLabel = (log.action_label || log.action || 'Updated').replaceAll('_', ' ');
                 const actorLabel = log.actor_name || 'System/Public';
 
                 const renderAuditValue = (field: string, value: unknown) => {
                   if (value === null || value === undefined || value === '') return 'empty';
+                  if (field === 'merged_supporter_id') {
+                    const numericValue = Number(value);
+                    return Number.isFinite(numericValue) ? `Supporter #${numericValue}` : String(value);
+                  }
                   if (field === 'referral_code_id') {
                     const numericValue = Number(value);
                     if (
@@ -787,16 +1037,25 @@ export default function SupporterDetailPage() {
                     <div className="px-4 pb-4 border-t border-[var(--border-soft)]">
                       {primaryChanges.length > 0 ? (
                         <div className="mt-3 space-y-2">
-                          {primaryChanges.map(([field, diff]) => (
+                          {primaryChanges.map(([field, diff]) => {
+                            const normalizedDiff = auditDiffParts(diff);
+                            const showCompactChange = [ 'resolution', 'merged_supporter_id' ].includes(field) && isEmptyAuditValue(normalizedDiff.from);
+                            return (
                             <div key={field} className="rounded-lg border border-[var(--border-soft)] bg-white px-3 py-2.5">
                               <p className="text-sm font-semibold uppercase tracking-wide text-[var(--text-secondary)]">{auditFieldLabel(field)}</p>
-                              <div className="mt-1.5 flex flex-wrap items-center gap-2 text-base">
-                                <span className="rounded-md bg-gray-200 text-gray-900 px-2.5 py-1">{renderAuditValue(field, diff.from)}</span>
-                                <span className="text-[var(--text-secondary)] font-medium">to</span>
-                                <span className="rounded-md bg-blue-200 text-blue-900 px-2.5 py-1 font-medium">{renderAuditValue(field, diff.to)}</span>
-                              </div>
+                              {showCompactChange ? (
+                                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-base">
+                                  <span className="rounded-md bg-blue-200 text-blue-900 px-2.5 py-1 font-medium">{renderAuditValue(field, normalizedDiff.to)}</span>
+                                </div>
+                              ) : (
+                                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-base">
+                                  <span className="rounded-md bg-gray-200 text-gray-900 px-2.5 py-1">{renderAuditValue(field, normalizedDiff.from)}</span>
+                                  <span className="text-[var(--text-secondary)] font-medium">to</span>
+                                  <span className="rounded-md bg-blue-200 text-blue-900 px-2.5 py-1 font-medium">{renderAuditValue(field, normalizedDiff.to)}</span>
+                                </div>
+                              )}
                             </div>
-                          ))}
+                          )})}
                         </div>
                       ) : (
                         <p className="text-sm text-[var(--text-secondary)] mt-3">No user-facing field changes captured for this action.</p>
@@ -806,12 +1065,14 @@ export default function SupporterDetailPage() {
                         <details className="mt-3">
                           <summary className="cursor-pointer text-xs text-[var(--text-secondary)]">Show system details</summary>
                           <div className="mt-2 space-y-1">
-                            {technicalChanges.map(([field, diff]) => (
+                            {technicalChanges.map(([field, diff]) => {
+                              const normalizedDiff = auditDiffParts(diff);
+                              return (
                               <p key={field} className="text-xs text-[var(--text-secondary)]">
                                 <span className="font-medium">{auditFieldLabel(field)}:</span>{' '}
-                                {renderAuditValue(field, diff.from)} {'->'} {renderAuditValue(field, diff.to)}
+                                {renderAuditValue(field, normalizedDiff.from)} {'->'} {renderAuditValue(field, normalizedDiff.to)}
                               </p>
-                            ))}
+                            )})}
                           </div>
                         </details>
                       )}

@@ -7,6 +7,7 @@ class SpreadsheetParser
   COLUMN_PATTERNS = {
     "name" => /\bname\b/i,
     "first_name" => /\bfirst\s*name\b/i,
+    "middle_name" => /\bmiddle\s*name\b/i,
     "last_name" => /\blast\s*name\b/i,
     "contact_number" => /\b(contact|phone|cell|mobile|tel)\b.*\b(no|num|number|#)?\b/i,
     "dob" => /\b(d\.?o\.?b\.?|date\s*of\s*birth|birth\s*date|birthday)\b/i,
@@ -141,7 +142,7 @@ class SpreadsheetParser
       used_columns = Set.new
 
       # First pass: exact/priority matches (email before address to avoid "Email Address" → address)
-      priority_order = %w[first_name last_name name contact_number dob email street_address registered_voter village comments]
+      priority_order = %w[first_name middle_name last_name name contact_number dob email street_address registered_voter village comments]
 
       priority_order.each do |field|
         pattern = COLUMN_PATTERNS[field]
@@ -208,13 +209,22 @@ class SpreadsheetParser
       # Name parsing
       if raw["first_name"].present? && raw["last_name"].present?
         data["first_name"] = raw["first_name"]
+        data["middle_name"] = raw["middle_name"] if raw["middle_name"].present?
         data["last_name"] = raw["last_name"]
       elsif raw["name"].present?
         parts = split_name(raw["name"])
-        data["first_name"] = parts[:first]
-        data["last_name"] = parts[:last]
+        data["first_name"] = parts[:first_name]
+        data["middle_name"] = parts[:middle_name] if parts[:middle_name].present?
+        data["last_name"] = parts[:last_name]
         data["_issues"] << parts[:couple_note] if parts[:couple_note]
-        data["_issues"] << "Name auto-split: \"#{raw['name']}\" → \"#{parts[:first]}\" + \"#{parts[:last]}\"" if parts[:uncertain] && !parts[:couple_note]
+        if parts[:uncertain] && !parts[:couple_note]
+          parsed_name = NameParser.combine(
+            first_name: parts[:first_name],
+            middle_name: parts[:middle_name],
+            last_name: parts[:last_name]
+          )
+          data["_issues"] << "Name auto-split: \"#{raw['name']}\" → \"#{parsed_name}\""
+        end
       else
         data["_skip"] = true
         data["_issues"] << "No name found"
@@ -259,60 +269,7 @@ class SpreadsheetParser
     end
 
     def split_name(full_name)
-      name = full_name.strip
-
-      # Handle "Last, First" format
-      if name.include?(",")
-        parts = name.split(",", 2).map(&:strip)
-        return { first: parts[1], last: parts[0], uncertain: false }
-      end
-
-      # Handle parenthetical maiden names: "Kaila Owen (Cruz)"
-      maiden = nil
-      if name =~ /\(([^)]+)\)/
-        maiden = $1
-        name = name.sub(/\s*\([^)]+\)/, "").strip
-      end
-
-      # Handle couples: "Mel & Theresa Obispo" → imports second person, flags for review
-      if name =~ /\s*&\s*/
-        parts = name.split(/\s*&\s*/, 2)
-        first_person = parts[0].strip
-        second_part = parts[1].strip.split(/\s+/)
-        if second_part.size >= 2
-          return {
-            first: second_part[0..-2].join(" "),
-            last: second_part[-1],
-            uncertain: true,
-            couple_note: "Couple entry — only importing \"#{second_part[0..-2].join(' ')} #{second_part[-1]}\". \"#{first_person}\" may need separate entry."
-          }
-        else
-          # "Mel & Theresa" — no shared last name, just use second person's first name
-          return {
-            first: second_part[0] || first_person,
-            last: "",
-            uncertain: true,
-            couple_note: "Couple entry — \"#{first_person} & #{second_part[0]}\". Last name missing. \"#{first_person}\" may need separate entry."
-          }
-        end
-      end
-
-      # Standard "First [Middle] Last" split
-      words = name.split(/\s+/)
-      case words.size
-      when 0
-        { first: "", last: "", uncertain: true }
-      when 1
-        { first: words[0], last: "", uncertain: true }
-      when 2
-        { first: words[0], last: words[1], uncertain: false }
-      else
-        # If middle has initials (single letter or letter+period), treat as middle
-        # "Betty Jean Lorenzo Ignacio" → first: "Betty Jean", last: "Ignacio"
-        # "Christian J.C.Borja" → first: "Christian", last: "Borja"
-        # Check if last word is the surname
-        { first: words[0..-2].join(" "), last: words[-1], uncertain: words.size > 3 }
-      end
+      NameParser.split_supporter_name(full_name)
     end
 
     def normalize_phone(phone)

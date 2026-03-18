@@ -37,6 +37,7 @@ class Api::V1::UsersControllerTest < ActionDispatch::IntegrationTest
     payload = JSON.parse(response.body)
     assert payload["users"].length >= 2
     assert_includes payload["roles"], "campaign_admin"
+    assert_includes payload["roles"], "data_team"
   end
 
   test "coordinator can list only manageable users and roles" do
@@ -65,6 +66,41 @@ class Api::V1::UsersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "new.user@example.com", payload.dig("user", "email")
     assert_equal "village_chief", payload.dig("user", "role")
     assert_nil payload.dig("user", "name")
+  end
+
+  test "admin can create data team user without area assignment" do
+    assert_enqueued_with(job: SendUserInviteEmailJob) do
+      post "/api/v1/users",
+        params: {
+          user: {
+            email: "data.team@example.com",
+            role: "data_team"
+          }
+        },
+        headers: auth_headers(@admin)
+    end
+
+    assert_response :created
+    payload = JSON.parse(response.body)
+    assert_equal "data_team", payload.dig("user", "role")
+    assert_nil payload.dig("user", "assigned_district_id")
+    assert_nil payload.dig("user", "assigned_village_id")
+  end
+
+  test "admin cannot create user with invalid email" do
+    post "/api/v1/users",
+      params: {
+        user: {
+          email: "invalid-email",
+          role: "block_leader"
+        }
+      },
+      headers: auth_headers(@admin)
+
+    assert_response :unprocessable_entity
+    payload = JSON.parse(response.body)
+    assert_equal "user_create_failed", payload["code"]
+    assert_includes payload["error"], "Email is invalid"
   end
 
   test "admin can update user role" do
@@ -108,6 +144,21 @@ class Api::V1::UsersControllerTest < ActionDispatch::IntegrationTest
         user: {
           email: "new.admin@example.com",
           role: "campaign_admin"
+        }
+      },
+      headers: auth_headers(@coordinator)
+
+    assert_response :forbidden
+    payload = JSON.parse(response.body)
+    assert_equal "user_role_assignment_forbidden", payload["code"]
+  end
+
+  test "coordinator cannot create data team user" do
+    post "/api/v1/users",
+      params: {
+        user: {
+          email: "new.data.team@example.com",
+          role: "data_team"
         }
       },
       headers: auth_headers(@coordinator)

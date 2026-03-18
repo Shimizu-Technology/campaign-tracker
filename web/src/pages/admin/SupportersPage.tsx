@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getSupporters, exportSupporters, getVillages, updateSupporter } from '../../lib/api';
-import { Link, useSearchParams } from 'react-router-dom';
-import { Search, ClipboardPlus, Download, ArrowUpDown } from 'lucide-react';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
+import { Search, ClipboardPlus, Download, ArrowUpDown, ChevronLeft } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { formatDateTime } from '../../lib/datetime';
 import { useSession } from '../../hooks/useSession';
@@ -21,6 +21,7 @@ interface VillageOption {
 interface SupporterItem {
   id: number;
   first_name: string;
+  middle_name: string | null;
   last_name: string;
   print_name: string;
   contact_number: string;
@@ -34,8 +35,13 @@ interface SupporterItem {
   opt_in_email: boolean;
   opt_in_text: boolean;
   verification_status: string;
+  referred_from_village_id: number | null;
   potential_duplicate: boolean;
   source: string;
+  attribution_method?: string | null;
+  intake_status?: string;
+  review_status?: string;
+  public_review_status?: string;
   status: string;
   created_at: string;
 }
@@ -67,6 +73,12 @@ function supporterLabel(count: number) {
   return `${count} supporter${count === 1 ? '' : 's'}`;
 }
 
+function backLinkLabel(returnTo: string) {
+  if (returnTo.includes('/villages/')) return 'Back to Village';
+  if (returnTo.includes('/admin')) return 'Back';
+  return 'Back';
+}
+
 function lifecycleChipClass(status: string) {
   switch (status) {
     case 'active':
@@ -82,10 +94,84 @@ function lifecycleChipClass(status: string) {
   }
 }
 
+function verificationStatusLabel(supporter: Pick<SupporterItem, 'verification_status' | 'registered_voter' | 'referred_from_village_id'>) {
+  if (supporter.verification_status === 'verified') return 'Matched to GEC';
+  if (supporter.referred_from_village_id) return 'Village Referral';
+  if (supporter.verification_status === 'flagged') return 'Flagged for review';
+  if (supporter.verification_status === 'unverified' && !supporter.registered_voter) return 'No GEC Match';
+  return 'Needs voter review';
+}
+
+function sourceLabel(supporter: Pick<SupporterItem, 'source' | 'attribution_method'>) {
+  if (supporter.source === 'qr_signup' || supporter.source === 'public_signup') {
+    return 'Public Signup';
+  }
+  if (supporter.attribution_method === 'staff_scan') return 'Blue Form Scan';
+  if (supporter.source === 'bulk_import') return 'Excel Import';
+  return 'Staff Entry';
+}
+
+function sourceChipClass(supporter: Pick<SupporterItem, 'source' | 'attribution_method'>) {
+  if (supporter.source === 'qr_signup' || supporter.source === 'public_signup') {
+    return 'bg-sky-100 text-sky-700';
+  }
+  if (supporter.attribution_method === 'staff_scan') {
+    return 'bg-cyan-100 text-cyan-700';
+  }
+  if (supporter.source === 'bulk_import') {
+    return 'bg-slate-100 text-slate-700';
+  }
+  return 'bg-purple-100 text-purple-700';
+}
+
+function supporterStatusLabel(supporter: Pick<SupporterItem, 'source' | 'review_status' | 'public_review_status'>) {
+  if ((supporter.source === 'public_signup' || supporter.source === 'qr_signup') && supporter.public_review_status === 'pending') {
+    return 'Pending Public Review';
+  }
+  if (supporter.review_status === 'pending') {
+    return 'Pending Supporter Review';
+  }
+  if (supporter.review_status === 'rejected') {
+    return 'Rejected Submission';
+  }
+  if ((supporter.source === 'public_signup' || supporter.source === 'qr_signup') && supporter.review_status === 'approved') {
+    return 'Approved Public Supporter';
+  }
+  if (supporter.source === 'staff_entry') return 'Approved Staff Supporter';
+  if (supporter.source === 'bulk_import') return 'Approved Imported Supporter';
+  return 'Campaign Supporter';
+}
+
+function supporterStatusChipClass(supporter: Pick<SupporterItem, 'source' | 'review_status' | 'public_review_status'>) {
+  if ((supporter.source === 'public_signup' || supporter.source === 'qr_signup') && supporter.public_review_status === 'pending') {
+    return 'bg-amber-100 text-amber-700';
+  }
+  if (supporter.review_status === 'pending') {
+    return 'bg-blue-100 text-blue-700';
+  }
+  if (supporter.review_status === 'rejected') {
+    return 'bg-red-100 text-red-700';
+  }
+  if ((supporter.source === 'public_signup' || supporter.source === 'qr_signup') && supporter.review_status === 'approved') {
+    return 'bg-blue-100 text-blue-700';
+  }
+  if (supporter.source === 'staff_entry') return 'bg-purple-100 text-purple-700';
+  if (supporter.source === 'bulk_import') return 'bg-slate-100 text-slate-700';
+  return 'bg-gray-100 text-gray-700';
+}
+
+function supporterSortName(supporter: Pick<SupporterItem, 'first_name' | 'middle_name' | 'last_name'>) {
+  return [
+    supporter.last_name,
+    [ supporter.first_name, supporter.middle_name ].filter(Boolean).join(' ')
+  ].filter(Boolean).join(', ');
+}
+
 export default function SupportersPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { data: sessionData } = useSession();
+  const location = useLocation();
   const [returnTo] = useState(searchParams.get('return_to') || '');
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [villageFilter, setVillageFilter] = useState(searchParams.get('village_id') || '');
@@ -277,7 +363,7 @@ export default function SupportersPage() {
   };
 
   const supporterDetailLink = (supporterId: number) =>
-    `/admin/supporters/${supporterId}?return_to=${encodeURIComponent(`/admin/supporters?${searchParams.toString()}`)}`;
+    `${location.pathname.startsWith('/data') ? '/data/supporters' : '/admin/supporters'}/${supporterId}?return_to=${encodeURIComponent(`${location.pathname.split('?')[0]}?${searchParams.toString()}`)}`;
 
   const handleSort = (field: SortField) => {
     setPage(1);
@@ -298,6 +384,15 @@ export default function SupportersPage() {
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       {/* Header */}
       <div>
+        {returnTo && (
+          <Link
+            to={returnTo}
+            className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 mb-3"
+          >
+            <ChevronLeft className="w-4 h-4" />
+            {backLinkLabel(returnTo)}
+          </Link>
+        )}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <h1 className="text-2xl font-bold text-gray-900 tracking-tight">All Supporters</h1>
           <div className="flex flex-wrap gap-2">
@@ -374,9 +469,11 @@ export default function SupportersPage() {
             }}
             className="md:col-span-2 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-primary focus:border-transparent min-w-0"
           >
-            <option value="">All sources</option>
-            <option value="qr_signup">Public signup</option>
+            <option value="">All origins</option>
+            <option value="public_signup">Public signup</option>
+            <option value="qr_signup">QR signup</option>
             <option value="staff_entry">Staff entry</option>
+            <option value="bulk_import">Excel import</option>
           </select>
           <select
             value={optInFilter}
@@ -399,10 +496,10 @@ export default function SupportersPage() {
             }}
             className="md:col-span-2 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-primary focus:border-transparent min-w-0"
           >
-            <option value="">All verification</option>
-            <option value="unverified">Unverified</option>
-            <option value="verified">Verified</option>
-            <option value="flagged">Flagged</option>
+            <option value="">All voter checks</option>
+            <option value="unverified">Needs voter review</option>
+            <option value="verified">Matched to GEC</option>
+            <option value="flagged">Flagged for review</option>
           </select>
           <select
             value={lifecycleFilter}
@@ -417,7 +514,6 @@ export default function SupportersPage() {
             <option value="removed">Removed</option>
             <option value="duplicate">Duplicate</option>
             <option value="inactive">Inactive</option>
-            <option value="unverified">Legacy unverified</option>
           </select>
           {effectiveVillageFilter && (
             <select
@@ -505,24 +601,26 @@ export default function SupportersPage() {
               <div className="flex items-center justify-between mb-1">
                 <div className="flex items-center gap-1.5">
                   <Link to={supporterDetailLink(s.id)} className="font-semibold text-[var(--text-primary)] hover:underline">
-                    {s.last_name}, {s.first_name}
+                    {supporterSortName(s)}
                   </Link>
                   {s.potential_duplicate && (
                     <span className="flex-shrink-0 w-2 h-2 rounded-full bg-amber-400" title="Potential duplicate" />
                   )}
                 </div>
                 <span className={`app-chip ${
-                  s.source === 'qr_signup' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                  sourceChipClass(s)
                 }`}>
-                  {s.source === 'qr_signup' ? 'QR' : 'Staff'}
+                  {sourceLabel(s)}
+                </span>
+                <span className={`app-chip ${supporterStatusChipClass(s)}`}>
+                  {supporterStatusLabel(s)}
                 </span>
                 <span className={`app-chip ${
                   s.verification_status === 'verified' ? 'bg-green-100 text-green-700' :
                   s.verification_status === 'flagged' ? 'bg-red-100 text-red-700' :
                   'bg-yellow-100 text-yellow-700'
                 }`}>
-                  {s.verification_status === 'verified' ? 'Verified' :
-                   s.verification_status === 'flagged' ? 'Flagged' : 'Unverified'}
+                  {verificationStatusLabel(s)}
                 </span>
                 <span className={`app-chip ${lifecycleChipClass(s.status)}`}>
                   {s.status}
@@ -546,7 +644,7 @@ export default function SupportersPage() {
                   )}
                 </div>
                 <div className="flex justify-between">
-                  <span className={s.registered_voter ? 'text-green-600 font-medium' : 'text-[var(--text-muted)]'}>{s.registered_voter ? 'Registered' : 'Not registered'}</span>
+                  <span className={s.registered_voter ? 'text-green-600 font-medium' : 'text-[var(--text-muted)]'}>{s.registered_voter ? 'GEC found' : 'No GEC match'}</span>
                   <span>{formatDateTime(s.created_at)}</span>
                 </div>
               </div>
@@ -564,7 +662,7 @@ export default function SupportersPage() {
 
         {/* Desktop Table */}
         <div className={`hidden md:block app-card overflow-x-auto transition-opacity duration-200 ${isFetching ? 'opacity-80' : 'opacity-100'}`}>
-          <table className="w-full min-w-[1120px] text-sm">
+          <table className="w-full min-w-[1240px] text-sm">
             <thead>
               <tr className="border-b bg-[var(--surface-bg)]">
                 <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">
@@ -582,15 +680,16 @@ export default function SupportersPage() {
                 <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Flags</th>
                 <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">
                   <button type="button" onClick={() => handleSort('registered_voter')} className="inline-flex items-center gap-1 hover:text-[var(--text-primary)]">
-                    Registered <ArrowUpDown className="w-3.5 h-3.5" /> {sortLabel('registered_voter')}
+                    GEC Found <ArrowUpDown className="w-3.5 h-3.5" /> {sortLabel('registered_voter')}
                   </button>
                 </th>
                 <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">
                   <button type="button" onClick={() => handleSort('source')} className="inline-flex items-center gap-1 hover:text-[var(--text-primary)]">
-                    Source <ArrowUpDown className="w-3.5 h-3.5" /> {sortLabel('source')}
+                    Origin <ArrowUpDown className="w-3.5 h-3.5" /> {sortLabel('source')}
                   </button>
                 </th>
-                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Verification</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Supporter Status</th>
+                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Voter Check</th>
                 <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Lifecycle</th>
                 <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">
                   <button type="button" onClick={() => handleSort('created_at')} className="inline-flex items-center gap-1 hover:text-[var(--text-primary)]">
@@ -609,8 +708,8 @@ export default function SupportersPage() {
                 >
                   <td className="px-4 py-3 font-medium text-[var(--text-primary)] max-w-[240px]">
                     <div className="flex items-center gap-1.5">
-                      <Link to={supporterDetailLink(s.id)} className="hover:underline block truncate" title={`${s.last_name}, ${s.first_name}`}>
-                        {s.last_name}, {s.first_name}
+                      <Link to={supporterDetailLink(s.id)} className="hover:underline block truncate" title={supporterSortName(s)}>
+                        {supporterSortName(s)}
                       </Link>
                       {s.potential_duplicate && (
                         <span className="flex-shrink-0 w-2 h-2 rounded-full bg-amber-400" title="Potential duplicate" />
@@ -642,9 +741,14 @@ export default function SupportersPage() {
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span className={`app-chip ${
-                      s.source === 'qr_signup' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'
+                      sourceChipClass(s)
                     }`}>
-                      {s.source === 'qr_signup' ? 'Public Signup' : 'Staff Entry'}
+                      {sourceLabel(s)}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap">
+                    <span className={`app-chip ${supporterStatusChipClass(s)}`}>
+                      {supporterStatusLabel(s)}
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
@@ -653,8 +757,7 @@ export default function SupportersPage() {
                       s.verification_status === 'flagged' ? 'bg-red-100 text-red-700' :
                       'bg-yellow-100 text-yellow-700'
                     }`}>
-                      {s.verification_status === 'verified' ? 'Verified' :
-                       s.verification_status === 'flagged' ? 'Flagged' : 'Unverified'}
+                      {verificationStatusLabel(s)}
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
@@ -667,7 +770,7 @@ export default function SupportersPage() {
               ))}
               {supportersRows.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-4 py-8 text-center text-[var(--text-muted)]">
+                  <td colSpan={11} className="px-4 py-8 text-center text-[var(--text-muted)]">
                     No supporters found
                   </td>
                 </tr>

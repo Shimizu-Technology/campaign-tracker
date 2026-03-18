@@ -21,12 +21,18 @@ Rails.application.routes.draw do
           patch :verify
           patch :resolve_duplicate
           patch :outreach_status
+          patch :accept_to_quota
+          patch :reject_public_review
+          patch :approve_supporter
+          patch :reject_supporter
         end
         collection do
           get :check_duplicate
           get :export
           get :duplicates
           get :outreach
+          get :public_review
+          get :vetting_queue
           post :bulk_verify
           post :scan_duplicates
         end
@@ -74,6 +80,45 @@ Rails.application.routes.draw do
       post "imports/preview", to: "imports#preview"
       post "imports/parse", to: "imports#parse"
       post "imports/confirm", to: "imports#confirm"
+
+      # Reports (Excel export)
+      get "reports", to: "reports#index"
+      get "reports/:report_type/preview", to: "reports#preview"
+      get "reports/:report_type", to: "reports#show"
+
+      # Campaign Cycles & Quota Periods
+      resources :campaign_cycles, only: %i[index create update destroy] do
+        collection do
+          get :current
+        end
+      end
+      resources :quota_periods, only: %i[show update] do
+        member do
+          post :submit
+          get :village_quotas
+          patch :village_quotas, action: :update_village_quotas
+        end
+      end
+
+      # GEC Voter List
+      resources :gec_voters, only: [ :index ] do
+        collection do
+          get :stats
+          get :imports
+          get "imports/:id/view_data", action: :view_import_data, as: :view_import_data
+          get "imports/:id/changes", action: :view_import_changes, as: :view_import_changes
+          get "imports/:id/skipped_rows", action: :view_import_skipped_rows, as: :view_import_skipped_rows
+          post "imports/:id/skipped_rows/:skipped_row_id/preview_resolution", action: :preview_skipped_row_resolution, as: :preview_skipped_row_resolution
+          post "imports/:id/skipped_rows/:skipped_row_id/resolve", action: :resolve_skipped_row, as: :resolve_skipped_row
+          post "imports/:id/skipped_rows/:skipped_row_id/dismiss", action: :dismiss_skipped_row, as: :dismiss_skipped_row
+          get "imports/:id/view_original", action: :view_original, as: :view_original
+          get "imports/:id/download", action: :download_import, as: :download_import
+          post :upload
+          post :preview
+          post :match
+          post :bulk_vet
+        end
+      end
 
       # Form Scanner (OCR)
       post "scan", to: "scan#create"

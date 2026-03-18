@@ -3,6 +3,19 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { uploadImportPreview, parseImportRows, confirmImport, getVillages } from '../../lib/api';
 import { useSession } from '../../hooks/useSession';
 import { Upload, FileSpreadsheet, ArrowRight, ArrowLeft, Check, AlertTriangle, Loader2 } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+
+function DataOpsImportBanner() {
+  return (
+    <div className="mb-6 flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+      <Upload className="w-4 h-4 shrink-0 text-blue-500" />
+      <span>For GEC voter list imports and full data team workflow, use the <strong>Data Ops Workspace</strong>.</span>
+      <Link to="/data/import" className="ml-auto flex items-center gap-1 font-semibold text-blue-700 hover:text-blue-900 whitespace-nowrap">
+        Go to Data Ops <ArrowRight className="w-3.5 h-3.5" />
+      </Link>
+    </div>
+  );
+}
 
 // Types
 interface SheetInfo {
@@ -29,6 +42,7 @@ interface ParsedRow {
   _issues: string[];
   _duplicate_matches?: { id: number; name: string; phone: string }[];
   first_name?: string;
+  middle_name?: string;
   last_name?: string;
   contact_number?: string;
   dob?: string;
@@ -36,6 +50,7 @@ interface ParsedRow {
   street_address?: string;
   registered_voter?: boolean;
   comments?: string;
+  village?: string;
 }
 
 interface ParseResponse {
@@ -56,6 +71,7 @@ type Step = 'upload' | 'select-sheet' | 'map-columns' | 'review' | 'complete';
 const FIELD_LABELS: Record<string, string> = {
   name: 'Full Name',
   first_name: 'First Name',
+  middle_name: 'Middle Name',
   last_name: 'Last Name',
   contact_number: 'Phone Number',
   dob: 'Date of Birth',
@@ -66,11 +82,12 @@ const FIELD_LABELS: Record<string, string> = {
   village: 'Village',
 };
 
-const IMPORTABLE_FIELDS = ['name', 'first_name', 'last_name', 'contact_number', 'dob', 'email', 'street_address', 'registered_voter', 'village', 'comments'];
+const IMPORTABLE_FIELDS = ['name', 'first_name', 'middle_name', 'last_name', 'contact_number', 'dob', 'email', 'street_address', 'registered_voter', 'village', 'comments'];
 const REQUIRED_MAPPING_FIELDS = ['name', 'first_name', 'last_name'] as const;
 const OPTIONAL_MAPPING_FIELDS = IMPORTABLE_FIELDS.filter((field) => !REQUIRED_MAPPING_FIELDS.includes(field as (typeof REQUIRED_MAPPING_FIELDS)[number]));
 
 export default function ImportPage() {
+  const location = useLocation();
   const [step, setStep] = useState<Step>('upload');
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [selectedSheet, setSelectedSheet] = useState<number>(0);
@@ -99,6 +116,10 @@ export default function ImportPage() {
     if (!scopedVillageIds) return all;
     return all.filter((v: Village) => scopedVillageIds.includes(v.id));
   }, [villagesData, scopedVillageIds]);
+  const defaultVillageName = useMemo(
+    () => villages.find((v) => String(v.id) === villageId)?.name || '',
+    [villages, villageId]
+  );
 
   // Step 1: Upload
   const uploadMutation = useMutation({
@@ -174,28 +195,46 @@ export default function ImportPage() {
     setRows(prev => prev.map((r, i) => i === rowIndex ? { ...r, _skip: !r._skip } : r));
   };
 
-  const updateRow = (rowIndex: number, field: string, value: string) => {
+  const updateRow = <K extends keyof ParsedRow>(rowIndex: number, field: K, value: ParsedRow[K]) => {
     setRows(prev => prev.map((r, i) => i === rowIndex ? { ...r, [field]: value } : r));
   };
 
+  const rowIssuesFor = useCallback((row: ParsedRow) => {
+    const issues = row._issues.filter((issue) => !issue.toLowerCase().includes('missing phone number'));
+
+    if (!row.first_name?.trim() || !row.last_name?.trim()) {
+      issues.push('Missing required name');
+    }
+
+    if (!row.contact_number?.trim()) {
+      issues.push('Missing phone number');
+    }
+
+    return issues;
+  }, []);
+
+  const rowIssuesMatrix = useMemo(() => rows.map((row) => rowIssuesFor(row)), [rows, rowIssuesFor]);
   const activeRows = rows.filter(r => !r._skip);
-  const hasDuplicateIssue = (row: ParsedRow) => row._issues.some((issue) => issue.toLowerCase().includes('possible duplicate'));
-  const hasMissingPhoneIssue = (row: ParsedRow) => row._issues.some((issue) => issue.toLowerCase().includes('missing phone number'));
-  const hasAutoSplitIssue = (row: ParsedRow) => row._issues.some((issue) => issue.startsWith('Name auto-split'));
-  const rowsWithIssues = activeRows.filter((r) => r._issues.length > 0);
-  const rowsReady = activeRows.filter((r) => r._issues.length === 0);
+  const hasDuplicateIssue = (issues: string[]) => issues.some((issue) => issue.toLowerCase().includes('possible duplicate'));
+  const hasMissingPhoneIssue = (issues: string[]) => issues.some((issue) => issue.toLowerCase().includes('missing phone number'));
+  const hasAutoSplitIssue = (issues: string[]) => issues.some((issue) => issue.startsWith('Name auto-split'));
+  const rowsWithIssues = activeRows.filter((r) => rowIssuesFor(r).length > 0);
+  const rowsReady = activeRows.filter((r) => rowIssuesFor(r).length === 0);
   const rowsMissingRequired = activeRows.filter((r) => !r.first_name?.trim() || !r.last_name?.trim());
-  const duplicateWarningCount = activeRows.filter(hasDuplicateIssue).length;
-  const missingPhoneWarningCount = activeRows.filter(hasMissingPhoneIssue).length;
-  const autoSplitWarningCount = activeRows.filter(hasAutoSplitIssue).length;
+  const duplicateWarningCount = activeRows.filter((row) => hasDuplicateIssue(rowIssuesFor(row))).length;
+  const missingPhoneWarningCount = activeRows.filter((row) => hasMissingPhoneIssue(rowIssuesFor(row))).length;
+  const autoSplitWarningCount = activeRows.filter((row) => hasAutoSplitIssue(rowIssuesFor(row))).length;
   const reviewRows = rows
-    .map((row, index) => ({ row, index }))
-    .filter((entry) => !showOnlyIssueRows || entry.row._issues.length > 0)
-    .filter((entry) => !showOnlyDuplicateRows || hasDuplicateIssue(entry.row));
+    .map((row, index) => ({ row, index, issues: rowIssuesMatrix[index] || [] }))
+    .filter((entry) => !showOnlyIssueRows || entry.issues.length > 0)
+    .filter((entry) => !showOnlyDuplicateRows || hasDuplicateIssue(entry.issues));
   const hasNameMapping = Boolean(columnMapping.name || (columnMapping.first_name && columnMapping.last_name));
   const hasVillageSource = Boolean(villageId || columnMapping.village);
   const currentSheet = preview?.sheets.find(s => s.index === selectedSheet);
   const rawHeaders = currentSheet?.headers.raw_headers || [];
+  const reviewQueuePath = location.pathname.startsWith('/data') ? '/data/vetting' : '/admin/vetting';
+  const activeRowLabel = activeRows.length === 1 ? 'supporter' : 'supporters';
+  const createdLabel = importResult?.created === 1 ? 'supporter submission' : 'supporter submissions';
 
   const skipRowsMissingRequired = () => {
     setRows((prev) =>
@@ -208,14 +247,15 @@ export default function ImportPage() {
 
   const skipRowsWithDuplicateWarnings = () => {
     setRows((prev) =>
-      prev.map((row) => (
-        hasDuplicateIssue(row) ? { ...row, _skip: true } : row
+      prev.map((row, idx) => (
+        hasDuplicateIssue(rowIssuesMatrix[idx] || []) ? { ...row, _skip: true } : row
       ))
     );
   };
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+      <DataOpsImportBanner />
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Import Supporters</h1>
@@ -361,7 +401,7 @@ export default function ImportPage() {
                 Match spreadsheet columns to supporter fields from <strong>{currentSheet.name}</strong>.
               </p>
               <p className="text-sm text-blue-800 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 mb-4">
-                If you map <strong>Full Name</strong>, we automatically split it into <strong>First Name + Last Name</strong> for the database. You can edit any row before import.
+                If you map <strong>Full Name</strong>, we automatically split it into <strong>First Name + Middle Name + Last Name</strong> for the database when possible. You can edit any row before import.
               </p>
 
               <h3 className="text-sm font-semibold text-[var(--text-primary)] mb-2">Required</h3>
@@ -436,7 +476,7 @@ export default function ImportPage() {
                 <h2 className="font-semibold text-[var(--text-primary)] mb-1">Preview (first {currentSheet.sample_rows.length} rows)</h2>
                 <p className="text-sm text-[var(--text-secondary)] mb-1">Verify your column mappings look correct before parsing all rows.</p>
                 <p className="text-xs text-blue-700 mb-3">
-                  This preview shows raw spreadsheet values. First/Last name splitting happens in the next step.
+                  This preview shows raw spreadsheet values. First/Middle/Last name splitting happens in the next step.
                 </p>
                 <div className="overflow-x-auto">
                   <table className="w-full text-xs">
@@ -581,30 +621,32 @@ export default function ImportPage() {
                     <th className="px-3 py-2">Name</th>
                     <th className="px-3 py-2">Phone</th>
                     <th className="px-3 py-2">DOB</th>
+                    <th className="px-3 py-2">Email</th>
                     <th className="px-3 py-2">Address</th>
                     <th className="px-3 py-2">Reg?</th>
-                    {columnMapping.village && <th className="px-3 py-2">Village</th>}
+                    <th className="px-3 py-2">Village</th>
+                    <th className="px-3 py-2">Comments</th>
                     <th className="px-3 py-2">Status</th>
                     <th className="px-3 py-2 w-16">Action</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {reviewRows.map(({ row, index }) => (
+                  {reviewRows.map(({ row, index, issues }) => (
                     <tr
                       key={index}
                       className={`border-b border-[var(--border-subtle)] ${
                         row._skip
                           ? 'opacity-40 bg-[var(--surface-bg)]'
-                          : hasAutoSplitIssue(row)
+                          : hasAutoSplitIssue(issues)
                             ? 'bg-blue-50'
-                            : row._issues.length > 0
+                            : issues.length > 0
                               ? 'bg-amber-50'
                               : ''
                       }`}
                     >
                       <td className="px-3 py-2 text-[var(--text-muted)]">{row._row}</td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-2 flex-wrap">
+                      <td className="px-3 py-2 min-w-[24rem]">
+                        <div className="flex items-center gap-2 whitespace-nowrap">
                           <input
                             className="font-medium text-[var(--text-primary)] bg-transparent border-b border-transparent hover:border-[var(--border-soft)] focus:border-primary focus:outline-none w-24 px-0"
                             value={row.first_name || ''}
@@ -613,42 +655,104 @@ export default function ImportPage() {
                             disabled={row._skip}
                           />
                           <input
-                            className="font-medium text-[var(--text-primary)] bg-transparent border-b border-transparent hover:border-[var(--border-soft)] focus:border-primary focus:outline-none w-28 px-0"
+                            className="font-medium text-[var(--text-primary)] bg-transparent border-b border-transparent hover:border-[var(--border-soft)] focus:border-primary focus:outline-none w-24 px-0"
+                            value={row.middle_name || ''}
+                            onChange={(e) => updateRow(index, 'middle_name', e.target.value)}
+                            placeholder="Middle"
+                            disabled={row._skip}
+                          />
+                          <input
+                            className="font-medium text-[var(--text-primary)] bg-transparent border-b border-transparent hover:border-[var(--border-soft)] focus:border-primary focus:outline-none w-32 px-0"
                             value={row.last_name || ''}
                             onChange={(e) => updateRow(index, 'last_name', e.target.value)}
                             placeholder="Last"
                             disabled={row._skip}
                           />
-                          {hasAutoSplitIssue(row) && (
+                          {hasAutoSplitIssue(issues) && (
                             <span className="text-[11px] rounded-full border border-blue-200 bg-blue-50 text-blue-700 px-2 py-0.5">
                               Auto-split name
                             </span>
                           )}
                         </div>
                       </td>
-                      <td className="px-3 py-2 text-[var(--text-secondary)] whitespace-nowrap">{row.contact_number}</td>
-                      <td className="px-3 py-2 text-[var(--text-secondary)] whitespace-nowrap">{row.dob || '—'}</td>
-                      <td className="px-3 py-2 text-[var(--text-secondary)] max-w-[200px] truncate" title={row.street_address}>{row.street_address || '—'}</td>
                       <td className="px-3 py-2">
-                        {row.registered_voter === true ? (
-                          <span className="text-green-600 font-medium">Y</span>
-                        ) : row.registered_voter === false ? (
-                          <span className="text-red-500">N</span>
-                        ) : (
-                          <span className="text-[var(--text-muted)]">—</span>
-                        )}
+                        <input
+                          className="w-32 bg-transparent border-b border-transparent hover:border-[var(--border-soft)] focus:border-primary focus:outline-none text-[var(--text-secondary)]"
+                          value={row.contact_number || ''}
+                          onChange={(e) => updateRow(index, 'contact_number', e.target.value)}
+                          placeholder="Phone"
+                          disabled={row._skip}
+                        />
                       </td>
-                      {columnMapping.village && (
-                        <td className="px-3 py-2 text-[var(--text-secondary)] text-xs">{(row as Record<string, unknown>).village as string || '—'}</td>
-                      )}
+                      <td className="px-3 py-2">
+                        <input
+                          className="w-32 bg-transparent border-b border-transparent hover:border-[var(--border-soft)] focus:border-primary focus:outline-none text-[var(--text-secondary)]"
+                          value={row.dob || ''}
+                          onChange={(e) => updateRow(index, 'dob', e.target.value)}
+                          placeholder="YYYY-MM-DD"
+                          disabled={row._skip}
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          className="w-44 bg-transparent border-b border-transparent hover:border-[var(--border-soft)] focus:border-primary focus:outline-none text-[var(--text-secondary)]"
+                          value={row.email || ''}
+                          onChange={(e) => updateRow(index, 'email', e.target.value)}
+                          placeholder="Email"
+                          disabled={row._skip}
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          className="w-52 bg-transparent border-b border-transparent hover:border-[var(--border-soft)] focus:border-primary focus:outline-none text-[var(--text-secondary)]"
+                          value={row.street_address || ''}
+                          onChange={(e) => updateRow(index, 'street_address', e.target.value)}
+                          placeholder="Address"
+                          disabled={row._skip}
+                        />
+                      </td>
+                      <td className="px-3 py-2">
+                        <select
+                          value={row.registered_voter === true ? 'Y' : row.registered_voter === false ? 'N' : ''}
+                          onChange={(e) => updateRow(index, 'registered_voter', e.target.value === '' ? undefined : e.target.value === 'Y')}
+                          disabled={row._skip}
+                          className="bg-transparent border-b border-transparent hover:border-[var(--border-soft)] focus:border-primary focus:outline-none text-[var(--text-secondary)]"
+                        >
+                          <option value="">—</option>
+                          <option value="Y">Y</option>
+                          <option value="N">N</option>
+                        </select>
+                      </td>
+                      <td className="px-3 py-2">
+                        <select
+                          value={row.village || ''}
+                          onChange={(e) => updateRow(index, 'village', e.target.value)}
+                          disabled={row._skip}
+                          className="w-40 bg-transparent border-b border-transparent hover:border-[var(--border-soft)] focus:border-primary focus:outline-none text-[var(--text-secondary)] text-xs"
+                        >
+                          <option value="">{defaultVillageName ? `Use default (${defaultVillageName})` : 'Use default village'}</option>
+                          {villages.map((village) => (
+                            <option key={village.id} value={village.name}>{village.name}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td className="px-3 py-2">
+                        <input
+                          className="w-40 bg-transparent border-b border-transparent hover:border-[var(--border-soft)] focus:border-primary focus:outline-none text-[var(--text-secondary)]"
+                          value={row.comments || ''}
+                          onChange={(e) => updateRow(index, 'comments', e.target.value)}
+                          placeholder="Comments"
+                          disabled={row._skip}
+                        />
+                      </td>
                       <td className="px-3 py-2">
                         {row._skip ? (
                           <span className="text-xs text-[var(--text-muted)]">Skipped</span>
-                        ) : row._issues.length > 0 ? (
+                        ) : issues.length > 0 ? (
                           <div className="flex items-start gap-1">
                             <AlertTriangle className="w-3.5 h-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
                             <div className="text-xs text-amber-600">
-                              {row._issues.map((issue, i) => <p key={i}>{issue}</p>)}
+                              {issues.map((issue, i) => <p key={i}>{issue}</p>)}
                             </div>
                           </div>
                         ) : (
@@ -699,7 +803,7 @@ export default function ImportPage() {
                   {confirmMutation.isPending ? (
                     <><Loader2 className="w-4 h-4 animate-spin" /> Importing...</>
                   ) : (
-                    <><Check className="w-4 h-4" /> Import {activeRows.length} Supporters</>
+                    <><Check className="w-4 h-4" /> Import {activeRows.length} {activeRowLabel}</>
                   )}
                 </button>
               </div>
@@ -715,7 +819,7 @@ export default function ImportPage() {
             </div>
             <h2 className="text-2xl font-bold text-[var(--text-primary)] mb-2">Import Complete!</h2>
             <p className="text-[var(--text-secondary)] mb-6">
-              <strong>{importResult.created}</strong> supporters imported into <strong>{importResult.village}</strong>
+              <strong>{importResult.created}</strong> {createdLabel} sent to review for <strong>{importResult.village}</strong>
               {importResult.skipped > 0 && <> · {importResult.skipped} skipped due to errors</>}
             </p>
             {importResult.errors.length > 0 && (
@@ -739,12 +843,12 @@ export default function ImportPage() {
               >
                 Import More
               </button>
-              <a
-                href="/admin/supporters"
+              <Link
+                to={reviewQueuePath}
                 className="inline-flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-lg hover:bg-[#15305a]"
               >
-                View Supporters
-              </a>
+                Open Review Queue
+              </Link>
             </div>
           </div>
         )}
@@ -756,19 +860,19 @@ export default function ImportPage() {
           <div className="bg-[var(--surface-raised)] rounded-2xl shadow-xl max-w-md w-full p-6">
             <h3 className="text-lg font-bold text-[var(--text-primary)] mb-2">Confirm Import</h3>
             <p className="text-[var(--text-secondary)] mb-4">
-              Import <strong>{activeRows.length}</strong> supporters
+              Import <strong>{activeRows.length}</strong> {activeRowLabel}
               {columnMapping.village
                 ? <> across <strong>multiple villages</strong> (from spreadsheet)?</>
                 : <> into <strong>{villages.find(v => v.id === Number(villageId))?.name}</strong>?</>
               }
             </p>
             <div className="text-sm rounded-xl border border-[var(--border-soft)] bg-[var(--surface-bg)] p-3 mb-4 space-y-1">
-              <p><strong>Ready rows:</strong> {rowsReady.length}</p>
+              <p><strong>Rows without warnings:</strong> {rowsReady.length}</p>
               <p><strong>Rows with warnings:</strong> {rowsWithIssues.length}</p>
               <p><strong>Rows currently skipped:</strong> {rows.filter((r) => r._skip).length}</p>
             </div>
             <p className="text-sm text-[var(--text-secondary)] mb-6">
-              All records will be marked as <strong>unverified</strong> until staff reviews them.
+              All records will be marked as <strong>unverified</strong> until the data team reviews them.
             </p>
             <div className="flex items-center justify-end gap-3">
               <button

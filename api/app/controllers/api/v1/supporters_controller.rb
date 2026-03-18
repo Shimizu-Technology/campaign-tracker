@@ -11,9 +11,9 @@ module Api
 
       include Authenticatable
       include AuditLoggable
-      before_action :authenticate_request, only: [ :index, :check_duplicate, :export, :show, :update, :verify, :bulk_verify, :duplicates, :resolve_duplicate, :scan_duplicates, :outreach, :outreach_status ]
+      before_action :authenticate_request, only: [ :index, :check_duplicate, :export, :show, :update, :verify, :bulk_verify, :duplicates, :resolve_duplicate, :scan_duplicates, :outreach, :outreach_status, :public_review, :accept_to_quota, :reject_public_review, :vetting_queue, :approve_supporter, :reject_supporter ]
       before_action :require_supporter_access!, only: [ :index, :check_duplicate, :export, :show, :outreach, :outreach_status ]
-      before_action :require_coordinator_or_above!, only: [ :duplicates, :resolve_duplicate, :scan_duplicates ]
+      before_action :require_data_ops_access!, only: [ :duplicates, :resolve_duplicate, :scan_duplicates, :public_review, :accept_to_quota, :reject_public_review, :vetting_queue, :approve_supporter, :reject_supporter ]
       before_action :require_chief_or_above!, only: [ :verify, :bulk_verify ]
 
       # POST /api/v1/supporters (public signup — no auth required)
@@ -31,11 +31,14 @@ module Api
           end
         end
 
-        supporter = Supporter.new(public_supporter_params)
+        supporter = Supporter.new(normalized_public_supporter_params)
         normalized_leader_code = params[:leader_code].to_s.strip.presence
         referral_code = resolve_referral_code(normalized_leader_code)
         supporter.source = create_source
         supporter.attribution_method = create_attribution_method(normalized_leader_code)
+        supporter.intake_status = create_intake_status(supporter.source)
+        supporter.review_status = "pending"
+        supporter.public_review_status = create_public_review_status(supporter.source)
         supporter.status = "active"
         supporter.leader_code = normalized_leader_code
         supporter.referral_code = referral_code if referral_code
@@ -48,9 +51,7 @@ module Api
 
         # Check for duplicates
         dupes = Supporter.potential_duplicates(supporter.print_name, supporter.village_id, first_name: supporter.first_name, last_name: supporter.last_name)
-        if dupes.exists?
-          supporter.status = "unverified" # Flag for review
-        end
+        duplicate_detected = dupes.exists?
         if supporter.save
           log_audit!(supporter, action: "created", changed_data: supporter.saved_changes.except("updated_at"), normalize: true, metadata: supporter_audit_metadata(supporter))
 
@@ -67,13 +68,17 @@ module Api
             SendWelcomeEmailJob.perform_later(supporter_id: supporter.id)
           end
 
+          # Reload to pick up any changes from after_create callbacks
+          # (e.g., GEC auto-vetting sets verification_status via update_columns)
+          supporter.reload
+
           # Broadcast to connected clients
           CampaignBroadcast.new_supporter(supporter)
 
           render json: {
             message: "Si Yu'os Ma'åse! Thank you for supporting Josh & Tina!",
             supporter: supporter_json(supporter),
-            duplicate_warning: supporter.status == "unverified"
+            duplicate_warning: duplicate_detected || supporter.potential_duplicate
           }, status: :created
         else
           render json: { errors: supporter.errors.full_messages }, status: :unprocessable_entity
@@ -91,7 +96,7 @@ module Api
         end
 
         supporter = scope_supporters(Supporter).find(params[:id])
-        updates = supporter_update_params.to_h
+        updates = normalized_supporter_update_params
         updates[:precinct_id] = nil if updates.key?(:precinct_id) && updates[:precinct_id].blank?
 
         if supporter.update(updates)
@@ -121,12 +126,16 @@ module Api
           )
         end
 
+        if new_status == "verified" && !supporter_can_be_verified?(supporter)
+          return render_api_error(
+            message: "Supporter cannot be marked as a verified voter without a current GEC match.",
+            status: :unprocessable_entity,
+            code: "gec_match_required_for_verified"
+          )
+        end
+
         old_status = supporter.verification_status
-        supporter.update!(
-          verification_status: new_status,
-          verified_by_user_id: current_user.id,
-          verified_at: Time.current
-        )
+        supporter.update!(verification_update_attributes(new_status))
 
         log_audit!(supporter, action: "verification_changed", changed_data: {
           "verification_status" => [ old_status, new_status ],
@@ -158,20 +167,27 @@ module Api
           )
         end
 
-        supporters = scope_supporters(Supporter).where(id: ids)
-        count = supporters.count
+        supporters = scope_supporters(Supporter).where(id: ids).to_a
+        count = supporters.size
+
+        if new_status == "verified"
+          invalid_supporters = supporters.reject { |supporter| supporter_can_be_verified?(supporter) }
+          if invalid_supporters.any?
+            return render_api_error(
+              message: "One or more supporters cannot be marked as verified voters without a current GEC match.",
+              status: :unprocessable_entity,
+              code: "gec_match_required_for_verified"
+            )
+          end
+        end
 
         # Capture old statuses before bulk update
-        old_statuses = supporters.pluck(:id, :verification_status).to_h
+        old_statuses = supporters.to_h { |supporter| [ supporter.id, supporter.verification_status ] }
 
-        supporters.update_all(
-          verification_status: new_status,
-          verified_by_user_id: current_user.id,
-          verified_at: Time.current
-        )
+        scope_supporters(Supporter).where(id: supporters.map(&:id)).update_all(verification_update_attributes(new_status))
 
         # Audit log for each with accurate old status
-        supporters.find_each do |s|
+        supporters.each do |s|
           old_status = old_statuses[s.id] || "unknown"
           log_audit!(s, action: "verification_changed", changed_data: {
             "verification_status" => [ old_status, new_status ],
@@ -189,7 +205,7 @@ module Api
 
       # GET /api/v1/supporters (authenticated)
       def index
-        supporters = scope_supporters(Supporter.includes(:village, :precinct, :block))
+        supporters = scope_supporters(Supporter.includes(:village, :precinct, :block).official_supporters)
 
         # Filters
         supporters = supporters.where(village_id: params[:village_id]) if params[:village_id].present?
@@ -200,7 +216,14 @@ module Api
         end
         supporters = supporters.where(status: params[:status]) if params[:status].present?
         supporters = supporters.where(source: params[:source]) if params[:source].present?
+        supporters = supporters.where(review_status: params[:review_status]) if params[:review_status].present?
+        supporters = supporters.where(public_review_status: params[:public_review_status]) if params[:public_review_status].present?
         supporters = supporters.where(registered_voter: true) if params[:registered_voter] == "true"
+        # Pipeline filter: team input, public-origin official supporters, or
+        # matched-to-GEC supporters for legacy quota views.
+        supporters = supporters.team_input if params[:pipeline] == "team"
+        supporters = supporters.public_origin if params[:pipeline] == "public"
+        supporters = supporters.quota_eligible if params[:pipeline] == "quota"
         supporters = supporters.where(motorcade_available: true) if params[:motorcade_available] == "true"
         supporters = supporters.where(opt_in_email: true) if params[:opt_in_email] == "true"
         supporters = supporters.where(opt_in_text: true) if params[:opt_in_text] == "true"
@@ -268,7 +291,7 @@ module Api
 
       # GET /api/v1/supporters/export
       def export
-        supporters = apply_export_filters(scope_supporters(Supporter.includes(:village, :precinct).order(created_at: :desc)))
+        supporters = apply_export_filters(scope_supporters(Supporter.includes(:village, :precinct).official_supporters.order(created_at: :desc)))
         total = supporters.count
 
         if total > MAX_EXPORT_ROWS
@@ -359,6 +382,7 @@ module Api
       def resolve_duplicate
         supporter = scope_supporters(Supporter).find(params[:id])
         action = params[:resolution] # "dismiss" or "merge"
+        merge_target_snapshot = nil
 
         unless %w[dismiss merge].include?(action)
           return render_api_error(
@@ -378,15 +402,30 @@ module Api
               code: "merge_target_not_found"
             )
           end
+          merge_target_snapshot = merge_into.attributes.slice(*duplicate_merge_audit_fields)
         end
 
         DuplicateDetector.resolve!(supporter, action: action, merge_into: merge_into, resolved_by: current_user)
         supporter.reload
+        merge_into.reload if merge_into
 
         log_audit!(supporter, action: "duplicate_resolved", changed_data: {
           "resolution" => action,
           "merge_into_id" => merge_into&.id
-        })
+        }, normalize: true)
+        if action == "merge" && merge_into
+          kept_record_changes = { "merged_supporter_id" => supporter.id }
+          duplicate_merge_audit_fields.each do |field|
+            before_value = merge_target_snapshot[field]
+            after_value = merge_into.public_send(field)
+            next if before_value == after_value
+
+            kept_record_changes[field] = [ before_value, after_value ]
+          end
+
+          log_audit!(merge_into, action: "duplicate_merged", changed_data: kept_record_changes, normalize: true)
+          CampaignBroadcast.supporter_updated(merge_into, action: "duplicate_merged")
+        end
         CampaignBroadcast.supporter_updated(supporter, action: "duplicate_resolved")
 
         render json: { message: "Duplicate #{action == 'merge' ? 'merged' : 'dismissed'}", supporter: supporter_json(supporter.reload) }
@@ -396,7 +435,7 @@ module Api
       def outreach
         supporters = scope_supporters(Supporter.includes(:village, :precinct))
                        .where("registered_voter IS NULL OR registered_voter = ?", false)
-                       .where(status: "active")
+                       .working_supporters
 
         if params[:outreach_status].present?
           supporters = supporters.where(registration_outreach_status: params[:outreach_status])
@@ -424,7 +463,7 @@ module Api
 
         base_scope = scope_supporters(Supporter)
                        .where("registered_voter IS NULL OR registered_voter = ?", false)
-                       .where(status: "active")
+                       .working_supporters
         counts = {
           total: base_scope.count,
           not_contacted: base_scope.where(registration_outreach_status: nil).count,
@@ -476,6 +515,266 @@ module Api
         end
       end
 
+      # GET /api/v1/supporters/public_review
+      # List self-submitted public signups waiting for intake review.
+      def public_review
+        supporters = public_review_scope
+
+        supporters = supporters.where(village_id: params[:village_id]) if params[:village_id].present?
+
+        if params[:search].present?
+          sanitized = ActiveRecord::Base.sanitize_sql_like(params[:search].to_s.strip)
+          supporters = supporters.where(
+            "LOWER(first_name) LIKE :q OR LOWER(last_name) LIKE :q",
+            q: "%#{sanitized.downcase}%"
+          )
+        end
+
+        supporters = supporters.order(created_at: :desc)
+
+        page = [ (params[:page] || 1).to_i, 1 ].max
+        per_page = (params[:per_page] || 50).to_i.clamp(1, MAX_PER_PAGE)
+        total = supporters.count
+        supporters = supporters.offset((page - 1) * per_page).limit(per_page)
+
+        summary_base = scope_supporters(Supporter.active)
+        summary_base = summary_base.where(village_id: params[:village_id]) if params[:village_id].present?
+        if params[:search].present?
+          sanitized = ActiveRecord::Base.sanitize_sql_like(params[:search].to_s.strip)
+          summary_base = summary_base.where(
+            "LOWER(first_name) LIKE :q OR LOWER(last_name) LIKE :q",
+            q: "%#{sanitized.downcase}%"
+          )
+        end
+        pending_review_count = summary_base.public_signups.count
+        accepted_count = summary_base.accepted_public_signups.count
+        rejected_count = summary_base.public_review_rejected.count
+
+        render json: {
+          supporters: supporters.map { |s| supporter_json(s) },
+          summary: {
+            pending_review: pending_review_count,
+            approved_for_supporter_review: accepted_count,
+            accepted: accepted_count,
+            rejected: rejected_count,
+            total_public: pending_review_count + accepted_count + rejected_count
+          },
+          current_bucket: public_review_bucket,
+          pagination: { page: page, per_page: per_page, total: total, pages: (total.to_f / per_page).ceil }
+        }
+      end
+
+      # PATCH /api/v1/supporters/:id/accept_to_quota
+      # Approve a public submission into the main supporter review queue.
+      def accept_to_quota
+        supporter = scope_supporters(Supporter).find(params[:id])
+
+        unless supporter.public_review_status == "pending" && Supporter::PUBLIC_SOURCES.include?(supporter.source)
+          return render_api_error(
+            message: "Public submission has already been reviewed",
+            status: :unprocessable_entity,
+            code: "public_submission_already_reviewed"
+          )
+        end
+
+        old_public_review_status = supporter.public_review_status
+        supporter.update!(
+          intake_status: "accepted",
+          public_review_status: "approved",
+          public_reviewed_at: Time.current,
+          public_reviewed_by_user_id: current_user.id,
+          review_status: "pending",
+          reviewed_at: nil,
+          reviewed_by_user_id: nil
+        )
+
+        log_audit!(supporter, action: "accepted_to_quota", changed_data: {
+          "public_review_status" => [ old_public_review_status, "approved" ]
+        }, normalize: true)
+
+        CampaignBroadcast.supporter_updated(supporter, action: "public_review_approved")
+        render json: { supporter: supporter_json(supporter), message: "Public submission approved and sent to supporter review" }
+      end
+
+      # PATCH /api/v1/supporters/:id/reject_public_review
+      def reject_public_review
+        supporter = scope_supporters(Supporter).find(params[:id])
+
+        unless supporter.public_review_status == "pending" && Supporter::PUBLIC_SOURCES.include?(supporter.source)
+          return render_api_error(
+            message: "Public submission has already been reviewed",
+            status: :unprocessable_entity,
+            code: "public_submission_already_reviewed"
+          )
+        end
+
+        supporter.update!(
+          public_review_status: "rejected",
+          public_reviewed_at: Time.current,
+          public_reviewed_by_user_id: current_user.id,
+          review_status: "rejected",
+          reviewed_at: Time.current,
+          reviewed_by_user_id: current_user.id
+        )
+        DuplicateDetector.remove_candidate!(supporter)
+        supporter.reload
+
+        log_audit!(supporter, action: "public_review_rejected", changed_data: {
+          "public_review_status" => [ "pending", "rejected" ],
+          "review_status" => [ "pending", "rejected" ]
+        }, normalize: true)
+
+        CampaignBroadcast.supporter_updated(supporter, action: "public_review_rejected")
+        render json: { supporter: supporter_json(supporter), message: "Public submission rejected" }
+      end
+
+      # PATCH /api/v1/supporters/:id/approve_supporter
+      def approve_supporter
+        supporter = scope_supporters(Supporter).find(params[:id])
+
+        unless supporter.review_status == "pending" && supporter.public_review_status != "pending"
+          return render_api_error(
+            message: "Supporter submission is not ready for approval",
+            status: :unprocessable_entity,
+            code: "supporter_review_not_pending"
+          )
+        end
+
+        if supporter.potential_duplicate?
+          return render_api_error(
+            message: "Supporter has an unresolved duplicate warning",
+            status: :unprocessable_entity,
+            code: "duplicate_review_required"
+          )
+        end
+
+        supporter.update!(
+          review_status: "approved",
+          reviewed_at: Time.current,
+          reviewed_by_user_id: current_user.id,
+          quota_period_id: current_quota_period_id_for_approval
+        )
+
+        log_audit!(supporter, action: "supporter_review_approved", changed_data: {
+          "review_status" => [ "pending", "approved" ]
+        }, normalize: true)
+        CampaignBroadcast.supporter_updated(supporter, action: "supporter_review_approved")
+
+        render json: { supporter: supporter_json(supporter), message: "Supporter approved into the official supporter list" }
+      end
+
+      # PATCH /api/v1/supporters/:id/reject_supporter
+      def reject_supporter
+        supporter = scope_supporters(Supporter).find(params[:id])
+
+        unless supporter.review_status == "pending" && supporter.public_review_status != "pending"
+          return render_api_error(
+            message: "Supporter submission is not ready for rejection",
+            status: :unprocessable_entity,
+            code: "supporter_review_not_pending"
+          )
+        end
+
+        supporter.update!(
+          review_status: "rejected",
+          reviewed_at: Time.current,
+          reviewed_by_user_id: current_user.id
+        )
+        DuplicateDetector.remove_candidate!(supporter)
+        supporter.reload
+
+        log_audit!(supporter, action: "supporter_review_rejected", changed_data: {
+          "review_status" => [ "pending", "rejected" ]
+        }, normalize: true)
+        CampaignBroadcast.supporter_updated(supporter, action: "supporter_review_rejected")
+
+        render json: { supporter: supporter_json(supporter), message: "Supporter submission rejected" }
+      end
+
+      # GET /api/v1/supporters/vetting_queue
+      # Pending supporter submissions awaiting data-team approval.
+      def vetting_queue
+        base = scope_supporters(Supporter.includes(:village, :precinct, :entered_by))
+                 .pending_supporter_review
+        if params[:district_id].present?
+          base = base.joins(:village).where(villages: { district_id: params[:district_id] })
+        end
+        base = base.where(village_id: params[:village_id]) if params[:village_id].present?
+        base = base.where(precinct_id: params[:precinct_id]) if params[:precinct_id].present?
+        if params[:source_group] == "team"
+          base = base.where(source: Supporter::TEAM_SOURCES)
+        elsif params[:source].present?
+          base = base.where(source: params[:source])
+        end
+
+        if params[:search].present?
+          sanitized = ActiveRecord::Base.sanitize_sql_like(params[:search].to_s.strip)
+          base = base.where(
+            "LOWER(first_name) LIKE :q OR LOWER(last_name) LIKE :q",
+            q: "%#{sanitized.downcase}%"
+          )
+        end
+
+        scope = case params[:filter]
+        when "verified"
+          base.verified
+        when "flagged"
+          base.flagged.where(referred_from_village_id: nil)
+        when "no_match", "unregistered"
+          base.unverified.where(registered_voter: false)
+        when "referral"
+          base.where.not(referred_from_village_id: nil)
+        else
+          base
+        end
+
+        scope = scope.order(created_at: :desc)
+
+        page = [ (params[:page] || 1).to_i, 1 ].max
+        per_page = (params[:per_page] || 50).to_i.clamp(1, MAX_PER_PAGE)
+        total = scope.count
+        supporters = scope.offset((page - 1) * per_page).limit(per_page)
+
+        # GEC match lookup per supporter — O(n) queries where n = supporters per page (max 50).
+        # Each lookup uses compound indexes on (lower(first_name), lower(last_name), dob)
+        # and cascading match strategies that are hard to batch. With indexed queries and
+        # capped page size, this stays well under 100ms total.
+        gec_matches = {}
+        supporters.each do |s|
+          matches = GecVoter.find_matches(
+            first_name: s.first_name,
+            last_name: s.last_name,
+            dob: s.dob,
+            village_name: s.village&.name
+          )
+          gec_matches[s.id] = matches.first(3).map do |m|
+            {
+              gec_voter: m[:gec_voter].as_json(only: [ :id, :first_name, :last_name, :dob, :village_name, :voter_registration_number ]),
+              confidence: m[:confidence],
+              match_type: m[:match_type]
+            }
+          end
+        end
+
+        # Summary counts within the currently selected structural filters
+        summary = {
+          total_pending_review: base.count,
+          total_needing_review: base.count,
+          verified: base.verified.count,
+          flagged: base.flagged.where(referred_from_village_id: nil).count,
+          unverified: base.unverified.where(registered_voter: false).count,
+          no_match: base.unverified.where(registered_voter: false).count,
+          unregistered: base.unverified.where(registered_voter: false).count,
+          referrals: base.where.not(referred_from_village_id: nil).count
+        }
+
+        render json: {
+          supporters: supporters.map { |s| supporter_json(s).merge(gec_matches: gec_matches[s.id] || []) },
+          summary: summary,
+          pagination: { page: page, per_page: per_page, total: total, pages: (total.to_f / per_page).ceil }
+        }
+      end
+
       # POST /api/v1/supporters/scan_duplicates
       def scan_duplicates
         count = DuplicateDetector.scan_all!
@@ -493,7 +792,14 @@ module Api
         end
         supporters = supporters.where(status: params[:status]) if params[:status].present?
         supporters = supporters.where(source: params[:source]) if params[:source].present?
+        supporters = supporters.where(review_status: params[:review_status]) if params[:review_status].present?
+        supporters = supporters.where(public_review_status: params[:public_review_status]) if params[:public_review_status].present?
         supporters = supporters.where(registered_voter: true) if params[:registered_voter] == "true"
+        # Pipeline filter: team input, public-origin official supporters, or
+        # matched-to-GEC supporters for legacy quota views.
+        supporters = supporters.team_input if params[:pipeline] == "team"
+        supporters = supporters.public_origin if params[:pipeline] == "public"
+        supporters = supporters.quota_eligible if params[:pipeline] == "quota"
         supporters = supporters.where(motorcade_available: true) if params[:motorcade_available] == "true"
         supporters = supporters.where(opt_in_email: true) if params[:opt_in_email] == "true"
         supporters = supporters.where(opt_in_text: true) if params[:opt_in_text] == "true"
@@ -524,8 +830,8 @@ module Api
 
       def public_supporter_params
         params.require(:supporter).permit(
-          :first_name, :last_name, :print_name, :contact_number, :dob, :email, :street_address,
-          :village_id, :precinct_id, :registered_voter,
+          :first_name, :middle_name, :last_name, :print_name, :contact_number, :dob, :email, :street_address,
+          :village_id, :precinct_id, :registered_voter, :self_reported_registered_voter,
           :yard_sign, :motorcade_available,
           :opt_in_email, :opt_in_text
         )
@@ -533,10 +839,26 @@ module Api
 
       def supporter_update_params
         params.require(:supporter).permit(
-          :first_name, :last_name, :print_name, :contact_number, :email, :dob, :street_address,
-          :village_id, :precinct_id, :registered_voter, :yard_sign, :motorcade_available,
+          :first_name, :middle_name, :last_name, :print_name, :contact_number, :email, :dob, :street_address,
+          :village_id, :precinct_id, :registered_voter, :self_reported_registered_voter, :yard_sign, :motorcade_available,
           :opt_in_email, :opt_in_text, :status
         )
+      end
+
+      def normalized_public_supporter_params
+        normalize_self_reported_registered_voter(public_supporter_params.to_h)
+      end
+
+      def normalized_supporter_update_params
+        normalize_self_reported_registered_voter(supporter_update_params.to_h)
+      end
+
+      def normalize_self_reported_registered_voter(attributes)
+        if !attributes.key?("self_reported_registered_voter") && attributes.key?("registered_voter")
+          attributes["self_reported_registered_voter"] = attributes["registered_voter"]
+        end
+
+        attributes
       end
 
       def create_source
@@ -554,6 +876,32 @@ module Api
         "public_signup"
       end
 
+      def create_intake_status(source)
+        Supporter::PUBLIC_SOURCES.include?(source) ? "pending_public_review" : "accepted"
+      end
+
+      def create_public_review_status(source)
+        Supporter::PUBLIC_SOURCES.include?(source) ? "pending" : "not_applicable"
+      end
+
+      def public_review_bucket
+        bucket = params[:review_bucket].to_s.presence || "pending"
+        %w[pending approved rejected].include?(bucket) ? bucket : "pending"
+      end
+
+      def public_review_scope
+        base = scope_supporters(Supporter.includes(:village, :precinct)).active
+
+        case public_review_bucket
+        when "approved"
+          base.public_review_approved
+        when "rejected"
+          base.public_review_rejected
+        else
+          base.pending_public_review
+        end
+      end
+
       def staff_entry_mode?
         params[:entry_mode] == "staff"
       end
@@ -562,6 +910,7 @@ module Api
         {
           id: supporter.id,
           first_name: supporter.first_name,
+          middle_name: supporter.middle_name,
           last_name: supporter.last_name,
           print_name: supporter.print_name,
           contact_number: supporter.contact_number,
@@ -573,6 +922,7 @@ module Api
           precinct_id: supporter.precinct_id,
           precinct_number: supporter.precinct&.number,
           block_id: supporter.block_id,
+          self_reported_registered_voter: supporter.self_reported_registered_voter,
           registered_voter: supporter.registered_voter,
           yard_sign: supporter.yard_sign,
           motorcade_available: supporter.motorcade_available,
@@ -582,11 +932,20 @@ module Api
           verified_at: supporter.verified_at&.iso8601,
           verified_by_user_id: supporter.verified_by_user_id,
           source: supporter.source,
+          intake_status: supporter.intake_status,
+          review_status: supporter.review_status,
+          public_review_status: supporter.public_review_status,
+          quota_period_id: supporter.quota_period_id,
+          reviewed_at: supporter.reviewed_at&.iso8601,
+          reviewed_by_user_id: supporter.reviewed_by_user_id,
+          public_reviewed_at: supporter.public_reviewed_at&.iso8601,
+          public_reviewed_by_user_id: supporter.public_reviewed_by_user_id,
           status: supporter.status,
           leader_code: supporter.leader_code,
           attribution_method: supporter.attribution_method,
           referral_code_id: supporter.referral_code_id,
           referral_display_name: supporter.referral_code&.display_name,
+          referred_from_village_id: supporter.referred_from_village_id,
           reliability_score: supporter.reliability_score,
           potential_duplicate: supporter.potential_duplicate,
           duplicate_of_id: supporter.duplicate_of_id,
@@ -602,6 +961,7 @@ module Api
         {
           id: supporter.id,
           first_name: supporter.first_name,
+          middle_name: supporter.middle_name,
           last_name: supporter.last_name,
           print_name: supporter.print_name,
           contact_number: supporter.contact_number,
@@ -661,7 +1021,37 @@ module Api
       end
 
       def supporter_edit_allowed?
-        current_user&.admin? || current_user&.coordinator?
+        current_user&.admin? || current_user&.data_team? || current_user&.coordinator?
+      end
+
+      def supporter_can_be_verified?(supporter)
+        GecVoter.find_matches(
+          first_name: supporter.first_name,
+          last_name: supporter.last_name,
+          dob: supporter.dob,
+          birth_year: supporter.dob&.year,
+          village_name: supporter.village&.name
+        ).any?
+      end
+
+      def verification_update_attributes(new_status)
+        attrs = { verification_status: new_status }
+        if new_status == "verified"
+          attrs.merge!(
+            verified_by_user_id: current_user.id,
+            verified_at: Time.current
+          )
+        else
+          attrs.merge!(
+            verified_by_user_id: nil,
+            verified_at: nil
+          )
+        end
+        attrs
+      end
+
+      def current_quota_period_id_for_approval
+        CampaignCycle.current_quota_period&.id
       end
 
       # Alias for backward compatibility with callers
@@ -675,9 +1065,15 @@ module Api
           "Supporter created"
         when "updated"
           "Supporter updated"
+        when "accepted_to_quota"
+          "Sent to supporter review"
         else
           action.to_s.humanize
         end
+      end
+
+      def duplicate_merge_audit_fields
+        %w[email registered_voter self_reported_registered_voter motorcade_available yard_sign opt_in_email opt_in_text]
       end
 
       def apply_index_sort(scope)

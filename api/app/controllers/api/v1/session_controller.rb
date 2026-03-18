@@ -23,11 +23,18 @@ module Api
             scoped_village_ids: scoped_village_ids
           },
           counts: {
-            pending_vetting: scope_supporters(Supporter.active.unverified).count
+            pending_vetting: scope_supporters(Supporter.pending_supporter_review).count,
+            flagged_supporters: scope_supporters(Supporter.pending_supporter_review.flagged).count,
+            public_signups_pending: scope_supporters(Supporter.active.public_signups).count,
+            official_supporters: scope_supporters(Supporter.working_supporters).count,
+            matched_to_gec: scope_supporters(Supporter.working_supporters.verified).count,
+            quota_eligible: scope_supporters(Supporter.quota_eligible).count
           },
+          current_period: current_period_summary,
           permissions: {
             can_manage_users: can_manage_users?,
             can_manage_configuration: can_manage_configuration?,
+            can_manage_data_configuration: can_manage_data_configuration?,
             can_send_sms: can_send_sms?,
             can_send_email: can_send_email?,
             can_edit_supporters: can_edit_supporters?,
@@ -40,8 +47,38 @@ module Api
             can_access_poll_watcher: can_access_poll_watcher?,
             can_access_duplicates: can_access_duplicates?,
             can_access_audit_logs: can_access_audit_logs?,
+            can_access_data_team: can_access_data_team?,
+            can_access_reports: can_access_reports?,
+            can_upload_gec: can_upload_gec?,
+            can_bulk_vet: can_bulk_vet?,
+            can_review_public: can_review_public?,
+            default_route: can_access_data_team? ? "/data" : "/admin",
             manageable_roles: manageable_roles_for_current_user
           }
+        }
+      end
+
+      private
+
+      def current_period_summary
+        cycle = CampaignCycle.current.order(start_date: :desc, id: :desc).first
+        return nil unless cycle
+
+        period = cycle.current_period
+        return nil unless period
+
+        {
+          id: period.id,
+          name: period.name,
+          due_date: period.due_date,
+          quota_target: period.effective_quota_target,
+          official_count: period.total_assigned,
+          matched_count: period.matched_count,
+          eligible_count: period.eligible_count,
+          days_until_due: period.days_until_due,
+          overdue: period.overdue?,
+          due_soon: period.due_soon?,
+          status: period.status
         }
       end
     end
