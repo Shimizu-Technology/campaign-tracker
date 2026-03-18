@@ -220,6 +220,8 @@ class GecImportService
     @source_identity_groups = {}
     @removal_detection_suppressed = false
     @vrn_lookup = {}
+    # Preload village names to avoid N+1 queries during village detection loop
+    @village_name_lookup = Village.pluck(:name).index_by { |n| n.downcase }
     @parsing_progress_percent = parsing_progress_percent
     @importing_progress_start = importing_progress_start
     @importing_progress_end = importing_progress_end
@@ -409,7 +411,16 @@ class GecImportService
   end
 
   def normalize_village_name(value)
-    self.class.normalize_village_name(value)
+    raw = value.to_s.strip
+    return nil if raw.blank?
+
+    mapped = VILLAGE_NAME_MAP[raw.downcase]
+    return mapped if mapped.present?
+
+    official_match = OFFICIAL_VILLAGE_LOOKUP[raw.downcase] || OFFICIAL_VILLAGE_LOOKUP[I18n.transliterate(raw).downcase]
+    return official_match if official_match.present?
+
+    @village_name_lookup[raw.downcase] || raw
   end
 
   def detect_known_village_name(value)
@@ -419,7 +430,7 @@ class GecImportService
     mapped = VILLAGE_NAME_MAP[raw.downcase]
     return mapped if mapped.present?
 
-    Village.where("LOWER(name) = ?", raw.downcase).pick(:name)
+    @village_name_lookup[raw.downcase]
   end
 
   def canonical_village_key(value)
