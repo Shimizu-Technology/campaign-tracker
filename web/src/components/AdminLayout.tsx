@@ -10,9 +10,39 @@ function getHttpStatus(error: unknown): number | undefined {
   return maybeAxiosError.response?.status;
 }
 
+function getApiErrorCode(error: unknown): string | undefined {
+  const maybeAxiosError = error as { response?: { data?: { code?: string } } };
+  return maybeAxiosError.response?.data?.code;
+}
+
 function isAuthError(error: unknown): boolean {
   const status = getHttpStatus(error);
   return status === 401 || status === 403;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function waitForToken(
+  getToken: () => Promise<string | null>,
+  attempts = 8,
+  delayMs = 350,
+) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const token = await getToken();
+      if (token) return token;
+    } catch (error) {
+      console.warn('[AuthTokenSync] token fetch attempt failed', error);
+    }
+
+    if (attempt < attempts - 1) {
+      await sleep(delayMs);
+    }
+  }
+
+  return null;
 }
 
 function hasSufficientTokenLifetime(authHeader: string, minimumSecondsRemaining = 5): boolean {
@@ -60,25 +90,29 @@ function AuthTokenSync({ onReady }: { onReady: () => void }) {
           return;
         }
 
-        try {
-          const token = await getToken();
-          if (token) {
-            api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-          }
-          // Guard against transient Clerk token null/refresh windows:
-          // keep existing Authorization header rather than clearing it.
-        } catch (error) {
-          // Keep previous Authorization header on transient token-sync failures.
-          console.warn('[AuthTokenSync] token refresh failed', error);
+        const token = await waitForToken(getToken);
+        if (token) {
+          api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+          return;
         }
+
+        // Do not advance the admin auth gate until Clerk has produced a token.
+        throw new Error('clerk_token_not_ready');
       };
 
-      syncPromiseRef.current = run();
-      await syncPromiseRef.current;
-      syncPromiseRef.current = null;
-      syncInFlightRef.current = false;
-
-      if (mounted) onReady();
+      try {
+        syncPromiseRef.current = run();
+        await syncPromiseRef.current;
+        if (mounted) onReady();
+      } catch (error) {
+        // Stay in the loading state and let the interval/focus retry recover.
+        if ((error as Error)?.message !== 'clerk_token_not_ready') {
+          console.warn('[AuthTokenSync] token sync failed', error);
+        }
+      } finally {
+        syncPromiseRef.current = null;
+        syncInFlightRef.current = false;
+      }
     };
 
     void syncToken();
@@ -140,7 +174,7 @@ function AuthTokenSync({ onReady }: { onReady: () => void }) {
 }
 
 function AuthorizedContent({ children }: { children: React.ReactNode }) {
-  const { isLoaded, isSignedIn, userId } = useAuth();
+  const { getToken, isLoaded, isSignedIn, userId } = useAuth();
   const { signOut } = useClerk();
   const queryClient = useQueryClient();
   const [sessionState, setSessionState] = useState<'loading' | 'authorized' | 'unauthorized'>('loading');
@@ -162,6 +196,31 @@ function AuthorizedContent({ children }: { children: React.ReactNode }) {
         });
         setSessionState('authorized');
       } catch (error) {
+        const status = getHttpStatus(error);
+        const code = getApiErrorCode(error);
+
+        if (status === 401 && code === 'authorization_token_required') {
+          const token = await waitForToken(getToken, 4, 300);
+          if (token) {
+            api.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+            try {
+              await queryClient.fetchQuery({
+                queryKey: ['session', userId ?? 'anonymous'],
+                queryFn: getSession,
+                staleTime: 60_000,
+                retry: false,
+              });
+              setSessionState('authorized');
+              return;
+            } catch (retryError) {
+              if (!isAuthError(retryError)) {
+                setSessionState('authorized');
+                return;
+              }
+            }
+          }
+        }
+
         if (isAuthError(error)) {
           setSessionState('unauthorized');
         } else {
@@ -172,14 +231,14 @@ function AuthorizedContent({ children }: { children: React.ReactNode }) {
     };
 
     checkSession();
-  }, [isLoaded, isSignedIn, queryClient, userId]);
+  }, [getToken, isLoaded, isSignedIn, queryClient, userId]);
 
   if (sessionState === 'loading') {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--surface-bg)]">
+      <div className="min-h-screen flex items-center justify-center bg-(--surface-bg)">
         <div className="flex flex-col items-center gap-3">
-          <div className="w-8 h-8 border-[3px] border-[var(--border-soft)] border-t-blue-500 rounded-full animate-spin" />
-          <div className="text-[var(--text-muted)] text-sm">Verifying access...</div>
+          <div className="w-8 h-8 border-[3px] border-(--border-soft) border-t-blue-500 rounded-full animate-spin" />
+          <div className="text-(--text-muted) text-sm">Verifying access...</div>
         </div>
       </div>
     );
@@ -224,10 +283,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {authReady ? (
           <AuthorizedContent>{children}</AuthorizedContent>
         ) : (
-          <div className="min-h-screen flex items-center justify-center bg-[var(--surface-bg)]">
+          <div className="min-h-screen flex items-center justify-center bg-(--surface-bg)">
             <div className="flex flex-col items-center gap-3">
-              <div className="w-8 h-8 border-[3px] border-[var(--border-soft)] border-t-blue-500 rounded-full animate-spin" />
-              <div className="text-[var(--text-muted)] text-sm">Loading...</div>
+              <div className="w-8 h-8 border-[3px] border-(--border-soft) border-t-blue-500 rounded-full animate-spin" />
+              <div className="text-(--text-muted) text-sm">Loading...</div>
             </div>
           </div>
         )}
