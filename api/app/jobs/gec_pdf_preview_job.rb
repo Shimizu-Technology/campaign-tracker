@@ -7,17 +7,20 @@ class GecPdfPreviewJob < ApplicationJob
     preview = GecPdfPreview.find_by(id: gec_pdf_preview_id)
     return unless preview
     return if preview.completed? || preview.failed?
+    source_data = pdf_preview_source_data(preview)
     return preview.update!(
       status: "failed",
       error_message: "PDF data is no longer available; please re-upload the file.",
-      result_data: {}
-    ) if preview.file_data.nil?
+      result_data: {},
+      file_data: nil,
+      file_s3_key: nil
+    ) if source_data.nil?
 
     preview.update!(status: "processing", error_message: nil)
 
     temp = Tempfile.new([ "gec_pdf_preview", ".pdf" ])
     temp.binmode
-    temp.write(preview.file_data)
+    temp.write(source_data)
     temp.flush
 
     parsed = GecPdfParserService.new(file_path: temp.path).parse_preview_sample
@@ -26,7 +29,8 @@ class GecPdfPreviewJob < ApplicationJob
         status: "failed",
         error_message: parsed.errors.first,
         result_data: {},
-        file_data: nil
+        file_data: nil,
+        file_s3_key: nil
       )
       return
     end
@@ -40,17 +44,28 @@ class GecPdfPreviewJob < ApplicationJob
         "row_count" => parsed.rows.size,
         "preview_rows" => parsed.rows.first(100)
       },
-      file_data: nil
+      file_data: nil,
+      file_s3_key: nil
     )
   rescue StandardError => e
     preview&.update!(
       status: "failed",
       error_message: e.message,
       result_data: {},
-      file_data: nil
+      file_data: nil,
+      file_s3_key: nil
     ) unless preview&.completed? || preview&.failed?
     raise
   ensure
     temp&.close!
+  end
+
+  private
+
+  def pdf_preview_source_data(preview)
+    return preview.file_data if preview.file_data.present?
+    return nil if preview.file_s3_key.blank?
+
+    S3Service.download(preview.file_s3_key)
   end
 end

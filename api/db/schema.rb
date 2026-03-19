@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_19_143000) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_19_170000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -357,12 +357,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_19_143000) do
     t.datetime "created_at", null: false
     t.text "error_message"
     t.binary "file_data"
+    t.string "file_s3_key"
     t.string "filename", null: false
     t.string "preview_request_id", null: false
     t.jsonb "result_data", default: {}, null: false
     t.string "status", default: "pending", null: false
     t.datetime "updated_at", null: false
     t.bigint "uploaded_by_user_id", null: false
+    t.index ["file_s3_key"], name: "index_gec_pdf_previews_on_file_s3_key"
     t.index ["preview_request_id"], name: "index_gec_pdf_previews_on_preview_request_id", unique: true
     t.index ["uploaded_by_user_id", "status"], name: "index_gec_pdf_previews_on_uploaded_by_user_id_and_status"
     t.index ["uploaded_by_user_id"], name: "index_gec_pdf_previews_on_uploaded_by_user_id"

@@ -55,6 +55,44 @@ class GecPdfPreviewJobTest < ActiveSupport::TestCase
     assert_nil preview.file_data
   end
 
+  test "downloads preview source from s3 and clears remote key after success" do
+    user = User.create!(
+      clerk_id: "clerk-preview-job-s3-test",
+      email: "preview-job-s3-test@example.com",
+      role: "campaign_admin"
+    )
+
+    preview = GecPdfPreview.create!(
+      preview_request_id: "preview-job-s3-test",
+      uploaded_by_user: user,
+      filename: "preview.pdf",
+      content_type: "application/pdf",
+      status: "pending",
+      file_s3_key: "gec-pdf-previews/preview-job-s3-test/source/preview.pdf"
+    )
+
+    fake_result = GecPdfParserService::Result.new(
+      rows: [ { "name" => "JUAN CRUZ" } ],
+      qa: { status: "preview", preview_mode: true },
+      warnings: [],
+      errors: []
+    )
+    fake_parser = Object.new
+    fake_parser.define_singleton_method(:parse_preview_sample) { fake_result }
+
+    with_singleton_stubs(S3Service, download: "%PDF-1.4 sample") do
+      with_singleton_stubs(GecPdfParserService, new: fake_parser) do
+        GecPdfPreviewJob.perform_now(gec_pdf_preview_id: preview.id)
+      end
+    end
+
+    preview.reload
+    assert_equal "completed", preview.status
+    assert_nil preview.file_data
+    assert_nil preview.file_s3_key
+    assert_equal "JUAN CRUZ", preview.result_data["preview_rows"][0]["name"]
+  end
+
   private
 
   def with_singleton_stubs(klass, stubs)

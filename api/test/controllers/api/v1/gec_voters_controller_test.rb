@@ -437,6 +437,39 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     file&.close!
   end
 
+  test "pdf preview stores source in s3 when available" do
+    file = Tempfile.new([ "gec_preview_s3", ".pdf" ])
+    file.binmode
+    file.write("%PDF-1.4 sample")
+    file.rewind
+
+    uploaded = []
+    upload = lambda do |key, data, content_type:|
+      uploaded << { key: key, body: data.read, content_type: content_type }
+      key
+    end
+
+    with_singleton_stubs(S3Service, enabled?: true, upload: upload) do
+      assert_enqueued_jobs 1, only: GecPdfPreviewJob do
+        post "/api/v1/gec_voters/preview",
+          params: {
+            file: Rack::Test::UploadedFile.new(file.path, "application/pdf", original_filename: "gec_list.pdf"),
+            preview_request_id: "preview-s3-1"
+          },
+          headers: auth_headers(@admin)
+      end
+    end
+
+    assert_response :accepted
+    preview = GecPdfPreview.find_by!(preview_request_id: "preview-s3-1")
+    assert_nil preview.file_data
+    assert_equal "gec-pdf-previews/preview-s3-1/source/gec_list.pdf", preview.file_s3_key
+    assert_equal "%PDF-1.4 sample", uploaded.first[:body]
+    assert_equal "application/pdf", uploaded.first[:content_type]
+  ensure
+    file&.close!
+  end
+
   test "pdf preview marks preview failed when enqueueing background job fails" do
     file = Tempfile.new([ "gec_preview_enqueue_failure", ".pdf" ])
     file.binmode
@@ -463,6 +496,31 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     preview = GecPdfPreview.find_by!(preview_request_id: "preview-enqueue-failure-1")
     assert_equal "failed", preview.status
     assert_nil preview.file_data
+  ensure
+    file&.close!
+  end
+
+  test "pdf preview returns clean error when s3 upload fails" do
+    file = Tempfile.new([ "gec_preview_s3_failure", ".pdf" ])
+    file.binmode
+    file.write("%PDF-1.4 sample")
+    file.rewind
+
+    with_singleton_stubs(S3Service, enabled?: true, upload: nil) do
+      assert_no_enqueued_jobs only: GecPdfPreviewJob do
+        post "/api/v1/gec_voters/preview",
+          params: {
+            file: Rack::Test::UploadedFile.new(file.path, "application/pdf", original_filename: "gec_list.pdf"),
+            preview_request_id: "preview-s3-failure-1"
+          },
+          headers: auth_headers(@admin)
+      end
+    end
+
+    assert_response :service_unavailable
+    json = JSON.parse(response.body)
+    assert_match(/Failed to store PDF preview upload/, json["error"])
+    assert_nil GecPdfPreview.find_by(preview_request_id: "preview-s3-failure-1")
   ensure
     file&.close!
   end

@@ -10,7 +10,7 @@ class GecPdfPreview < ApplicationRecord
   validates :preview_request_id, presence: true, uniqueness: true
   validates :filename, presence: true
   validates :status, inclusion: { in: STATUSES }
-  validates :file_data, presence: true, on: :create
+  validate :source_present_on_create, on: :create
 
   scope :stale, lambda {
     where(status: %w[completed failed]).where("updated_at < ?", RETENTION_WINDOW.ago)
@@ -30,6 +30,19 @@ class GecPdfPreview < ApplicationRecord
   end
 
   def self.purge_stale!
-    stale.delete_all
+    stale.select(:id, :file_s3_key).find_in_batches(batch_size: 100) do |batch|
+      batch.each do |preview|
+        S3Service.delete(preview.file_s3_key) if preview.file_s3_key.present?
+      end
+      where(id: batch.map(&:id)).delete_all
+    end
+  end
+
+  private
+
+  def source_present_on_create
+    return if file_data.present? || file_s3_key.present?
+
+    errors.add(:base, "Preview source data must be attached")
   end
 end
