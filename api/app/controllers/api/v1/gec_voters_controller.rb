@@ -220,7 +220,7 @@ module Api
                 file_data: File.binread(import_file_path)
               )
 
-              GecImportJob.perform_later(
+              job = GecImportJob.perform_later(
                 gec_import_id: gec_import.id,
                 upload_id: upload_payload.id,
                 gec_list_date: gec_list_date.to_s,
@@ -228,6 +228,15 @@ module Api
                 sheet_name: sheet_name,
                 import_type: import_type,
                 confirm_review: confirm_review
+              )
+
+              gec_import.update_columns(
+                metadata: (gec_import.metadata || {}).merge({
+                  "mode" => "background",
+                  "queue_backend" => Rails.application.config.active_job.queue_adapter.to_s,
+                  "active_job_id" => job.job_id,
+                  "enqueued_at" => Time.current.iso8601
+                })
               )
             rescue StandardError => e
               upload_payload&.destroy

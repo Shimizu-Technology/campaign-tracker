@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "socket"
+
 class GecImportJob < ApplicationJob
   queue_as :default
 
@@ -93,6 +95,7 @@ class GecImportJob < ApplicationJob
     end
 
     user = uploaded_by_user_id.present? ? User.find_by(id: uploaded_by_user_id) : nil
+    worker_host = Socket.gethostname rescue "unknown"
     source_tmp = nil
     csv_tempfile = nil
     source_tmp_file_path = nil
@@ -101,6 +104,11 @@ class GecImportJob < ApplicationJob
     should_destroy_upload = true
 
     begin
+      Rails.logger.info(
+        "GecImportJob start import=#{gec_import_id} job_id=#{job_id} upload_id=#{upload_id} " \
+        "import_type=#{import_type} filename=#{upload_meta&.filename} worker_host=#{worker_host}"
+      )
+
       # Layer 1: Process-level mutex (protects against multi-threaded workers like Sidekiq)
       mutex_acquired = IMPORT_MUTEX.try_lock
       unless mutex_acquired
@@ -125,13 +133,23 @@ class GecImportJob < ApplicationJob
 
       gec_import.update!(
         status: "processing",
-        metadata: (gec_import.metadata || {}).merge({ "stage" => "parsing", "progress_percent" => 5 })
+        metadata: (gec_import.metadata || {}).merge({
+          "stage" => "parsing",
+          "progress_percent" => 5,
+          "active_job_id" => job_id,
+          "queue_backend" => Rails.application.config.active_job.queue_adapter.to_s,
+          "started_at" => Time.current.iso8601,
+          "worker_host" => worker_host,
+          "worker_pid" => Process.pid
+        })
       )
 
       # Now load the full binary blob — only after both locks are held.
+      Rails.logger.info("GecImportJob import=#{gec_import_id} loading upload payload upload_id=#{upload_id}")
       upload = GecImportUpload.find(upload_id)
 
       upload_is_pdf = pdf_upload?(upload)
+      Rails.logger.info("GecImportJob import=#{gec_import_id} materializing source tempfile pdf=#{upload_is_pdf}")
       source_tmp = Tempfile.new([ "gec_import_source", upload_is_pdf ? ".pdf" : safe_upload_extension(upload) ])
       source_tmp.binmode
       source_tmp.write(upload.file_data)
@@ -146,6 +164,7 @@ class GecImportJob < ApplicationJob
       pdf_warnings = []
 
       if upload_is_pdf
+        Rails.logger.info("GecImportJob import=#{gec_import_id} starting PDF normalization")
         merge_metadata!(gec_import, stage: "validating_pdf", progress_percent: 10)
 
         last_reported_page = -1
@@ -210,6 +229,7 @@ class GecImportJob < ApplicationJob
         re_vetting_progress_percent: 90
       )
 
+      Rails.logger.info("GecImportJob import=#{gec_import_id} invoking import service file_path=#{service_file_path}")
       result = service.call
 
       unless result.success
@@ -217,6 +237,7 @@ class GecImportJob < ApplicationJob
       end
 
       if result.success
+        Rails.logger.info("GecImportJob import=#{gec_import_id} completed successfully stats=#{result.stats.inspect}")
         preserve_import_artifact!(
           gec_import,
           file_path: service_file_path,
@@ -234,7 +255,7 @@ class GecImportJob < ApplicationJob
             action: "gec_import",
             changed_data: result.stats,
             metadata: {
-              entry_mode: "async_import_job",
+              entry_mode: "background_import_job",
               context: "background_job",
               request_context_available: false,
               source: "gec_import_job",
@@ -245,7 +266,7 @@ class GecImportJob < ApplicationJob
             }
           )
         rescue StandardError => e
-          Rails.logger.warn("Async import audit log failed for #{gec_import.id}: #{e.message}")
+          Rails.logger.warn("Background import audit log failed for #{gec_import.id}: #{e.message}")
         end
       end
     rescue StandardError => e
@@ -253,7 +274,7 @@ class GecImportJob < ApplicationJob
         status: "failed",
         metadata: (gec_import&.metadata || {}).merge({ "stage" => "failed", "progress_percent" => 100, "error" => e.message })
       )
-      Rails.logger.error("GecImportJob failed for #{gec_import_id}: #{e.class}: #{e.message}")
+      Rails.logger.error("GecImportJob failed for #{gec_import_id} job_id=#{job_id}: #{e.class}: #{e.message}")
     ensure
       source_tmp&.close!
       csv_tempfile&.close!

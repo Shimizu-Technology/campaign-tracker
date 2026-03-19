@@ -343,6 +343,9 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "voter_list.pdf", payload.filename
     assert_equal "application/pdf", payload.content_type
     assert_equal "queued", imp.metadata["stage"]
+    assert_equal Rails.application.config.active_job.queue_adapter.to_s, imp.metadata["queue_backend"]
+    assert imp.metadata["active_job_id"].present?
+    assert imp.metadata["enqueued_at"].present?
   ensure
     file&.close!
   end

@@ -40,15 +40,10 @@ Rails.application.configure do
   # Don't log any deprecations.
   config.active_support.report_deprecations = false
 
-  # Replace the default in-process memory cache store with a durable alternative.
-  config.cache_store = :memory_store
-
-  # Replace the default in-process and non-durable queuing backend for Active Job.
-  # Use async adapter in production until Solid Queue DB is provisioned.
-  # This runs jobs in-process (fine for current scale).
-  config.active_job.queue_adapter = :async
-  # config.active_job.queue_adapter = :solid_queue
-  # config.solid_queue.connects_to = { database: { writing: :queue } }
+  # Use durable, process-shared backends for cache and background jobs.
+  config.cache_store = :solid_cache_store
+  config.active_job.queue_adapter = :solid_queue
+  config.solid_queue.connects_to = { database: { writing: :queue } }
   config.action_cable.allowed_request_origins = [
     ENV.fetch("FRONTEND_URL", "https://yourapp.netlify.app"),
     /https:\/\/.*\.netlify\.app/

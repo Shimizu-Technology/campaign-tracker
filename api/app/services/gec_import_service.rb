@@ -241,6 +241,10 @@ class GecImportService
 
     begin
       update_progress!(gec_import, stage: "parsing", percent: @parsing_progress_percent) if async_mode
+      Rails.logger.info(
+        "GecImportService import=#{gec_import.id} opening spreadsheet file=#{File.basename(@file_path)} " \
+        "sheet=#{@sheet_name || 0} import_type=#{@import_type}"
+      )
       spreadsheet = Roo::Spreadsheet.open(@file_path)
       sheet = @sheet_name ? spreadsheet.sheet(@sheet_name) : spreadsheet.sheet(0)
 
@@ -255,6 +259,7 @@ class GecImportService
 
       rows = (2..sheet.last_row).map { |i| sheet.row(i) }
       @stats[:total] = rows.size
+      Rails.logger.info("GecImportService import=#{gec_import.id} parsed spreadsheet rows=#{rows.size}")
       @import_started_at = Time.current
       @source_identity_groups = build_source_identity_groups(rows, column_map)
       @source_identity_collision_keys = @source_identity_groups.each_with_object(Set.new) do |(key, group), collisions|
@@ -292,6 +297,7 @@ class GecImportService
 
       # Re-vet affected supporters (outside transaction for performance)
       update_progress!(gec_import, stage: "re_vetting", percent: @re_vetting_progress_percent) if async_mode
+      Rails.logger.info("GecImportService import=#{gec_import.id} starting re-vetting")
       @stats[:re_vetted] = re_vet_affected_supporters(gec_import)
 
       gec_import.update!(
