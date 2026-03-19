@@ -189,6 +189,11 @@ function createUploadRequestId() {
   return globalThis.crypto?.randomUUID?.() ?? `gec-upload-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
+function createUploadRequestIdForSeed(seed: string) {
+  void seed;
+  return createUploadRequestId();
+}
+
 function createPreviewRequestId() {
   return globalThis.crypto?.randomUUID?.() ?? `gec-preview-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
@@ -482,7 +487,7 @@ export default function TeamGecPage() {
     [file?.name, file?.size, file?.lastModified, listDate, importType, effectiveSheetName],
   );
   const uploadRequestId = useMemo(
-    () => `${createUploadRequestId()}-${uploadRequestSeed.length}`,
+    () => createUploadRequestIdForSeed(uploadRequestSeed),
     [uploadRequestSeed],
   );
   const activePreviewRequestRef = useRef<string | null>(null);
@@ -564,28 +569,49 @@ export default function TeamGecPage() {
   };
 
   const pollPdfPreview = async (requestId: string) => {
-    for (const delayMs of [1000, 1500, 2000, 2500, 3000, 4000, 5000, 5000, 5000, 5000, 5000, 5000]) {
-      await sleep(delayMs);
-      if (activePreviewRequestRef.current !== requestId) return;
-
-      const data = await getGecPdfPreviewStatus(requestId) as PdfPreviewAsyncResponse | PdfPreviewData;
-      if ('preview_rows' in data) {
+    try {
+      for (const delayMs of [1000, 1500, 2000, 2500, 3000, 4000, 5000, 5000, 5000, 5000, 5000, 5000]) {
+        await sleep(delayMs);
         if (activePreviewRequestRef.current !== requestId) return;
-        setPreviewData(data);
-        setPdfPreviewStatus('completed');
-        setSuccessMessage(null);
-        return;
+
+        let data: PdfPreviewAsyncResponse | PdfPreviewData;
+        try {
+          data = await getGecPdfPreviewStatus(requestId) as PdfPreviewAsyncResponse | PdfPreviewData;
+        } catch (fetchErr) {
+          if (activePreviewRequestRef.current !== requestId) return;
+          setPdfPreviewStatus('failed');
+          setErrorMessage(`Preview failed: ${fetchErr instanceof Error ? fetchErr.message : 'Network error'}`);
+          return;
+        }
+
+        if ('preview_rows' in data) {
+          if (activePreviewRequestRef.current !== requestId) return;
+          setPreviewData(data);
+          setPdfPreviewStatus('completed');
+          setSuccessMessage(null);
+          return;
+        }
+
+        if (data.status === 'failed') {
+          if (activePreviewRequestRef.current !== requestId) return;
+          setPreviewData(null);
+          setPdfPreviewStatus('failed');
+          setErrorMessage(`Preview failed: ${data.error || 'PDF preview failed'}`);
+          return;
+        }
+
+        setPdfPreviewStatus(data.status);
       }
 
-      if (data.status === 'failed') {
-        if (activePreviewRequestRef.current !== requestId) return;
-        setPreviewData(null);
+      if (activePreviewRequestRef.current === requestId) {
         setPdfPreviewStatus('failed');
-        setErrorMessage(`Preview failed: ${data.error || 'PDF preview failed'}`);
-        return;
+        setErrorMessage('PDF preview is taking too long. Please try again.');
       }
-
-      setPdfPreviewStatus(data.status);
+    } catch {
+      if (activePreviewRequestRef.current === requestId) {
+        setPdfPreviewStatus('failed');
+        setErrorMessage('PDF preview encountered an unexpected error. Please try again.');
+      }
     }
   };
 

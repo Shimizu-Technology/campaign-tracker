@@ -7,12 +7,17 @@ class GecPdfPreviewJob < ApplicationJob
     preview = GecPdfPreview.find_by(id: gec_pdf_preview_id)
     return unless preview
     return if preview.completed?
+    return preview.update!(
+      status: "failed",
+      error_message: "PDF data is no longer available; please re-upload the file.",
+      result_data: {}
+    ) if preview.file_data.nil?
 
     preview.update!(status: "processing", error_message: nil)
 
     temp = Tempfile.new([ "gec_pdf_preview", ".pdf" ])
     temp.binmode
-    temp.write(preview.file_data.to_s)
+    temp.write(preview.file_data)
     temp.flush
 
     parsed = GecPdfParserService.new(file_path: temp.path).parse_preview_sample

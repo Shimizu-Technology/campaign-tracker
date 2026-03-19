@@ -237,7 +237,7 @@ module Api
                 "upload_request_id" => upload_request_id,
                 "error" => nil,
                 "active_job_id" => nil,
-                "enqueued_at" => nil,
+                "enqueued_at" => nil
               })
             )
 
