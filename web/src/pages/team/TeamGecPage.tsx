@@ -640,6 +640,14 @@ export default function TeamGecPage() {
         return;
       }
 
+      if (data.status === 'failed') {
+        activePreviewRequestRef.current = null;
+        setPreviewData(null);
+        setPdfPreviewStatus('failed');
+        setErrorMessage(`Preview failed: ${data.error || 'PDF preview failed'}`);
+        return;
+      }
+
       setPdfPreviewStatus(data.status);
       setSuccessMessage('PDF preview is running in the background. We will update this panel as soon as the sample is ready.');
       void pollPdfPreview(data.preview_request_id || requestId);

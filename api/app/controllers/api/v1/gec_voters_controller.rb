@@ -367,7 +367,6 @@ module Api
         end
 
         if pdf_file?(file)
-          GecPdfPreview.purge_stale!
           preview_request_id = params[:preview_request_id].to_s.strip.presence || SecureRandom.uuid
           preview = GecPdfPreview.find_by(preview_request_id: preview_request_id, uploaded_by_user: current_user)
 
@@ -420,7 +419,6 @@ module Api
       end
 
       def preview_status
-        GecPdfPreview.purge_stale!
         preview_request_id = params[:preview_request_id].to_s.strip
         if preview_request_id.blank?
           return render_api_error(

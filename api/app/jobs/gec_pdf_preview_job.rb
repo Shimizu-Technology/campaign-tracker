@@ -6,7 +6,7 @@ class GecPdfPreviewJob < ApplicationJob
   def perform(gec_pdf_preview_id:)
     preview = GecPdfPreview.find_by(id: gec_pdf_preview_id)
     return unless preview
-    return if preview.completed?
+    return if preview.completed? || preview.failed?
     return preview.update!(
       status: "failed",
       error_message: "PDF data is no longer available; please re-upload the file.",
