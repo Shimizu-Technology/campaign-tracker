@@ -84,10 +84,15 @@ class GecPdfPreviewJobTest < ActiveSupport::TestCase
     fake_parser = Object.new
     fake_parser.define_singleton_method(:parse_preview_sample) { fake_result }
 
+    downloaded_keys = []
     deleted_keys = []
     with_singleton_stubs(
       S3Service,
-      download: "%PDF-1.4 sample",
+      download_to_io: ->(key, io) do
+        downloaded_keys << key
+        io.write("%PDF-1.4 sample")
+        true
+      end,
       delete: ->(key) { deleted_keys << key; true }
     ) do
       with_singleton_stubs(GecPdfParserService, new: fake_parser) do
@@ -99,6 +104,7 @@ class GecPdfPreviewJobTest < ActiveSupport::TestCase
     assert_equal "completed", preview.status
     assert_nil preview.file_data
     assert_nil preview.file_s3_key
+    assert_equal [ "gec-pdf-previews/preview-job-s3-test/source/preview.pdf" ], downloaded_keys
     assert_equal [ "gec-pdf-previews/preview-job-s3-test/source/preview.pdf" ], deleted_keys
     assert_equal "JUAN CRUZ", preview.result_data["preview_rows"][0]["name"]
   end
@@ -122,10 +128,15 @@ class GecPdfPreviewJobTest < ActiveSupport::TestCase
     fake_parser = Object.new
     fake_parser.define_singleton_method(:parse_preview_sample) { raise StandardError, "parser crashed" }
 
+    downloaded_keys = []
     deleted_keys = []
     with_singleton_stubs(
       S3Service,
-      download: "%PDF-1.4 sample",
+      download_to_io: ->(key, io) do
+        downloaded_keys << key
+        io.write("%PDF-1.4 sample")
+        true
+      end,
       delete: ->(key) { deleted_keys << key; true }
     ) do
       with_singleton_stubs(GecPdfParserService, new: fake_parser) do
@@ -137,7 +148,48 @@ class GecPdfPreviewJobTest < ActiveSupport::TestCase
     assert_equal "failed", preview.status
     assert_equal "parser crashed", preview.error_message
     assert_nil preview.file_s3_key
+    assert_equal [ "gec-pdf-previews/preview-job-s3-error-test/source/preview.pdf" ], downloaded_keys
     assert_equal [ "gec-pdf-previews/preview-job-s3-error-test/source/preview.pdf" ], deleted_keys
+  end
+
+  test "preserves original parser error when finalize fails during rescue" do
+    user = User.create!(
+      clerk_id: "clerk-preview-job-finalize-failure-test",
+      email: "preview-job-finalize-failure-test@example.com",
+      role: "campaign_admin"
+    )
+
+    preview = GecPdfPreview.create!(
+      preview_request_id: "preview-job-finalize-failure-test",
+      uploaded_by_user: user,
+      filename: "preview.pdf",
+      content_type: "application/pdf",
+      status: "pending",
+      file_data: "%PDF-1.4 sample"
+    )
+
+    fake_parser = Object.new
+    fake_parser.define_singleton_method(:parse_preview_sample) { raise StandardError, "parser crashed" }
+
+    original_update = preview.method(:update!)
+    preview.define_singleton_method(:update!) do |*args, **kwargs|
+      attributes = args.first.is_a?(Hash) ? args.first : kwargs
+      if attributes[:status] == "failed"
+        raise ActiveRecord::ActiveRecordError, "db write failed"
+      end
+
+      original_update.call(*args, **kwargs)
+    end
+
+    error = assert_raises(StandardError) do
+      with_singleton_stubs(GecPdfPreview, find_by: preview) do
+        with_singleton_stubs(GecPdfParserService, new: fake_parser) do
+          GecPdfPreviewJob.new.perform(gec_pdf_preview_id: preview.id)
+        end
+      end
+    end
+
+    assert_equal "parser crashed", error.message
   end
 
   private
