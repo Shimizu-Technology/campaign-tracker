@@ -52,6 +52,7 @@ class GecPdfPreviewJobTest < ActiveSupport::TestCase
     assert_equal "failed", preview.status
     assert_equal "parser crashed", preview.error_message
     assert_equal({}, preview.result_data)
+    assert_nil preview.file_data
   end
 
   private

@@ -46,7 +46,8 @@ class GecPdfPreviewJob < ApplicationJob
     preview&.update!(
       status: "failed",
       error_message: e.message,
-      result_data: {}
+      result_data: {},
+      file_data: nil
     ) unless preview&.completed? || preview&.failed?
     raise
   ensure

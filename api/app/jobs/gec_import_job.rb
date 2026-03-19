@@ -286,7 +286,7 @@ class GecImportJob < ApplicationJob
       if lock_acquired
         begin
           current_backend_pid = advisory_lock_connection&.raw_connection&.backend_pid
-          if advisory_lock_connection.present? && current_backend_pid == advisory_lock_backend_pid
+          if current_backend_pid == advisory_lock_backend_pid
             advisory_lock_connection.execute("SELECT pg_advisory_unlock(#{IMPORT_LOCK_KEY_1}, #{IMPORT_LOCK_KEY_2})")
           else
             Rails.logger.info(
