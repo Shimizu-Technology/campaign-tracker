@@ -45,14 +45,18 @@ class GecPdfPreviewJobTest < ActiveSupport::TestCase
     fake_parser = Object.new
     fake_parser.define_singleton_method(:parse_preview_sample) { raise StandardError, "parser crashed" }
 
-    with_singleton_stubs(GecPdfParserService, new: fake_parser) do
-      GecPdfPreviewJob.perform_now(gec_pdf_preview_id: preview.id)
+    deleted_keys = []
+    with_singleton_stubs(S3Service, delete: ->(key) { deleted_keys << key; true }) do
+      with_singleton_stubs(GecPdfParserService, new: fake_parser) do
+        GecPdfPreviewJob.perform_now(gec_pdf_preview_id: preview.id)
+      end
     end
     preview.reload
     assert_equal "failed", preview.status
     assert_equal "parser crashed", preview.error_message
     assert_equal({}, preview.result_data)
     assert_nil preview.file_data
+    assert_empty deleted_keys
   end
 
   test "downloads preview source from s3 and clears remote key after success" do
@@ -80,7 +84,12 @@ class GecPdfPreviewJobTest < ActiveSupport::TestCase
     fake_parser = Object.new
     fake_parser.define_singleton_method(:parse_preview_sample) { fake_result }
 
-    with_singleton_stubs(S3Service, download: "%PDF-1.4 sample") do
+    deleted_keys = []
+    with_singleton_stubs(
+      S3Service,
+      download: "%PDF-1.4 sample",
+      delete: ->(key) { deleted_keys << key; true }
+    ) do
       with_singleton_stubs(GecPdfParserService, new: fake_parser) do
         GecPdfPreviewJob.perform_now(gec_pdf_preview_id: preview.id)
       end
@@ -90,7 +99,45 @@ class GecPdfPreviewJobTest < ActiveSupport::TestCase
     assert_equal "completed", preview.status
     assert_nil preview.file_data
     assert_nil preview.file_s3_key
+    assert_equal [ "gec-pdf-previews/preview-job-s3-test/source/preview.pdf" ], deleted_keys
     assert_equal "JUAN CRUZ", preview.result_data["preview_rows"][0]["name"]
+  end
+
+  test "deletes s3 preview source when parser raises unexpectedly" do
+    user = User.create!(
+      clerk_id: "clerk-preview-job-s3-error-test",
+      email: "preview-job-s3-error-test@example.com",
+      role: "campaign_admin"
+    )
+
+    preview = GecPdfPreview.create!(
+      preview_request_id: "preview-job-s3-error-test",
+      uploaded_by_user: user,
+      filename: "preview.pdf",
+      content_type: "application/pdf",
+      status: "pending",
+      file_s3_key: "gec-pdf-previews/preview-job-s3-error-test/source/preview.pdf"
+    )
+
+    fake_parser = Object.new
+    fake_parser.define_singleton_method(:parse_preview_sample) { raise StandardError, "parser crashed" }
+
+    deleted_keys = []
+    with_singleton_stubs(
+      S3Service,
+      download: "%PDF-1.4 sample",
+      delete: ->(key) { deleted_keys << key; true }
+    ) do
+      with_singleton_stubs(GecPdfParserService, new: fake_parser) do
+        GecPdfPreviewJob.perform_now(gec_pdf_preview_id: preview.id)
+      end
+    end
+
+    preview.reload
+    assert_equal "failed", preview.status
+    assert_equal "parser crashed", preview.error_message
+    assert_nil preview.file_s3_key
+    assert_equal [ "gec-pdf-previews/preview-job-s3-error-test/source/preview.pdf" ], deleted_keys
   end
 
   private
