@@ -941,7 +941,8 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
           params: {
             file: Rack::Test::UploadedFile.new(file.path, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", original_filename: "gec_upload.xlsx"),
             gec_list_date: "2026-02-25",
-            async_import: "true"
+            async_import: "true",
+            upload_request_id: "req-gec-upload-1"
           },
           headers: auth_headers(@admin)
       end
@@ -953,8 +954,105 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "gec_upload.xlsx", imp.raw_filename
     assert imp.raw_file_s3_key.present?
     assert imp.original_file_s3_key.present?
+    assert_equal "background", imp.metadata["mode"]
+    assert_equal "req-gec-upload-1", imp.metadata["upload_request_id"]
     assert uploaded_keys.any? { |key| key.include?("/raw/") }
     assert uploaded_keys.any? { |key| key.include?("/artifact/") }
+  ensure
+    file&.close!
+  end
+
+  test "async upload request id is idempotent across duplicate retries" do
+    file = create_test_excel([
+      [ "First Name", "Last Name", "Village", "Reg No" ],
+      [ "Juan", "Cruz", "Barrigada", "VR001" ]
+    ])
+
+    request_id = "req-gec-dedupe-1"
+    first_import_id = nil
+
+    with_singleton_stubs(S3Service, enabled?: false) do
+      assert_difference("GecImport.count", 1) do
+        assert_difference("GecImportUpload.count", 1) do
+          assert_enqueued_jobs 1, only: GecImportJob do
+            post "/api/v1/gec_voters/upload",
+              params: {
+                file: Rack::Test::UploadedFile.new(file.path, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", original_filename: "gec_upload.xlsx"),
+                gec_list_date: "2026-02-25",
+                async_import: "true",
+                upload_request_id: request_id
+              },
+              headers: auth_headers(@admin)
+
+            assert_response :accepted
+            first_json = JSON.parse(response.body)
+            first_import_id = first_json.dig("import", "id")
+            assert_nil first_json["duplicate_request"]
+
+            post "/api/v1/gec_voters/upload",
+              params: {
+                file: Rack::Test::UploadedFile.new(file.path, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", original_filename: "gec_upload.xlsx"),
+                gec_list_date: "2026-02-25",
+                async_import: "true",
+                upload_request_id: request_id
+              },
+              headers: auth_headers(@admin)
+
+            assert_response :accepted
+            duplicate_json = JSON.parse(response.body)
+            assert_equal true, duplicate_json["duplicate_request"]
+            assert_equal first_import_id, duplicate_json.dig("import", "id")
+          end
+        end
+      end
+    end
+  ensure
+    file&.close!
+  end
+
+  test "async upload retries can recover a pending import without an enqueued job id" do
+    file = create_test_excel([
+      [ "First Name", "Last Name", "Village", "Reg No" ],
+      [ "Juan", "Cruz", "Barrigada", "VR001" ]
+    ])
+
+    existing_import = GecImport.create!(
+      gec_list_date: Date.new(2026, 2, 25),
+      filename: "gec_upload.xlsx",
+      uploaded_by_user: @admin,
+      import_type: "full_list",
+      status: "pending",
+      metadata: {
+        "stage" => "queued",
+        "progress_percent" => 0,
+        "mode" => "background",
+        "upload_request_id" => "req-gec-retry-1"
+      }
+    )
+
+    with_singleton_stubs(S3Service, enabled?: false) do
+      assert_no_difference("GecImport.count") do
+        assert_difference("GecImportUpload.count", 1) do
+          assert_enqueued_jobs 1, only: GecImportJob do
+            post "/api/v1/gec_voters/upload",
+              params: {
+                file: Rack::Test::UploadedFile.new(file.path, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", original_filename: "gec_upload.xlsx"),
+                gec_list_date: "2026-02-25",
+                async_import: "true",
+                upload_request_id: "req-gec-retry-1"
+              },
+              headers: auth_headers(@admin)
+          end
+        end
+      end
+    end
+
+    assert_response :accepted
+    json = JSON.parse(response.body)
+    assert_equal existing_import.id, json.dig("import", "id")
+    existing_import.reload
+    assert existing_import.metadata["active_job_id"].present?
+    assert existing_import.upload_payload.present?
   ensure
     file&.close!
   end

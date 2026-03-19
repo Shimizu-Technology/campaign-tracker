@@ -192,7 +192,25 @@ module Api
               File.basename(file.original_filename || import_file_path)
             end
 
-            gec_import = GecImport.create!(
+            upload_request_id = params[:upload_request_id].to_s.strip.presence
+            existing_import = find_existing_background_import(
+              upload_request_id: upload_request_id,
+              gec_list_date: gec_list_date,
+              filename: import_display_filename,
+              import_type: import_type
+            )
+            if existing_import
+              unless retryable_pending_import?(existing_import)
+                return render json: {
+                  message: existing_import.status == "completed" ? "GEC import already completed" : "GEC import already queued in background",
+                  async: true,
+                  duplicate_request: true,
+                  import: existing_import.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :transferred_records, :re_vetted_count, :ambiguous_dob_count, :import_type, :status, :metadata ])
+                }, status: :accepted
+              end
+            end
+
+            gec_import = existing_import || GecImport.create!(
               gec_list_date: gec_list_date,
               filename: import_display_filename,
               uploaded_by_user: current_user,
@@ -203,8 +221,23 @@ module Api
                 "progress_percent" => 0,
                 "pdf_qa" => pdf_qa,
                 "pdf_warnings" => pdf_warnings,
-                "mode" => "async"
+                "mode" => "background",
+                "upload_request_id" => upload_request_id
               }
+            )
+            gec_import.update!(
+              status: "pending",
+              metadata: (gec_import.metadata || {}).merge({
+                "stage" => "queued",
+                "progress_percent" => 0,
+                "pdf_qa" => pdf_qa,
+                "pdf_warnings" => pdf_warnings,
+                "mode" => "background",
+                "upload_request_id" => upload_request_id,
+                "error" => nil,
+                "active_job_id" => nil,
+                "enqueued_at" => nil,
+              })
             )
 
             begin
@@ -213,6 +246,8 @@ module Api
               stored_filename = File.basename(file.original_filename || import_file_path)
               stored_content_type = file.content_type
 
+              upload_payload = gec_import.upload_payload
+              upload_payload&.destroy
               upload_payload = GecImportUpload.create!(
                 gec_import: gec_import,
                 filename: stored_filename,
@@ -774,6 +809,32 @@ module Api
         json["skipped_rows_count"] = counts_for_import.values.sum
         json["pending_skipped_rows_count"] = counts_for_import["pending"].to_i
         json
+      end
+
+      def find_existing_background_import(upload_request_id:, gec_list_date:, filename:, import_type:)
+        scope = GecImport.where(
+          uploaded_by_user: current_user,
+          gec_list_date: gec_list_date,
+          filename: filename,
+          import_type: import_type
+        ).order(created_at: :desc)
+
+        if upload_request_id.present?
+          exact_match = scope
+            .where(status: %w[pending processing completed])
+            .where("metadata ->> 'upload_request_id' = ?", upload_request_id)
+            .first
+          return exact_match if exact_match
+        end
+
+        scope
+          .where(status: %w[pending processing])
+          .where("created_at >= ?", 10.minutes.ago)
+          .first
+      end
+
+      def retryable_pending_import?(gec_import)
+        gec_import.status == "pending" && gec_import.metadata.to_h["active_job_id"].blank?
       end
 
       def import_change_json(change)

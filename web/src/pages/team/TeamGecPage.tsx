@@ -168,8 +168,42 @@ interface ImportRecord {
     pdf_qa?: Record<string, unknown>;
     pdf_warnings?: string[];
     mode?: string;
+    upload_request_id?: string;
+    active_job_id?: string;
+    enqueued_at?: string;
     [key: string]: unknown;
   };
+}
+
+function createUploadRequestId() {
+  return globalThis.crypto?.randomUUID?.() ?? `gec-upload-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function importMatchesUploadAttempt(
+  row: ImportRecord,
+  requestId: string,
+  file: File,
+  listDate: string,
+  importType: string,
+) {
+  const serverAcknowledged = row.status !== 'pending' || Boolean(row.metadata?.active_job_id || row.metadata?.enqueued_at);
+  if (row.metadata?.upload_request_id === requestId) return serverAcknowledged;
+
+  const now = Date.now();
+  const createdAt = Date.parse(String(row.created_at || ''));
+  const isRecent = !Number.isNaN(createdAt) && now - createdAt < 10 * 60 * 1000;
+  if (!isRecent) return false;
+
+  const knownNames = [row.filename, row.raw_filename, row.original_filename].filter(Boolean).map((value) => String(value).toLowerCase());
+  return knownNames.includes(file.name.toLowerCase())
+    && row.gec_list_date === listDate
+    && row.import_type === importType
+    && serverAcknowledged
+    && ['pending', 'processing', 'completed'].includes(row.status);
 }
 
 function shouldContinueImportPolling(rows: ImportRecord[]) {
@@ -385,6 +419,7 @@ export default function TeamGecPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [confirmReview, setConfirmReview] = useState(false);
+  const [uploadRequestId, setUploadRequestId] = useState(() => createUploadRequestId());
   const [expandedImportId, setExpandedImportId] = useState<number | null>(null);
   const [viewerState, setViewerState] = useState<{ importId: number } | null>(null);
   const [viewerTab, setViewerTab] = useState<ViewerTab>('parsed');
@@ -421,6 +456,10 @@ export default function TeamGecPage() {
   const selectedImport = viewerState ? (importRows.find((imp) => imp.id === viewerState.importId) ?? null) : null;
   const selectedFileIsPdf = Boolean(file && (file.type.includes('pdf') || file.name.toLowerCase().endsWith('.pdf')));
   const effectiveSheetName = selectedFileIsPdf ? undefined : (sheetName.trim() || undefined);
+
+  useEffect(() => {
+    setUploadRequestId(createUploadRequestId());
+  }, [file?.name, file?.size, file?.lastModified, listDate, importType, effectiveSheetName]);
 
   const isPdfPreview = previewData?.source_type === 'pdf';
   const pdfStatus = isPdfPreview ? previewData.qa?.status : null;
@@ -478,6 +517,38 @@ export default function TeamGecPage() {
     placeholderData: (previousData) => previousData,
   });
 
+  const resetUploadForm = () => {
+    setFile(null);
+    setListDate('');
+    setSheetName('');
+    setImportType('full_list');
+    setPreviewData(null);
+    setConfirmReview(false);
+    setUploadRequestId(createUploadRequestId());
+  };
+
+  const recoverQueuedImport = async (requestId: string) => {
+    if (!file || !listDate) return null;
+
+    try {
+      for (const delayMs of [500, 1500, 3000]) {
+        if (delayMs > 0) await sleep(delayMs);
+        const latest = await queryClient.fetchQuery<{ imports?: ImportRecord[] }>({
+          queryKey: ['gec-imports'],
+          queryFn: getGecImports,
+          staleTime: 0,
+        });
+        const rows = Array.isArray(latest?.imports) ? latest.imports : [];
+        const matched = rows.find((row) => importMatchesUploadAttempt(row, requestId, file, listDate, importType));
+        if (matched) return matched;
+      }
+    } catch (_error) {
+      return null;
+    }
+
+    return null;
+  };
+
   const previewMutation = useMutation({
     mutationFn: () => previewGecList(file!, effectiveSheetName),
     onMutate: () => {
@@ -491,28 +562,28 @@ export default function TeamGecPage() {
   });
 
   const uploadMutation = useMutation({
-    mutationFn: () => uploadGecList(
+    mutationFn: ({ requestId }: { requestId: string }) => uploadGecList(
       file!,
       listDate,
       effectiveSheetName,
       importType,
       isPdfPreview ? previewData.parse_cache_key || undefined : undefined,
       confirmReview,
-      true
+      true,
+      requestId,
     ),
     onSuccess: (data) => {
-      setFile(null);
-      setListDate('');
-      setSheetName('');
-      setImportType('full_list');
-      setPreviewData(null);
-      setConfirmReview(false);
+      resetUploadForm();
       setErrorMessage(null);
       queryClient.invalidateQueries({ queryKey: ['gec-imports'] });
 
       if (data?.async) {
         const importId = data?.import?.id;
-        setSuccessMessage(`Import queued in background${importId ? ` (ID #${importId})` : ''}. You can leave this page — progress will continue and update in Import History.`);
+        setSuccessMessage(
+          data?.duplicate_request
+            ? `Import already queued${importId ? ` (ID #${importId})` : ''}. We reused the existing background import instead of creating a duplicate.`
+            : `Import queued in background${importId ? ` (ID #${importId})` : ''}. You can leave this page — progress will continue and update in Import History.`,
+        );
         return;
       }
 
@@ -531,7 +602,20 @@ export default function TeamGecPage() {
       ].filter(Boolean);
       setSuccessMessage(lines.join('\n'));
     },
-    onError: (err: Error) => setErrorMessage(`Import failed: ${err.message}`),
+    onError: async (err: Error, { requestId }) => {
+      const recoveredImport = await recoverQueuedImport(requestId);
+      if (recoveredImport) {
+        resetUploadForm();
+        setErrorMessage(null);
+        queryClient.invalidateQueries({ queryKey: ['gec-imports'] });
+        setSuccessMessage(
+          `We lost the network response, but confirmed that import #${recoveredImport.id} was already queued${recoveredImport.status === 'completed' ? ' and completed' : ''}. No duplicate import was created.`,
+        );
+        return;
+      }
+
+      setErrorMessage(`Import failed: ${err.message}`);
+    },
   });
 
   const bulkVetMutation = useMutation({
@@ -693,8 +777,6 @@ export default function TeamGecPage() {
                 }
                 setPreviewData(null);
                 setConfirmReview(false);
-                setPreviewData(null);
-                setConfirmReview(false);
                 setErrorMessage(null);
                 setSuccessMessage(null);
               }}
@@ -761,7 +843,7 @@ export default function TeamGecPage() {
               {previewMutation.isPending ? 'Analyzing...' : 'Analyze File'}
             </button>
             <button
-              onClick={() => uploadMutation.mutate()}
+              onClick={() => uploadMutation.mutate({ requestId: uploadRequestId })}
               disabled={!file || !listDate || !previewData || uploadMutation.isPending || pdfStatus === 'fail' || reviewNeedsConfirmation}
               className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors"
               title={!previewData ? 'Analyze file first to review before importing' : undefined}
