@@ -396,6 +396,9 @@ module Api
                 uploaded_by_user: current_user
               )
               raise e unless preview
+            rescue StandardError
+              S3Service.delete(storage_attrs[:file_s3_key]) if storage_attrs[:file_s3_key].present?
+              raise
             end
           end
 

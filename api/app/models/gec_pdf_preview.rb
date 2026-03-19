@@ -31,10 +31,20 @@ class GecPdfPreview < ApplicationRecord
 
   def self.purge_stale!
     stale.select(:id, :file_s3_key).find_in_batches(batch_size: 100) do |batch|
+      ids_to_delete = []
       batch.each do |preview|
-        S3Service.delete(preview.file_s3_key) if preview.file_s3_key.present?
+        if preview.file_s3_key.present?
+          begin
+            deleted = S3Service.delete(preview.file_s3_key)
+            next unless deleted
+          rescue StandardError => e
+            Rails.logger.warn("[GecPdfPreview] S3 delete failed for key #{preview.file_s3_key}: #{e.message}")
+            next
+          end
+        end
+        ids_to_delete << preview.id
       end
-      where(id: batch.map(&:id)).delete_all
+      where(id: ids_to_delete).delete_all if ids_to_delete.any?
     end
   end
 
