@@ -901,6 +901,11 @@ module Api
         return unless preview&.file_s3_key.present?
 
         S3Service.delete(preview.file_s3_key)
+      rescue StandardError => e
+        Rails.logger.warn(
+          "GecVotersController preview #{preview.id}: failed to delete S3 preview source " \
+          "#{preview.file_s3_key}: #{e.class}: #{e.message}"
+        )
       end
 
       def import_json(imp, skipped_counts_by_import: nil)

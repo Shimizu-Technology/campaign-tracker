@@ -500,6 +500,44 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     file&.close!
   end
 
+  test "pdf preview still marks failed when cleanup delete raises after enqueue failure" do
+    file = Tempfile.new([ "gec_preview_enqueue_cleanup_failure", ".pdf" ])
+    file.binmode
+    file.write("%PDF-1.4 sample")
+    file.rewind
+
+    with_singleton_stubs(
+      S3Service,
+      enabled?: true,
+      upload: ->(key, _data, **_kwargs) { key },
+      delete: ->(*_args, **_kwargs) { raise StandardError, "s3 delete exploded" }
+    ) do
+      with_singleton_stubs(GecPdfPreviewJob, perform_later: ->(*_args, **_kwargs) { raise StandardError, "queue unavailable" }) do
+        assert_no_enqueued_jobs only: GecPdfPreviewJob do
+          post "/api/v1/gec_voters/preview",
+            params: {
+              file: Rack::Test::UploadedFile.new(file.path, "application/pdf", original_filename: "gec_list.pdf"),
+              preview_request_id: "preview-enqueue-cleanup-failure-1"
+            },
+            headers: auth_headers(@admin)
+        end
+      end
+    end
+
+    assert_response :success
+    json = JSON.parse(response.body)
+    assert_equal "preview-enqueue-cleanup-failure-1", json["preview_request_id"]
+    assert_equal "failed", json["status"]
+    assert_match(/Failed to queue PDF preview: queue unavailable/, json["error"])
+
+    preview = GecPdfPreview.find_by!(preview_request_id: "preview-enqueue-cleanup-failure-1")
+    assert_equal "failed", preview.status
+    assert_nil preview.file_data
+    assert_nil preview.file_s3_key
+  ensure
+    file&.close!
+  end
+
   test "pdf preview returns clean error when s3 upload fails" do
     file = Tempfile.new([ "gec_preview_s3_failure", ".pdf" ])
     file.binmode
