@@ -84,14 +84,24 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen bg-[#f5f7fb]">
-      {/* Header */}
-      <div className="bg-primary text-white py-6 px-4">
-        <div className="max-w-lg mx-auto">
-          <Link to="/" className="flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-2 min-h-[44px]">
-            <ArrowLeft className="w-4 h-4" /> Back
+      {/* Campaign Hero Header */}
+      <div className="bg-linear-to-br from-primary to-primary-dark text-white">
+        <div className="max-w-lg mx-auto px-4 pt-6 pb-8">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 text-blue-200 hover:text-white text-sm mb-4 min-h-[44px]"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back to Home
           </Link>
-          <h1 className="text-2xl font-bold">Support Josh & Tina</h1>
-          <p className="text-blue-200 text-sm mt-1">Sign up to show your support for the 2026 campaign</p>
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight mb-1">
+            Josh & Tina 2026
+          </h1>
+          <p className="text-blue-200 text-base font-medium mb-1">
+            For Governor & Lt. Governor of Guam
+          </p>
+          <p className="text-blue-300/80 text-sm">
+            Add your name to the people-powered campaign for a stronger Guam.
+          </p>
         </div>
       </div>
 
@@ -119,7 +129,7 @@ export default function SignupPage() {
               required
               value={form.first_name}
               onChange={e => updateField('first_name', e.target.value)}
-              className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full px-3 py-3 border border-gray-300 rounded-xl text-base focus:ring-2 focus:ring-primary focus:border-transparent"
               placeholder="Juan"
             />
           </div>
@@ -129,7 +139,7 @@ export default function SignupPage() {
               type="text"
               value={form.middle_name}
               onChange={e => updateField('middle_name', e.target.value)}
-              className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full px-3 py-3 border border-gray-300 rounded-xl text-base focus:ring-2 focus:ring-primary focus:border-transparent"
               placeholder="Maria"
             />
           </div>
@@ -140,7 +150,7 @@ export default function SignupPage() {
               required
               value={form.last_name}
               onChange={e => updateField('last_name', e.target.value)}
-              className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full px-3 py-3 border border-gray-300 rounded-xl text-base focus:ring-2 focus:ring-primary focus:border-transparent"
               placeholder="dela Cruz"
             />
           </div>
@@ -154,7 +164,7 @@ export default function SignupPage() {
             required
             value={form.contact_number}
             onChange={e => updateField('contact_number', e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-base focus:ring-2 focus:ring-primary focus:border-transparent"
             placeholder="+1671XXXXXXX"
           />
         </div>
@@ -166,7 +176,7 @@ export default function SignupPage() {
             required
             value={form.village_id}
             onChange={e => updateField('village_id', e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-primary focus:border-transparent bg-white"
+            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-base focus:ring-2 focus:ring-primary focus:border-transparent bg-white"
           >
             <option value="">Select your village</option>
             {villages.map(v => (
@@ -182,7 +192,7 @@ export default function SignupPage() {
             type="text"
             value={form.street_address}
             onChange={e => updateField('street_address', e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-base focus:ring-2 focus:ring-primary focus:border-transparent"
             placeholder="123 Marine Corps Dr"
           />
         </div>
@@ -194,7 +204,7 @@ export default function SignupPage() {
             type="email"
             value={form.email}
             onChange={e => updateField('email', e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-base focus:ring-2 focus:ring-primary focus:border-transparent"
             placeholder="juan@example.com"
           />
         </div>
@@ -206,7 +216,7 @@ export default function SignupPage() {
             type="date"
             value={form.dob}
             onChange={e => updateField('dob', e.target.value)}
-            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+            className="w-full px-3 py-3 border border-gray-300 rounded-xl text-base focus:ring-2 focus:ring-primary focus:border-transparent"
           />
         </div>
 
@@ -285,7 +295,7 @@ export default function SignupPage() {
           <button
             type="submit"
             disabled={signup.isPending}
-            className="w-full bg-cta hover:bg-cta-hover text-white font-bold py-4 rounded-2xl text-lg shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full bg-cta hover:bg-cta-hover text-white font-bold py-4 rounded-2xl text-lg shadow-lg transition-all disabled:opacity-50 flex items-center justify-center gap-2 min-h-[44px]"
           >
             {signup.isPending ? (
               <>

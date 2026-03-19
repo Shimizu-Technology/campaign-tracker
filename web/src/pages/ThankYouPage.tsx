@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Heart, ArrowLeft } from 'lucide-react';
+import { Heart, ArrowLeft, Bell, CalendarDays, Share2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getCampaignInfo } from '../lib/api';
 
@@ -27,56 +27,86 @@ export default function ThankYouPage() {
   });
 
   return (
-    <div className="min-h-screen bg-linear-to-br from-primary to-primary-dark text-white flex items-center justify-center px-4">
-      <div className="text-center max-w-md rounded-2xl border border-white/10 bg-white/5 backdrop-blur px-6 py-10">
-        <Heart className="w-16 h-16 mx-auto mb-5 text-cta" />
-        <h1 className="text-4xl font-bold tracking-tight mb-3">
-          Si Yu'os Ma'åse!
-        </h1>
-        <p className="text-xl text-blue-100 mb-2">
-          Thank you for supporting Josh & Tina!
-        </p>
-        <p className="text-blue-200 mb-6">
-          Together, we'll build a stronger Guam. We'll be in touch!
-        </p>
+    <div className="min-h-screen bg-linear-to-br from-primary to-primary-dark text-white flex items-center justify-center px-4 py-8">
+      <div className="max-w-md w-full space-y-4">
+        {/* Main card */}
+        <div className="text-center rounded-2xl border border-white/10 bg-white/5 backdrop-blur px-6 py-10">
+          <Heart className="w-16 h-16 mx-auto mb-5 text-cta" />
+          <h1 className="text-4xl font-bold tracking-tight mb-3">
+            Si Yu'os Ma'åse!
+          </h1>
+          <p className="text-xl text-blue-100 mb-2">
+            Thank you for supporting Josh & Tina!
+          </p>
+          <p className="text-blue-200 mb-6">
+            Together, we'll build a stronger Guam. We'll be in touch!
+          </p>
 
-        {/* Social Media CTA */}
-        {(campaignInfo?.instagram_url || campaignInfo?.facebook_url || campaignInfo?.tiktok_url || campaignInfo?.twitter_url) && (
-        <div className="mb-8">
-          <p className="text-sm text-blue-300 mb-3">Follow the campaign</p>
-          <div className="flex items-center justify-center gap-4">
-            {campaignInfo?.instagram_url && (
-            <a
-              href={campaignInfo.instagram_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors min-h-[44px]"
-            >
-              <InstagramIcon className="w-5 h-5" />
-              Instagram
-            </a>
-            )}
-            {campaignInfo?.facebook_url && (
-            <a
-              href={campaignInfo.facebook_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors min-h-[44px]"
-            >
-              <FacebookIcon className="w-5 h-5" />
-              Facebook
-            </a>
-            )}
+          {/* Social Media CTA */}
+          {(campaignInfo?.instagram_url || campaignInfo?.facebook_url || campaignInfo?.tiktok_url || campaignInfo?.twitter_url) && (
+          <div className="mb-8">
+            <p className="text-sm text-blue-300 mb-3">Follow the campaign</p>
+            <div className="flex items-center justify-center gap-4">
+              {campaignInfo?.instagram_url && (
+              <a
+                href={campaignInfo.instagram_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors min-h-[44px]"
+              >
+                <InstagramIcon className="w-5 h-5" />
+                Instagram
+              </a>
+              )}
+              {campaignInfo?.facebook_url && (
+              <a
+                href={campaignInfo.facebook_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors min-h-[44px]"
+              >
+                <FacebookIcon className="w-5 h-5" />
+                Facebook
+              </a>
+              )}
+            </div>
           </div>
-        </div>
-        )}
+          )}
 
-        <Link
-          to="/"
-          className="inline-flex items-center gap-2 text-sm text-blue-100 hover:text-white bg-white/10 px-4 py-2 rounded-xl min-h-[44px]"
-        >
-          <ArrowLeft className="w-4 h-4" /> Back to Home
-        </Link>
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 text-sm text-blue-100 hover:text-white bg-white/10 px-4 py-2 rounded-xl min-h-[44px]"
+          >
+            <ArrowLeft className="w-4 h-4" /> Back to Home
+          </Link>
+        </div>
+
+        {/* What happens next */}
+        <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur px-6 py-6">
+          <h2 className="text-lg font-bold tracking-tight mb-4 text-white">
+            What happens next?
+          </h2>
+          <ul className="space-y-4">
+            <li className="flex items-start gap-3">
+              <Bell className="w-5 h-5 text-accent shrink-0 mt-0.5" />
+              <span className="text-blue-100 text-sm leading-relaxed">
+                The campaign team will be in touch with updates on Josh & Tina's platform and milestones.
+              </span>
+            </li>
+            <li className="flex items-start gap-3">
+              <CalendarDays className="w-5 h-5 text-accent shrink-0 mt-0.5" />
+              <span className="text-blue-100 text-sm leading-relaxed">
+                Watch for events, rallies, and volunteer opportunities in your village.
+              </span>
+            </li>
+            <li className="flex items-start gap-3">
+              <Share2 className="w-5 h-5 text-accent shrink-0 mt-0.5" />
+              <span className="text-blue-100 text-sm leading-relaxed">
+                Follow the campaign on social media to stay connected and help spread the word.
+              </span>
+            </li>
+          </ul>
+        </div>
       </div>
     </div>
   );
