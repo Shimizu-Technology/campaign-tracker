@@ -263,7 +263,7 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     assert_equal true, imp["has_downloadable_file"]
   end
 
-  test "preview returns fast sample metadata for pdf uploads" do
+  test "pdf preview queues in background and returns completed preview via status endpoint" do
     file = Tempfile.new([ "gec_preview", ".pdf" ])
     file.binmode
     file.write("%PDF-1.4 sample")
@@ -295,16 +295,34 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     fake_parser.define_singleton_method(:parse_preview_sample) { fake_result }
 
     with_singleton_stubs(GecPdfParserService, new: fake_parser) do
-      post "/api/v1/gec_voters/preview",
-        params: {
-          file: Rack::Test::UploadedFile.new(file.path, "application/pdf", original_filename: "gec_list.pdf")
-        },
-        headers: auth_headers(@admin)
+      assert_enqueued_jobs 1, only: GecPdfPreviewJob do
+        post "/api/v1/gec_voters/preview",
+          params: {
+            file: Rack::Test::UploadedFile.new(file.path, "application/pdf", original_filename: "gec_list.pdf"),
+            preview_request_id: "preview-req-1"
+          },
+          headers: auth_headers(@admin)
+      end
+
+      preview = GecPdfPreview.find_by!(preview_request_id: "preview-req-1")
+      GecPdfPreviewJob.perform_now(gec_pdf_preview_id: preview.id)
     end
+
+    assert_response :accepted
+    queued_json = JSON.parse(response.body)
+    assert_equal true, queued_json["async"]
+    assert_equal "pdf", queued_json["source_type"]
+    assert_equal "preview-req-1", queued_json["preview_request_id"]
+    assert_equal "pending", queued_json["status"]
+
+    get "/api/v1/gec_voters/preview_status",
+      params: { preview_request_id: "preview-req-1" },
+      headers: auth_headers(@admin)
 
     assert_response :success
     json = JSON.parse(response.body)
     assert_equal "pdf", json["source_type"]
+    assert_equal "completed", json["status"]
     assert_equal "preview", json["qa"]["status"]
     assert_equal true, json["qa"]["preview_mode"]
     assert_nil json["parse_cache_key"]

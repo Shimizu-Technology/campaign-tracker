@@ -105,6 +105,7 @@ Rails.application.routes.draw do
         collection do
           get :stats
           get :imports
+          get :preview_status
           get "imports/:id/view_data", action: :view_import_data, as: :view_import_data
           get "imports/:id/changes", action: :view_import_changes, as: :view_import_changes
           get "imports/:id/skipped_rows", action: :view_import_skipped_rows, as: :view_import_skipped_rows

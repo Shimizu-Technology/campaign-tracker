@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "digest"
+require "securerandom"
 
 module Api
   module V1
@@ -357,27 +358,32 @@ module Api
           )
         end
 
-        if pdf_file?(file)
-          parser = GecPdfParserService.new(file_path: file.tempfile.path)
-          parsed = parser.parse_preview_sample
+        if File.size(file.tempfile.path) > 50.megabytes
+          return render_api_error(
+            message: "Uploaded file is too large (max 50 MB)",
+            status: :unprocessable_entity,
+            code: "file_too_large"
+          )
+        end
 
-          if parsed.errors.any?
-            return render_api_error(
-              message: "Failed to parse PDF: #{parsed.errors.first}",
-              status: :unprocessable_entity,
-              code: "pdf_parse_error"
+        if pdf_file?(file)
+          GecPdfPreview.purge_stale!
+          preview_request_id = params[:preview_request_id].to_s.strip.presence || SecureRandom.uuid
+          preview = GecPdfPreview.find_by(preview_request_id: preview_request_id, uploaded_by_user: current_user)
+
+          unless preview
+            preview = GecPdfPreview.create!(
+              preview_request_id: preview_request_id,
+              uploaded_by_user: current_user,
+              filename: File.basename(file.original_filename || "upload.pdf"),
+              content_type: file.content_type,
+              status: "pending",
+              file_data: File.binread(file.tempfile.path)
             )
+            GecPdfPreviewJob.perform_later(gec_pdf_preview_id: preview.id)
           end
 
-          preview_limit = [ (params[:limit] || 20).to_i, 100 ].min
-          return render json: {
-            source_type: "pdf",
-            qa: parsed.qa,
-            warnings: parsed.warnings,
-            row_count: parsed.rows.size,
-            parse_cache_key: nil,
-            preview_rows: parsed.rows.first(preview_limit)
-          }
+          return render json: pdf_preview_json(preview), status: pdf_preview_response_status(preview)
         end
 
         service = GecImportService.new(
@@ -404,6 +410,29 @@ module Api
           row_count: preview_data[:row_count],
           preview_rows: preview_data[:preview_rows]
         }
+      end
+
+      def preview_status
+        GecPdfPreview.purge_stale!
+        preview_request_id = params[:preview_request_id].to_s.strip
+        if preview_request_id.blank?
+          return render_api_error(
+            message: "preview_request_id is required",
+            status: :unprocessable_entity,
+            code: "missing_preview_request_id"
+          )
+        end
+
+        preview = GecPdfPreview.find_by(preview_request_id: preview_request_id, uploaded_by_user: current_user)
+        unless preview
+          return render_api_error(
+            message: "PDF preview not found",
+            status: :not_found,
+            code: "preview_not_found"
+          )
+        end
+
+        render json: pdf_preview_json(preview), status: pdf_preview_response_status(preview)
       end
 
       # GET /api/v1/gec_voters/imports
@@ -787,6 +816,37 @@ module Api
           warnings: cached[:warnings] || [],
           errors: cached[:errors] || []
         )
+      end
+
+      def pdf_preview_json(preview)
+        result_data = preview.result_data.is_a?(Hash) ? preview.result_data : {}
+
+        json = {
+          async: true,
+          source_type: "pdf",
+          preview_request_id: preview.preview_request_id,
+          status: preview.status
+        }
+
+        if preview.completed?
+          json.merge!(
+            qa: result_data["qa"] || {},
+            warnings: result_data["warnings"] || [],
+            row_count: result_data["row_count"].to_i,
+            parse_cache_key: nil,
+            preview_rows: Array(result_data["preview_rows"])
+          )
+        elsif preview.failed?
+          json[:error] = preview.error_message.presence || "PDF preview failed"
+        end
+
+        json
+      end
+
+      def pdf_preview_response_status(preview)
+        return :ok if preview.completed? || preview.failed?
+
+        :accepted
       end
 
       def import_json(imp, skipped_counts_by_import: nil)

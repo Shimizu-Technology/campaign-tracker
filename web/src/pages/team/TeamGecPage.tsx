@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getGecStats,
@@ -6,6 +6,7 @@ import {
   uploadGecList,
   bulkVetSupporters,
   previewGecList,
+  getGecPdfPreviewStatus,
   downloadGecImportFile,
   getGecImportViewData,
   getGecImportOriginalView,
@@ -105,6 +106,14 @@ interface PdfPreviewData {
   preview_rows: PreviewRow[];
 }
 
+interface PdfPreviewAsyncResponse {
+  async: true;
+  source_type: 'pdf';
+  preview_request_id: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  error?: string;
+}
+
 interface SpreadsheetPreviewData {
   source_type: 'spreadsheet';
   sheets: string[];
@@ -117,6 +126,7 @@ interface SpreadsheetPreviewData {
 }
 
 type PreviewData = PdfPreviewData | SpreadsheetPreviewData;
+type PreviewResponse = PreviewData | PdfPreviewAsyncResponse;
 
 interface ImportRecord {
   id: number;
@@ -177,6 +187,10 @@ interface ImportRecord {
 
 function createUploadRequestId() {
   return globalThis.crypto?.randomUUID?.() ?? `gec-upload-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function createPreviewRequestId() {
+  return globalThis.crypto?.randomUUID?.() ?? `gec-preview-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function sleep(ms: number) {
@@ -419,7 +433,7 @@ export default function TeamGecPage() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [confirmReview, setConfirmReview] = useState(false);
-  const [uploadRequestId, setUploadRequestId] = useState(() => createUploadRequestId());
+  const [pdfPreviewStatus, setPdfPreviewStatus] = useState<'idle' | 'pending' | 'processing' | 'completed' | 'failed'>('idle');
   const [expandedImportId, setExpandedImportId] = useState<number | null>(null);
   const [viewerState, setViewerState] = useState<{ importId: number } | null>(null);
   const [viewerTab, setViewerTab] = useState<ViewerTab>('parsed');
@@ -456,10 +470,22 @@ export default function TeamGecPage() {
   const selectedImport = viewerState ? (importRows.find((imp) => imp.id === viewerState.importId) ?? null) : null;
   const selectedFileIsPdf = Boolean(file && (file.type.includes('pdf') || file.name.toLowerCase().endsWith('.pdf')));
   const effectiveSheetName = selectedFileIsPdf ? undefined : (sheetName.trim() || undefined);
-
-  useEffect(() => {
-    setUploadRequestId(createUploadRequestId());
-  }, [file?.name, file?.size, file?.lastModified, listDate, importType, effectiveSheetName]);
+  const uploadRequestSeed = useMemo(
+    () => [
+      file?.name || '',
+      file?.size || 0,
+      file?.lastModified || 0,
+      listDate,
+      importType,
+      effectiveSheetName || '',
+    ].join('|'),
+    [file?.name, file?.size, file?.lastModified, listDate, importType, effectiveSheetName],
+  );
+  const uploadRequestId = useMemo(
+    () => `${createUploadRequestId()}-${uploadRequestSeed.length}`,
+    [uploadRequestSeed],
+  );
+  const activePreviewRequestRef = useRef<string | null>(null);
 
   const isPdfPreview = previewData?.source_type === 'pdf';
   const pdfStatus = isPdfPreview ? previewData.qa?.status : null;
@@ -518,13 +544,49 @@ export default function TeamGecPage() {
   });
 
   const resetUploadForm = () => {
+    activePreviewRequestRef.current = null;
     setFile(null);
     setListDate('');
     setSheetName('');
     setImportType('full_list');
     setPreviewData(null);
     setConfirmReview(false);
-    setUploadRequestId(createUploadRequestId());
+    setPdfPreviewStatus('idle');
+  };
+
+  const clearPreviewState = () => {
+    activePreviewRequestRef.current = null;
+    setPreviewData(null);
+    setConfirmReview(false);
+    setPdfPreviewStatus('idle');
+    setErrorMessage(null);
+    setSuccessMessage(null);
+  };
+
+  const pollPdfPreview = async (requestId: string) => {
+    for (const delayMs of [1000, 1500, 2000, 2500, 3000, 4000, 5000, 5000, 5000, 5000, 5000, 5000]) {
+      await sleep(delayMs);
+      if (activePreviewRequestRef.current !== requestId) return;
+
+      const data = await getGecPdfPreviewStatus(requestId) as PdfPreviewAsyncResponse | PdfPreviewData;
+      if ('preview_rows' in data) {
+        if (activePreviewRequestRef.current !== requestId) return;
+        setPreviewData(data);
+        setPdfPreviewStatus('completed');
+        setSuccessMessage(null);
+        return;
+      }
+
+      if (data.status === 'failed') {
+        if (activePreviewRequestRef.current !== requestId) return;
+        setPreviewData(null);
+        setPdfPreviewStatus('failed');
+        setErrorMessage(`Preview failed: ${data.error || 'PDF preview failed'}`);
+        return;
+      }
+
+      setPdfPreviewStatus(data.status);
+    }
   };
 
   const recoverQueuedImport = async (requestId: string) => {
@@ -542,7 +604,7 @@ export default function TeamGecPage() {
         const matched = rows.find((row) => importMatchesUploadAttempt(row, requestId, file, listDate, importType));
         if (matched) return matched;
       }
-    } catch (_error) {
+    } catch {
       return null;
     }
 
@@ -550,16 +612,32 @@ export default function TeamGecPage() {
   };
 
   const previewMutation = useMutation({
-    mutationFn: () => previewGecList(file!, effectiveSheetName),
-    onMutate: () => {
-      setPreviewData(null);
-      setConfirmReview(false);
+    mutationFn: ({ requestId }: { requestId: string }) => previewGecList(file!, effectiveSheetName, requestId),
+    onMutate: ({ requestId }) => {
+      clearPreviewState();
+      activePreviewRequestRef.current = selectedFileIsPdf ? requestId : null;
       setErrorMessage(null);
       setSuccessMessage(null);
+      setPdfPreviewStatus(selectedFileIsPdf ? 'pending' : 'idle');
     },
-    onSuccess: (data: PreviewData) => setPreviewData(data),
-    onError: (err: Error) => setErrorMessage(`Preview failed: ${err.message}`),
+    onSuccess: (data: PreviewResponse, { requestId }) => {
+      if ('preview_rows' in data) {
+        setPreviewData(data);
+        setPdfPreviewStatus('completed');
+        return;
+      }
+
+      setPdfPreviewStatus(data.status);
+      setSuccessMessage('PDF preview is running in the background. We will update this panel as soon as the sample is ready.');
+      void pollPdfPreview(data.preview_request_id || requestId);
+    },
+    onError: (err: Error) => {
+      activePreviewRequestRef.current = null;
+      setPdfPreviewStatus('failed');
+      setErrorMessage(`Preview failed: ${err.message}`);
+    },
   });
+  const isPreviewBusy = previewMutation.isPending || pdfPreviewStatus === 'pending' || pdfPreviewStatus === 'processing';
 
   const uploadMutation = useMutation({
     mutationFn: ({ requestId }: { requestId: string }) => uploadGecList(
@@ -775,8 +853,7 @@ export default function TeamGecPage() {
                 if (nextFile && (nextFile.type.includes('pdf') || nextFile.name.toLowerCase().endsWith('.pdf'))) {
                   setSheetName('');
                 }
-                setPreviewData(null);
-                setConfirmReview(false);
+                clearPreviewState();
                 setErrorMessage(null);
                 setSuccessMessage(null);
               }}
@@ -787,7 +864,7 @@ export default function TeamGecPage() {
             <label className="text-xs font-medium text-gray-600 block mb-1.5">Import Type</label>
             <div className="flex gap-3">
               <label className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border cursor-pointer transition-colors ${importType === 'full_list' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                <input type="radio" name="importType" value="full_list" checked={importType === 'full_list'} onChange={() => { setImportType('full_list'); setPreviewData(null); setConfirmReview(false); }} className="sr-only" />
+                <input type="radio" name="importType" value="full_list" checked={importType === 'full_list'} onChange={() => { setImportType('full_list'); clearPreviewState(); }} className="sr-only" />
                 <Database className="w-4 h-4" />
                 <div>
                   <div className="text-sm font-medium">Full Voter List</div>
@@ -795,7 +872,7 @@ export default function TeamGecPage() {
                 </div>
               </label>
               <label className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border cursor-pointer transition-colors ${importType === 'changes_only' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                <input type="radio" name="importType" value="changes_only" checked={importType === 'changes_only'} onChange={() => { setImportType('changes_only'); setPreviewData(null); setConfirmReview(false); }} className="sr-only" />
+                <input type="radio" name="importType" value="changes_only" checked={importType === 'changes_only'} onChange={() => { setImportType('changes_only'); clearPreviewState(); }} className="sr-only" />
                 <RefreshCw className="w-4 h-4" />
                 <div>
                   <div className="text-sm font-medium">Changes Only</div>
@@ -810,7 +887,7 @@ export default function TeamGecPage() {
               <input
                 type="date"
                 value={listDate}
-                onChange={e => setListDate(e.target.value)}
+                onChange={e => { setListDate(e.target.value); clearPreviewState(); }}
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -819,7 +896,7 @@ export default function TeamGecPage() {
               <input
                 type="text"
                 value={sheetName}
-                onChange={e => { setSheetName(e.target.value); setPreviewData(null); setConfirmReview(false); }}
+                onChange={e => { setSheetName(e.target.value); clearPreviewState(); }}
                 placeholder={selectedFileIsPdf ? 'Not used for PDF imports' : 'e.g., Voter List'}
                 disabled={selectedFileIsPdf}
                 className={`w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 ${
@@ -835,12 +912,15 @@ export default function TeamGecPage() {
           </div>
           <div className="flex flex-wrap gap-2">
             <button
-              onClick={() => previewMutation.mutate()}
-              disabled={!file || previewMutation.isPending || uploadMutation.isPending}
+              onClick={() => {
+                const requestId = createPreviewRequestId();
+                previewMutation.mutate({ requestId });
+              }}
+              disabled={!file || isPreviewBusy || uploadMutation.isPending}
               className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
             >
-              {previewMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
-              {previewMutation.isPending ? 'Analyzing...' : 'Analyze File'}
+              {isPreviewBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
+              {isPreviewBusy ? 'Analyzing...' : 'Analyze File'}
             </button>
             <button
               onClick={() => uploadMutation.mutate({ requestId: uploadRequestId })}
@@ -853,9 +933,15 @@ export default function TeamGecPage() {
             </button>
           </div>
 
-          {file && !previewData && !previewMutation.isPending && (
+          {file && !previewData && !isPreviewBusy && (
             <div className="text-xs text-gray-500">
               Click "Analyze File" to preview the data before importing.
+            </div>
+          )}
+
+          {selectedFileIsPdf && isPreviewBusy && !previewData && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-800">
+              PDF preview is running in the background so the web service does not have to parse the PDF inline. This can take a little longer, but it is much safer for large files.
             </div>
           )}
 

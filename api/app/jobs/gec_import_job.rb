@@ -100,6 +100,8 @@ class GecImportJob < ApplicationJob
     csv_tempfile = nil
     source_tmp_file_path = nil
     lock_acquired = false
+    advisory_lock_connection = nil
+    advisory_lock_backend_pid = nil
     mutex_acquired = false
     should_destroy_upload = true
 
@@ -122,7 +124,9 @@ class GecImportJob < ApplicationJob
       # changes_only imports do row-level upserts without purge detection, so
       # fully serializing them behind the same lock is unnecessarily conservative.
       if import_type == "full_list"
-        lock_result = ActiveRecord::Base.connection.select_value("SELECT pg_try_advisory_lock(#{IMPORT_LOCK_KEY_1}, #{IMPORT_LOCK_KEY_2})")
+        advisory_lock_connection = ActiveRecord::Base.connection
+        advisory_lock_backend_pid = advisory_lock_connection.raw_connection.backend_pid
+        lock_result = advisory_lock_connection.select_value("SELECT pg_try_advisory_lock(#{IMPORT_LOCK_KEY_1}, #{IMPORT_LOCK_KEY_2})")
         lock_acquired = ActiveModel::Type::Boolean.new.cast(lock_result)
         unless lock_acquired
           requeued = handle_lock_contention(gec_import, gec_import_id, upload_id, gec_list_date, uploaded_by_user_id, sheet_name, import_type, confirm_review)
@@ -281,7 +285,15 @@ class GecImportJob < ApplicationJob
       GecImportUpload.where(id: upload_id).delete_all if should_destroy_upload
       if lock_acquired
         begin
-          ActiveRecord::Base.connection.execute("SELECT pg_advisory_unlock(#{IMPORT_LOCK_KEY_1}, #{IMPORT_LOCK_KEY_2})")
+          current_backend_pid = advisory_lock_connection&.raw_connection&.backend_pid
+          if advisory_lock_connection.present? && current_backend_pid == advisory_lock_backend_pid
+            advisory_lock_connection.execute("SELECT pg_advisory_unlock(#{IMPORT_LOCK_KEY_1}, #{IMPORT_LOCK_KEY_2})")
+          else
+            Rails.logger.info(
+              "GecImportJob #{gec_import_id}: skipped advisory unlock because DB session changed " \
+              "(expected_backend_pid=#{advisory_lock_backend_pid.inspect} current_backend_pid=#{current_backend_pid.inspect})"
+            )
+          end
         rescue StandardError => e
           Rails.logger.warn("GecImportJob #{gec_import_id}: advisory unlock failed: #{e.class}: #{e.message}")
         end
