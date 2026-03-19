@@ -587,6 +587,7 @@ export default function TeamGecPage() {
           return;
         }
 
+        if (activePreviewRequestRef.current !== requestId) return;
         setPdfPreviewStatus(data.status);
       }
 

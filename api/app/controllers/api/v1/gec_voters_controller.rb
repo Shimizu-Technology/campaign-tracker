@@ -369,6 +369,7 @@ module Api
         if pdf_file?(file)
           preview_request_id = params[:preview_request_id].to_s.strip.presence || SecureRandom.uuid
           preview = GecPdfPreview.find_by(preview_request_id: preview_request_id, uploaded_by_user: current_user)
+          created_preview = false
 
           unless preview
             begin
@@ -380,13 +381,26 @@ module Api
                 status: "pending",
                 file_data: File.binread(file.tempfile.path)
               )
-              GecPdfPreviewJob.perform_later(gec_pdf_preview_id: preview.id)
+              created_preview = true
             rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid => e
               preview = GecPdfPreview.find_by(
                 preview_request_id: preview_request_id,
                 uploaded_by_user: current_user
               )
               raise e unless preview
+            end
+          end
+
+          if created_preview
+            begin
+              GecPdfPreviewJob.perform_later(gec_pdf_preview_id: preview.id)
+            rescue StandardError => e
+              preview.update!(
+                status: "failed",
+                error_message: "Failed to queue PDF preview: #{e.message}",
+                result_data: {},
+                file_data: nil
+              )
             end
           end
 
