@@ -563,6 +563,33 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     file&.close!
   end
 
+  test "pdf preview preserves original storage error when storage setup raises before attrs are returned" do
+    file = Tempfile.new([ "gec_preview_s3_raise", ".pdf" ])
+    file.binmode
+    file.write("%PDF-1.4 sample")
+    file.rewind
+
+    error = assert_raises(StandardError) do
+      with_singleton_stubs(
+        S3Service,
+        enabled?: true,
+        upload: ->(*_args, **_kwargs) { raise StandardError, "upload exploded" }
+      ) do
+        post "/api/v1/gec_voters/preview",
+          params: {
+            file: Rack::Test::UploadedFile.new(file.path, "application/pdf", original_filename: "gec_list.pdf"),
+            preview_request_id: "preview-s3-raise-1"
+          },
+          headers: auth_headers(@admin)
+      end
+    end
+
+    assert_equal "upload exploded", error.message
+    assert_nil GecPdfPreview.find_by(preview_request_id: "preview-s3-raise-1")
+  ensure
+    file&.close!
+  end
+
   test "async pdf upload queues immediately without parsing in controller" do
     file = Tempfile.new([ "gec_async_pdf", ".pdf" ])
     file.binmode

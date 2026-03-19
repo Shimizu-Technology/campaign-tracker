@@ -372,6 +372,7 @@ module Api
           created_preview = false
 
           unless preview
+            storage_attrs = nil
             begin
               storage_attrs = pdf_preview_storage_attributes(file, preview_request_id)
               unless storage_attrs
@@ -397,7 +398,9 @@ module Api
               )
               raise e unless preview
             rescue StandardError
-              S3Service.delete(storage_attrs[:file_s3_key]) if storage_attrs[:file_s3_key].present?
+              if storage_attrs.is_a?(Hash) && storage_attrs[:file_s3_key].present?
+                S3Service.delete(storage_attrs[:file_s3_key])
+              end
               raise
             end
           end
