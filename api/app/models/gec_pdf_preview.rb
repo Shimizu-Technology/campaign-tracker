@@ -3,6 +3,7 @@
 class GecPdfPreview < ApplicationRecord
   STATUSES = %w[pending processing completed failed].freeze
   RETENTION_WINDOW = 1.day
+  NON_TERMINAL_RETENTION_WINDOW = 1.hour
 
   belongs_to :uploaded_by_user, class_name: "User"
 
@@ -11,7 +12,10 @@ class GecPdfPreview < ApplicationRecord
   validates :status, inclusion: { in: STATUSES }
   validates :file_data, presence: true, on: :create
 
-  scope :stale, -> { where(status: %w[completed failed]).where("updated_at < ?", RETENTION_WINDOW.ago) }
+  scope :stale, lambda {
+    where(status: %w[completed failed]).where("updated_at < ?", RETENTION_WINDOW.ago)
+      .or(where(status: %w[pending processing]).where("updated_at < ?", NON_TERMINAL_RETENTION_WINDOW.ago))
+  }
 
   def completed?
     status == "completed"

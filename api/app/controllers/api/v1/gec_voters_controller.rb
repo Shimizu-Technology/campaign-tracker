@@ -372,15 +372,22 @@ module Api
           preview = GecPdfPreview.find_by(preview_request_id: preview_request_id, uploaded_by_user: current_user)
 
           unless preview
-            preview = GecPdfPreview.create!(
-              preview_request_id: preview_request_id,
-              uploaded_by_user: current_user,
-              filename: File.basename(file.original_filename || "upload.pdf"),
-              content_type: file.content_type,
-              status: "pending",
-              file_data: File.binread(file.tempfile.path)
-            )
-            GecPdfPreviewJob.perform_later(gec_pdf_preview_id: preview.id)
+            begin
+              preview = GecPdfPreview.create!(
+                preview_request_id: preview_request_id,
+                uploaded_by_user: current_user,
+                filename: File.basename(file.original_filename || "upload.pdf"),
+                content_type: file.content_type,
+                status: "pending",
+                file_data: File.binread(file.tempfile.path)
+              )
+              GecPdfPreviewJob.perform_later(gec_pdf_preview_id: preview.id)
+            rescue ActiveRecord::RecordNotUnique
+              preview = GecPdfPreview.find_by!(
+                preview_request_id: preview_request_id,
+                uploaded_by_user: current_user
+              )
+            end
           end
 
           return render json: pdf_preview_json(preview), status: pdf_preview_response_status(preview)

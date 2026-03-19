@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getGecStats,
@@ -187,11 +187,6 @@ interface ImportRecord {
 
 function createUploadRequestId() {
   return globalThis.crypto?.randomUUID?.() ?? `gec-upload-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function createUploadRequestIdForSeed(seed: string) {
-  void seed;
-  return createUploadRequestId();
 }
 
 function createPreviewRequestId() {
@@ -475,21 +470,7 @@ export default function TeamGecPage() {
   const selectedImport = viewerState ? (importRows.find((imp) => imp.id === viewerState.importId) ?? null) : null;
   const selectedFileIsPdf = Boolean(file && (file.type.includes('pdf') || file.name.toLowerCase().endsWith('.pdf')));
   const effectiveSheetName = selectedFileIsPdf ? undefined : (sheetName.trim() || undefined);
-  const uploadRequestSeed = useMemo(
-    () => [
-      file?.name || '',
-      file?.size || 0,
-      file?.lastModified || 0,
-      listDate,
-      importType,
-      effectiveSheetName || '',
-    ].join('|'),
-    [file?.name, file?.size, file?.lastModified, listDate, importType, effectiveSheetName],
-  );
-  const uploadRequestId = useMemo(
-    () => createUploadRequestIdForSeed(uploadRequestSeed),
-    [uploadRequestSeed],
-  );
+  const [uploadRequestId, setUploadRequestId] = useState(() => createUploadRequestId());
   const activePreviewRequestRef = useRef<string | null>(null);
 
   const isPdfPreview = previewData?.source_type === 'pdf';
@@ -557,6 +538,7 @@ export default function TeamGecPage() {
     setPreviewData(null);
     setConfirmReview(false);
     setPdfPreviewStatus('idle');
+    setUploadRequestId(createUploadRequestId());
   };
 
   const clearPreviewState = () => {
@@ -566,6 +548,11 @@ export default function TeamGecPage() {
     setPdfPreviewStatus('idle');
     setErrorMessage(null);
     setSuccessMessage(null);
+  };
+
+  const resetUploadAttempt = () => {
+    clearPreviewState();
+    setUploadRequestId(createUploadRequestId());
   };
 
   const pollPdfPreview = async (requestId: string) => {
@@ -879,7 +866,7 @@ export default function TeamGecPage() {
                 if (nextFile && (nextFile.type.includes('pdf') || nextFile.name.toLowerCase().endsWith('.pdf'))) {
                   setSheetName('');
                 }
-                clearPreviewState();
+                resetUploadAttempt();
                 setErrorMessage(null);
                 setSuccessMessage(null);
               }}
@@ -890,7 +877,7 @@ export default function TeamGecPage() {
             <label className="text-xs font-medium text-gray-600 block mb-1.5">Import Type</label>
             <div className="flex gap-3">
               <label className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border cursor-pointer transition-colors ${importType === 'full_list' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                <input type="radio" name="importType" value="full_list" checked={importType === 'full_list'} onChange={() => { setImportType('full_list'); clearPreviewState(); }} className="sr-only" />
+                <input type="radio" name="importType" value="full_list" checked={importType === 'full_list'} onChange={() => { setImportType('full_list'); resetUploadAttempt(); }} className="sr-only" />
                 <Database className="w-4 h-4" />
                 <div>
                   <div className="text-sm font-medium">Full Voter List</div>
@@ -898,7 +885,7 @@ export default function TeamGecPage() {
                 </div>
               </label>
               <label className={`flex items-center gap-2 px-4 py-2.5 rounded-lg border cursor-pointer transition-colors ${importType === 'changes_only' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                <input type="radio" name="importType" value="changes_only" checked={importType === 'changes_only'} onChange={() => { setImportType('changes_only'); clearPreviewState(); }} className="sr-only" />
+                <input type="radio" name="importType" value="changes_only" checked={importType === 'changes_only'} onChange={() => { setImportType('changes_only'); resetUploadAttempt(); }} className="sr-only" />
                 <RefreshCw className="w-4 h-4" />
                 <div>
                   <div className="text-sm font-medium">Changes Only</div>
@@ -913,7 +900,7 @@ export default function TeamGecPage() {
               <input
                 type="date"
                 value={listDate}
-                onChange={e => { setListDate(e.target.value); clearPreviewState(); }}
+                onChange={e => { setListDate(e.target.value); resetUploadAttempt(); }}
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
               />
             </div>
@@ -922,7 +909,7 @@ export default function TeamGecPage() {
               <input
                 type="text"
                 value={sheetName}
-                onChange={e => { setSheetName(e.target.value); clearPreviewState(); }}
+                onChange={e => { setSheetName(e.target.value); resetUploadAttempt(); }}
                 placeholder={selectedFileIsPdf ? 'Not used for PDF imports' : 'e.g., Voter List'}
                 disabled={selectedFileIsPdf}
                 className={`w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500 ${
