@@ -25,4 +25,57 @@ class GecPdfPreviewJobTest < ActiveSupport::TestCase
     assert_equal "PDF data is no longer available; please re-upload the file.", preview.error_message
     assert_equal({}, preview.result_data)
   end
+
+  test "marks preview failed when parser raises unexpectedly" do
+    user = User.create!(
+      clerk_id: "clerk-preview-job-parser-test",
+      email: "preview-job-parser-test@example.com",
+      role: "campaign_admin"
+    )
+
+    preview = GecPdfPreview.create!(
+      preview_request_id: "preview-job-parser-test",
+      uploaded_by_user: user,
+      filename: "preview.pdf",
+      content_type: "application/pdf",
+      status: "pending",
+      file_data: "%PDF-1.4 sample"
+    )
+
+    fake_parser = Object.new
+    fake_parser.define_singleton_method(:parse_preview_sample) { raise StandardError, "parser crashed" }
+
+    with_singleton_stubs(GecPdfParserService, new: fake_parser) do
+      GecPdfPreviewJob.perform_now(gec_pdf_preview_id: preview.id)
+    end
+    preview.reload
+    assert_equal "failed", preview.status
+    assert_equal "parser crashed", preview.error_message
+    assert_equal({}, preview.result_data)
+  end
+
+  private
+
+  def with_singleton_stubs(klass, stubs)
+    singleton = class << klass; self; end
+    originals = {}
+
+    stubs.each do |method_name, replacement|
+      originals[method_name] = singleton.instance_method(method_name) if singleton.method_defined?(method_name)
+      singleton.define_method(method_name) do |*args, **kwargs, &block|
+        if replacement.respond_to?(:call)
+          replacement.call(*args, **kwargs, &block)
+        else
+          replacement
+        end
+      end
+    end
+
+    yield
+  ensure
+    stubs.each_key do |method_name|
+      singleton.send(:remove_method, method_name) if singleton.method_defined?(method_name)
+      singleton.define_method(method_name, originals[method_name]) if originals[method_name]
+    end
+  end
 end

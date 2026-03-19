@@ -42,6 +42,13 @@ class GecPdfPreviewJob < ApplicationJob
       },
       file_data: nil
     )
+  rescue StandardError => e
+    preview&.update!(
+      status: "failed",
+      error_message: e.message,
+      result_data: {}
+    ) unless preview&.completed? || preview&.failed?
+    raise
   ensure
     temp&.close!
   end

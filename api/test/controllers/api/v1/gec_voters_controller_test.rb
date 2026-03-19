@@ -383,6 +383,60 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     file&.close!
   end
 
+  test "pdf preview reuses existing preview when concurrent create hits uniqueness validation" do
+    file = Tempfile.new([ "gec_preview_validation_race", ".pdf" ])
+    file.binmode
+    file.write("%PDF-1.4 sample")
+    file.rewind
+
+    preview = GecPdfPreview.create!(
+      preview_request_id: "preview-race-2",
+      uploaded_by_user: @admin,
+      filename: "gec_list.pdf",
+      content_type: "application/pdf",
+      status: "pending",
+      file_data: "%PDF-1.4 sample"
+    )
+
+    singleton = class << GecPdfPreview; self; end
+    original_find_by = singleton.instance_method(:find_by)
+    original_create = singleton.instance_method(:create!)
+    find_by_calls = 0
+
+    singleton.define_method(:find_by) do |*args, **kwargs|
+      find_by_calls += 1
+      return nil if find_by_calls == 1
+
+      original_find_by.bind_call(self, *args, **kwargs)
+    end
+    singleton.define_method(:create!) do |*args, **kwargs|
+      duplicate = new(*args, **kwargs)
+      duplicate.errors.add(:preview_request_id, :taken)
+      raise ActiveRecord::RecordInvalid.new(duplicate)
+    end
+
+    assert_no_enqueued_jobs only: GecPdfPreviewJob do
+      post "/api/v1/gec_voters/preview",
+        params: {
+          file: Rack::Test::UploadedFile.new(file.path, "application/pdf", original_filename: "gec_list.pdf"),
+          preview_request_id: "preview-race-2"
+        },
+        headers: auth_headers(@admin)
+    end
+
+    assert_response :accepted
+    json = JSON.parse(response.body)
+    assert_equal "preview-race-2", json["preview_request_id"]
+    assert_equal "pending", json["status"]
+    assert_equal preview.id, GecPdfPreview.find_by!(preview_request_id: "preview-race-2").id
+  ensure
+    singleton.send(:remove_method, :find_by) if singleton.method_defined?(:find_by)
+    singleton.send(:remove_method, :create!) if singleton.method_defined?(:create!)
+    singleton.define_method(:find_by, original_find_by) if original_find_by
+    singleton.define_method(:create!, original_create) if original_create
+    file&.close!
+  end
+
   test "async pdf upload queues immediately without parsing in controller" do
     file = Tempfile.new([ "gec_async_pdf", ".pdf" ])
     file.binmode
