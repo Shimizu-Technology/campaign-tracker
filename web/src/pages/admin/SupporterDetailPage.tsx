@@ -5,6 +5,7 @@ import { AlertTriangle, ChevronLeft, Pencil, Save, UserRound, X } from 'lucide-r
 import { acceptToQuota, getSupporter, getVillages, updateSupporter, verifySupporter, updateOutreachStatus } from '../../lib/api';
 import { formatDateTime } from '../../lib/datetime';
 import { useSession } from '../../hooks/useSession';
+import WorkspacePage from '../../components/WorkspacePage';
 
 interface VillageOption {
   id: number;
@@ -478,7 +479,7 @@ export default function SupporterDetailPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <WorkspacePage className="space-y-6">
       <div>
         {returnTo && (
           <Link
@@ -1100,6 +1101,6 @@ export default function SupporterDetailPage() {
           )}
         </section>
       </div>
-    </div>
+    </WorkspacePage>
   );
 }

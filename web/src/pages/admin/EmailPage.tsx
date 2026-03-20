@@ -3,6 +3,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { Mail, Send, Users, Zap, CheckCircle, AlertTriangle, Eye } from 'lucide-react';
 import { getEmailStatus, sendEmailBlast, getVillages } from '../../lib/api';
 import { useSession } from '../../hooks/useSession';
+import WorkspacePage from '../../components/WorkspacePage';
 
 interface EmailBlastResult {
   dry_run?: boolean;
@@ -91,7 +92,7 @@ export default function EmailPage() {
   const fromEmail = emailStatus?.from_email || '(not set)';
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <WorkspacePage className="space-y-6">
       {/* Header */}
       <div>
         <div className="flex items-center gap-3">
@@ -332,6 +333,6 @@ export default function EmailPage() {
           </ul>
         </div>
       </div>
-    </div>
+    </WorkspacePage>
   );
 }

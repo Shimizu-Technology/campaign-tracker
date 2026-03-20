@@ -5,6 +5,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, CheckCircle, Search, ArrowRight, X } from 'lucide-react';
 import { useSession } from '../../hooks/useSession';
 import { formatDateTime } from '../../lib/datetime';
+import WorkspacePage from '../../components/WorkspacePage';
 
 interface Supporter {
   id: number;
@@ -242,7 +243,7 @@ export default function DuplicatesPage() {
   }, [focusSupporterId, groups]);
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <WorkspacePage className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -379,6 +380,6 @@ export default function DuplicatesPage() {
           })}
         </div>
       )}
-    </div>
+    </WorkspacePage>
   );
 }

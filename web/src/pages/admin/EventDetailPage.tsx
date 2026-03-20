@@ -3,6 +3,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { useParams, Link } from 'react-router-dom';
 import { getEvent, getEventAttendees, sendEventSms, sendEventEmail } from '../../lib/api';
 import { CheckCircle, XCircle, ClipboardCheck, MessageSquare, Mail, Send, AlertTriangle } from 'lucide-react';
+import WorkspacePage from '../../components/WorkspacePage';
 
 interface Attendee {
   rsvp_id: number;
@@ -86,7 +87,7 @@ export default function EventDetailPage() {
   if (!event) return <div className="min-h-screen flex items-center justify-center text-[var(--text-muted)]">Loading...</div>;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <WorkspacePage className="space-y-6">
       {/* Header */}
       <div>
         <div className="flex items-center justify-between">
@@ -290,6 +291,6 @@ export default function EventDetailPage() {
           )}
         </div>
       </div>
-    </div>
+    </WorkspacePage>
   );
 }

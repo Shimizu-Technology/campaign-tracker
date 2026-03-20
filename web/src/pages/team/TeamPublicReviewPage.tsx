@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Loader2,
 } from 'lucide-react';
+import WorkspacePage from '../../components/WorkspacePage';
 
 type ReviewBucket = 'pending' | 'approved' | 'rejected';
 
@@ -121,7 +122,7 @@ export default function TeamPublicReviewPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <WorkspacePage className="space-y-6">
       <div>
         {returnTo && (
           <Link
@@ -306,6 +307,6 @@ export default function TeamPublicReviewPage() {
           </button>
         </div>
       )}
-    </div>
+    </WorkspacePage>
   );
 }

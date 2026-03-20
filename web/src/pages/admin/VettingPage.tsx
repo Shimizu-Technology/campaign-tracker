@@ -4,6 +4,7 @@ import { getSupporters, getVillages, verifySupporter, bulkVerifySupporters, upda
 import { Link, useSearchParams } from 'react-router-dom';
 import { useSession } from '../../hooks/useSession';
 import { CheckCircle, XCircle, AlertTriangle, ShieldCheck, ClipboardList, ChevronDown, ChevronUp, Trash2, ArrowRight } from 'lucide-react';
+import WorkspacePage from '../../components/WorkspacePage';
 
 function DataOpsRedirectBanner() {
   return (
@@ -155,7 +156,7 @@ export default function VettingPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <WorkspacePage className="space-y-6">
       <DataOpsRedirectBanner />
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -403,7 +404,7 @@ export default function VettingPage() {
           })}
         </div>
       )}
-    </div>
+    </WorkspacePage>
   );
 }
 // CT-50 vetting queue

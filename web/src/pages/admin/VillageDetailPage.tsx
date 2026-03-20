@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { getVillage } from '../../lib/api';
 import { ChevronLeft, MapPin, Info } from 'lucide-react';
 import { useSession } from '../../hooks/useSession';
+import WorkspacePage from '../../components/WorkspacePage';
 
 interface PrecinctDetail {
   id: number;
@@ -83,7 +84,7 @@ export default function VillageDetailPage() {
     : 'latest GEC list';
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <WorkspacePage className="space-y-6">
       <div>
         <Link
           to="/admin"
@@ -203,7 +204,7 @@ export default function VillageDetailPage() {
           </>
         )}
       </div>
-    </div>
+    </WorkspacePage>
   );
 }
 

@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Save, Search, Target, TrendingUp } from 'lucide-react';
 import { getCurrentCycle, getQuotaPeriod, getQuotas, updateVillageQuota, getSettings, updateSettings } from '../../lib/api';
+import WorkspacePage from '../../components/WorkspacePage';
 
 interface QuotaItem {
   village_id: number;
@@ -212,7 +213,7 @@ export default function QuotaSettingsPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <WorkspacePage className="space-y-6">
       <div>
         <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
           <Target className="w-5 h-5 text-primary" /> Monthly Quota Settings
@@ -528,7 +529,7 @@ export default function QuotaSettingsPage() {
           Voter counts are from GEC precinct data based on {latestGecListLabel}. To update voter numbers, go to Precinct Settings. Village goals set here drive the current month's overall quota target shown on the dashboard and reports.
         </p>
       </div>
-    </div>
+    </WorkspacePage>
   );
 }
 

@@ -7,6 +7,7 @@ import { motion, useReducedMotion } from 'framer-motion';
 import { formatDateTime } from '../../lib/datetime';
 import { useSession } from '../../hooks/useSession';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import WorkspacePage from '../../components/WorkspacePage';
 
 interface VillageOption {
   id: number;
@@ -390,7 +391,7 @@ export default function SupportersPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <WorkspacePage className="space-y-6">
       {/* Header */}
       <div>
         {returnTo && (
@@ -832,6 +833,6 @@ export default function SupportersPage() {
           </div>
         )}
       </div>
-    </div>
+    </WorkspacePage>
   );
 }

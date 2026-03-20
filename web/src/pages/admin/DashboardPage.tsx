@@ -16,6 +16,7 @@ import {
 import DashboardSkeleton from '../../components/DashboardSkeleton';
 import { getCurrentCycle, getDashboard } from '../../lib/api';
 import { useSession } from '../../hooks/useSession';
+import WorkspacePage from '../../components/WorkspacePage';
 
 interface VillageData {
   id: number;
@@ -157,7 +158,7 @@ export default function DashboardPage() {
   ].filter(Boolean) as Array<{ to: string; icon: ComponentType<{ className?: string }>; label: string }>;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <WorkspacePage className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-(--text-primary) tracking-tight">Campaign Operations</h1>
         <p className="text-sm text-(--text-secondary) mt-1">
@@ -310,7 +311,7 @@ export default function DashboardPage() {
           </table>
         </div>
       </div>
-    </div>
+    </WorkspacePage>
   );
 }
 

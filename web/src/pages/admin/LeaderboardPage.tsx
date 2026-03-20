@@ -4,6 +4,7 @@ import { getLeaderboard } from '../../lib/api';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Trophy, Medal, Award, TrendingUp, Users, Target, Search } from 'lucide-react';
 import { useSession } from '../../hooks/useSession';
+import WorkspacePage from '../../components/WorkspacePage';
 
 interface LeaderboardEntry {
   leader_code: string;
@@ -119,7 +120,7 @@ export default function LeaderboardPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <WorkspacePage className="space-y-6">
       {/* Header */}
       <div>
         <div className="flex items-center gap-3">
@@ -272,6 +273,6 @@ export default function LeaderboardPage() {
           </div>
         )}
       </div>
-    </div>
+    </WorkspacePage>
   );
 }

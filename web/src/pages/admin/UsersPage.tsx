@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom';
 import { ChevronDown, ChevronRight, Mail, Pencil, Plus, Save, Search, Trash2, Users, X, Check } from 'lucide-react';
 import { createUser, deleteUser, getDistricts, getUsers, getVillages, resendUserInvite, updateUser } from '../../lib/api';
 import { useSession } from '../../hooks/useSession';
+import WorkspacePage from '../../components/WorkspacePage';
 
 interface VillageOption {
   id: number;
@@ -646,7 +647,7 @@ export default function UsersPage() {
   const allRolesExpanded = expandedRoles.size === ROLE_GUIDE.length;
 
   return (
-    <div className="p-3 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-5 sm:space-y-6">
+    <WorkspacePage className="space-y-5 sm:space-y-6">
       <div>
         <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
           <Users className="w-5 h-5 text-primary" /> User Management
@@ -1240,6 +1241,6 @@ export default function UsersPage() {
           )}
         </section>
       </div>
-    </div>
+    </WorkspacePage>
   );
 }

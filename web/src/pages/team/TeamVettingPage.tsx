@@ -13,6 +13,7 @@ import {
   ChevronUp,
   Search,
 } from 'lucide-react';
+import WorkspacePage from '../../components/WorkspacePage';
 
 type VettingFilter = 'all' | 'verified' | 'flagged' | 'no_match' | 'referral';
 
@@ -227,7 +228,7 @@ export default function TeamVettingPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <WorkspacePage className="space-y-6">
       {/* Header */}
       <div>
         {returnTo && (
@@ -567,7 +568,7 @@ export default function TeamVettingPage() {
             className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">Next</button>
         </div>
       )}
-    </div>
+    </WorkspacePage>
   );
 }
 

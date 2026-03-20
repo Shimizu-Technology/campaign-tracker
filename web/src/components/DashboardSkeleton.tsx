@@ -1,10 +1,11 @@
+import WorkspacePage from './WorkspacePage';
 function Pulse({ className }: { className?: string }) {
   return <div className={`animate-pulse rounded-lg bg-gray-200 ${className || ''}`} />;
 }
 
 export default function DashboardSkeleton() {
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+    <WorkspacePage>
       {/* Page Header */}
       <div className="mb-8">
         <Pulse className="h-7 w-36 mb-2" />
@@ -57,6 +58,6 @@ export default function DashboardSkeleton() {
           </div>
         ))}
       </div>
-    </div>
+    </WorkspacePage>
   );
 }

@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { ClipboardCheck, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getOutreachSupporters, updateOutreachStatus } from '../../lib/api';
 import { formatDateTime } from '../../lib/datetime';
+import WorkspacePage from '../../components/WorkspacePage';
 
 interface OutreachSupporter {
   id: number;
@@ -77,7 +78,7 @@ export default function OutreachPage() {
   const pagination = data?.pagination || { page: 1, pages: 1, total: 0 };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <WorkspacePage className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
           <ClipboardCheck className="w-5 h-5 text-[#1B3A6B]" /> Voter Outreach
@@ -207,6 +208,6 @@ export default function OutreachPage() {
           </div>
         </div>
       )}
-    </div>
+    </WorkspacePage>
   );
 }
