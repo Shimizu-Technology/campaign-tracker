@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSettings, updateSettings } from '../../lib/api';
 import { Save, RotateCcw, MessageSquare, Info, Globe } from 'lucide-react';
+import WorkspacePage from '../../components/WorkspacePage';
 
 interface SettingsData {
   welcome_sms_template: string;
@@ -96,7 +97,7 @@ export default function SmsSettingsPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       <div>
         <h1 className="text-lg font-bold text-gray-900">SMS &amp; Social Settings</h1>
         <p className="text-sm text-(--text-secondary) mt-1">
@@ -252,6 +253,6 @@ export default function SmsSettingsPage() {
           )}
         </div>
       </div>
-    </div>
+    </WorkspacePage>
   );
 }

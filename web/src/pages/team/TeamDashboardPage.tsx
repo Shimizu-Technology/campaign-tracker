@@ -15,6 +15,7 @@ import {
   TrendingUp,
   Users,
 } from 'lucide-react';
+import WorkspacePage from '../../components/WorkspacePage';
 
 export default function TeamDashboardPage() {
   const { data: session } = useSession();
@@ -65,19 +66,19 @@ export default function TeamDashboardPage() {
 
   if (dashLoading) {
     return (
-      <div className="p-6">
+      <WorkspacePage width="full">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-gray-200 rounded w-48" />
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[1, 2, 3, 4].map(i => <div key={i} className="h-28 bg-gray-200 rounded-xl" />)}
           </div>
         </div>
-      </div>
+      </WorkspacePage>
     );
   }
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-xl font-bold text-gray-900">Data Ops Workspace</h1>
@@ -305,7 +306,7 @@ export default function TeamDashboardPage() {
           </div>
         </div>
       )}
-    </div>
+    </WorkspacePage>
   );
 }
 

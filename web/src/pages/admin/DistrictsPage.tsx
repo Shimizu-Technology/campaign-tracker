@@ -19,6 +19,7 @@ import {
   Users,
   X,
 } from 'lucide-react';
+import WorkspacePage from '../../components/WorkspacePage';
 
 interface VillageSummary {
   id: number;
@@ -124,7 +125,7 @@ export default function DistrictsPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       <div>
         <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
           <MapPin className="w-5 h-5 text-primary" /> District Management
@@ -381,6 +382,6 @@ export default function DistrictsPage() {
           </div>
         </section>
       )}
-    </div>
+    </WorkspacePage>
   );
 }

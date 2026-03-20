@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getVillages, createSupporter, scanForm, checkDuplicate } from '../../lib/api';
 import { useSession } from '../../hooks/useSession';
 import { Check, AlertTriangle, Loader2, Camera, ScanLine } from 'lucide-react';
+import WorkspacePage from '../../components/WorkspacePage';
 
 interface Village {
   id: number;
@@ -261,7 +262,7 @@ export default function StaffEntryPage() {
     }`;
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       {/* Header */}
       <div>
         <div className="flex items-center justify-between">
@@ -502,6 +503,6 @@ export default function StaffEntryPage() {
           )}
         </button>
       </form>
-    </div>
+    </WorkspacePage>
   );
 }

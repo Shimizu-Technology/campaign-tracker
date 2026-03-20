@@ -6,8 +6,20 @@ class Supporter < ApplicationRecord
   TURNOUT_STATUSES = %w[unknown not_yet_voted voted].freeze
   TURNOUT_SOURCES = %w[poll_watcher war_room admin_override].freeze
   VERIFICATION_STATUSES = %w[unverified verified flagged].freeze
+  VERIFICATION_REASONS = %w[
+    matched_current_gec
+    village_mismatch
+    multiple_matches
+    fuzzy_name_match
+    low_confidence_match
+    needs_manual_review
+    no_gec_match
+    manual_staff_flag
+    manual_staff_verified
+  ].freeze
 
   belongs_to :village
+  belongs_to :referred_from_village, class_name: "Village", optional: true
   belongs_to :quota_period, optional: true
   belongs_to :precinct, optional: true
   belongs_to :block, optional: true
@@ -52,6 +64,7 @@ class Supporter < ApplicationRecord
   validates :turnout_status, inclusion: { in: TURNOUT_STATUSES }
   validates :turnout_source, inclusion: { in: TURNOUT_SOURCES }, allow_blank: true
   validates :verification_status, inclusion: { in: VERIFICATION_STATUSES }
+  validates :verification_reason, inclusion: { in: VERIFICATION_REASONS }, allow_nil: true
   validate :precinct_matches_village
   validate :block_matches_village
 

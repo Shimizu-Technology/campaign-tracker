@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getAuditLogs } from '../../lib/api';
+import WorkspacePage from '../../components/WorkspacePage';
 
 interface AuditLogEntry {
   id: number;
@@ -122,7 +123,7 @@ export default function AuditLogsPage() {
   const filterTypes = data?.filters?.auditable_types || Array.from(new Set(logs.map((log) => log.auditable_type))).sort();
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-4">
+    <WorkspacePage width="full" className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Activity Log</h1>
         <p className="text-sm text-[var(--text-secondary)]">
@@ -276,6 +277,6 @@ export default function AuditLogsPage() {
           </button>
         </div>
       )}
-    </div>
+    </WorkspacePage>
   );
 }

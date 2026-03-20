@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { AlertTriangle, Camera, Check, ImagePlus, Loader2, RotateCcw, Upload } from 'lucide-react';
 import { createSupporter, getVillages, scanBatchForm, trackScanBatchTelemetry } from '../../lib/api';
 import { useSession } from '../../hooks/useSession';
+import WorkspacePage from '../../components/WorkspacePage';
 
 interface Village {
   id: number;
@@ -440,7 +441,7 @@ export default function ScanFormPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Batch Scan Blue Form</h1>
@@ -834,6 +835,6 @@ export default function ScanFormPage() {
           Need single-person entry? Use manual staff form instead.
         </Link>
       </div>
-    </div>
+    </WorkspacePage>
   );
 }

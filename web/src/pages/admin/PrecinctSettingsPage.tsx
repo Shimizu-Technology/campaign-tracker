@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Save, Search } from 'lucide-react';
 import { getPrecincts, updatePrecinct } from '../../lib/api';
 import { useSession } from '../../hooks/useSession';
+import WorkspacePage from '../../components/WorkspacePage';
 
 interface PrecinctItem {
   id: number;
@@ -123,7 +124,7 @@ export default function PrecinctSettingsPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       <div>
         <h1 className="text-xl font-bold text-gray-900">Precinct Settings</h1>
         <p className="text-gray-500 text-sm">Edit precinct metadata safely without breaking supporter assignments.</p>
@@ -300,6 +301,6 @@ export default function PrecinctSettingsPage() {
           </table>
         </div>
       </div>
-    </div>
+    </WorkspacePage>
   );
 }

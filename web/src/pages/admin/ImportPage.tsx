@@ -5,6 +5,7 @@ import { captureAnalyticsEvent } from '../../lib/analytics';
 import { useSession } from '../../hooks/useSession';
 import { Upload, FileSpreadsheet, ArrowRight, ArrowLeft, Check, AlertTriangle, Loader2 } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
+import WorkspacePage from '../../components/WorkspacePage';
 
 function DataOpsImportBanner() {
   return (
@@ -262,7 +263,7 @@ export default function ImportPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       <DataOpsImportBanner />
       {/* Header */}
       <div>
@@ -899,6 +900,6 @@ export default function ImportPage() {
           </div>
         </div>
       )}
-    </div>
+    </WorkspacePage>
   );
 }

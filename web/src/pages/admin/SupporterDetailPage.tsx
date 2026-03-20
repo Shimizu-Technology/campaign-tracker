@@ -5,6 +5,7 @@ import { AlertTriangle, ChevronLeft, Pencil, Save, UserRound, X } from 'lucide-r
 import { acceptToQuota, getSupporter, getVillages, updateSupporter, verifySupporter, updateOutreachStatus } from '../../lib/api';
 import { formatDateTime } from '../../lib/datetime';
 import { useSession } from '../../hooks/useSession';
+import WorkspacePage from '../../components/WorkspacePage';
 
 interface VillageOption {
   id: number;
@@ -34,6 +35,12 @@ interface SupporterDetail {
   opt_in_text: boolean;
   verification_status: string;
   referred_from_village_id?: number | null;
+  referred_from_village_name?: string | null;
+  verification_reason?: string | null;
+  verification_reason_label?: string | null;
+  verification_reason_detail?: string | null;
+  verification_reason_metadata?: Record<string, unknown> | null;
+  verification_reason_derived?: boolean;
   verified_at: string | null;
   verified_by_user_id: number | null;
   potential_duplicate: boolean;
@@ -232,7 +239,8 @@ function auditFieldLabel(field: string) {
   return AUDIT_FIELD_LABELS[field] || field.replaceAll('_', ' ');
 }
 
-function verificationStatusLabel(supporter: Pick<SupporterDetail, 'verification_status' | 'registered_voter' | 'referred_from_village_id'>) {
+function verificationStatusLabel(supporter: Pick<SupporterDetail, 'verification_status' | 'registered_voter' | 'referred_from_village_id' | 'verification_reason_label'>) {
+  if (supporter.verification_reason_label) return supporter.verification_reason_label;
   if (supporter.verification_status === 'verified') return 'Matched to GEC';
   if (supporter.referred_from_village_id) return 'Village Referral';
   if (supporter.verification_status === 'flagged') return 'Flagged for review';
@@ -240,11 +248,20 @@ function verificationStatusLabel(supporter: Pick<SupporterDetail, 'verification_
   return 'Needs voter review';
 }
 
-function verificationStatusDetail(supporter: Pick<SupporterDetail, 'verification_status' | 'registered_voter' | 'referred_from_village_id'>) {
+function verificationStatusDetail(supporter: Pick<SupporterDetail, 'verification_status' | 'registered_voter' | 'referred_from_village_id' | 'village_name' | 'referred_from_village_name' | 'verification_reason_detail'>) {
+  if (supporter.verification_reason_detail) {
+    return supporter.verification_reason_detail;
+  }
   if (supporter.verification_status === 'verified') {
     return 'This supporter has a current GEC match and can be treated as matched to the voter list.';
   }
   if (supporter.referred_from_village_id) {
+    if (supporter.village_name && supporter.referred_from_village_name) {
+      return `This supporter is currently assigned to ${supporter.village_name}, but the current GEC match is in ${supporter.referred_from_village_name}.`;
+    }
+    if (supporter.referred_from_village_name) {
+      return `This supporter matched a current GEC voter in ${supporter.referred_from_village_name}, so staff should review the village assignment.`;
+    }
     return 'This supporter appears to be registered in a different village and should be reviewed by staff.';
   }
   if (supporter.verification_status === 'flagged') {
@@ -462,7 +479,7 @@ export default function SupporterDetailPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       <div>
         {returnTo && (
           <Link
@@ -1084,6 +1101,6 @@ export default function SupporterDetailPage() {
           )}
         </section>
       </div>
-    </div>
+    </WorkspacePage>
   );
 }

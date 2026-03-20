@@ -5,6 +5,7 @@ import { MessageSquare, Send, Users, Zap, DollarSign, CheckCircle, AlertTriangle
 import { getSmsStatus, sendTestSms, sendSmsBlast, getEvents, sendEventNotify, getSmsBlasts, getSmsBlastStatus } from '../../lib/api';
 import { useSession } from '../../hooks/useSession';
 import { DEFAULT_GUAM_PHONE_PREFIX } from '../../lib/phone';
+import WorkspacePage from '../../components/WorkspacePage';
 
 type Tab = 'blast' | 'event' | 'test';
 
@@ -64,7 +65,7 @@ export default function SmsPage() {
   }
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       {/* Header */}
       <div>
         <div className="flex items-center justify-between">
@@ -150,7 +151,7 @@ export default function SmsPage() {
         {activeTab === 'event' && <EventTab events={eventsData?.events || []} />}
         {activeTab === 'test' && <TestTab />}
       </div>
-    </div>
+    </WorkspacePage>
   );
 }
 

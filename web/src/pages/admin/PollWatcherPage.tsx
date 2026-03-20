@@ -4,6 +4,7 @@ import { createStrikeListContactAttempt, getPollWatcher, getPollWatcherStrikeLis
 import { useSearchParams } from 'react-router-dom';
 import { Eye, Send, CheckCircle, Clock, AlertTriangle, MapPin, BarChart3, Timer, Lock, Search, PhoneCall, UserCheck, ChevronDown, ChevronUp } from 'lucide-react';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+import WorkspacePage from '../../components/WorkspacePage';
 
 interface PrecinctItem {
   id: number;
@@ -422,7 +423,7 @@ export default function PollWatcherPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       {/* Header */}
       <div>
         <div className="flex items-center gap-3">
@@ -861,6 +862,6 @@ export default function PollWatcherPage() {
           </div>
         )}
       </div>
-    </div>
+    </WorkspacePage>
   );
 }

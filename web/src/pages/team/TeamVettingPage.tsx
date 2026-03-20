@@ -13,15 +13,29 @@ import {
   ChevronUp,
   Search,
 } from 'lucide-react';
+import WorkspacePage from '../../components/WorkspacePage';
 
 type VettingFilter = 'all' | 'verified' | 'flagged' | 'no_match' | 'referral';
 
 function verificationStatusLabel(supporter: Record<string, unknown>, hasMatches: boolean) {
+  if (typeof supporter.verification_reason_label === 'string' && supporter.verification_reason_label.length > 0) {
+    return supporter.verification_reason_label;
+  }
   if (supporter.verification_status === 'verified') return 'Verified';
   if (supporter.referred_from_village_id) return 'Village Referral';
   if (supporter.verification_status === 'flagged') return 'Needs Review';
   if (supporter.verification_status === 'unverified' && !hasMatches) return 'No GEC Match';
   return 'Pending Review';
+}
+
+function verificationStatusDetail(supporter: Record<string, unknown>, hasMatches: boolean) {
+  if (typeof supporter.verification_reason_detail === 'string' && supporter.verification_reason_detail.length > 0) {
+    return supporter.verification_reason_detail;
+  }
+  if (supporter.verification_status === 'unverified' && !hasMatches) {
+    return 'Not found in the current GEC list.';
+  }
+  return null;
 }
 
 function canApproveSupporter(supporter: Record<string, unknown>) {
@@ -214,7 +228,7 @@ export default function TeamVettingPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       {/* Header */}
       <div>
         {returnTo && (
@@ -376,6 +390,7 @@ export default function TeamVettingPage() {
             const expanded = expandedId === id;
             const matches = (s.gec_matches || []) as Array<Record<string, unknown>>;
             const statusLabel = verificationStatusLabel(s, matches.length > 0);
+            const statusDetail = verificationStatusDetail(s, matches.length > 0);
             const canApprove = canApproveSupporter(s);
             const hasDuplicateWarning = s.potential_duplicate === true;
             const duplicatesPath = `/data/duplicates?focus_supporter_id=${id}`;
@@ -420,6 +435,13 @@ export default function TeamVettingPage() {
                           : null
                       }
                     </div>
+                    {statusDetail && (
+                      <div className={`text-xs mt-1 max-w-3xl leading-5 ${
+                        s.referred_from_village_id ? 'text-purple-700' : 'text-gray-500'
+                      }`}>
+                        {statusDetail}
+                      </div>
+                    )}
                     {matches.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mt-1.5">
                         {matches.slice(0, 3).map((m, i) => {
@@ -546,7 +568,7 @@ export default function TeamVettingPage() {
             className="px-3 py-1.5 text-sm border border-gray-200 rounded-lg disabled:opacity-40 hover:bg-gray-50">Next</button>
         </div>
       )}
-    </div>
+    </WorkspacePage>
   );
 }
 

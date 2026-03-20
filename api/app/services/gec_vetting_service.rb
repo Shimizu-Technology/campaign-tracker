@@ -56,7 +56,13 @@ class GecVettingService
           details: "Registered in #{best[:gec_voter].village_name}, not #{@supporter.village&.name}"
         )
       elsif count > 1
-        apply_flagged!(best[:gec_voter])
+        apply_flagged!(
+          best[:gec_voter],
+          reason: "multiple_matches",
+          confidence: best[:confidence].to_s,
+          match_type: best[:match_type].to_s,
+          match_count: count
+        )
         Result.new(
           status: :flagged, matches: matches, gec_voter: best[:gec_voter], match_count: count,
           details: "#{count} high-confidence candidates found — manual review required"
@@ -69,21 +75,51 @@ class GecVettingService
         )
       end
     when :medium
-      apply_flagged!(best[:gec_voter])
-      detail = best[:match_type] == :fuzzy_name_year ? "Fuzzy name match — needs manual review" :
-               "#{count} possible matches with same birth year — needs manual review"
+      reason = if best[:match_type] == :fuzzy_name_year
+        "fuzzy_name_match"
+      elsif count > 1
+        "multiple_matches"
+      else
+        "needs_manual_review"
+      end
+      apply_flagged!(
+        best[:gec_voter],
+        reason: reason,
+        confidence: best[:confidence].to_s,
+        match_type: best[:match_type].to_s,
+        match_count: count
+      )
+      detail = if best[:match_type] == :fuzzy_name_year
+        "Fuzzy name match — needs manual review"
+      elsif count > 1
+        "#{count} possible matches with same birth year — needs manual review"
+      else
+        "Possible GEC match with same birth year — needs manual review"
+      end
       Result.new(
         status: :flagged, matches: matches, gec_voter: best[:gec_voter], match_count: count,
         details: detail
       )
     when :low
-      apply_flagged!(best[:gec_voter])
+      apply_flagged!(
+        best[:gec_voter],
+        reason: "low_confidence_match",
+        confidence: best[:confidence].to_s,
+        match_type: best[:match_type].to_s,
+        match_count: count
+      )
       Result.new(
         status: :flagged, matches: matches, gec_voter: best[:gec_voter], match_count: count,
         details: "Low confidence match (name + village only, no birth year)"
       )
     else
-      apply_flagged!(best[:gec_voter])
+      apply_flagged!(
+        best[:gec_voter],
+        reason: "needs_manual_review",
+        confidence: best[:confidence].to_s,
+        match_type: best[:match_type].to_s,
+        match_count: count
+      )
       Result.new(
         status: :flagged, matches: matches, gec_voter: best[:gec_voter], match_count: count,
         details: "Unknown confidence level"
@@ -97,18 +133,32 @@ class GecVettingService
     updates = {
       verification_status: "verified",
       registered_voter: true,
-      referred_from_village_id: nil
+      referred_from_village_id: nil,
+      verification_reason: "matched_current_gec",
+      verification_reason_metadata: verification_reason_metadata(
+        gec_voter: gec_voter,
+        confidence: "exact",
+        match_type: "current_gec_match",
+        match_count: 1
+      )
     }
     updates[:verified_at] = Time.current if @supporter.verification_status != "verified" || @supporter.verified_at.blank?
     apply_updates!(updates)
   end
 
-  def apply_flagged!(gec_voter)
+  def apply_flagged!(gec_voter, reason:, confidence:, match_type:, match_count:)
     apply_updates!(
       verification_status: "flagged",
       registered_voter: true,
       referred_from_village_id: nil,
-      verified_at: nil
+      verified_at: nil,
+      verification_reason: reason,
+      verification_reason_metadata: verification_reason_metadata(
+        gec_voter: gec_voter,
+        confidence: confidence,
+        match_type: match_type,
+        match_count: match_count
+      )
     )
   end
 
@@ -118,7 +168,13 @@ class GecVettingService
       verification_status: "flagged",
       registered_voter: true,
       referred_from_village_id: referred_village&.id,
-      verified_at: nil
+      verified_at: nil,
+      verification_reason: "village_mismatch",
+      verification_reason_metadata: verification_reason_metadata(
+        gec_voter: gec_voter,
+        confidence: "high",
+        match_type: "different_village"
+      )
     )
   end
 
@@ -127,7 +183,9 @@ class GecVettingService
       verification_status: "unverified",
       registered_voter: false,
       referred_from_village_id: nil,
-      verified_at: nil
+      verified_at: nil,
+      verification_reason: "no_gec_match",
+      verification_reason_metadata: {}
     )
   end
 
@@ -137,5 +195,14 @@ class GecVettingService
     end
 
     @supporter.update_columns(updates) if updates.present?
+  end
+
+  def verification_reason_metadata(gec_voter:, confidence:, match_type:, match_count: nil)
+    {
+      "gec_village_name" => gec_voter&.village_name,
+      "confidence" => confidence,
+      "match_type" => match_type,
+      "match_count" => match_count
+    }.compact
   end
 end

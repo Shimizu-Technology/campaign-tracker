@@ -15,6 +15,7 @@ import {
   Loader2,
   Eye,
 } from 'lucide-react';
+import WorkspacePage from '../../components/WorkspacePage';
 
 const reportIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   support_list: Users,
@@ -83,7 +84,7 @@ export default function TeamReportsPage() {
   const quickStats = reportsList?.quick_stats;
 
   return (
-    <div className="p-4 sm:p-6 space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       <div>
         <h1 className="text-xl font-bold text-gray-900">Reports</h1>
         <p className="text-sm text-gray-500 mt-0.5">Preview filtered reports in the app, then download the final export</p>
@@ -265,7 +266,7 @@ export default function TeamReportsPage() {
           </div>
         </div>
       )}
-    </div>
+    </WorkspacePage>
   );
 }
 

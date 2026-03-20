@@ -69,6 +69,108 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal 200, payload["supporters"].size
   end
 
+  test "index derives flagged reason label and detail for legacy supporter without persisted reason" do
+    GecVoter.create!(
+      first_name: "Legacy",
+      last_name: "IndexFlagged",
+      birth_year: 1982,
+      village_name: @village.name,
+      gec_list_date: Date.new(2026, 2, 25),
+      imported_at: Time.current,
+      status: "active"
+    )
+    GecVoter.create!(
+      first_name: "Legacy",
+      last_name: "IndexFlagged",
+      birth_year: 1982,
+      village_name: @village.name,
+      gec_list_date: Date.new(2026, 2, 25),
+      imported_at: Time.current,
+      status: "active"
+    )
+
+    supporter = Supporter.create!(
+      first_name: "Legacy",
+      last_name: "IndexFlagged",
+      print_name: "Legacy IndexFlagged",
+      dob: Date.new(1982, 4, 1),
+      contact_number: "6715559333",
+      village: @village,
+      source: "staff_entry",
+      status: "active",
+      verification_status: "flagged",
+      registered_voter: true
+    )
+    supporter.update_columns(verification_reason: nil, verification_reason_metadata: {})
+
+    get "/api/v1/supporters",
+      params: { search: "IndexFlagged" },
+      headers: auth_headers(@user)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    supporter_payload = payload.fetch("supporters").find { |item| item["id"] == supporter.id }
+
+    assert_equal "multiple_matches", supporter_payload["verification_reason"]
+    assert_equal "Multiple Matches", supporter_payload["verification_reason_label"]
+    assert_match(/2 possible GEC matches/, supporter_payload["verification_reason_detail"])
+  end
+
+  test "index batches legacy flagged reason lookups per page" do
+    supporters = 2.times.map do |i|
+      Supporter.create!(
+        first_name: "Legacy",
+        last_name: "Batch#{i}",
+        print_name: "Legacy Batch#{i}",
+        dob: Date.new(1982, 4, i + 1),
+        contact_number: "67155593#{40 + i}",
+        village: @village,
+        source: "staff_entry",
+        status: "active",
+        verification_status: "flagged",
+        registered_voter: true
+      ).tap do |supporter|
+        supporter.update_columns(
+          verification_status: "flagged",
+          registered_voter: true,
+          verification_reason: nil,
+          verification_reason_metadata: {}
+        )
+      end
+    end
+
+    batch_calls = []
+    village_name = @village.name
+    original_batch_lookup = GecVoter.method(:find_matches_for_supporters)
+    GecVoter.define_singleton_method(:find_matches_for_supporters) do |batch_supporters|
+      batch_calls << batch_supporters.map(&:id)
+      batch_supporters.index_by(&:id).transform_values do
+        [ {
+          gec_voter: GecVoter.new(village_name: village_name),
+          confidence: :medium,
+          match_type: :fuzzy_name_year,
+          match_count: 1
+        } ]
+      end
+    end
+
+    begin
+      get "/api/v1/supporters",
+        params: { search: "Legacy" },
+        headers: auth_headers(@user)
+    ensure
+      GecVoter.define_singleton_method(:find_matches_for_supporters, original_batch_lookup)
+    end
+
+    assert_response :success
+    assert_equal [ supporters.map(&:id).sort ], batch_calls.map(&:sort)
+    payload = JSON.parse(response.body)
+    returned_reasons = payload.fetch("supporters")
+      .select { |item| supporters.map(&:id).include?(item["id"]) }
+      .map { |item| item["verification_reason"] }
+    assert_equal [ "fuzzy_name_match", "fuzzy_name_match" ], returned_reasons.sort
+  end
+
   test "district coordinator cannot access duplicates review" do
     get "/api/v1/supporters/duplicates", headers: auth_headers(@user)
 
@@ -597,6 +699,49 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Supporter updated", payload.dig("audit_logs", 0, "action_label")
   end
 
+  test "show derives flagged reason detail for legacy supporter without persisted reason" do
+    GecVoter.create!(
+      first_name: "Legacy",
+      last_name: "Flagged",
+      birth_year: 1981,
+      village_name: @village.name,
+      gec_list_date: Date.new(2026, 2, 25),
+      imported_at: Time.current,
+      status: "active"
+    )
+    GecVoter.create!(
+      first_name: "Legacy",
+      last_name: "Flagged",
+      birth_year: 1981,
+      village_name: @village.name,
+      gec_list_date: Date.new(2026, 2, 25),
+      imported_at: Time.current,
+      status: "active"
+    )
+
+    supporter = Supporter.create!(
+      first_name: "Legacy",
+      last_name: "Flagged",
+      print_name: "Legacy Flagged",
+      dob: Date.new(1981, 6, 1),
+      contact_number: "6715559444",
+      village: @village,
+      source: "staff_entry",
+      status: "active",
+      verification_status: "flagged",
+      registered_voter: true
+    )
+    supporter.update_columns(verification_reason: nil, verification_reason_metadata: {})
+
+    get "/api/v1/supporters/#{supporter.id}", headers: auth_headers(@user)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal "multiple_matches", payload.dig("supporter", "verification_reason")
+    assert_match(/2 possible GEC matches/, payload.dig("supporter", "verification_reason_detail"))
+    assert_equal true, payload.dig("supporter", "verification_reason_derived")
+  end
+
   test "update creates audit log entry" do
     precinct_a = Precinct.create!(number: "SP-4A", village: @village, alpha_range: "A-L", registered_voters: 50)
     precinct_b = Precinct.create!(number: "SP-4B", village: @village, alpha_range: "M-Z", registered_voters: 50)
@@ -654,6 +799,52 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
 
     supporter.reload
     assert_equal "unverified", supporter.verification_status
+  end
+
+  test "verify reuses match lookup when marking supporter verified" do
+    supporter = Supporter.create!(
+      first_name: "Verify",
+      last_name: "Lookup",
+      print_name: "Verify Lookup",
+      dob: Date.new(1988, 8, 8),
+      contact_number: "6715559008",
+      village: @village,
+      source: "staff_entry",
+      status: "active",
+      verification_status: "flagged",
+      registered_voter: true
+    )
+    supporter.update_columns(
+      verification_status: "flagged",
+      registered_voter: true,
+      verified_at: nil,
+      verified_by_user_id: nil
+    )
+
+    lookup_calls = 0
+    village_name = @village.name
+    original_find_matches = GecVoter.method(:find_matches)
+    GecVoter.define_singleton_method(:find_matches) do |**|
+      lookup_calls += 1
+      [ {
+        gec_voter: GecVoter.new(village_name: village_name),
+        confidence: :exact,
+        match_type: :current_gec_match,
+        match_count: 1
+      } ]
+    end
+
+    begin
+      patch "/api/v1/supporters/#{supporter.id}/verify",
+        params: { verification_status: "verified" },
+        headers: auth_headers(@user)
+    ensure
+      GecVoter.define_singleton_method(:find_matches, original_find_matches)
+    end
+
+    assert_response :success
+    assert_equal 1, lookup_calls
+    assert_equal "verified", supporter.reload.verification_status
   end
 
   test "bulk verify rejects supporters without a current gec match" do
@@ -740,6 +931,93 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, payload["updated"]
     assert_equal "verified", payload["verification_status"]
     assert_equal "verified", supporter.reload.verification_status
+    assert_equal "manual_staff_verified", supporter.verification_reason
+  end
+
+  test "bulk verify reuses each supporter's match lookup when verifying" do
+    supporters = 2.times.map do |i|
+      Supporter.create!(
+        first_name: "Bulk#{i}",
+        last_name: "Lookup",
+        print_name: "Bulk#{i} Lookup",
+        dob: Date.new(1988, 8, i + 1),
+        contact_number: "67155591#{i + 10}",
+        village: @village,
+        source: "staff_entry",
+        attribution_method: "staff_manual",
+        status: "active",
+        turnout_status: "unknown",
+        verification_status: "flagged",
+        registered_voter: true
+      ).tap do |supporter|
+        supporter.update_columns(
+          verification_status: "flagged",
+          registered_voter: true,
+          verified_at: nil,
+          verified_by_user_id: nil
+        )
+      end
+    end
+
+    matches = supporters.to_h do |supporter|
+      [ supporter.id, [ {
+        gec_voter: GecVoter.new(village_name: @village.name),
+        confidence: :exact,
+        match_type: :current_gec_match,
+        match_count: 1
+      } ] ]
+    end
+    lookup_calls = 0
+
+    original_find_matches = GecVoter.method(:find_matches)
+    GecVoter.define_singleton_method(:find_matches) do |first_name:, last_name:, dob:, birth_year:, village_name:|
+      lookup_calls += 1
+      supporter = supporters.find do |candidate|
+        candidate.first_name == first_name &&
+          candidate.last_name == last_name &&
+          candidate.dob == dob &&
+          candidate.dob&.year == birth_year &&
+          candidate.village.name == village_name
+      end
+      matches.fetch(supporter.id)
+    end
+
+    begin
+      post "/api/v1/supporters/bulk_verify",
+        params: { supporter_ids: supporters.map(&:id), verification_status: "verified" },
+        headers: auth_headers(@user)
+    ensure
+      GecVoter.define_singleton_method(:find_matches, original_find_matches)
+    end
+
+    assert_response :success
+    assert_equal supporters.size, lookup_calls
+    supporters.each do |supporter|
+      assert_equal "verified", supporter.reload.verification_status
+    end
+  end
+
+  test "manual flag stores staff review reason" do
+    supporter = Supporter.create!(
+      first_name: "Manual",
+      last_name: "Flagged",
+      print_name: "Manual Flagged",
+      contact_number: "6715559020",
+      village: @village,
+      source: "staff_entry",
+      status: "active",
+      verification_status: "unverified",
+      registered_voter: true
+    )
+
+    patch "/api/v1/supporters/#{supporter.id}/verify",
+      params: { verification_status: "flagged" },
+      headers: auth_headers(@user)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal "manual_staff_flag", payload.dig("supporter", "verification_reason")
+    assert_equal "manual_staff_flag", supporter.reload.verification_reason
   end
 
   test "update is forbidden for non editor roles" do
@@ -793,6 +1071,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     payload = JSON.parse(response.body)
     assert_equal @village.id, payload.dig("supporter", "referred_from_village_id")
+    assert_equal @village.name, payload.dig("supporter", "referred_from_village_name")
   end
 
   test "approve_supporter approves a pending non-duplicate submission" do
@@ -1084,5 +1363,62 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_includes returned_ids, pending_review.id
     assert_includes returned_ids, no_gec_match.id
     assert_includes returned_ids, referral.id
+  end
+
+  test "vetting queue reuses precomputed verification reason payloads" do
+    supporter = Supporter.create!(
+      first_name: "Queue",
+      last_name: "ReasonCheck",
+      print_name: "Queue ReasonCheck",
+      contact_number: "6715559014",
+      village: @village,
+      source: "staff_entry",
+      review_status: "pending",
+      public_review_status: "not_applicable",
+      status: "active",
+      verification_status: "flagged",
+      registered_voter: true
+    )
+    supporter.update_columns(
+      verification_status: "flagged",
+      registered_voter: true,
+      verification_reason: nil,
+      verification_reason_metadata: {}
+    )
+
+    village_name = @village.name
+    original_find_matches = GecVoter.method(:find_matches)
+    GecVoter.define_singleton_method(:find_matches) do |**|
+      [ {
+        gec_voter: GecVoter.new(village_name: village_name),
+        confidence: :medium,
+        match_type: :fuzzy_name_year,
+        match_count: 1
+      } ]
+    end
+
+    original_reason_new = SupporterVerificationReasonService.method(:new)
+    service_calls = 0
+    SupporterVerificationReasonService.define_singleton_method(:new) do |*args, **kwargs|
+      service_calls += 1
+      raise "duplicate reason service call" if service_calls > 1
+
+      original_reason_new.call(*args, **kwargs)
+    end
+
+    begin
+      get "/api/v1/supporters/vetting_queue",
+        params: { search: "ReasonCheck" },
+        headers: auth_headers(@data_team)
+    ensure
+      GecVoter.define_singleton_method(:find_matches, original_find_matches)
+      SupporterVerificationReasonService.define_singleton_method(:new, original_reason_new)
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    supporter_payload = payload.fetch("supporters").find { |item| item["id"] == supporter.id }
+    assert_equal "fuzzy_name_match", supporter_payload["verification_reason"]
+    assert_equal 1, service_calls
   end
 end
