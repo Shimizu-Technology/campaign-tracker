@@ -767,7 +767,7 @@ export default function TeamGecPage() {
   };
 
   return (
-    <WorkspacePage className="space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       <div>
         <h1 className="text-xl font-bold text-gray-900">GEC Voter List</h1>
         <p className="text-sm text-gray-500 mt-0.5">Manage the Guam Election Commission voter registration data</p>

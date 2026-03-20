@@ -158,7 +158,7 @@ export default function DashboardPage() {
   ].filter(Boolean) as Array<{ to: string; icon: ComponentType<{ className?: string }>; label: string }>;
 
   return (
-    <WorkspacePage className="space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-(--text-primary) tracking-tight">Campaign Operations</h1>
         <p className="text-sm text-(--text-secondary) mt-1">

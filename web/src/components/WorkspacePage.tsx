@@ -11,13 +11,13 @@ const WIDTH_CLASSES: Record<WorkspacePageWidth, string> = {
 interface WorkspacePageProps {
   children: ReactNode;
   className?: string;
-  width?: WorkspacePageWidth;
+  width: WorkspacePageWidth;
 }
 
 export default function WorkspacePage({
   children,
   className = '',
-  width = 'full',
+  width,
 }: WorkspacePageProps) {
   return (
     <div

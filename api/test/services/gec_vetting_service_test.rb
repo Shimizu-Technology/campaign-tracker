@@ -147,6 +147,33 @@ class GecVettingServiceTest < ActiveSupport::TestCase
     assert_equal "multiple_matches", supporter.verification_reason
   end
 
+  test "uses neutral needs review reason for unknown automated confidence" do
+    supporter = create_supporter(first_name: "Mystery", last_name: "Match", dob: Date.new(1985, 3, 15), village: @village)
+
+    original_find_matches = GecVoter.method(:find_matches)
+    GecVoter.define_singleton_method(:find_matches) do |**|
+      [ {
+        gec_voter: @gec_voter,
+        confidence: :unknown,
+        match_type: :mystery,
+        match_count: 1
+      } ]
+    end
+
+    begin
+      result = GecVettingService.new(supporter).call
+
+      assert_equal :flagged, result.status
+    ensure
+      GecVoter.define_singleton_method(:find_matches, original_find_matches)
+    end
+
+    supporter.reload
+    assert_equal "needs_manual_review", supporter.verification_reason
+    assert_equal "unknown", supporter.verification_reason_metadata["confidence"]
+    assert_equal "mystery", supporter.verification_reason_metadata["match_type"]
+  end
+
   private
 
   def create_supporter(first_name:, last_name:, village:, dob: nil)

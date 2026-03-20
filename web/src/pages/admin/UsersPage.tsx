@@ -647,7 +647,7 @@ export default function UsersPage() {
   const allRolesExpanded = expandedRoles.size === ROLE_GUIDE.length;
 
   return (
-    <WorkspacePage className="space-y-5 sm:space-y-6">
+    <WorkspacePage width="full" className="space-y-5 sm:space-y-6">
       <div>
         <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
           <Users className="w-5 h-5 text-primary" /> User Management

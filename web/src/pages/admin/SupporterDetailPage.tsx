@@ -479,7 +479,7 @@ export default function SupporterDetailPage() {
   }
 
   return (
-    <WorkspacePage className="space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       <div>
         {returnTo && (
           <Link

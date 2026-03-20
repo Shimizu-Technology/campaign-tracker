@@ -12,6 +12,7 @@ class Supporter < ApplicationRecord
     multiple_matches
     fuzzy_name_match
     low_confidence_match
+    needs_manual_review
     no_gec_match
     manual_staff_flag
     manual_staff_verified

@@ -207,7 +207,7 @@ export default function WarRoomPage() {
   const { stats, call_priorities, activity, not_yet_voted_queue } = data;
 
   return (
-    <WorkspacePage className="space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       {/* Real-time toast notifications */}
       {toasts.length > 0 && (
         <div className="fixed top-16 left-2 right-2 sm:left-auto sm:right-4 z-50 space-y-2 max-w-sm sm:max-w-md">

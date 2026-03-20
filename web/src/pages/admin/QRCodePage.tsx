@@ -104,7 +104,7 @@ export default function QRCodePage() {
     : null;
 
   return (
-    <WorkspacePage className="space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       {/* Header */}
       <div>
         <div className="flex items-center gap-3">

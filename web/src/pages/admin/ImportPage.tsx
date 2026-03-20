@@ -263,7 +263,7 @@ export default function ImportPage() {
   };
 
   return (
-    <WorkspacePage className="space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       <DataOpsImportBanner />
       {/* Header */}
       <div>

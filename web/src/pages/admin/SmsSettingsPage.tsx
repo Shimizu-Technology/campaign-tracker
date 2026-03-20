@@ -97,7 +97,7 @@ export default function SmsSettingsPage() {
   }
 
   return (
-    <WorkspacePage className="space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       <div>
         <h1 className="text-lg font-bold text-gray-900">SMS &amp; Social Settings</h1>
         <p className="text-sm text-(--text-secondary) mt-1">

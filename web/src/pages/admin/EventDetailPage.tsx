@@ -87,7 +87,7 @@ export default function EventDetailPage() {
   if (!event) return <div className="min-h-screen flex items-center justify-center text-[var(--text-muted)]">Loading...</div>;
 
   return (
-    <WorkspacePage className="space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       {/* Header */}
       <div>
         <div className="flex items-center justify-between">

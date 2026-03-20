@@ -123,7 +123,7 @@ export default function AuditLogsPage() {
   const filterTypes = data?.filters?.auditable_types || Array.from(new Set(logs.map((log) => log.auditable_type))).sort();
 
   return (
-    <WorkspacePage className="space-y-4">
+    <WorkspacePage width="full" className="space-y-4">
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Activity Log</h1>
         <p className="text-sm text-[var(--text-secondary)]">

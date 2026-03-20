@@ -170,8 +170,14 @@ module Api
         supporters = scope_supporters(Supporter).where(id: ids).to_a
         count = supporters.size
 
+        match_payloads = {}
+
         if new_status == "verified"
-          invalid_supporters = supporters.reject { |supporter| supporter_can_be_verified?(supporter) }
+          supporters.each do |supporter|
+            match_payloads[supporter.id] = verification_match_payload(supporter)
+          end
+
+          invalid_supporters = supporters.reject { |supporter| match_payloads.dig(supporter.id, :matches)&.any? }
           if invalid_supporters.any?
             return render_api_error(
               message: "One or more supporters cannot be marked as verified voters without a current GEC match.",
@@ -185,7 +191,13 @@ module Api
         old_statuses = supporters.to_h { |supporter| [ supporter.id, supporter.verification_status ] }
 
         supporters.each do |supporter|
-          supporter.update_columns(verification_update_attributes(supporter, new_status))
+          supporter.update_columns(
+            verification_update_attributes(
+              supporter,
+              new_status,
+              match_payload: match_payloads[supporter.id]
+            )
+          )
         end
 
         # Audit log for each with accurate old status
@@ -1001,7 +1013,7 @@ module Api
       def supporter_detail_json(supporter)
         reason_payload = SupporterVerificationReasonService.new(supporter, allow_match_lookup: true).payload || {}
 
-        supporter_json(supporter).merge(
+        supporter_json(supporter, reason_payload: reason_payload).merge(
           verification_reason: reason_payload[:verification_reason],
           verification_reason_label: reason_payload[:verification_reason_label],
           verification_reason_detail: reason_payload[:verification_reason_detail],
@@ -1052,25 +1064,13 @@ module Api
       end
 
       def supporter_can_be_verified?(supporter)
-        GecVoter.find_matches(
-          first_name: supporter.first_name,
-          last_name: supporter.last_name,
-          dob: supporter.dob,
-          birth_year: supporter.dob&.year,
-          village_name: supporter.village&.name
-        ).any?
+        verification_match_payload(supporter)[:matches].any?
       end
 
-      def verification_update_attributes(supporter, new_status)
+      def verification_update_attributes(supporter, new_status, match_payload: nil)
         attrs = { verification_status: new_status }
         if new_status == "verified"
-          best_match = GecVoter.find_matches(
-            first_name: supporter.first_name,
-            last_name: supporter.last_name,
-            dob: supporter.dob,
-            birth_year: supporter.dob&.year,
-            village_name: supporter.village&.name
-          ).first
+          best_match = (match_payload || verification_match_payload(supporter))[:best_match]
           attrs.merge!(
             verified_by_user_id: current_user.id,
             verified_at: Time.current,
@@ -1101,6 +1101,21 @@ module Api
           )
         end
         attrs
+      end
+
+      def verification_match_payload(supporter)
+        matches = GecVoter.find_matches(
+          first_name: supporter.first_name,
+          last_name: supporter.last_name,
+          dob: supporter.dob,
+          birth_year: supporter.dob&.year,
+          village_name: supporter.village&.name
+        )
+
+        {
+          matches: matches,
+          best_match: matches.first
+        }
       end
 
       def current_quota_period_id_for_approval

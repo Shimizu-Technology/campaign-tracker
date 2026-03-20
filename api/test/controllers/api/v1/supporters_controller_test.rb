@@ -833,6 +833,69 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "manual_staff_verified", supporter.verification_reason
   end
 
+  test "bulk verify reuses each supporter's match lookup when verifying" do
+    supporters = 2.times.map do |i|
+      Supporter.create!(
+        first_name: "Bulk#{i}",
+        last_name: "Lookup",
+        print_name: "Bulk#{i} Lookup",
+        dob: Date.new(1988, 8, i + 1),
+        contact_number: "67155591#{i + 10}",
+        village: @village,
+        source: "staff_entry",
+        attribution_method: "staff_manual",
+        status: "active",
+        turnout_status: "unknown",
+        verification_status: "flagged",
+        registered_voter: true
+      ).tap do |supporter|
+        supporter.update_columns(
+          verification_status: "flagged",
+          registered_voter: true,
+          verified_at: nil,
+          verified_by_user_id: nil
+        )
+      end
+    end
+
+    matches = supporters.to_h do |supporter|
+      [ supporter.id, [ {
+        gec_voter: GecVoter.new(village_name: @village.name),
+        confidence: :exact,
+        match_type: :current_gec_match,
+        match_count: 1
+      } ] ]
+    end
+    lookup_calls = 0
+
+    original_find_matches = GecVoter.method(:find_matches)
+    GecVoter.define_singleton_method(:find_matches) do |first_name:, last_name:, dob:, birth_year:, village_name:|
+      lookup_calls += 1
+      supporter = supporters.find do |candidate|
+        candidate.first_name == first_name &&
+          candidate.last_name == last_name &&
+          candidate.dob == dob &&
+          candidate.dob&.year == birth_year &&
+          candidate.village.name == village_name
+      end
+      matches.fetch(supporter.id)
+    end
+
+    begin
+      post "/api/v1/supporters/bulk_verify",
+        params: { supporter_ids: supporters.map(&:id), verification_status: "verified" },
+        headers: auth_headers(@user)
+    ensure
+      GecVoter.define_singleton_method(:find_matches, original_find_matches)
+    end
+
+    assert_response :success
+    assert_equal supporters.size, lookup_calls
+    supporters.each do |supporter|
+      assert_equal "verified", supporter.reload.verification_status
+    end
+  end
+
   test "manual flag stores staff review reason" do
     supporter = Supporter.create!(
       first_name: "Manual",

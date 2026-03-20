@@ -78,7 +78,7 @@ export default function OutreachPage() {
   const pagination = data?.pagination || { page: 1, pages: 1, total: 0 };
 
   return (
-    <WorkspacePage className="space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
           <ClipboardCheck className="w-5 h-5 text-[#1B3A6B]" /> Voter Outreach

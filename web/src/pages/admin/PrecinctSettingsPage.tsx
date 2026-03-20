@@ -124,7 +124,7 @@ export default function PrecinctSettingsPage() {
   }
 
   return (
-    <WorkspacePage className="space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       <div>
         <h1 className="text-xl font-bold text-gray-900">Precinct Settings</h1>
         <p className="text-gray-500 text-sm">Edit precinct metadata safely without breaking supporter assignments.</p>

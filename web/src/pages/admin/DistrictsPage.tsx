@@ -125,7 +125,7 @@ export default function DistrictsPage() {
   };
 
   return (
-    <WorkspacePage className="space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       <div>
         <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
           <MapPin className="w-5 h-5 text-primary" /> District Management

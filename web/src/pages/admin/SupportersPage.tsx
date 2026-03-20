@@ -391,7 +391,7 @@ export default function SupportersPage() {
   };
 
   return (
-    <WorkspacePage className="space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       {/* Header */}
       <div>
         {returnTo && (

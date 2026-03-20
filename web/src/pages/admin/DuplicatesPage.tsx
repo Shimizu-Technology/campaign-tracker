@@ -243,7 +243,7 @@ export default function DuplicatesPage() {
   }, [focusSupporterId, groups]);
 
   return (
-    <WorkspacePage className="space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>

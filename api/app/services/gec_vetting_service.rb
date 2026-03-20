@@ -103,7 +103,7 @@ class GecVettingService
     else
       apply_flagged!(
         best[:gec_voter],
-        reason: "manual_staff_flag",
+        reason: "needs_manual_review",
         confidence: best[:confidence].to_s,
         match_type: best[:match_type].to_s,
         match_count: count

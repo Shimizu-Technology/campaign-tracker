@@ -66,7 +66,7 @@ export default function TeamDashboardPage() {
 
   if (dashLoading) {
     return (
-      <WorkspacePage>
+      <WorkspacePage width="full">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-gray-200 rounded w-48" />
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -78,7 +78,7 @@ export default function TeamDashboardPage() {
   }
 
   return (
-    <WorkspacePage className="space-y-6">
+    <WorkspacePage width="full" className="space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-xl font-bold text-gray-900">Data Ops Workspace</h1>

@@ -5,7 +5,7 @@ function Pulse({ className }: { className?: string }) {
 
 export default function DashboardSkeleton() {
   return (
-    <WorkspacePage>
+    <WorkspacePage width="full">
       {/* Page Header */}
       <div className="mb-8">
         <Pulse className="h-7 w-36 mb-2" />
