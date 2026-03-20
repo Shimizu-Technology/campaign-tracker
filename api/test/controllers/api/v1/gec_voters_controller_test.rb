@@ -533,7 +533,40 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     preview = GecPdfPreview.find_by!(preview_request_id: "preview-enqueue-cleanup-failure-1")
     assert_equal "failed", preview.status
     assert_nil preview.file_data
-    assert_nil preview.file_s3_key
+    assert_equal "gec-pdf-previews/preview-enqueue-cleanup-failure-1/source/gec_list.pdf", preview.file_s3_key
+  ensure
+    file&.close!
+  end
+
+  test "pdf preview preserves s3 key when cleanup delete returns false after enqueue failure" do
+    file = Tempfile.new([ "gec_preview_enqueue_cleanup_false", ".pdf" ])
+    file.binmode
+    file.write("%PDF-1.4 sample")
+    file.rewind
+
+    with_singleton_stubs(
+      S3Service,
+      enabled?: true,
+      upload: ->(key, _data, **_kwargs) { key },
+      delete: false
+    ) do
+      with_singleton_stubs(GecPdfPreviewJob, perform_later: ->(*_args, **_kwargs) { raise StandardError, "queue unavailable" }) do
+        assert_no_enqueued_jobs only: GecPdfPreviewJob do
+          post "/api/v1/gec_voters/preview",
+            params: {
+              file: Rack::Test::UploadedFile.new(file.path, "application/pdf", original_filename: "gec_list.pdf"),
+              preview_request_id: "preview-enqueue-cleanup-false-1"
+            },
+            headers: auth_headers(@admin)
+        end
+      end
+    end
+
+    assert_response :success
+    preview = GecPdfPreview.find_by!(preview_request_id: "preview-enqueue-cleanup-false-1")
+    assert_equal "failed", preview.status
+    assert_nil preview.file_data
+    assert_equal "gec-pdf-previews/preview-enqueue-cleanup-false-1/source/gec_list.pdf", preview.file_s3_key
   ensure
     file&.close!
   end
@@ -586,6 +619,31 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
 
     assert_equal "upload exploded", error.message
     assert_nil GecPdfPreview.find_by(preview_request_id: "preview-s3-raise-1")
+  ensure
+    file&.close!
+  end
+
+  test "pdf preview rejects empty pdf uploads cleanly when s3 is disabled" do
+    file = Tempfile.new([ "gec_preview_empty", ".pdf" ])
+    file.binmode
+    file.rewind
+
+    with_singleton_stubs(S3Service, enabled?: false) do
+      assert_no_enqueued_jobs only: GecPdfPreviewJob do
+        assert_no_difference("GecPdfPreview.count") do
+          post "/api/v1/gec_voters/preview",
+            params: {
+              file: Rack::Test::UploadedFile.new(file.path, "application/pdf", original_filename: "empty.pdf"),
+              preview_request_id: "preview-empty-pdf-1"
+            },
+            headers: auth_headers(@admin)
+        end
+      end
+    end
+
+    assert_response :unprocessable_entity
+    json = JSON.parse(response.body)
+    assert_match(/Uploaded PDF preview is empty/, json["error"])
   ensure
     file&.close!
   end

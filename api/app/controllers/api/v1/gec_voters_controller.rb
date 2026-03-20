@@ -359,6 +359,14 @@ module Api
         end
 
         if pdf_file?(file)
+          if File.zero?(file.tempfile.path)
+            return render_api_error(
+              message: "Uploaded PDF preview is empty",
+              status: :unprocessable_entity,
+              code: "empty_file"
+            )
+          end
+
           if File.size(file.tempfile.path) > 50.megabytes
             return render_api_error(
               message: "Uploaded PDF preview is too large (max 50 MB)",
@@ -409,14 +417,15 @@ module Api
             begin
               GecPdfPreviewJob.perform_later(gec_pdf_preview_id: preview.id)
             rescue StandardError => e
-              cleanup_pdf_preview_source!(preview)
-              preview.update!(
+              source_deleted = cleanup_pdf_preview_source!(preview)
+              update_attrs = {
                 status: "failed",
                 error_message: "Failed to queue PDF preview: #{e.message}",
                 result_data: {},
-                file_data: nil,
-                file_s3_key: nil
-              )
+                file_data: nil
+              }
+              update_attrs[:file_s3_key] = nil if source_deleted
+              preview.update!(update_attrs)
             end
           end
 
@@ -901,7 +910,7 @@ module Api
       end
 
       def cleanup_pdf_preview_source!(preview)
-        return unless preview&.file_s3_key.present?
+        return true unless preview&.file_s3_key.present?
 
         S3Service.delete(preview.file_s3_key)
       rescue StandardError => e
@@ -909,6 +918,7 @@ module Api
           "GecVotersController preview #{preview.id}: failed to delete S3 preview source " \
           "#{preview.file_s3_key}: #{e.class}: #{e.message}"
         )
+        false
       end
 
       def import_json(imp, skipped_counts_by_import: nil)
