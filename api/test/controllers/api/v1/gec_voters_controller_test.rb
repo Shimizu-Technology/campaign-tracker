@@ -263,7 +263,7 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     assert_equal true, imp["has_downloadable_file"]
   end
 
-  test "preview returns fast sample metadata for pdf uploads" do
+  test "pdf preview queues in background and returns completed preview via status endpoint" do
     file = Tempfile.new([ "gec_preview", ".pdf" ])
     file.binmode
     file.write("%PDF-1.4 sample")
@@ -295,20 +295,355 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     fake_parser.define_singleton_method(:parse_preview_sample) { fake_result }
 
     with_singleton_stubs(GecPdfParserService, new: fake_parser) do
-      post "/api/v1/gec_voters/preview",
-        params: {
-          file: Rack::Test::UploadedFile.new(file.path, "application/pdf", original_filename: "gec_list.pdf")
-        },
-        headers: auth_headers(@admin)
+      assert_enqueued_jobs 1, only: GecPdfPreviewJob do
+        post "/api/v1/gec_voters/preview",
+          params: {
+            file: Rack::Test::UploadedFile.new(file.path, "application/pdf", original_filename: "gec_list.pdf"),
+            preview_request_id: "preview-req-1"
+          },
+          headers: auth_headers(@admin)
+      end
+
+      preview = GecPdfPreview.find_by!(preview_request_id: "preview-req-1")
+      GecPdfPreviewJob.perform_now(gec_pdf_preview_id: preview.id)
     end
+
+    assert_response :accepted
+    queued_json = JSON.parse(response.body)
+    assert_equal true, queued_json["async"]
+    assert_equal "pdf", queued_json["source_type"]
+    assert_equal "preview-req-1", queued_json["preview_request_id"]
+    assert_equal "pending", queued_json["status"]
+
+    get "/api/v1/gec_voters/preview_status",
+      params: { preview_request_id: "preview-req-1" },
+      headers: auth_headers(@admin)
 
     assert_response :success
     json = JSON.parse(response.body)
     assert_equal "pdf", json["source_type"]
+    assert_equal "completed", json["status"]
     assert_equal "preview", json["qa"]["status"]
     assert_equal true, json["qa"]["preview_mode"]
     assert_nil json["parse_cache_key"]
     assert_equal "JUAN CRUZ", json["preview_rows"][0]["name"]
+  ensure
+    file&.close!
+  end
+
+  test "pdf preview reuses existing preview when concurrent create hits unique constraint" do
+    file = Tempfile.new([ "gec_preview_race", ".pdf" ])
+    file.binmode
+    file.write("%PDF-1.4 sample")
+    file.rewind
+
+    preview = GecPdfPreview.create!(
+      preview_request_id: "preview-race-1",
+      uploaded_by_user: @admin,
+      filename: "gec_list.pdf",
+      content_type: "application/pdf",
+      status: "pending",
+      file_data: "%PDF-1.4 sample"
+    )
+
+    singleton = class << GecPdfPreview; self; end
+    original_find_by = singleton.instance_method(:find_by)
+    original_create = singleton.instance_method(:create!)
+    find_by_calls = 0
+
+    singleton.define_method(:find_by) do |*args, **kwargs|
+      find_by_calls += 1
+      return nil if find_by_calls == 1
+
+      original_find_by.bind_call(self, *args, **kwargs)
+    end
+    singleton.define_method(:create!) do |*args, **kwargs|
+      raise ActiveRecord::RecordNotUnique, "duplicate preview request"
+    end
+
+    assert_no_enqueued_jobs only: GecPdfPreviewJob do
+      post "/api/v1/gec_voters/preview",
+        params: {
+          file: Rack::Test::UploadedFile.new(file.path, "application/pdf", original_filename: "gec_list.pdf"),
+          preview_request_id: "preview-race-1"
+        },
+        headers: auth_headers(@admin)
+    end
+
+    assert_response :accepted
+    json = JSON.parse(response.body)
+    assert_equal "preview-race-1", json["preview_request_id"]
+    assert_equal "pending", json["status"]
+    assert_equal preview.id, GecPdfPreview.find_by!(preview_request_id: "preview-race-1").id
+  ensure
+    singleton.send(:remove_method, :find_by) if singleton.method_defined?(:find_by)
+    singleton.send(:remove_method, :create!) if singleton.method_defined?(:create!)
+    singleton.define_method(:find_by, original_find_by) if original_find_by
+    singleton.define_method(:create!, original_create) if original_create
+    file&.close!
+  end
+
+  test "pdf preview reuses existing preview when concurrent create hits uniqueness validation" do
+    file = Tempfile.new([ "gec_preview_validation_race", ".pdf" ])
+    file.binmode
+    file.write("%PDF-1.4 sample")
+    file.rewind
+
+    preview = GecPdfPreview.create!(
+      preview_request_id: "preview-race-2",
+      uploaded_by_user: @admin,
+      filename: "gec_list.pdf",
+      content_type: "application/pdf",
+      status: "pending",
+      file_data: "%PDF-1.4 sample"
+    )
+
+    singleton = class << GecPdfPreview; self; end
+    original_find_by = singleton.instance_method(:find_by)
+    original_create = singleton.instance_method(:create!)
+    find_by_calls = 0
+
+    singleton.define_method(:find_by) do |*args, **kwargs|
+      find_by_calls += 1
+      return nil if find_by_calls == 1
+
+      original_find_by.bind_call(self, *args, **kwargs)
+    end
+    singleton.define_method(:create!) do |*args, **kwargs|
+      duplicate = new(*args, **kwargs)
+      duplicate.errors.add(:preview_request_id, :taken)
+      raise ActiveRecord::RecordInvalid.new(duplicate)
+    end
+
+    assert_no_enqueued_jobs only: GecPdfPreviewJob do
+      post "/api/v1/gec_voters/preview",
+        params: {
+          file: Rack::Test::UploadedFile.new(file.path, "application/pdf", original_filename: "gec_list.pdf"),
+          preview_request_id: "preview-race-2"
+        },
+        headers: auth_headers(@admin)
+    end
+
+    assert_response :accepted
+    json = JSON.parse(response.body)
+    assert_equal "preview-race-2", json["preview_request_id"]
+    assert_equal "pending", json["status"]
+    assert_equal preview.id, GecPdfPreview.find_by!(preview_request_id: "preview-race-2").id
+  ensure
+    singleton.send(:remove_method, :find_by) if singleton.method_defined?(:find_by)
+    singleton.send(:remove_method, :create!) if singleton.method_defined?(:create!)
+    singleton.define_method(:find_by, original_find_by) if original_find_by
+    singleton.define_method(:create!, original_create) if original_create
+    file&.close!
+  end
+
+  test "pdf preview stores source in s3 when available" do
+    file = Tempfile.new([ "gec_preview_s3", ".pdf" ])
+    file.binmode
+    file.write("%PDF-1.4 sample")
+    file.rewind
+
+    uploaded = []
+    upload = lambda do |key, data, content_type:|
+      uploaded << { key: key, body: data.read, content_type: content_type }
+      key
+    end
+
+    with_singleton_stubs(S3Service, enabled?: true, upload: upload) do
+      assert_enqueued_jobs 1, only: GecPdfPreviewJob do
+        post "/api/v1/gec_voters/preview",
+          params: {
+            file: Rack::Test::UploadedFile.new(file.path, "application/pdf", original_filename: "gec_list.pdf"),
+            preview_request_id: "preview-s3-1"
+          },
+          headers: auth_headers(@admin)
+      end
+    end
+
+    assert_response :accepted
+    preview = GecPdfPreview.find_by!(preview_request_id: "preview-s3-1")
+    assert_nil preview.file_data
+    assert_equal "gec-pdf-previews/preview-s3-1/source/gec_list.pdf", preview.file_s3_key
+    assert_equal "%PDF-1.4 sample", uploaded.first[:body]
+    assert_equal "application/pdf", uploaded.first[:content_type]
+  ensure
+    file&.close!
+  end
+
+  test "pdf preview marks preview failed when enqueueing background job fails" do
+    file = Tempfile.new([ "gec_preview_enqueue_failure", ".pdf" ])
+    file.binmode
+    file.write("%PDF-1.4 sample")
+    file.rewind
+
+    with_singleton_stubs(GecPdfPreviewJob, perform_later: ->(*_args, **_kwargs) { raise StandardError, "queue unavailable" }) do
+      assert_no_enqueued_jobs only: GecPdfPreviewJob do
+        post "/api/v1/gec_voters/preview",
+          params: {
+            file: Rack::Test::UploadedFile.new(file.path, "application/pdf", original_filename: "gec_list.pdf"),
+            preview_request_id: "preview-enqueue-failure-1"
+          },
+          headers: auth_headers(@admin)
+      end
+    end
+
+    assert_response :success
+    json = JSON.parse(response.body)
+    assert_equal "preview-enqueue-failure-1", json["preview_request_id"]
+    assert_equal "failed", json["status"]
+    assert_match(/Failed to queue PDF preview: queue unavailable/, json["error"])
+
+    preview = GecPdfPreview.find_by!(preview_request_id: "preview-enqueue-failure-1")
+    assert_equal "failed", preview.status
+    assert_nil preview.file_data
+  ensure
+    file&.close!
+  end
+
+  test "pdf preview still marks failed when cleanup delete raises after enqueue failure" do
+    file = Tempfile.new([ "gec_preview_enqueue_cleanup_failure", ".pdf" ])
+    file.binmode
+    file.write("%PDF-1.4 sample")
+    file.rewind
+
+    with_singleton_stubs(
+      S3Service,
+      enabled?: true,
+      upload: ->(key, _data, **_kwargs) { key },
+      delete: ->(*_args, **_kwargs) { raise StandardError, "s3 delete exploded" }
+    ) do
+      with_singleton_stubs(GecPdfPreviewJob, perform_later: ->(*_args, **_kwargs) { raise StandardError, "queue unavailable" }) do
+        assert_no_enqueued_jobs only: GecPdfPreviewJob do
+          post "/api/v1/gec_voters/preview",
+            params: {
+              file: Rack::Test::UploadedFile.new(file.path, "application/pdf", original_filename: "gec_list.pdf"),
+              preview_request_id: "preview-enqueue-cleanup-failure-1"
+            },
+            headers: auth_headers(@admin)
+        end
+      end
+    end
+
+    assert_response :success
+    json = JSON.parse(response.body)
+    assert_equal "preview-enqueue-cleanup-failure-1", json["preview_request_id"]
+    assert_equal "failed", json["status"]
+    assert_match(/Failed to queue PDF preview: queue unavailable/, json["error"])
+
+    preview = GecPdfPreview.find_by!(preview_request_id: "preview-enqueue-cleanup-failure-1")
+    assert_equal "failed", preview.status
+    assert_nil preview.file_data
+    assert_equal "gec-pdf-previews/preview-enqueue-cleanup-failure-1/source/gec_list.pdf", preview.file_s3_key
+  ensure
+    file&.close!
+  end
+
+  test "pdf preview preserves s3 key when cleanup delete returns false after enqueue failure" do
+    file = Tempfile.new([ "gec_preview_enqueue_cleanup_false", ".pdf" ])
+    file.binmode
+    file.write("%PDF-1.4 sample")
+    file.rewind
+
+    with_singleton_stubs(
+      S3Service,
+      enabled?: true,
+      upload: ->(key, _data, **_kwargs) { key },
+      delete: false
+    ) do
+      with_singleton_stubs(GecPdfPreviewJob, perform_later: ->(*_args, **_kwargs) { raise StandardError, "queue unavailable" }) do
+        assert_no_enqueued_jobs only: GecPdfPreviewJob do
+          post "/api/v1/gec_voters/preview",
+            params: {
+              file: Rack::Test::UploadedFile.new(file.path, "application/pdf", original_filename: "gec_list.pdf"),
+              preview_request_id: "preview-enqueue-cleanup-false-1"
+            },
+            headers: auth_headers(@admin)
+        end
+      end
+    end
+
+    assert_response :success
+    preview = GecPdfPreview.find_by!(preview_request_id: "preview-enqueue-cleanup-false-1")
+    assert_equal "failed", preview.status
+    assert_nil preview.file_data
+    assert_equal "gec-pdf-previews/preview-enqueue-cleanup-false-1/source/gec_list.pdf", preview.file_s3_key
+  ensure
+    file&.close!
+  end
+
+  test "pdf preview returns clean error when s3 upload fails" do
+    file = Tempfile.new([ "gec_preview_s3_failure", ".pdf" ])
+    file.binmode
+    file.write("%PDF-1.4 sample")
+    file.rewind
+
+    with_singleton_stubs(S3Service, enabled?: true, upload: nil) do
+      assert_no_enqueued_jobs only: GecPdfPreviewJob do
+        post "/api/v1/gec_voters/preview",
+          params: {
+            file: Rack::Test::UploadedFile.new(file.path, "application/pdf", original_filename: "gec_list.pdf"),
+            preview_request_id: "preview-s3-failure-1"
+          },
+          headers: auth_headers(@admin)
+      end
+    end
+
+    assert_response :service_unavailable
+    json = JSON.parse(response.body)
+    assert_match(/Failed to store PDF preview upload/, json["error"])
+    assert_nil GecPdfPreview.find_by(preview_request_id: "preview-s3-failure-1")
+  ensure
+    file&.close!
+  end
+
+  test "pdf preview preserves original storage error when storage setup raises before attrs are returned" do
+    file = Tempfile.new([ "gec_preview_s3_raise", ".pdf" ])
+    file.binmode
+    file.write("%PDF-1.4 sample")
+    file.rewind
+
+    error = assert_raises(StandardError) do
+      with_singleton_stubs(
+        S3Service,
+        enabled?: true,
+        upload: ->(*_args, **_kwargs) { raise StandardError, "upload exploded" }
+      ) do
+        post "/api/v1/gec_voters/preview",
+          params: {
+            file: Rack::Test::UploadedFile.new(file.path, "application/pdf", original_filename: "gec_list.pdf"),
+            preview_request_id: "preview-s3-raise-1"
+          },
+          headers: auth_headers(@admin)
+      end
+    end
+
+    assert_equal "upload exploded", error.message
+    assert_nil GecPdfPreview.find_by(preview_request_id: "preview-s3-raise-1")
+  ensure
+    file&.close!
+  end
+
+  test "pdf preview rejects empty pdf uploads cleanly when s3 is disabled" do
+    file = Tempfile.new([ "gec_preview_empty", ".pdf" ])
+    file.binmode
+    file.rewind
+
+    with_singleton_stubs(S3Service, enabled?: false) do
+      assert_no_enqueued_jobs only: GecPdfPreviewJob do
+        assert_no_difference("GecPdfPreview.count") do
+          post "/api/v1/gec_voters/preview",
+            params: {
+              file: Rack::Test::UploadedFile.new(file.path, "application/pdf", original_filename: "empty.pdf"),
+              preview_request_id: "preview-empty-pdf-1"
+            },
+            headers: auth_headers(@admin)
+        end
+      end
+    end
+
+    assert_response :unprocessable_entity
+    json = JSON.parse(response.body)
+    assert_match(/Uploaded PDF preview is empty/, json["error"])
   ensure
     file&.close!
   end

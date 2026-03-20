@@ -57,6 +57,17 @@ class S3Service
       nil
     end
 
+    def download_to_io(key, io)
+      return false unless enabled?
+
+      s3_client.get_object(bucket: BUCKET_NAME, key: key, response_target: io)
+      io.flush if io.respond_to?(:flush)
+      true
+    rescue Aws::S3::Errors::ServiceError => e
+      Rails.logger.error "[S3Service] Stream download failed for #{key}: #{e.message}"
+      false
+    end
+
     # Generate a presigned GET URL for temporary file access.
     def presigned_url(key, expires_in: 3600, filename: nil, disposition: :attachment)
       return nil unless enabled?

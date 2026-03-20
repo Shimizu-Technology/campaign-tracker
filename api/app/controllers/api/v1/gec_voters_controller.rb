@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "digest"
+require "securerandom"
 
 module Api
   module V1
@@ -236,7 +237,7 @@ module Api
                 "upload_request_id" => upload_request_id,
                 "error" => nil,
                 "active_job_id" => nil,
-                "enqueued_at" => nil,
+                "enqueued_at" => nil
               })
             )
 
@@ -358,26 +359,77 @@ module Api
         end
 
         if pdf_file?(file)
-          parser = GecPdfParserService.new(file_path: file.tempfile.path)
-          parsed = parser.parse_preview_sample
-
-          if parsed.errors.any?
+          if File.zero?(file.tempfile.path)
             return render_api_error(
-              message: "Failed to parse PDF: #{parsed.errors.first}",
+              message: "Uploaded PDF preview is empty",
               status: :unprocessable_entity,
-              code: "pdf_parse_error"
+              code: "empty_file"
             )
           end
 
-          preview_limit = [ (params[:limit] || 20).to_i, 100 ].min
-          return render json: {
-            source_type: "pdf",
-            qa: parsed.qa,
-            warnings: parsed.warnings,
-            row_count: parsed.rows.size,
-            parse_cache_key: nil,
-            preview_rows: parsed.rows.first(preview_limit)
-          }
+          if File.size(file.tempfile.path) > 50.megabytes
+            return render_api_error(
+              message: "Uploaded PDF preview is too large (max 50 MB)",
+              status: :unprocessable_entity,
+              code: "file_too_large"
+            )
+          end
+
+          preview_request_id = params[:preview_request_id].to_s.strip.presence || SecureRandom.uuid
+          preview = GecPdfPreview.find_by(preview_request_id: preview_request_id, uploaded_by_user: current_user)
+          created_preview = false
+
+          unless preview
+            storage_attrs = nil
+            begin
+              storage_attrs = pdf_preview_storage_attributes(file, preview_request_id)
+              unless storage_attrs
+                return render_api_error(
+                  message: "Failed to store PDF preview upload. Please try again.",
+                  status: :service_unavailable,
+                  code: "preview_storage_error"
+                )
+              end
+              preview = GecPdfPreview.create!(
+                preview_request_id: preview_request_id,
+                uploaded_by_user: current_user,
+                filename: File.basename(file.original_filename || "upload.pdf"),
+                content_type: file.content_type,
+                status: "pending",
+                **storage_attrs
+              )
+              created_preview = true
+            rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid => e
+              preview = GecPdfPreview.find_by(
+                preview_request_id: preview_request_id,
+                uploaded_by_user: current_user
+              )
+              raise e unless preview
+            rescue StandardError
+              if storage_attrs.is_a?(Hash) && storage_attrs[:file_s3_key].present?
+                S3Service.delete(storage_attrs[:file_s3_key])
+              end
+              raise
+            end
+          end
+
+          if created_preview
+            begin
+              GecPdfPreviewJob.perform_later(gec_pdf_preview_id: preview.id)
+            rescue StandardError => e
+              source_deleted = cleanup_pdf_preview_source!(preview)
+              update_attrs = {
+                status: "failed",
+                error_message: "Failed to queue PDF preview: #{e.message}",
+                result_data: {},
+                file_data: nil
+              }
+              update_attrs[:file_s3_key] = nil if source_deleted
+              preview.update!(update_attrs)
+            end
+          end
+
+          return render json: pdf_preview_json(preview), status: pdf_preview_response_status(preview)
         end
 
         service = GecImportService.new(
@@ -404,6 +456,28 @@ module Api
           row_count: preview_data[:row_count],
           preview_rows: preview_data[:preview_rows]
         }
+      end
+
+      def preview_status
+        preview_request_id = params[:preview_request_id].to_s.strip
+        if preview_request_id.blank?
+          return render_api_error(
+            message: "preview_request_id is required",
+            status: :unprocessable_entity,
+            code: "missing_preview_request_id"
+          )
+        end
+
+        preview = GecPdfPreview.find_by(preview_request_id: preview_request_id, uploaded_by_user: current_user)
+        unless preview
+          return render_api_error(
+            message: "PDF preview not found",
+            status: :not_found,
+            code: "preview_not_found"
+          )
+        end
+
+        render json: pdf_preview_json(preview), status: pdf_preview_response_status(preview)
       end
 
       # GET /api/v1/gec_voters/imports
@@ -787,6 +861,64 @@ module Api
           warnings: cached[:warnings] || [],
           errors: cached[:errors] || []
         )
+      end
+
+      def pdf_preview_json(preview)
+        result_data = preview.result_data.is_a?(Hash) ? preview.result_data : {}
+
+        json = {
+          async: true,
+          source_type: "pdf",
+          preview_request_id: preview.preview_request_id,
+          status: preview.status
+        }
+
+        if preview.completed?
+          json.merge!(
+            qa: result_data["qa"] || {},
+            warnings: result_data["warnings"] || [],
+            row_count: result_data["row_count"].to_i,
+            parse_cache_key: nil,
+            preview_rows: Array(result_data["preview_rows"])
+          )
+        elsif preview.failed?
+          json[:error] = preview.error_message.presence || "PDF preview failed"
+        end
+
+        json
+      end
+
+      def pdf_preview_response_status(preview)
+        return :ok if preview.completed? || preview.failed?
+
+        :accepted
+      end
+
+      def pdf_preview_storage_attributes(file, preview_request_id)
+        return { file_data: File.binread(file.tempfile.path) } unless S3Service.enabled?
+
+        filename = File.basename(file.original_filename.to_s.presence || "upload.pdf")
+        safe_filename = S3Service.safe_filename(filename, fallback: "preview.pdf")
+        s3_key = "gec-pdf-previews/#{preview_request_id}/source/#{safe_filename}"
+        content_type = file.content_type.to_s.presence || "application/pdf"
+        upload_result = File.open(file.tempfile.path, "rb") do |io|
+          S3Service.upload(s3_key, io, content_type: content_type)
+        end
+        return nil unless upload_result
+
+        { file_s3_key: s3_key }
+      end
+
+      def cleanup_pdf_preview_source!(preview)
+        return true unless preview&.file_s3_key.present?
+
+        S3Service.delete(preview.file_s3_key)
+      rescue StandardError => e
+        Rails.logger.warn(
+          "GecVotersController preview #{preview.id}: failed to delete S3 preview source " \
+          "#{preview.file_s3_key}: #{e.class}: #{e.message}"
+        )
+        false
       end
 
       def import_json(imp, skipped_counts_by_import: nil)

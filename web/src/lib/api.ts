@@ -263,12 +263,15 @@ export const uploadGecList = (
   if (uploadRequestId) form.append('upload_request_id', uploadRequestId);
   return api.post('/gec_voters/upload', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
 };
-export const previewGecList = (file: File, sheetName?: string) => {
+export const previewGecList = (file: File, sheetName?: string, previewRequestId?: string) => {
   const form = new FormData();
   form.append('file', file);
   if (sheetName) form.append('sheet_name', sheetName);
+  if (previewRequestId) form.append('preview_request_id', previewRequestId);
   return api.post('/gec_voters/preview', form, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data);
 };
+export const getGecPdfPreviewStatus = (previewRequestId: string) =>
+  api.get('/gec_voters/preview_status', { params: { preview_request_id: previewRequestId } }).then(r => r.data);
 export const bulkVetSupporters = (params?: QueryParams) => api.post('/gec_voters/bulk_vet', params).then(r => r.data);
 export const downloadGecImportFile = (importId: number) =>
   api.get<{ download_url: string; filename: string }>(`/gec_voters/imports/${importId}/download`).then(r => {
