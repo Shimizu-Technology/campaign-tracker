@@ -36,6 +36,10 @@ interface SupporterItem {
   opt_in_text: boolean;
   verification_status: string;
   referred_from_village_id: number | null;
+  referred_from_village_name?: string | null;
+  verification_reason?: string | null;
+  verification_reason_label?: string | null;
+  verification_reason_detail?: string | null;
   potential_duplicate: boolean;
   source: string;
   attribution_method?: string | null;
@@ -94,12 +98,17 @@ function lifecycleChipClass(status: string) {
   }
 }
 
-function verificationStatusLabel(supporter: Pick<SupporterItem, 'verification_status' | 'registered_voter' | 'referred_from_village_id'>) {
+function verificationStatusLabel(supporter: Pick<SupporterItem, 'verification_status' | 'registered_voter' | 'referred_from_village_id' | 'verification_reason_label'>) {
+  if (supporter.verification_reason_label) return supporter.verification_reason_label;
   if (supporter.verification_status === 'verified') return 'Matched to GEC';
   if (supporter.referred_from_village_id) return 'Village Referral';
   if (supporter.verification_status === 'flagged') return 'Flagged for review';
   if (supporter.verification_status === 'unverified' && !supporter.registered_voter) return 'No GEC Match';
   return 'Needs voter review';
+}
+
+function verificationStatusDetail(supporter: Pick<SupporterItem, 'verification_reason_detail'>) {
+  return supporter.verification_reason_detail || null;
 }
 
 function sourceLabel(supporter: Pick<SupporterItem, 'source' | 'attribution_method'>) {
@@ -632,6 +641,13 @@ export default function SupportersPage() {
                   <span>{s.contact_number}</span>
                 </div>
                 <div>{renderPrecinctAssignControl(s)}</div>
+                {verificationStatusDetail(s) && (
+                  <div className={`text-xs leading-5 ${
+                    s.referred_from_village_id ? 'text-purple-700' : 'text-[var(--text-muted)]'
+                  }`}>
+                    {verificationStatusDetail(s)}
+                  </div>
+                )}
                 <div className="flex items-center gap-2 pt-1">
                   {s.yard_sign && (
                     <span className="app-chip bg-amber-100 text-amber-700">Yard Sign</span>
@@ -662,7 +678,7 @@ export default function SupportersPage() {
 
         {/* Desktop Table */}
         <div className={`hidden md:block app-card overflow-x-auto transition-opacity duration-200 ${isFetching ? 'opacity-80' : 'opacity-100'}`}>
-          <table className="w-full min-w-[1240px] text-sm">
+          <table className="w-full min-w-[1320px] text-sm">
             <thead>
               <tr className="border-b bg-[var(--surface-bg)]">
                 <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">
@@ -689,7 +705,7 @@ export default function SupportersPage() {
                   </button>
                 </th>
                 <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Supporter Status</th>
-                <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Voter Check</th>
+                <th className="w-[320px] min-w-[320px] text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Voter Check</th>
                 <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Lifecycle</th>
                 <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">
                   <button type="button" onClick={() => handleSort('created_at')} className="inline-flex items-center gap-1 hover:text-[var(--text-primary)]">
@@ -746,19 +762,30 @@ export default function SupportersPage() {
                       {sourceLabel(s)}
                     </span>
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
+                  <td className="px-4 py-3 whitespace-nowrap align-middle">
                     <span className={`app-chip ${supporterStatusChipClass(s)}`}>
                       {supporterStatusLabel(s)}
                     </span>
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <span className={`app-chip ${
-                      s.verification_status === 'verified' ? 'bg-green-100 text-green-700' :
-                      s.verification_status === 'flagged' ? 'bg-red-100 text-red-700' :
-                      'bg-yellow-100 text-yellow-700'
-                    }`}>
-                      {verificationStatusLabel(s)}
-                    </span>
+                  <td className="w-[320px] min-w-[320px] px-4 py-3 align-top">
+                    <div className="space-y-2">
+                      <span className={`app-chip ${
+                        s.verification_status === 'verified' ? 'bg-green-100 text-green-700' :
+                        s.verification_status === 'flagged' ? 'bg-red-100 text-red-700' :
+                        'bg-yellow-100 text-yellow-700'
+                      }`}>
+                        {verificationStatusLabel(s)}
+                      </span>
+                      {verificationStatusDetail(s) && (
+                        <div
+                          title={verificationStatusDetail(s) || undefined}
+                          className={`text-xs whitespace-normal break-words leading-5 max-w-[300px] ${
+                          s.referred_from_village_id ? 'text-purple-700' : 'text-[var(--text-muted)]'
+                        }`}>
+                          {verificationStatusDetail(s)}
+                        </div>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span className={`app-chip ${lifecycleChipClass(s.status)}`}>

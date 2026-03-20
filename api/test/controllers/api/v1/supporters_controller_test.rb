@@ -69,6 +69,53 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal 200, payload["supporters"].size
   end
 
+  test "index derives flagged reason label and detail for legacy supporter without persisted reason" do
+    GecVoter.create!(
+      first_name: "Legacy",
+      last_name: "IndexFlagged",
+      birth_year: 1982,
+      village_name: @village.name,
+      gec_list_date: Date.new(2026, 2, 25),
+      imported_at: Time.current,
+      status: "active"
+    )
+    GecVoter.create!(
+      first_name: "Legacy",
+      last_name: "IndexFlagged",
+      birth_year: 1982,
+      village_name: @village.name,
+      gec_list_date: Date.new(2026, 2, 25),
+      imported_at: Time.current,
+      status: "active"
+    )
+
+    supporter = Supporter.create!(
+      first_name: "Legacy",
+      last_name: "IndexFlagged",
+      print_name: "Legacy IndexFlagged",
+      dob: Date.new(1982, 4, 1),
+      contact_number: "6715559333",
+      village: @village,
+      source: "staff_entry",
+      status: "active",
+      verification_status: "flagged",
+      registered_voter: true
+    )
+    supporter.update_columns(verification_reason: nil, verification_reason_metadata: {})
+
+    get "/api/v1/supporters",
+      params: { search: "IndexFlagged" },
+      headers: auth_headers(@user)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    supporter_payload = payload.fetch("supporters").find { |item| item["id"] == supporter.id }
+
+    assert_equal "multiple_matches", supporter_payload["verification_reason"]
+    assert_equal "Multiple Matches", supporter_payload["verification_reason_label"]
+    assert_match(/2 possible GEC matches/, supporter_payload["verification_reason_detail"])
+  end
+
   test "district coordinator cannot access duplicates review" do
     get "/api/v1/supporters/duplicates", headers: auth_headers(@user)
 
@@ -597,6 +644,49 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Supporter updated", payload.dig("audit_logs", 0, "action_label")
   end
 
+  test "show derives flagged reason detail for legacy supporter without persisted reason" do
+    GecVoter.create!(
+      first_name: "Legacy",
+      last_name: "Flagged",
+      birth_year: 1981,
+      village_name: @village.name,
+      gec_list_date: Date.new(2026, 2, 25),
+      imported_at: Time.current,
+      status: "active"
+    )
+    GecVoter.create!(
+      first_name: "Legacy",
+      last_name: "Flagged",
+      birth_year: 1981,
+      village_name: @village.name,
+      gec_list_date: Date.new(2026, 2, 25),
+      imported_at: Time.current,
+      status: "active"
+    )
+
+    supporter = Supporter.create!(
+      first_name: "Legacy",
+      last_name: "Flagged",
+      print_name: "Legacy Flagged",
+      dob: Date.new(1981, 6, 1),
+      contact_number: "6715559444",
+      village: @village,
+      source: "staff_entry",
+      status: "active",
+      verification_status: "flagged",
+      registered_voter: true
+    )
+    supporter.update_columns(verification_reason: nil, verification_reason_metadata: {})
+
+    get "/api/v1/supporters/#{supporter.id}", headers: auth_headers(@user)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal "multiple_matches", payload.dig("supporter", "verification_reason")
+    assert_match(/2 possible GEC matches/, payload.dig("supporter", "verification_reason_detail"))
+    assert_equal true, payload.dig("supporter", "verification_reason_derived")
+  end
+
   test "update creates audit log entry" do
     precinct_a = Precinct.create!(number: "SP-4A", village: @village, alpha_range: "A-L", registered_voters: 50)
     precinct_b = Precinct.create!(number: "SP-4B", village: @village, alpha_range: "M-Z", registered_voters: 50)
@@ -740,6 +830,30 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, payload["updated"]
     assert_equal "verified", payload["verification_status"]
     assert_equal "verified", supporter.reload.verification_status
+    assert_equal "manual_staff_verified", supporter.verification_reason
+  end
+
+  test "manual flag stores staff review reason" do
+    supporter = Supporter.create!(
+      first_name: "Manual",
+      last_name: "Flagged",
+      print_name: "Manual Flagged",
+      contact_number: "6715559020",
+      village: @village,
+      source: "staff_entry",
+      status: "active",
+      verification_status: "unverified",
+      registered_voter: true
+    )
+
+    patch "/api/v1/supporters/#{supporter.id}/verify",
+      params: { verification_status: "flagged" },
+      headers: auth_headers(@user)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal "manual_staff_flag", payload.dig("supporter", "verification_reason")
+    assert_equal "manual_staff_flag", supporter.reload.verification_reason
   end
 
   test "update is forbidden for non editor roles" do
@@ -793,6 +907,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     payload = JSON.parse(response.body)
     assert_equal @village.id, payload.dig("supporter", "referred_from_village_id")
+    assert_equal @village.name, payload.dig("supporter", "referred_from_village_name")
   end
 
   test "approve_supporter approves a pending non-duplicate submission" do

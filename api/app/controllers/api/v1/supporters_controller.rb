@@ -135,7 +135,7 @@ module Api
         end
 
         old_status = supporter.verification_status
-        supporter.update!(verification_update_attributes(new_status))
+        supporter.update!(verification_update_attributes(supporter, new_status))
 
         log_audit!(supporter, action: "verification_changed", changed_data: {
           "verification_status" => [ old_status, new_status ],
@@ -184,7 +184,9 @@ module Api
         # Capture old statuses before bulk update
         old_statuses = supporters.to_h { |supporter| [ supporter.id, supporter.verification_status ] }
 
-        scope_supporters(Supporter).where(id: supporters.map(&:id)).update_all(verification_update_attributes(new_status))
+        supporters.each do |supporter|
+          supporter.update_columns(verification_update_attributes(supporter, new_status))
+        end
 
         # Audit log for each with accurate old status
         supporters.each do |s|
@@ -257,8 +259,16 @@ module Api
         total = supporters.count
         supporters = supporters.offset((page - 1) * per_page).limit(per_page)
 
+        verification_reason_overrides = supporters.each_with_object({}) do |supporter, memo|
+          next unless supporter.verification_status == "flagged"
+          next if supporter.verification_reason.present?
+          next if supporter.referred_from_village_id.present?
+
+          memo[supporter.id] = SupporterVerificationReasonService.new(supporter, allow_match_lookup: true).payload || {}
+        end
+
         render json: {
-          supporters: supporters.map { |s| supporter_json(s) },
+          supporters: supporters.map { |s| supporter_json(s, reason_payload: verification_reason_overrides[s.id]) },
           pagination: { page: page, per_page: per_page, total: total, pages: (total.to_f / per_page).ceil }
         }
       end
@@ -740,6 +750,7 @@ module Api
         # and cascading match strategies that are hard to batch. With indexed queries and
         # capped page size, this stays well under 100ms total.
         gec_matches = {}
+        verification_reasons = {}
         supporters.each do |s|
           matches = GecVoter.find_matches(
             first_name: s.first_name,
@@ -747,6 +758,7 @@ module Api
             dob: s.dob,
             village_name: s.village&.name
           )
+          verification_reasons[s.id] = SupporterVerificationReasonService.new(s, matches: matches).payload || {}
           gec_matches[s.id] = matches.first(3).map do |m|
             {
               gec_voter: m[:gec_voter].as_json(only: [ :id, :first_name, :last_name, :dob, :village_name, :voter_registration_number ]),
@@ -769,7 +781,7 @@ module Api
         }
 
         render json: {
-          supporters: supporters.map { |s| supporter_json(s).merge(gec_matches: gec_matches[s.id] || []) },
+          supporters: supporters.map { |s| supporter_json(s).merge(verification_reasons[s.id] || {}).merge(gec_matches: gec_matches[s.id] || []) },
           summary: summary,
           pagination: { page: page, per_page: per_page, total: total, pages: (total.to_f / per_page).ceil }
         }
@@ -906,7 +918,9 @@ module Api
         params[:entry_mode] == "staff"
       end
 
-      def supporter_json(supporter)
+      def supporter_json(supporter, reason_payload: nil)
+        reason_payload ||= SupporterVerificationReasonService.new(supporter).payload || {}
+
         {
           id: supporter.id,
           first_name: supporter.first_name,
@@ -946,6 +960,12 @@ module Api
           referral_code_id: supporter.referral_code_id,
           referral_display_name: supporter.referral_code&.display_name,
           referred_from_village_id: supporter.referred_from_village_id,
+          referred_from_village_name: supporter.referred_from_village&.name,
+          verification_reason: reason_payload[:verification_reason],
+          verification_reason_label: reason_payload[:verification_reason_label],
+          verification_reason_detail: reason_payload[:verification_reason_detail],
+          verification_reason_metadata: reason_payload[:verification_reason_metadata],
+          verification_reason_derived: reason_payload[:verification_reason_derived],
           reliability_score: supporter.reliability_score,
           potential_duplicate: supporter.potential_duplicate,
           duplicate_of_id: supporter.duplicate_of_id,
@@ -979,7 +999,14 @@ module Api
       end
 
       def supporter_detail_json(supporter)
+        reason_payload = SupporterVerificationReasonService.new(supporter, allow_match_lookup: true).payload || {}
+
         supporter_json(supporter).merge(
+          verification_reason: reason_payload[:verification_reason],
+          verification_reason_label: reason_payload[:verification_reason_label],
+          verification_reason_detail: reason_payload[:verification_reason_detail],
+          verification_reason_metadata: reason_payload[:verification_reason_metadata],
+          verification_reason_derived: reason_payload[:verification_reason_derived],
           block_name: supporter.block&.name,
           events_invited_count: supporter.event_rsvps.size,
           events_attended_count: supporter.event_rsvps.count(&:attended),
@@ -1034,17 +1061,43 @@ module Api
         ).any?
       end
 
-      def verification_update_attributes(new_status)
+      def verification_update_attributes(supporter, new_status)
         attrs = { verification_status: new_status }
         if new_status == "verified"
+          best_match = GecVoter.find_matches(
+            first_name: supporter.first_name,
+            last_name: supporter.last_name,
+            dob: supporter.dob,
+            birth_year: supporter.dob&.year,
+            village_name: supporter.village&.name
+          ).first
           attrs.merge!(
             verified_by_user_id: current_user.id,
-            verified_at: Time.current
+            verified_at: Time.current,
+            verification_reason: "manual_staff_verified",
+            verification_reason_metadata: {
+              "gec_village_name" => best_match&.dig(:gec_voter)&.village_name,
+              "confidence" => best_match&.dig(:confidence)&.to_s,
+              "match_type" => best_match&.dig(:match_type)&.to_s,
+              "match_count" => best_match&.dig(:match_count)
+            }.compact,
+            referred_from_village_id: nil
+          )
+        elsif new_status == "flagged"
+          attrs.merge!(
+            verified_by_user_id: nil,
+            verified_at: nil,
+            verification_reason: "manual_staff_flag",
+            verification_reason_metadata: {},
+            referred_from_village_id: nil
           )
         else
           attrs.merge!(
             verified_by_user_id: nil,
-            verified_at: nil
+            verified_at: nil,
+            verification_reason: nil,
+            verification_reason_metadata: {},
+            referred_from_village_id: nil
           )
         end
         attrs
