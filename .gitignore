@@ -33,3 +33,6 @@ Thumbs.db
 coverage/
 .env.deploy
 data/
+
+# Local Netlify folder
+.netlify

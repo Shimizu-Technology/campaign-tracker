@@ -276,7 +276,9 @@ module Api
         total = supporters.count
         supporters = supporters.offset((page - 1) * per_page).limit(per_page)
 
-        legacy_flagged_supporters = supporters.select do |supporter|
+        supporters_array = supporters.to_a
+
+        legacy_flagged_supporters = supporters_array.select do |supporter|
           supporter.verification_status == "flagged" &&
             supporter.verification_reason.blank? &&
             supporter.referred_from_village_id.blank?
@@ -291,7 +293,7 @@ module Api
         end
 
         render json: {
-          supporters: supporters.map { |s| supporter_json(s, reason_payload: verification_reason_overrides[s.id]) },
+          supporters: supporters_array.map { |s| supporter_json(s, reason_payload: verification_reason_overrides[s.id]) },
           pagination: { page: page, per_page: per_page, total: total, pages: (total.to_f / per_page).ceil }
         }
       end

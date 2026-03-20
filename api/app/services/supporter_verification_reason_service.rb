@@ -36,7 +36,7 @@ class SupporterVerificationReasonService
       )
     end
 
-    if supporter.verification_status == "unverified" && supporter.registered_voter == false
+    if supporter.verification_status == "unverified" && !supporter.registered_voter
       return build_payload("no_gec_match", metadata: {}, derived: true)
     end
 
