@@ -144,7 +144,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     original_batch_lookup = GecVoter.method(:find_matches_for_supporters)
     GecVoter.define_singleton_method(:find_matches_for_supporters) do |batch_supporters|
       batch_calls << batch_supporters.map(&:id)
-      batch_supporters.index_with do
+      batch_supporters.index_by(&:id).transform_values do
         [ {
           gec_voter: GecVoter.new(village_name: village_name),
           confidence: :medium,
@@ -164,6 +164,11 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_equal [ supporters.map(&:id).sort ], batch_calls.map(&:sort)
+    payload = JSON.parse(response.body)
+    returned_reasons = payload.fetch("supporters")
+      .select { |item| supporters.map(&:id).include?(item["id"]) }
+      .map { |item| item["verification_reason"] }
+    assert_equal [ "fuzzy_name_match", "fuzzy_name_match" ], returned_reasons.sort
   end
 
   test "district coordinator cannot access duplicates review" do

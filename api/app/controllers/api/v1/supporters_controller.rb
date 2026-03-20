@@ -128,12 +128,15 @@ module Api
 
         match_payload = new_status == "verified" ? verification_match_payload(supporter) : nil
 
-        if new_status == "verified" && match_payload[:matches].none?
-          return render_api_error(
-            message: "Supporter cannot be marked as a verified voter without a current GEC match.",
-            status: :unprocessable_entity,
-            code: "gec_match_required_for_verified"
-          )
+        if new_status == "verified"
+          matches = match_payload&.fetch(:matches, []) || []
+          if matches.none?
+            return render_api_error(
+              message: "Supporter cannot be marked as a verified voter without a current GEC match.",
+              status: :unprocessable_entity,
+              code: "gec_match_required_for_verified"
+            )
+          end
         end
 
         old_status = supporter.verification_status
