@@ -1364,4 +1364,61 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_includes returned_ids, no_gec_match.id
     assert_includes returned_ids, referral.id
   end
+
+  test "vetting queue reuses precomputed verification reason payloads" do
+    supporter = Supporter.create!(
+      first_name: "Queue",
+      last_name: "ReasonCheck",
+      print_name: "Queue ReasonCheck",
+      contact_number: "6715559014",
+      village: @village,
+      source: "staff_entry",
+      review_status: "pending",
+      public_review_status: "not_applicable",
+      status: "active",
+      verification_status: "flagged",
+      registered_voter: true
+    )
+    supporter.update_columns(
+      verification_status: "flagged",
+      registered_voter: true,
+      verification_reason: nil,
+      verification_reason_metadata: {}
+    )
+
+    village_name = @village.name
+    original_find_matches = GecVoter.method(:find_matches)
+    GecVoter.define_singleton_method(:find_matches) do |**|
+      [ {
+        gec_voter: GecVoter.new(village_name: village_name),
+        confidence: :medium,
+        match_type: :fuzzy_name_year,
+        match_count: 1
+      } ]
+    end
+
+    original_reason_new = SupporterVerificationReasonService.method(:new)
+    service_calls = 0
+    SupporterVerificationReasonService.define_singleton_method(:new) do |*args, **kwargs|
+      service_calls += 1
+      raise "duplicate reason service call" if service_calls > 1
+
+      original_reason_new.call(*args, **kwargs)
+    end
+
+    begin
+      get "/api/v1/supporters/vetting_queue",
+        params: { search: "ReasonCheck" },
+        headers: auth_headers(@data_team)
+    ensure
+      GecVoter.define_singleton_method(:find_matches, original_find_matches)
+      SupporterVerificationReasonService.define_singleton_method(:new, original_reason_new)
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    supporter_payload = payload.fetch("supporters").find { |item| item["id"] == supporter.id }
+    assert_equal "fuzzy_name_match", supporter_payload["verification_reason"]
+    assert_equal 1, service_calls
+  end
 end

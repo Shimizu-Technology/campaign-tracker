@@ -804,7 +804,11 @@ module Api
         }
 
         render json: {
-          supporters: supporters.map { |s| supporter_json(s).merge(verification_reasons[s.id] || {}).merge(gec_matches: gec_matches[s.id] || []) },
+          supporters: supporters.map do |s|
+            supporter_json(s, reason_payload: verification_reasons[s.id]).merge(
+              gec_matches: gec_matches[s.id] || []
+            )
+          end,
           summary: summary,
           pagination: { page: page, per_page: per_page, total: total, pages: (total.to_f / per_page).ceil }
         }
