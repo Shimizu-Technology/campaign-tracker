@@ -116,6 +116,56 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_match(/2 possible GEC matches/, supporter_payload["verification_reason_detail"])
   end
 
+  test "index batches legacy flagged reason lookups per page" do
+    supporters = 2.times.map do |i|
+      Supporter.create!(
+        first_name: "Legacy",
+        last_name: "Batch#{i}",
+        print_name: "Legacy Batch#{i}",
+        dob: Date.new(1982, 4, i + 1),
+        contact_number: "67155593#{40 + i}",
+        village: @village,
+        source: "staff_entry",
+        status: "active",
+        verification_status: "flagged",
+        registered_voter: true
+      ).tap do |supporter|
+        supporter.update_columns(
+          verification_status: "flagged",
+          registered_voter: true,
+          verification_reason: nil,
+          verification_reason_metadata: {}
+        )
+      end
+    end
+
+    batch_calls = []
+    village_name = @village.name
+    original_batch_lookup = GecVoter.method(:find_matches_for_supporters)
+    GecVoter.define_singleton_method(:find_matches_for_supporters) do |batch_supporters|
+      batch_calls << batch_supporters.map(&:id)
+      batch_supporters.index_with do
+        [ {
+          gec_voter: GecVoter.new(village_name: village_name),
+          confidence: :medium,
+          match_type: :fuzzy_name_year,
+          match_count: 1
+        } ]
+      end
+    end
+
+    begin
+      get "/api/v1/supporters",
+        params: { search: "Legacy" },
+        headers: auth_headers(@user)
+    ensure
+      GecVoter.define_singleton_method(:find_matches_for_supporters, original_batch_lookup)
+    end
+
+    assert_response :success
+    assert_equal [ supporters.map(&:id).sort ], batch_calls.map(&:sort)
+  end
+
   test "district coordinator cannot access duplicates review" do
     get "/api/v1/supporters/duplicates", headers: auth_headers(@user)
 
@@ -744,6 +794,52 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
 
     supporter.reload
     assert_equal "unverified", supporter.verification_status
+  end
+
+  test "verify reuses match lookup when marking supporter verified" do
+    supporter = Supporter.create!(
+      first_name: "Verify",
+      last_name: "Lookup",
+      print_name: "Verify Lookup",
+      dob: Date.new(1988, 8, 8),
+      contact_number: "6715559008",
+      village: @village,
+      source: "staff_entry",
+      status: "active",
+      verification_status: "flagged",
+      registered_voter: true
+    )
+    supporter.update_columns(
+      verification_status: "flagged",
+      registered_voter: true,
+      verified_at: nil,
+      verified_by_user_id: nil
+    )
+
+    lookup_calls = 0
+    village_name = @village.name
+    original_find_matches = GecVoter.method(:find_matches)
+    GecVoter.define_singleton_method(:find_matches) do |**|
+      lookup_calls += 1
+      [ {
+        gec_voter: GecVoter.new(village_name: village_name),
+        confidence: :exact,
+        match_type: :current_gec_match,
+        match_count: 1
+      } ]
+    end
+
+    begin
+      patch "/api/v1/supporters/#{supporter.id}/verify",
+        params: { verification_status: "verified" },
+        headers: auth_headers(@user)
+    ensure
+      GecVoter.define_singleton_method(:find_matches, original_find_matches)
+    end
+
+    assert_response :success
+    assert_equal 1, lookup_calls
+    assert_equal "verified", supporter.reload.verification_status
   end
 
   test "bulk verify rejects supporters without a current gec match" do

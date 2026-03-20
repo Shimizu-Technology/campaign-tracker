@@ -115,7 +115,7 @@ module Api
 
       # PATCH /api/v1/supporters/:id/verify
       def verify
-        supporter = scope_supporters(Supporter).find(params[:id])
+        supporter = scope_supporters(Supporter.includes(:referred_from_village)).find(params[:id])
         new_status = params[:verification_status]
 
         unless Supporter::VERIFICATION_STATUSES.include?(new_status)
@@ -126,7 +126,9 @@ module Api
           )
         end
 
-        if new_status == "verified" && !supporter_can_be_verified?(supporter)
+        match_payload = new_status == "verified" ? verification_match_payload(supporter) : nil
+
+        if new_status == "verified" && match_payload[:matches].none?
           return render_api_error(
             message: "Supporter cannot be marked as a verified voter without a current GEC match.",
             status: :unprocessable_entity,
@@ -135,7 +137,7 @@ module Api
         end
 
         old_status = supporter.verification_status
-        supporter.update!(verification_update_attributes(supporter, new_status))
+        supporter.update!(verification_update_attributes(supporter, new_status, match_payload: match_payload))
 
         log_audit!(supporter, action: "verification_changed", changed_data: {
           "verification_status" => [ old_status, new_status ],
@@ -219,7 +221,7 @@ module Api
 
       # GET /api/v1/supporters (authenticated)
       def index
-        supporters = scope_supporters(Supporter.includes(:village, :precinct, :block).official_supporters)
+        supporters = scope_supporters(Supporter.includes(:village, :precinct, :block, :referred_from_village).official_supporters)
 
         # Filters
         supporters = supporters.where(village_id: params[:village_id]) if params[:village_id].present?
@@ -271,12 +273,18 @@ module Api
         total = supporters.count
         supporters = supporters.offset((page - 1) * per_page).limit(per_page)
 
-        verification_reason_overrides = supporters.each_with_object({}) do |supporter, memo|
-          next unless supporter.verification_status == "flagged"
-          next if supporter.verification_reason.present?
-          next if supporter.referred_from_village_id.present?
+        legacy_flagged_supporters = supporters.select do |supporter|
+          supporter.verification_status == "flagged" &&
+            supporter.verification_reason.blank? &&
+            supporter.referred_from_village_id.blank?
+        end
+        legacy_matches = GecVoter.find_matches_for_supporters(legacy_flagged_supporters)
 
-          memo[supporter.id] = SupporterVerificationReasonService.new(supporter, allow_match_lookup: true).payload || {}
+        verification_reason_overrides = legacy_flagged_supporters.each_with_object({}) do |supporter, memo|
+          memo[supporter.id] = SupporterVerificationReasonService.new(
+            supporter,
+            matches: legacy_matches[supporter.id] || []
+          ).payload || {}
         end
 
         render json: {
@@ -287,7 +295,7 @@ module Api
 
       # GET /api/v1/supporters/:id
       def show
-        supporter = scope_supporters(Supporter.includes(:village, :precinct, :block, event_rsvps: :event)).find(params[:id])
+        supporter = scope_supporters(Supporter.includes(:village, :precinct, :block, :referred_from_village, event_rsvps: :event)).find(params[:id])
         audit_logs = supporter.audit_logs.includes(:actor_user).recent.limit(50)
 
         render json: {
@@ -1014,11 +1022,6 @@ module Api
         reason_payload = SupporterVerificationReasonService.new(supporter, allow_match_lookup: true).payload || {}
 
         supporter_json(supporter, reason_payload: reason_payload).merge(
-          verification_reason: reason_payload[:verification_reason],
-          verification_reason_label: reason_payload[:verification_reason_label],
-          verification_reason_detail: reason_payload[:verification_reason_detail],
-          verification_reason_metadata: reason_payload[:verification_reason_metadata],
-          verification_reason_derived: reason_payload[:verification_reason_derived],
           block_name: supporter.block&.name,
           events_invited_count: supporter.event_rsvps.size,
           events_attended_count: supporter.event_rsvps.count(&:attended),
@@ -1061,10 +1064,6 @@ module Api
 
       def supporter_edit_allowed?
         current_user&.admin? || current_user&.data_team? || current_user&.coordinator?
-      end
-
-      def supporter_can_be_verified?(supporter)
-        verification_match_payload(supporter)[:matches].any?
       end
 
       def verification_update_attributes(supporter, new_status, match_payload: nil)

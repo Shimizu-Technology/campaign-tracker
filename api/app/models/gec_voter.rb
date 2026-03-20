@@ -158,7 +158,205 @@ class GecVoter < ApplicationRecord
     matches
   end
 
+  def self.find_matches_for_supporters(supporters)
+    inputs = supporters.filter_map { |supporter| build_match_input_for(supporter) }
+    unresolved = inputs.index_by { |input| input[:supporter_id] }
+    results = Hash.new { |hash, key| hash[key] = [] }
+
+    resolve_batch_matches!(results, unresolved,
+      where_sql: "supporter_lookups.dob IS NOT NULL AND supporter_lookups.village_name_norm <> ''",
+      join_sql: <<~SQL.squish,
+        LOWER(gec_voters.first_name) = supporter_lookups.first_name_norm
+        AND LOWER(gec_voters.last_name) = supporter_lookups.last_name_norm
+        AND gec_voters.dob = supporter_lookups.dob
+        AND LOWER(gec_voters.village_name) = supporter_lookups.village_name_norm
+      SQL
+      confidence_for: ->(_count) { :exact },
+      match_type: :exact_dob_village
+    )
+
+    resolve_batch_matches!(results, unresolved,
+      where_sql: "supporter_lookups.dob IS NOT NULL AND supporter_lookups.village_name_norm <> ''",
+      join_sql: <<~SQL.squish,
+        LOWER(gec_voters.first_name) = supporter_lookups.first_name_norm
+        AND LOWER(gec_voters.last_name) = supporter_lookups.last_name_norm
+        AND gec_voters.dob = supporter_lookups.dob
+        AND LOWER(gec_voters.village_name) <> supporter_lookups.village_name_norm
+      SQL
+      confidence_for: ->(_count) { :high },
+      match_type: :different_village
+    )
+
+    resolve_batch_matches!(results, unresolved,
+      where_sql: "supporter_lookups.birth_year IS NOT NULL AND supporter_lookups.village_name_norm <> ''",
+      join_sql: <<~SQL.squish,
+        LOWER(gec_voters.first_name) = supporter_lookups.first_name_norm
+        AND LOWER(gec_voters.last_name) = supporter_lookups.last_name_norm
+        AND gec_voters.birth_year = supporter_lookups.birth_year
+        AND LOWER(gec_voters.village_name) = supporter_lookups.village_name_norm
+      SQL
+      confidence_for: lambda { |count|
+        case count
+        when 1 then :exact
+        when 2, 3 then :high
+        else :medium
+        end
+      },
+      match_type: :name_year_village
+    )
+
+    resolve_batch_matches!(results, unresolved,
+      where_sql: "supporter_lookups.birth_year IS NOT NULL AND supporter_lookups.village_name_norm <> ''",
+      join_sql: <<~SQL.squish,
+        LOWER(gec_voters.first_name) = supporter_lookups.first_name_norm
+        AND LOWER(gec_voters.last_name) = supporter_lookups.last_name_norm
+        AND gec_voters.birth_year = supporter_lookups.birth_year
+        AND LOWER(gec_voters.village_name) <> supporter_lookups.village_name_norm
+      SQL
+      confidence_for: ->(_count) { :high },
+      match_type: :different_village
+    )
+
+    resolve_batch_matches!(results, unresolved,
+      where_sql: "supporter_lookups.birth_year IS NOT NULL AND supporter_lookups.village_name_norm = ''",
+      join_sql: <<~SQL.squish,
+        LOWER(gec_voters.first_name) = supporter_lookups.first_name_norm
+        AND LOWER(gec_voters.last_name) = supporter_lookups.last_name_norm
+        AND gec_voters.birth_year = supporter_lookups.birth_year
+      SQL
+      confidence_for: ->(_count) { :medium },
+      match_type: :name_year_only
+    )
+
+    resolve_batch_matches!(results, unresolved,
+      where_sql: <<~SQL.squish,
+        supporter_lookups.birth_year IS NOT NULL
+        AND similarity(LOWER(gec_voters.first_name), supporter_lookups.first_name_norm) > 0.4
+        AND similarity(LOWER(gec_voters.last_name), supporter_lookups.last_name_norm) > 0.4
+      SQL
+      join_sql: "gec_voters.birth_year = supporter_lookups.birth_year",
+      confidence_for: ->(_count) { :medium },
+      match_type: :fuzzy_name_year,
+      order_sql: <<~SQL.squish,
+        similarity(LOWER(gec_voters.last_name), supporter_lookups.last_name_norm) DESC,
+        similarity(LOWER(gec_voters.first_name), supporter_lookups.first_name_norm) DESC
+      SQL
+      limit_per_supporter: 5
+    )
+
+    resolve_batch_matches!(results, unresolved,
+      where_sql: "supporter_lookups.village_name_norm <> ''",
+      join_sql: <<~SQL.squish,
+        LOWER(gec_voters.first_name) = supporter_lookups.first_name_norm
+        AND LOWER(gec_voters.last_name) = supporter_lookups.last_name_norm
+        AND LOWER(gec_voters.village_name) = supporter_lookups.village_name_norm
+      SQL
+      confidence_for: ->(_count) { :low },
+      match_type: :name_village_only
+    )
+
+    results
+  end
+
   private
+
+  def self.build_match_input_for(supporter)
+    return nil unless supporter&.id
+
+    {
+      supporter_id: supporter.id,
+      first_name_norm: supporter.first_name.to_s.downcase.strip,
+      last_name_norm: supporter.last_name.to_s.downcase.strip,
+      dob: supporter.dob,
+      birth_year: supporter.dob&.year,
+      village_name_norm: supporter.village&.name.to_s.downcase.strip
+    }
+  end
+
+  def self.resolve_batch_matches!(results, unresolved, where_sql:, join_sql:, confidence_for:, match_type:, order_sql: nil, limit_per_supporter: nil)
+    return if unresolved.empty?
+
+    matches_by_supporter = batch_query_matches(
+      unresolved.values,
+      where_sql: where_sql,
+      join_sql: join_sql,
+      order_sql: order_sql,
+      limit_per_supporter: limit_per_supporter
+    )
+
+    matches_by_supporter.each do |supporter_id, rows|
+      count = rows.first.read_attribute("match_count").to_i
+      results[supporter_id] = rows.map do |row|
+        {
+          gec_voter: row,
+          confidence: confidence_for.call(count),
+          match_type: match_type,
+          match_count: count
+        }
+      end
+      unresolved.delete(supporter_id)
+    end
+  end
+
+  def self.batch_query_matches(inputs, where_sql:, join_sql:, order_sql: nil, limit_per_supporter: nil)
+    return {} if inputs.empty?
+
+    rows = find_by_sql(<<~SQL)
+      WITH supporter_lookups AS (
+        SELECT
+          raw.supporter_id::bigint AS supporter_id,
+          raw.first_name_norm::text AS first_name_norm,
+          raw.last_name_norm::text AS last_name_norm,
+          raw.dob::date AS dob,
+          raw.birth_year::integer AS birth_year,
+          raw.village_name_norm::text AS village_name_norm
+        FROM (
+          VALUES #{match_lookup_values_sql(inputs)}
+        ) AS raw(
+          supporter_id,
+          first_name_norm,
+          last_name_norm,
+          dob,
+          birth_year,
+          village_name_norm
+        )
+      ),
+      matched_rows AS (
+        SELECT
+          gec_voters.*,
+          supporter_lookups.supporter_id AS supporter_lookup_id,
+          COUNT(*) OVER (PARTITION BY supporter_lookups.supporter_id) AS match_count
+          #{limit_per_supporter ? ", ROW_NUMBER() OVER (PARTITION BY supporter_lookups.supporter_id ORDER BY #{order_sql}) AS supporter_match_rank" : ""}
+        FROM gec_voters
+        INNER JOIN supporter_lookups
+          ON #{join_sql}
+        WHERE gec_voters.status = 'active'
+          AND #{where_sql}
+      )
+      SELECT *
+      FROM matched_rows
+      #{limit_per_supporter ? "WHERE supporter_match_rank <= #{limit_per_supporter}" : ""}
+      #{order_sql ? "ORDER BY supporter_lookup_id, #{order_sql}" : "ORDER BY supporter_lookup_id"}
+    SQL
+
+    rows.group_by { |row| row.read_attribute("supporter_lookup_id").to_i }
+  end
+
+  def self.match_lookup_values_sql(inputs)
+    connection = ActiveRecord::Base.connection
+
+    inputs.map do |input|
+      [
+        connection.quote(input[:supporter_id]),
+        connection.quote(input[:first_name_norm]),
+        connection.quote(input[:last_name_norm]),
+        connection.quote(input[:dob]),
+        connection.quote(input[:birth_year]),
+        connection.quote(input[:village_name_norm])
+      ].yield_self { |values| "(#{values.join(', ')})" }
+    end.join(", ")
+  end
+  private_class_method :build_match_input_for, :resolve_batch_matches!, :batch_query_matches, :match_lookup_values_sql
 
   def resolve_village
     return if village_id.present? || village_name.blank?
