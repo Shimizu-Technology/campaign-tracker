@@ -174,6 +174,35 @@ class GecVettingServiceTest < ActiveSupport::TestCase
     assert_equal "mystery", supporter.verification_reason_metadata["match_type"]
   end
 
+  test "uses needs review reason for single name-year-only match" do
+    supporter = create_supporter(first_name: "Jordan", last_name: "Onlyyear", dob: Date.new(1985, 3, 15), village: @village)
+
+    original_find_matches = GecVoter.method(:find_matches)
+    GecVoter.define_singleton_method(:find_matches) do |**|
+      [ {
+        gec_voter: @gec_voter,
+        confidence: :medium,
+        match_type: :name_year_only,
+        match_count: 1
+      } ]
+    end
+
+    begin
+      result = GecVettingService.new(supporter).call
+
+      assert_equal :flagged, result.status
+      assert_equal "Possible GEC match with same birth year — needs manual review", result.details
+    ensure
+      GecVoter.define_singleton_method(:find_matches, original_find_matches)
+    end
+
+    supporter.reload
+    assert_equal "needs_manual_review", supporter.verification_reason
+    assert_equal "medium", supporter.verification_reason_metadata["confidence"]
+    assert_equal "name_year_only", supporter.verification_reason_metadata["match_type"]
+    assert_equal 1, supporter.verification_reason_metadata["match_count"]
+  end
+
   private
 
   def create_supporter(first_name:, last_name:, village:, dob: nil)

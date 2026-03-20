@@ -75,15 +75,27 @@ class GecVettingService
         )
       end
     when :medium
+      reason = if best[:match_type] == :fuzzy_name_year
+        "fuzzy_name_match"
+      elsif count > 1
+        "multiple_matches"
+      else
+        "needs_manual_review"
+      end
       apply_flagged!(
         best[:gec_voter],
-        reason: best[:match_type] == :fuzzy_name_year ? "fuzzy_name_match" : "multiple_matches",
+        reason: reason,
         confidence: best[:confidence].to_s,
         match_type: best[:match_type].to_s,
         match_count: count
       )
-      detail = best[:match_type] == :fuzzy_name_year ? "Fuzzy name match — needs manual review" :
-               "#{count} possible matches with same birth year — needs manual review"
+      detail = if best[:match_type] == :fuzzy_name_year
+        "Fuzzy name match — needs manual review"
+      elsif count > 1
+        "#{count} possible matches with same birth year — needs manual review"
+      else
+        "Possible GEC match with same birth year — needs manual review"
+      end
       Result.new(
         status: :flagged, matches: matches, gec_voter: best[:gec_voter], match_count: count,
         details: detail

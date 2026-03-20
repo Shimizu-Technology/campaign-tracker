@@ -301,6 +301,12 @@ class GecVoter < ApplicationRecord
   def self.batch_query_matches(inputs, where_sql:, join_sql:, order_sql: nil, limit_per_supporter: nil)
     return {} if inputs.empty?
 
+    outer_order_sql = if limit_per_supporter
+      "supporter_lookup_id, supporter_match_rank"
+    else
+      "supporter_lookup_id"
+    end
+
     rows = find_by_sql(<<~SQL)
       WITH supporter_lookups AS (
         SELECT
@@ -336,7 +342,7 @@ class GecVoter < ApplicationRecord
       SELECT *
       FROM matched_rows
       #{limit_per_supporter ? "WHERE supporter_match_rank <= #{limit_per_supporter}" : ""}
-      #{order_sql ? "ORDER BY supporter_lookup_id, #{order_sql}" : "ORDER BY supporter_lookup_id"}
+      ORDER BY #{outer_order_sql}
     SQL
 
     rows.group_by { |row| row.read_attribute("supporter_lookup_id").to_i }
