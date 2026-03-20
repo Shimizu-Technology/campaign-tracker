@@ -300,6 +300,9 @@ class GecVoter < ApplicationRecord
 
   def self.batch_query_matches(inputs, where_sql:, join_sql:, order_sql: nil, limit_per_supporter: nil)
     return {} if inputs.empty?
+    if limit_per_supporter && order_sql.blank?
+      raise ArgumentError, "order_sql is required when limit_per_supporter is set"
+    end
 
     outer_order_sql = if limit_per_supporter
       "supporter_lookup_id, supporter_match_rank"
