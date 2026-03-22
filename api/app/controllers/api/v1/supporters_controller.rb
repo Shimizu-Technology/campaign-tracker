@@ -825,11 +825,11 @@ module Api
           total_pending_review: base.review_pending.count,
           total_needing_review: queue_scope.count,
           verified: queue_scope.verified.count,
-          flagged: queue_scope.flagged.where(referred_from_village_id: nil).count,
+          flagged: queue_scope.flagged.where.not(id: queue_scope.submitted_village_referrals.select(:id)).count,
           unverified: queue_scope.unverified.where(registered_voter: false).count,
           no_match: queue_scope.unverified.where(registered_voter: false).count,
           unregistered: queue_scope.unverified.where(registered_voter: false).count,
-          referrals: queue_scope.where.not(referred_from_village_id: nil).count
+          referrals: queue_scope.submitted_village_referrals.count
         }
 
         render json: {
@@ -1030,11 +1030,11 @@ module Api
         when "verified"
           queue_scope.verified
         when "flagged"
-          queue_scope.flagged.where(referred_from_village_id: nil)
+          queue_scope.flagged.where.not(id: queue_scope.submitted_village_referrals.select(:id))
         when "no_match", "unregistered"
           queue_scope.unverified.where(registered_voter: false)
         when "referral"
-          queue_scope.where.not(referred_from_village_id: nil)
+          queue_scope.submitted_village_referrals
         else
           queue_scope
         end

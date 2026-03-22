@@ -117,7 +117,7 @@ function verificationStatusLabel(supporter: QueueSupporter, hasMatches: boolean)
     return supporter.verification_reason_label;
   }
   if (supporter.verification_status === 'verified') return 'Verified';
-  if (supporter.referred_from_village_id) return 'Village Referral';
+  if (supporter.submitted_village_referral) return 'Village Referral';
   if (supporter.verification_status === 'flagged') return 'Needs Review';
   if (supporter.verification_status === 'unverified' && !hasMatches) return 'No GEC Match';
   return 'Pending Review';
@@ -247,6 +247,7 @@ export default function TeamVettingPage() {
     queryKey: ['vetting-gec-lookup', gecSearch, draft.village_id],
     queryFn: () => getGecVoters({
       q: gecSearch || undefined,
+      village_id: draft.village_id || undefined,
       per_page: 25,
     }),
     enabled: Boolean(selectedSupporterId),
@@ -677,7 +678,7 @@ export default function TeamVettingPage() {
               const hasDuplicateWarning = supporter.potential_duplicate === true;
               const duplicatesPath = `/data/duplicates?focus_supporter_id=${id}`;
               const isSelected = selectedSupporterId === id;
-              const statusColor = supporter.referred_from_village_id ? 'text-purple-600 bg-purple-50' :
+              const statusColor = supporter.submitted_village_referral ? 'text-purple-600 bg-purple-50' :
                 supporter.verification_status === 'flagged' ? 'text-amber-700 bg-amber-50' :
                 supporter.verification_status === 'unverified' ? 'text-red-700 bg-red-50' : 'text-green-700 bg-green-50';
 
@@ -717,7 +718,7 @@ export default function TeamVettingPage() {
                       </div>
 
                       {statusDetail && (
-                        <div className={`mt-1 text-xs leading-5 ${supporter.referred_from_village_id ? 'text-purple-700' : 'text-gray-500'}`}>
+                        <div className={`mt-1 text-xs leading-5 ${supporter.submitted_village_referral ? 'text-purple-700' : 'text-gray-500'}`}>
                           {statusDetail}
                         </div>
                       )}

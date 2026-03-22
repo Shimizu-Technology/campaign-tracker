@@ -74,6 +74,15 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "index filters by village_id" do
+    get "/api/v1/gec_voters", params: { village_id: @village.id, q: "Juan" }, headers: auth_headers(@admin)
+
+    assert_response :success
+    json = JSON.parse(response.body)
+    assert json["gec_voters"].all? { |voter| voter["village_id"] == @village.id }
+    assert json["gec_voters"].any? { |voter| voter["first_name"] == "Juan" }
+  end
+
   test "index filters by last name prefix" do
     get "/api/v1/gec_voters", params: { last_name: "Cru" }, headers: auth_headers(@admin)
 

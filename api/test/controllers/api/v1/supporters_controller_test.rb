@@ -1299,6 +1299,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
 
   test "vetting queue summary uses distinct review buckets" do
     Supporter.update_all(verification_status: "verified", registered_voter: true)
+    other_village = Village.create!(name: "Referral Village")
 
     needs_review = Supporter.create!(
       first_name: "Needs", last_name: "Review", print_name: "Needs Review",
@@ -1311,7 +1312,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
       verification_status: "flagged",
       registered_voter: true
     )
-    needs_review.update_columns(verification_status: "flagged", registered_voter: true, referred_from_village_id: nil)
+    needs_review.update_columns(verification_status: "flagged", registered_voter: true, submitted_village_id: @village.id)
     pending_review = Supporter.create!(
       first_name: "Pending", last_name: "Review", print_name: "Pending Review",
       contact_number: "6715559011",
@@ -1323,7 +1324,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
       verification_status: "unverified",
       registered_voter: true
     )
-    pending_review.update_columns(verification_status: "unverified", registered_voter: true, referred_from_village_id: nil)
+    pending_review.update_columns(verification_status: "unverified", registered_voter: true, submitted_village_id: @village.id)
     no_gec_match = Supporter.create!(
       first_name: "No", last_name: "Match", print_name: "No Match",
       contact_number: "6715559012",
@@ -1335,11 +1336,12 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
       verification_status: "unverified",
       registered_voter: false
     )
-    no_gec_match.update_columns(verification_status: "unverified", registered_voter: false, referred_from_village_id: nil)
+    no_gec_match.update_columns(verification_status: "unverified", registered_voter: false, submitted_village_id: @village.id)
     referral = Supporter.create!(
       first_name: "Village", last_name: "Referral", print_name: "Village Referral",
       contact_number: "6715559013",
-      village: @village,
+      village: other_village,
+      submitted_village: @village,
       source: "staff_entry",
       review_status: "pending",
       public_review_status: "not_applicable",
@@ -1347,7 +1349,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
       verification_status: "flagged",
       registered_voter: true
     )
-    referral.update_columns(verification_status: "flagged", registered_voter: true, referred_from_village_id: @village.id)
+    referral.update_columns(verification_status: "flagged", registered_voter: true, submitted_village_id: @village.id)
 
     get "/api/v1/supporters/vetting_queue", headers: auth_headers(@data_team)
 
@@ -1364,6 +1366,24 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_includes returned_ids, pending_review.id
     assert_includes returned_ids, no_gec_match.id
     assert_includes returned_ids, referral.id
+
+    get "/api/v1/supporters/vetting_queue",
+      params: { filter: "referral" },
+      headers: auth_headers(@data_team)
+
+    assert_response :success
+    referral_payload = JSON.parse(response.body)
+    assert_equal [ referral.id ], referral_payload.fetch("supporters").map { |supporter_payload| supporter_payload.fetch("id") }
+
+    get "/api/v1/supporters/vetting_queue",
+      params: { filter: "flagged" },
+      headers: auth_headers(@data_team)
+
+    assert_response :success
+    flagged_payload = JSON.parse(response.body)
+    flagged_ids = flagged_payload.fetch("supporters").map { |supporter_payload| supporter_payload.fetch("id") }
+    assert_includes flagged_ids, needs_review.id
+    assert_not_includes flagged_ids, referral.id
   end
 
   test "vetting queue reuses precomputed verification reason payloads" do

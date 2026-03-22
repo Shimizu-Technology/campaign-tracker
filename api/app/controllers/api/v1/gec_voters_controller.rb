@@ -20,6 +20,7 @@ module Api
           scope = apply_loose_search(scope, params[:q])
         end
 
+        scope = scope.where(village_id: params[:village_id]) if params[:village_id].present?
         scope = scope.where("LOWER(village_name) = ?", params[:village].downcase.strip) if params[:village].present?
         scope = scope.where("LOWER(last_name) LIKE ?", "#{ActiveRecord::Base.sanitize_sql_like(params[:last_name].downcase.strip)}%") if params[:last_name].present?
         scope = scope.where("LOWER(first_name) LIKE ?", "#{ActiveRecord::Base.sanitize_sql_like(params[:first_name].downcase.strip)}%") if params[:first_name].present?
