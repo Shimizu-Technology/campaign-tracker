@@ -757,24 +757,27 @@ module Api
           )
         end
 
+        supporter_ids = supporters.pluck(:id)
         results = Hash.new(0)
+        updated_count = 0
 
         supporters.find_each do |supporter|
           result = GecVettingService.new(supporter).call
           results[result.status] += 1
+          updated_count += 1
         rescue StandardError => e
           results[:errors] += 1
           Rails.logger.warn("Queue bulk re-vet error for supporter #{supporter.id}: #{e.message}")
         end
 
         log_audit!(nil, action: "supporter_queue_bulk_re_vet", changed_data: {
-          supporter_ids: supporters.pluck(:id),
+          supporter_ids: supporter_ids,
           results: results
         }, normalize: true)
 
         render json: {
           message: "Queue re-vet complete",
-          updated: supporters.count,
+          updated: updated_count,
           results: results
         }
       end
