@@ -138,18 +138,21 @@ class SupporterTest < ActiveSupport::TestCase
   end
 
   test "does not auto-assign precinct when only last name changes on an existing unassigned supporter" do
+    no_precinct_village = Village.create!(name: "No Precinct Village")
     supporter = Supporter.create!(
       first_name: "No",
       last_name: "Precinct",
       contact_number: "6715551006",
-      village: @village_one,
-      precinct: @precinct_one,
+      village: no_precinct_village,
+      precinct: nil,
       source: "staff_entry",
       status: "active",
       verification_status: "unverified",
       turnout_status: "unknown"
     )
-    supporter.update_column(:precinct_id, nil)
+    # Move the existing unassigned supporter into the target village without
+    # invoking the callback path this test is intentionally exercising.
+    supporter.update_columns(village_id: @village_one.id, precinct_id: nil)
 
     supporter.update!(last_name: "Corrected")
 
