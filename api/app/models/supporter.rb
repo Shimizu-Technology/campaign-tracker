@@ -219,7 +219,7 @@ class Supporter < ApplicationRecord
     end
 
     return if precinct_id.present?
-    return unless new_record? || will_save_change_to_village_id? || will_save_change_to_precinct_id? || will_save_change_to_last_name?
+    return unless new_record? || will_save_change_to_village_id? || will_save_change_to_precinct_id?
 
     self.precinct_id = PrecinctAssigner.assign_id(self)
   end

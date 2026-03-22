@@ -136,4 +136,23 @@ class SupporterTest < ActiveSupport::TestCase
 
     assert_equal precinct_b.id, supporter.reload.precinct_id
   end
+
+  test "does not auto-assign precinct when only last name changes on an existing unassigned supporter" do
+    supporter = Supporter.create!(
+      first_name: "No",
+      last_name: "Precinct",
+      contact_number: "6715551006",
+      village: @village_one,
+      precinct: @precinct_one,
+      source: "staff_entry",
+      status: "active",
+      verification_status: "unverified",
+      turnout_status: "unknown"
+    )
+    supporter.update_column(:precinct_id, nil)
+
+    supporter.update!(last_name: "Corrected")
+
+    assert_nil supporter.reload.precinct_id
+  end
 end

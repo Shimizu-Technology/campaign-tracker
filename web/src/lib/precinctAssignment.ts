@@ -3,6 +3,8 @@ export type PrecinctAssignmentOption = {
   alpha_range?: string | null;
 };
 
+// Matches the backend PrecinctAssigner boundary comparison. Ranges may use
+// different-length prefixes on each side, such as "A-Md" or "Me-Z".
 function inAlphaRange(lastName: string, alphaRange: string): boolean {
   const [start, end] = alphaRange.split('-', 2).map((part) => part.trim().toLowerCase());
   if (!start || !end) return false;
