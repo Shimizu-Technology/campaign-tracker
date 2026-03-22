@@ -19,6 +19,7 @@ class Supporter < ApplicationRecord
   ].freeze
 
   belongs_to :village
+  belongs_to :submitted_village, class_name: "Village", optional: true
   belongs_to :referred_from_village, class_name: "Village", optional: true
   belongs_to :quota_period, optional: true
   belongs_to :precinct, optional: true
@@ -44,6 +45,7 @@ class Supporter < ApplicationRecord
   # Keep print_name in sync as "Last, First" for display and backward compatibility
   before_validation :sync_print_name
   before_validation :sync_review_workflow_fields
+  before_validation :sync_submitted_village
   before_validation :auto_assign_precinct, on: :create
   before_save :set_normalized_phone
   after_create :check_for_duplicates
@@ -95,6 +97,10 @@ class Supporter < ApplicationRecord
   scope :team_input, -> { official_supporters.where(source: TEAM_SOURCES) }
   scope :public_signups, -> { pending_public_review }
   scope :quota_eligible, -> { official_supporters.verified }
+  scope :submitted_village_referrals, -> {
+    where.not(submitted_village_id: nil)
+      .where("supporters.submitted_village_id <> supporters.village_id")
+  }
   scope :motorcade_available, -> { where(motorcade_available: true) }
   scope :yard_sign, -> { where(yard_sign: true) }
   scope :potential_duplicates_only, -> { duplicate_review_candidates.where(potential_duplicate: true) }
@@ -138,6 +144,10 @@ class Supporter < ApplicationRecord
     ((events_attended_count.to_f / invited) * 100).round(1)
   end
 
+  def submitted_village_referral?
+    submitted_village_id.present? && village_id.present? && submitted_village_id != village_id
+  end
+
   private
 
   def phone_optional_entry?
@@ -179,6 +189,10 @@ class Supporter < ApplicationRecord
       self.public_review_status = "not_applicable"
       self.review_status = review_status.presence || "approved"
     end
+  end
+
+  def sync_submitted_village
+    self.submitted_village_id ||= village_id
   end
 
   def precinct_matches_village

@@ -4,7 +4,7 @@
 # Handles DOB month/day swap detection and village resolution.
 class GecImportService
   REQUIRED_COLUMNS = %w[first_name last_name].freeze  # May be satisfied by combined_name
-  OPTIONAL_COLUMNS = %w[middle_name dob birth_year village voter_registration_number dob_estimated].freeze
+  OPTIONAL_COLUMNS = %w[middle_name dob birth_year village voter_registration_number dob_estimated address precinct_number].freeze
   MAX_STORED_ROW_ERRORS = 50
 
   # Column name aliases to handle different GEC Excel formats
@@ -19,6 +19,8 @@ class GecImportService
     "birth_year" => [ "birth_year", "year_of_birth", "year of birth", "yob", "birth year", "birthyear" ],
     "dob_estimated" => [ "dob_estimated", "dob estimated", "birth_year_only", "birth year only" ],
     "village" => [ "village", "municipality", "district", "precinct_village", "voting_district" ],
+    "address" => [ "address", "street_address", "street address", "mailing_address", "mailing address", "residence_address" ],
+    "precinct_number" => [ "precinct_number", "precinct number", "precinct", "pct", "pct." ],
     "voter_registration_number" => [ "voter_registration_number", "voter_reg", "registration_number",
                                      "reg_no", "reg_number", "vrn", "reg._no.", "reg.no.", "reg._no" ]
   }.freeze
@@ -300,8 +302,7 @@ class GecImportService
       Rails.logger.info("GecImportService import=#{gec_import.id} starting re-vetting")
       @stats[:re_vetted] = re_vet_affected_supporters(gec_import)
 
-      gec_import.update!(
-        status: "completed",
+      completion_attrs = {
         total_records: @stats[:total],
         new_records: @stats[:new],
         updated_records: @stats[:updated],
@@ -310,8 +311,8 @@ class GecImportService
         ambiguous_dob_count: @stats[:ambiguous_dob],
         re_vetted_count: @stats[:re_vetted],
         metadata: (gec_import.metadata || {}).merge({
-          "stage" => "completed",
-          "progress_percent" => 100,
+          "stage" => async_mode ? "finalizing_artifact" : "completed",
+          "progress_percent" => async_mode ? 95 : 100,
           "matched_unchanged" => @stats[:matched_unchanged],
           "skipped" => @stats[:skipped],
           "unassigned" => @stats[:unassigned],
@@ -320,7 +321,10 @@ class GecImportService
           "errors" => @errors.first(MAX_STORED_ROW_ERRORS),
           "row_error_details" => @row_error_details
         })
-      )
+      }
+      completion_attrs[:status] = "completed" unless async_mode
+
+      gec_import.update!(completion_attrs)
 
       Result.new(success: true, gec_import: gec_import, errors: @errors, stats: @stats)
     rescue => e
@@ -705,6 +709,18 @@ class GecImportService
       normalize_voter_registration_number(row[column_map["voter_registration_number"]])
     end
 
+    precinct_number = if column_map["precinct_number"]
+      row[column_map["precinct_number"]]&.to_s&.strip&.upcase.presence
+    end
+
+    address = nil
+    if column_map["address"]
+      address = row[column_map["address"]]&.to_s&.strip.presence
+    elsif column_map["combined_name"]
+      # Official GEC exports place ADDRESS immediately after NAME.
+      address = row[3]&.to_s&.strip.presence if row.size > 3
+    end
+
     dob = nil
     dob_ambiguous = false
     birth_year = nil
@@ -745,6 +761,8 @@ class GecImportService
       dob_ambiguous: dob_ambiguous,
       birth_year: birth_year,
       village_name: village_name,
+      address: address,
+      precinct_number: precinct_number,
       voter_registration_number: vrn,
       source_name: column_map["combined_name"] ? row[column_map["combined_name"]]&.to_s&.strip : nil
     }
@@ -892,6 +910,8 @@ class GecImportService
         first_name: record.first_name,
         middle_name: record.middle_name,
         last_name: record.last_name,
+        address: record.address,
+        precinct_number: record.precinct_number,
         village_name: record.village_name,
         voter_registration_number: record.voter_registration_number,
         dob: record.dob,
@@ -908,6 +928,8 @@ class GecImportService
         removed_at: nil,
         removal_detected_by_import_id: nil,
         voter_registration_number: trusted_voter_registration_number || record.voter_registration_number,
+        address: data[:address],
+        precinct_number: data[:precinct_number],
         dob: data[:dob_estimated] ? record.dob : (data[:dob] || record.dob),
         dob_ambiguous: data[:dob_ambiguous].nil? ? record.dob_ambiguous : data[:dob_ambiguous],
         birth_year: data[:birth_year] || record.birth_year
@@ -931,6 +953,8 @@ class GecImportService
       actually_changed = record.first_name != attrs[:first_name] ||
         record.middle_name != attrs[:middle_name] ||
         record.last_name != attrs[:last_name] ||
+        record.address != attrs[:address] ||
+        record.precinct_number != attrs[:precinct_number] ||
         village_changed ||
         record.status != attrs[:status] ||
         record.voter_registration_number != attrs[:voter_registration_number] ||
@@ -948,6 +972,8 @@ class GecImportService
             first_name: record.first_name,
             middle_name: record.middle_name,
             last_name: record.last_name,
+            address: record.address,
+            precinct_number: record.precinct_number,
             village_name: record.village_name,
             previous_village_name: previous_values[:village_name],
             voter_registration_number: record.voter_registration_number,
@@ -959,6 +985,8 @@ class GecImportService
               first_name: record.first_name,
               middle_name: record.middle_name,
               last_name: record.last_name,
+              address: record.address,
+              precinct_number: record.precinct_number,
               village_name: record.village_name,
               voter_registration_number: record.voter_registration_number,
               dob: record.dob,
@@ -976,6 +1004,8 @@ class GecImportService
         first_name: data[:first_name],
         middle_name: data[:middle_name],
         last_name: data[:last_name],
+        address: data[:address],
+        precinct_number: data[:precinct_number],
         dob: data[:dob_estimated] ? nil : data[:dob],
         dob_ambiguous: data[:dob_ambiguous],
         birth_year: data[:birth_year],

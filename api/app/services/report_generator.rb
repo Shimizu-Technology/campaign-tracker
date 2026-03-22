@@ -90,8 +90,8 @@ class ReportGenerator
   end
 
   def referral_scope
-    scope = Supporter.official_supporters.where.not(referred_from_village_id: nil).includes(:village, :entered_by, :precinct)
-    scope = scope.where(referred_from_village_id: @village_id) if @village_id.present?
+    scope = Supporter.official_supporters.submitted_village_referrals.includes(:village, :submitted_village, :entered_by, :precinct)
+    scope = scope.where(submitted_village_id: @village_id) if @village_id.present?
     scope = scope.joins(:village).where(villages: { district_id: @district_id }) if @district_id.present?
     scope = scope.where(precinct_id: @precinct_id) if @precinct_id.present?
     scope
@@ -243,35 +243,31 @@ class ReportGenerator
   end
 
   # ── Referral List ─────────────────────────────────────────────
-  # Official supporters whose submitted village differs from their GEC village
+  # Official supporters whose original submitted village differs from current assigned village
   def generate_referral_list
     scope = referral_scope
     scope = scope.order(:last_name, :first_name)
 
-    # Pre-load referred villages
-    referred_village_ids = scope.pluck(:referred_from_village_id).compact.uniq
-    village_lookup = Village.where(id: referred_village_ids).index_by(&:id)
-
     package = Axlsx::Package.new
     wb = package.workbook
     headers = [ "Last Name", "First Name", "DOB", "Phone",
-                "Submitted Under", "Actual Village (GEC)",
-                "Submitted By", "Date" ]
+                "Submitted Under", "Current Assigned Village",
+                "Submitted By", "Date", "Referral Reason" ]
 
     wb.add_worksheet(name: "Referral List") do |sheet|
       sheet.add_row headers, style: header_style(wb)
       scope.each do |s|
-        actual_village = village_lookup[s.referred_from_village_id]
         sheet.add_row [
           s.last_name, s.first_name, s.dob&.strftime("%m/%d/%Y"),
           s.contact_number,
-          s.village&.name,
-          actual_village&.name || "Unknown",
+          s.submitted_village&.name,
+          s.village&.name || "Unknown",
           s.entered_by&.name || "System",
-          s.created_at&.strftime("%m/%d/%Y")
+          s.created_at&.strftime("%m/%d/%Y"),
+          "Submitted under #{s.submitted_village&.name || 'Unknown'} but currently assigned to #{s.village&.name || 'Unknown'}"
         ]
       end
-      sheet.column_widths 15, 15, 12, 15, 18, 18, 15, 12
+      sheet.column_widths 15, 15, 12, 15, 18, 18, 15, 12, 45
     end
 
     { package: package, filename: "referral-list-#{date_today}.xlsx" }
@@ -462,15 +458,14 @@ class ReportGenerator
     scope = referral_scope.order(:last_name, :first_name)
     total_count = scope.count
     rows = scope.limit(@preview_limit)
-    village_lookup = Village.where(id: rows.map(&:referred_from_village_id).compact.uniq).index_by(&:id)
 
     {
-      columns: [ "Last Name", "First Name", "DOB", "Phone", "Submitted Under", "Actual Village (GEC)", "Submitted By", "Date" ],
+      columns: [ "Last Name", "First Name", "DOB", "Phone", "Submitted Under", "Current Assigned Village", "Submitted By", "Date", "Referral Reason" ],
       rows: rows.map do |s|
-        actual_village = village_lookup[s.referred_from_village_id]
         [
           s.last_name, s.first_name, format_date(s.dob), s.contact_number,
-          s.village&.name, actual_village&.name || "Unknown", s.entered_by&.name || "System", format_date(s.created_at)
+          s.submitted_village&.name, s.village&.name || "Unknown", s.entered_by&.name || "System", format_date(s.created_at),
+          "Submitted under #{s.submitted_village&.name || 'Unknown'} but currently assigned to #{s.village&.name || 'Unknown'}"
         ]
       end,
       total_count: total_count

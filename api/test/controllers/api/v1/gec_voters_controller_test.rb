@@ -82,6 +82,39 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     assert json["gec_voters"].any? { |v| v["last_name"] == "Cruz" }
   end
 
+  test "index returns address data when available" do
+    precinct = Precinct.create!(village: @village, number: "19", alpha_range: "A-Z")
+    @gec_voter.update!(address: "123 TEST ST", precinct: precinct, precinct_number: "19")
+
+    get "/api/v1/gec_voters", params: { q: "Juan Cruz" }, headers: auth_headers(@admin)
+
+    assert_response :success
+    json = JSON.parse(response.body)
+    voter = json["gec_voters"].find { |entry| entry["id"] == @gec_voter.id }
+    assert_equal "123 TEST ST", voter["address"]
+    assert_equal precinct.id, voter["precinct_id"]
+    assert_equal "19", voter["precinct_number"]
+  end
+
+  test "index q search matches split names without requiring exact middle-name text" do
+    GecVoter.create!(
+      first_name: "James",
+      middle_name: "G.",
+      last_name: "Shimizu",
+      dob: Date.new(1980, 1, 1),
+      village_name: "Hagatna",
+      voter_registration_number: "VR-SHIMIZU-1",
+      gec_list_date: Date.new(2026, 1, 25),
+      imported_at: Time.current
+    )
+
+    get "/api/v1/gec_voters", params: { q: "James Shimizu" }, headers: auth_headers(@admin)
+
+    assert_response :success
+    json = JSON.parse(response.body)
+    assert json["gec_voters"].any? { |voter| voter["first_name"] == "James" && voter["last_name"] == "Shimizu" }
+  end
+
   test "stats returns overview" do
     get "/api/v1/gec_voters/stats", headers: auth_headers(@admin)
 
@@ -899,6 +932,36 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     assert_equal [ "Barrigada", "Dededo" ], json["preview"]["available_villages"]
     assert_equal 1, json["preview"]["pagination"]["total_rows"]
     assert_equal "Pedro", json["preview"]["preview_rows"][0]["first_name"]
+  ensure
+    file&.close!
+  end
+
+  test "view_import_data returns address for parsed pdf imports" do
+    file = Tempfile.new([ "gec_pdf_artifact", ".csv" ])
+    CSV.open(file.path, "w") do |csv|
+      csv << [ "name", "village", "voter_registration_number", "dob", "dob_estimated", "birth_year", "pct", "address" ]
+      csv << [ "BARCINAS, ROBERT JAMES L.", "Tamuning", "VR001", nil, true, "2000", "19", "434A GAYINERO DR" ]
+    end
+
+    gec_import = GecImport.create!(
+      gec_list_date: Date.new(2026, 2, 25),
+      filename: "gec_feb_2026.csv",
+      status: "completed",
+      total_records: 1,
+      original_file_s3_key: "gec-imports/1/artifact/gec_feb_2026.csv",
+      original_filename: "gec_feb_2026.csv",
+      metadata: { "pdf_qa" => { "status" => "pass", "row_count" => 1, "page_count" => 1 } }
+    )
+
+    with_singleton_stubs(S3Service, download: File.binread(file.path)) do
+      get "/api/v1/gec_voters/imports/#{gec_import.id}/view_data", headers: auth_headers(@admin)
+    end
+
+    assert_response :success
+    json = JSON.parse(response.body)
+    assert_equal "pdf", json["preview"]["source_type"]
+    assert_equal "434A GAYINERO DR", json["preview"]["preview_rows"][0]["address"]
+    assert_equal "Tamuning", json["preview"]["preview_rows"][0]["village"]
   ensure
     file&.close!
   end

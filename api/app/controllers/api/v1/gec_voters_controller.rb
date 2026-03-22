@@ -16,6 +16,10 @@ module Api
       def index
         scope = GecVoter.active
 
+        if params[:q].present?
+          scope = apply_loose_search(scope, params[:q])
+        end
+
         scope = scope.where("LOWER(village_name) = ?", params[:village].downcase.strip) if params[:village].present?
         scope = scope.where("LOWER(last_name) LIKE ?", "#{ActiveRecord::Base.sanitize_sql_like(params[:last_name].downcase.strip)}%") if params[:last_name].present?
         scope = scope.where("LOWER(first_name) LIKE ?", "#{ActiveRecord::Base.sanitize_sql_like(params[:first_name].downcase.strip)}%") if params[:first_name].present?
@@ -35,7 +39,7 @@ module Api
         voters = scope.offset((page - 1) * per_page).limit(per_page)
 
         render json: {
-          gec_voters: voters.as_json(only: [ :id, :first_name, :middle_name, :last_name, :dob, :village_name, :village_id, :voter_registration_number, :status, :dob_ambiguous, :gec_list_date ]),
+          gec_voters: voters.as_json(only: [ :id, :first_name, :middle_name, :last_name, :dob, :birth_year, :address, :village_name, :village_id, :precinct_id, :precinct_number, :previous_village_name, :voter_registration_number, :status, :dob_ambiguous, :gec_list_date ]),
           pagination: { page: page, per_page: per_page, total: total, total_pages: (total.to_f / per_page).ceil }
         }
       end
@@ -759,7 +763,7 @@ module Api
         render json: {
           matches: matches.map do |m|
             {
-              gec_voter: m[:gec_voter].as_json(only: [ :id, :first_name, :middle_name, :last_name, :dob, :village_name, :voter_registration_number ]),
+              gec_voter: m[:gec_voter].as_json(only: [ :id, :first_name, :middle_name, :last_name, :dob, :birth_year, :address, :village_name, :precinct_id, :precinct_number, :voter_registration_number ]),
               confidence: m[:confidence],
               match_type: m[:match_type]
             }
@@ -807,6 +811,21 @@ module Api
       end
 
       private
+
+      def apply_loose_search(scope, query)
+        tokens = query.to_s.downcase.split(/\s+/).reject(&:blank?).first(6)
+        return scope if tokens.empty?
+
+        tokens.reduce(scope) do |relation, token|
+          sanitized = ActiveRecord::Base.sanitize_sql_like(token)
+          pattern = "%#{sanitized}%"
+
+          relation.where(
+            "LOWER(first_name) LIKE :pattern OR LOWER(middle_name) LIKE :pattern OR LOWER(last_name) LIKE :pattern OR LOWER(village_name) LIKE :pattern OR LOWER(voter_registration_number) LIKE :pattern OR LOWER(COALESCE(precinct_number, '')) LIKE :pattern",
+            pattern: pattern
+          )
+        end
+      end
 
       def pdf_file?(file)
         filename = file.respond_to?(:original_filename) ? file.original_filename.to_s : ""
@@ -1329,8 +1348,10 @@ module Api
               "first_name" => row[:first_name],
               "middle_name" => row[:middle_name],
               "last_name" => row[:last_name],
+              "address" => row[:address],
               "village" => row[:village_name].presence || GecImportService::UNASSIGNED_VILLAGE_NAME,
               "source_village" => row[:village_name],
+              "precinct_number" => row[:precinct_number],
               "birth_year" => row[:birth_year],
               "voter_registration_number" => row[:voter_registration_number],
               "routed_to_unassigned" => routed_to_unassigned
@@ -1391,9 +1412,9 @@ module Api
         if q.present?
           query = q.downcase.strip
           searchable_fields = if source_type == "pdf"
-            %w[name village birth_year voter_registration_number]
+            %w[name village precinct_number birth_year voter_registration_number]
           else
-            %w[first_name middle_name last_name village_name village birth_year dob voter_registration_number]
+            %w[first_name middle_name last_name village_name village precinct_number birth_year dob voter_registration_number]
           end
           filtered = filtered.select do |row|
             searchable_fields.any? { |field| row[field].to_s.downcase.include?(query) }

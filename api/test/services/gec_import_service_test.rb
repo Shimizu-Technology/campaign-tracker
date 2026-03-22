@@ -35,6 +35,46 @@ class GecImportServiceTest < ActiveSupport::TestCase
     assert_equal @village.id, juan.village_id
   end
 
+  test "persists imported GEC address data" do
+    file = create_test_csv([
+      [ "name", "village", "voter_registration_number", "dob", "dob_estimated", "birth_year", "pct", "address" ],
+      [ "CRUZ, JUAN", "Barrigada", "VR001", "03/15/1985", "false", "1985", "1", "123 TEST ST" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      import_type: "changes_only"
+    ).call
+
+    assert result.success
+    voter = GecVoter.find_by!(voter_registration_number: "VR001")
+    assert_equal "123 TEST ST", voter.address
+  ensure
+    file&.close!
+  end
+
+  test "persists imported GEC precinct number and resolves precinct association" do
+    precinct = Precinct.create!(village: @village, number: "19", alpha_range: "A-Z")
+    file = create_test_csv([
+      [ "name", "village", "voter_registration_number", "dob", "dob_estimated", "birth_year", "pct", "address" ],
+      [ "CRUZ, JUAN", "Barrigada", "VR001", "03/15/1985", "false", "1985", "19", "123 TEST ST" ]
+    ])
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      import_type: "changes_only"
+    ).call
+
+    assert result.success
+    voter = GecVoter.find_by!(voter_registration_number: "VR001")
+    assert_equal "19", voter.precinct_number
+    assert_equal precinct.id, voter.precinct_id
+  ensure
+    file&.close!
+  end
+
   test "canonicalizes imported village aliases onto existing village records" do
     humatak = Village.find_or_create_by!(name: "Humåtak")
     malesso = Village.find_or_create_by!(name: "Malesso'")
@@ -307,8 +347,8 @@ class GecImportServiceTest < ActiveSupport::TestCase
     ).call
 
     assert result.success
-    assert_equal 1, result.stats[:matched_unchanged]
-    assert_equal 0, result.stats[:updated]
+    assert_equal 0, result.stats[:matched_unchanged]
+    assert_equal 1, result.stats[:updated]
     assert_equal 0, result.stats[:skipped]
     assert_equal "removed", GecVoter.find_by(voter_registration_number: "VR-REMOVED").status
     assert_equal "active", GecVoter.find_by(voter_registration_number: "VR-ACTIVE").status
@@ -361,10 +401,10 @@ class GecImportServiceTest < ActiveSupport::TestCase
     ).call
 
     assert result.success
-    assert_equal 1, result.stats[:matched_unchanged]
+    assert_equal 0, result.stats[:matched_unchanged]
     assert_equal 1, result.stats[:new]
     assert_equal 0, result.stats[:skipped]
-    assert_equal 0, result.stats[:updated]
+    assert_equal 1, result.stats[:updated]
     assert_equal 0, result.stats[:transferred]
     assert_nil result.gec_import.metadata["row_error_details"].presence
 
@@ -410,7 +450,8 @@ class GecImportServiceTest < ActiveSupport::TestCase
     ).call
 
     assert result.success
-    assert_equal 2, result.stats[:matched_unchanged]
+    assert_equal 0, result.stats[:matched_unchanged]
+    assert_equal 2, result.stats[:updated]
     assert_equal 0, result.stats[:skipped]
     assert_nil result.gec_import.metadata["row_error_details"].presence
   ensure
@@ -443,7 +484,8 @@ class GecImportServiceTest < ActiveSupport::TestCase
     ).call
 
     assert result.success
-    assert_equal 1, result.stats[:matched_unchanged]
+    assert_equal 0, result.stats[:matched_unchanged]
+    assert_equal 1, result.stats[:updated]
     assert_equal 1, result.stats[:skipped]
     assert_match(/ambiguous source identity/i, result.gec_import.metadata["row_error_details"].first["message"])
   ensure
@@ -533,8 +575,8 @@ class GecImportServiceTest < ActiveSupport::TestCase
 
     assert result.success
     assert_equal 0, result.stats[:new]
-    assert_equal 0, result.stats[:updated]
-    assert_equal 1, result.stats[:matched_unchanged]
+    assert_equal 1, result.stats[:updated]
+    assert_equal 0, result.stats[:matched_unchanged]
     assert_equal 1, GecVoter.where(status: "active").count
 
     existing.reload
@@ -652,8 +694,8 @@ class GecImportServiceTest < ActiveSupport::TestCase
     ).call
 
     assert result.success
-    assert_equal 0, result.stats[:updated]
-    assert_equal 1, result.stats[:matched_unchanged]
+    assert_equal 1, result.stats[:updated]
+    assert_equal 0, result.stats[:matched_unchanged]
 
     jane.reload
     john.reload
@@ -754,6 +796,7 @@ class GecImportServiceTest < ActiveSupport::TestCase
 
     assert_equal "Dededo", preview[:preview_rows][0][:village_name]
     refute_equal "PMB 932 111 CHALAN BALAKO", preview[:preview_rows][0][:village_name]
+    assert_equal "PMB 932 111 CHALAN BALAKO", preview[:preview_rows][0][:address]
   ensure
     file&.close!
   end
@@ -853,6 +896,35 @@ class GecImportServiceTest < ActiveSupport::TestCase
     assert_equal "completed", import.status
     assert_equal 1, import.total_records
     assert_equal 1, import.new_records
+  end
+
+  test "background import stays processing until artifact finalization completes" do
+    file = create_test_excel([
+      [ "First Name", "Last Name", "Village" ],
+      [ "Juan", "Cruz", "Barrigada" ]
+    ])
+
+    gec_import = GecImport.create!(
+      gec_list_date: Date.new(2026, 2, 25),
+      filename: "gec_async.xlsx",
+      import_type: "full_list",
+      status: "processing",
+      metadata: { "stage" => "importing", "progress_percent" => 85 }
+    )
+
+    result = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2026, 2, 25),
+      gec_import: gec_import
+    ).call
+
+    assert result.success
+    gec_import.reload
+    assert_equal "processing", gec_import.status
+    assert_equal "finalizing_artifact", gec_import.metadata["stage"]
+    assert_equal 95, gec_import.metadata["progress_percent"]
+    assert_equal 1, gec_import.total_records
+    assert_equal 1, gec_import.new_records
   end
 
   test "full_list import detects purged voters" do

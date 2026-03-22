@@ -1,9 +1,11 @@
 import { SignedIn, SignedOut, SignInButton } from '@clerk/clerk-react';
 import { Link, Navigate } from 'react-router-dom';
 import { useSession } from '../hooks/useSession';
+import { resolvePreferredRoute } from '../lib/workspaceRouting';
 
 export default function StaffPortalPage() {
   const { data: sessionData, isLoading } = useSession();
+  const destination = sessionData ? resolvePreferredRoute(sessionData) : '/admin';
 
   return (
     <>
@@ -16,7 +18,7 @@ export default function StaffPortalPage() {
             </div>
           </div>
         ) : (
-          <Navigate to={sessionData?.permissions?.default_route || '/admin'} replace />
+          <Navigate to={destination} replace />
         )}
       </SignedIn>
       <SignedOut>

@@ -250,6 +250,14 @@ class GecImportJob < ApplicationJob
         )
 
         merge_metadata!(result.gec_import, pdf_qa: pdf_qa, pdf_warnings: pdf_warnings) if pdf_qa.present? || pdf_warnings.any?
+        result.gec_import.reload
+        result.gec_import.update!(
+          status: "completed",
+          metadata: (result.gec_import.metadata || {}).merge({
+            "stage" => "completed",
+            "progress_percent" => 100
+          })
+        )
 
         begin
           AuditLog.create(

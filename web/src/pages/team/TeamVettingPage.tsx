@@ -1,23 +1,118 @@
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getVettingQueue, getVillages, getDistricts, getPrecincts, approveSupporter, rejectSupporterReview } from '../../lib/api';
+import { useEffect, useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  approveSupporter,
+  bulkRevetSupporters,
+  getDistricts,
+  getGecVoters,
+  getPrecincts,
+  getVettingQueue,
+  getVillages,
+  rejectSupporterReview,
+  revetSupporter,
+  updateSupporter,
+} from '../../lib/api';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { captureAnalyticsEvent } from '../../lib/analytics';
 import {
   CheckCircle,
-  XCircle,
-  ShieldCheck,
-  MapPin,
   ChevronLeft,
-  ChevronDown,
-  ChevronUp,
+  Database,
+  MapPin,
+  PencilLine,
+  RefreshCw,
+  Save,
   Search,
+  ShieldCheck,
+  XCircle,
 } from 'lucide-react';
 import WorkspacePage from '../../components/WorkspacePage';
 
 type VettingFilter = 'all' | 'verified' | 'flagged' | 'no_match' | 'referral';
+type QueueBucket = 'pending' | 'approved' | 'rejected';
 
-function verificationStatusLabel(supporter: Record<string, unknown>, hasMatches: boolean) {
+interface QueueSupporter {
+  id: number;
+  first_name: string;
+  middle_name?: string | null;
+  last_name: string;
+  contact_number?: string | null;
+  email?: string | null;
+  street_address?: string | null;
+  dob?: string | null;
+  village_id?: number | null;
+  village_name?: string | null;
+  submitted_village_id?: number | null;
+  submitted_village_name?: string | null;
+  submitted_village_referral?: boolean;
+  precinct_id?: number | null;
+  precinct_number?: string | null;
+  review_status: string;
+  public_review_status: string;
+  verification_status: string;
+  verification_reason_label?: string | null;
+  verification_reason_detail?: string | null;
+  registered_voter?: boolean;
+  self_reported_registered_voter?: boolean | null;
+  referred_from_village_id?: number | null;
+  referred_from_village_name?: string | null;
+  source?: string;
+  potential_duplicate?: boolean;
+  created_at?: string;
+  gec_matches?: GecMatch[];
+}
+
+interface GecMatch {
+  gec_voter: GecVoter;
+  confidence: string;
+  match_type: string;
+  match_count?: number;
+}
+
+interface GecVoter {
+  id: number;
+  first_name: string;
+  middle_name?: string | null;
+  last_name: string;
+  dob?: string | null;
+  birth_year?: number | null;
+  address?: string | null;
+  village_name?: string | null;
+  village_id?: number | null;
+  precinct_id?: number | null;
+  precinct_number?: string | null;
+  previous_village_name?: string | null;
+  voter_registration_number?: string | null;
+  status?: string | null;
+  gec_list_date?: string | null;
+}
+
+interface EditDraft {
+  first_name: string;
+  middle_name: string;
+  last_name: string;
+  dob: string;
+  street_address: string;
+  village_id: string;
+  precinct_id: string;
+  contact_number: string;
+  email: string;
+}
+
+const EMPTY_SUPPORTERS: QueueSupporter[] = [];
+const EMPTY_DRAFT: EditDraft = {
+  first_name: '',
+  middle_name: '',
+  last_name: '',
+  dob: '',
+  street_address: '',
+  village_id: '',
+  precinct_id: '',
+  contact_number: '',
+  email: '',
+};
+
+function verificationStatusLabel(supporter: QueueSupporter, hasMatches: boolean) {
   if (typeof supporter.verification_reason_label === 'string' && supporter.verification_reason_label.length > 0) {
     return supporter.verification_reason_label;
   }
@@ -28,7 +123,7 @@ function verificationStatusLabel(supporter: Record<string, unknown>, hasMatches:
   return 'Pending Review';
 }
 
-function verificationStatusDetail(supporter: Record<string, unknown>, hasMatches: boolean) {
+function verificationStatusDetail(supporter: QueueSupporter, hasMatches: boolean) {
   if (typeof supporter.verification_reason_detail === 'string' && supporter.verification_reason_detail.length > 0) {
     return supporter.verification_reason_detail;
   }
@@ -38,10 +133,40 @@ function verificationStatusDetail(supporter: Record<string, unknown>, hasMatches
   return null;
 }
 
-function canApproveSupporter(supporter: Record<string, unknown>) {
+function canApproveSupporter(supporter: QueueSupporter) {
   return supporter.review_status === 'pending' &&
     supporter.public_review_status !== 'pending' &&
     supporter.potential_duplicate !== true;
+}
+
+function buildDraft(supporter: QueueSupporter | null): EditDraft {
+  if (!supporter) {
+    return EMPTY_DRAFT;
+  }
+
+  return {
+    first_name: supporter.first_name || '',
+    middle_name: supporter.middle_name || '',
+    last_name: supporter.last_name || '',
+    dob: supporter.dob ? String(supporter.dob).slice(0, 10) : '',
+    street_address: supporter.street_address || '',
+    village_id: supporter.village_id ? String(supporter.village_id) : '',
+    precinct_id: supporter.precinct_id ? String(supporter.precinct_id) : '',
+    contact_number: supporter.contact_number || '',
+    email: supporter.email || '',
+  };
+}
+
+function sameDraft(a: EditDraft, b: EditDraft) {
+  return a.first_name === b.first_name &&
+    a.middle_name === b.middle_name &&
+    a.last_name === b.last_name &&
+    a.dob === b.dob &&
+    a.street_address === b.street_address &&
+    a.village_id === b.village_id &&
+    a.precinct_id === b.precinct_id &&
+    a.contact_number === b.contact_number &&
+    a.email === b.email;
 }
 
 export default function TeamVettingPage() {
@@ -49,6 +174,7 @@ export default function TeamVettingPage() {
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const [filter, setFilter] = useState<VettingFilter>('all');
+  const [reviewBucket, setReviewBucket] = useState<QueueBucket>((searchParams.get('review_bucket') as QueueBucket) || 'pending');
   const [districtId, setDistrictId] = useState(searchParams.get('district_id') || '');
   const [villageId, setVillageId] = useState(searchParams.get('village_id') || '');
   const [precinctId, setPrecinctId] = useState(searchParams.get('precinct_id') || '');
@@ -56,7 +182,9 @@ export default function TeamVettingPage() {
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [page, setPage] = useState(Number(searchParams.get('page') || 1));
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [selectedSupporterId, setSelectedSupporterId] = useState<number | null>(null);
+  const [draft, setDraft] = useState<EditDraft>(buildDraft(null));
+  const [gecSearch, setGecSearch] = useState('');
   const returnTo = searchParams.get('return_to') || '';
 
   const { data: villages } = useQuery({ queryKey: ['villages'], queryFn: getVillages });
@@ -66,8 +194,9 @@ export default function TeamVettingPage() {
     queryFn: () => getPrecincts(villageId ? { village_id: villageId } : undefined),
   });
   const { data, isLoading } = useQuery({
-    queryKey: ['vetting-queue', filter, districtId, villageId, precinctId, source, search, page],
+    queryKey: ['vetting-queue', reviewBucket, filter, districtId, villageId, precinctId, source, search, page],
     queryFn: () => getVettingQueue({
+      review_bucket: reviewBucket,
       filter: filter === 'all' ? undefined : filter,
       district_id: districtId || undefined,
       village_id: villageId || undefined,
@@ -79,6 +208,58 @@ export default function TeamVettingPage() {
       per_page: 50,
     }),
   });
+
+  const supporters = useMemo<QueueSupporter[]>(() => data?.supporters ?? EMPTY_SUPPORTERS, [data?.supporters]);
+  const summary = data?.summary || {};
+  const pagination = data?.pagination || {};
+  const selectedSupporter = supporters.find((supporter) => supporter.id === selectedSupporterId) || null;
+
+  useEffect(() => {
+    if (supporters.length === 0) {
+      if (selectedSupporterId !== null) {
+        setSelectedSupporterId(null);
+      }
+      return;
+    }
+    if (!selectedSupporterId || !supporters.some((supporter) => supporter.id === selectedSupporterId)) {
+      setSelectedSupporterId(supporters[0].id);
+    }
+  }, [selectedSupporterId, supporters]);
+
+  useEffect(() => {
+    const nextDraft = buildDraft(selectedSupporter);
+    setDraft((prev) => (sameDraft(prev, nextDraft) ? prev : nextDraft));
+    if (selectedSupporter) {
+      const nextSearch = [selectedSupporter.first_name, selectedSupporter.middle_name, selectedSupporter.last_name].filter(Boolean).join(' ');
+      setGecSearch((prev) => (prev === nextSearch ? prev : nextSearch));
+    } else {
+      setGecSearch((prev) => (prev === '' ? prev : ''));
+    }
+  }, [selectedSupporter]);
+
+  const { data: editPrecincts } = useQuery({
+    queryKey: ['vetting-edit-precincts', draft.village_id],
+    queryFn: () => getPrecincts(draft.village_id ? { village_id: draft.village_id } : undefined),
+    enabled: Boolean(draft.village_id),
+  });
+
+  const { data: gecLookupData, isLoading: gecLookupLoading } = useQuery({
+    queryKey: ['vetting-gec-lookup', gecSearch, draft.village_id],
+    queryFn: () => getGecVoters({
+      q: gecSearch || undefined,
+      per_page: 25,
+    }),
+    enabled: Boolean(selectedSupporterId),
+  });
+
+  const invalidateQueueData = () => {
+    queryClient.invalidateQueries({ queryKey: ['vetting-queue'] });
+    queryClient.invalidateQueries({ queryKey: ['supporters'] });
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    queryClient.invalidateQueries({ queryKey: ['reports-list'] });
+    queryClient.invalidateQueries({ queryKey: ['current-cycle'] });
+    queryClient.invalidateQueries({ queryKey: ['session'] });
+  };
 
   const approveMutation = useMutation({
     mutationFn: (id: number) => approveSupporter(id),
@@ -92,12 +273,7 @@ export default function TeamVettingPage() {
         has_search_filter: Boolean(search),
         verification_status: (result as { supporter?: { verification_status?: string } })?.supporter?.verification_status,
       });
-      queryClient.invalidateQueries({ queryKey: ['vetting-queue'] });
-      queryClient.invalidateQueries({ queryKey: ['supporters'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['reports-list'] });
-      queryClient.invalidateQueries({ queryKey: ['current-cycle'] });
-      queryClient.invalidateQueries({ queryKey: ['session'] });
+      invalidateQueueData();
     },
     onError: (error: unknown) => {
       const message =
@@ -120,12 +296,7 @@ export default function TeamVettingPage() {
         has_search_filter: Boolean(search),
       });
       setSelectedIds(new Set());
-      queryClient.invalidateQueries({ queryKey: ['vetting-queue'] });
-      queryClient.invalidateQueries({ queryKey: ['supporters'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['reports-list'] });
-      queryClient.invalidateQueries({ queryKey: ['current-cycle'] });
-      queryClient.invalidateQueries({ queryKey: ['session'] });
+      invalidateQueueData();
     },
     onError: (error: unknown) => {
       const message =
@@ -146,21 +317,70 @@ export default function TeamVettingPage() {
         has_search_filter: Boolean(search),
         verification_status: (result as { supporter?: { verification_status?: string } })?.supporter?.verification_status,
       });
-      queryClient.invalidateQueries({ queryKey: ['vetting-queue'] });
-      queryClient.invalidateQueries({ queryKey: ['supporters'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      queryClient.invalidateQueries({ queryKey: ['reports-list'] });
-      queryClient.invalidateQueries({ queryKey: ['current-cycle'] });
-      queryClient.invalidateQueries({ queryKey: ['session'] });
+      invalidateQueueData();
     },
   });
 
-  const supporters = data?.supporters || [];
-  const summary = data?.summary || {};
-  const pagination = data?.pagination || {};
-  const selectedSupporters = supporters.filter((supporter: Record<string, unknown>) => selectedIds.has(supporter.id as number));
-  const selectedCanApprove = selectedSupporters.length > 0 && selectedSupporters.every((supporter: Record<string, unknown>) => canApproveSupporter(supporter));
-  const selectedHasDuplicateWarnings = selectedSupporters.some((supporter: Record<string, unknown>) => supporter.potential_duplicate === true);
+  const saveDraftMutation = useMutation({
+    mutationFn: async ({ reVet }: { reVet: boolean }) => {
+      if (!selectedSupporter) throw new Error('No supporter selected');
+      await updateSupporter(selectedSupporter.id, {
+        first_name: draft.first_name.trim(),
+        middle_name: draft.middle_name.trim() || null,
+        last_name: draft.last_name.trim(),
+        dob: draft.dob || null,
+        street_address: draft.street_address.trim() || null,
+        village_id: draft.village_id ? Number(draft.village_id) : null,
+        precinct_id: draft.precinct_id ? Number(draft.precinct_id) : null,
+        contact_number: draft.contact_number.trim() || null,
+        email: draft.email.trim() || null,
+      });
+      if (reVet) {
+        await revetSupporter(selectedSupporter.id);
+      }
+    },
+    onSuccess: () => {
+      invalidateQueueData();
+    },
+    onError: (error: unknown) => {
+      const message =
+        (error as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        'Failed to save supporter changes.';
+      alert(message);
+    },
+  });
+
+  const singleRevetMutation = useMutation({
+    mutationFn: (id: number) => revetSupporter(id),
+    onSuccess: () => invalidateQueueData(),
+    onError: () => alert('Failed to re-vet supporter.'),
+  });
+
+  const bulkRevetMutation = useMutation({
+    mutationFn: (payload: { supporter_ids?: number[]; apply_current_filters?: boolean }) => bulkRevetSupporters({
+      ...payload,
+      review_bucket: reviewBucket,
+      filter: filter === 'all' ? undefined : filter,
+      district_id: districtId || undefined,
+      village_id: villageId || undefined,
+      precinct_id: precinctId || undefined,
+      source_group: source === 'team' ? 'team' : undefined,
+      source: source && source !== 'team' ? source : undefined,
+      search: search || undefined,
+    }),
+    onSuccess: () => {
+      setSelectedIds(new Set());
+      invalidateQueueData();
+    },
+    onError: () => alert('Failed to bulk re-vet supporters.'),
+  });
+
+  const selectedSupporters = supporters.filter((supporter) => selectedIds.has(supporter.id));
+  const selectedCanApprove = selectedSupporters.length > 0 && selectedSupporters.every((supporter) => canApproveSupporter(supporter));
+  const selectedHasDuplicateWarnings = selectedSupporters.some((supporter) => supporter.potential_duplicate === true);
+  const gecResults: GecVoter[] = gecLookupData?.gec_voters || [];
+  const villageOptions = villages?.villages || [];
+  const editPrecinctOptions = editPrecincts?.precincts || [];
 
   const toggleSelect = (id: number) => {
     const next = new Set(selectedIds);
@@ -214,6 +434,7 @@ export default function TeamVettingPage() {
 
   const currentQueuePath = () => {
     const params = new URLSearchParams();
+    if (reviewBucket !== 'pending') params.set('review_bucket', reviewBucket);
     if (filter !== 'all') params.set('filter', filter);
     if (districtId) params.set('district_id', districtId);
     if (villageId) params.set('village_id', villageId);
@@ -227,9 +448,43 @@ export default function TeamVettingPage() {
     return `${location.pathname}${query ? `?${query}` : ''}`;
   };
 
+  const bucketLabel = useMemo(() => {
+    if (reviewBucket === 'approved') return 'approved';
+    if (reviewBucket === 'rejected') return 'rejected';
+    return 'pending';
+  }, [reviewBucket]);
+
+  const applyGecIdentity = (voter: GecVoter) => {
+    setDraft((prev) => ({
+      ...prev,
+      first_name: voter.first_name || '',
+      middle_name: voter.middle_name || '',
+      last_name: voter.last_name || '',
+      dob: voter.dob ? String(voter.dob).slice(0, 10) : prev.dob,
+    }));
+  };
+
+  const applyGecLocation = (voter: GecVoter) => {
+    const nextVillageId = voter.village_id ? String(voter.village_id) : '';
+    const nextPrecinctId = voter.precinct_id ? String(voter.precinct_id) : '';
+
+    setDraft((prev) => ({
+      ...prev,
+      village_id: nextVillageId || prev.village_id,
+      precinct_id: nextPrecinctId || (nextVillageId && nextVillageId !== prev.village_id ? '' : prev.precinct_id),
+    }));
+  };
+
+  const applyGecAddress = (voter: GecVoter) => {
+    if (!voter.address) return;
+    setDraft((prev) => ({
+      ...prev,
+      street_address: voter.address || prev.street_address,
+    }));
+  };
+
   return (
     <WorkspacePage width="full" className="space-y-6">
-      {/* Header */}
       <div>
         {returnTo && (
           <Link
@@ -241,27 +496,34 @@ export default function TeamVettingPage() {
           </Link>
         )}
         <h1 className="text-xl font-bold text-gray-900">Supporter Review Queue</h1>
-        <p className="text-sm text-gray-500 mt-0.5">Review pending supporter submissions before they join the official supporter list</p>
+        <p className="text-sm text-gray-500 mt-0.5">Correction workspace for supporter submissions, with live GEC lookup and queue re-vetting.</p>
         <p className="text-xs text-gray-400 mt-1">
-          Everyone in this queue still needs data-team approval. The GEC details help with the decision, but a GEC match alone does not add someone to the official supporter list.
+          Submission village is now tracked separately from the current assigned village so referral reporting stays accurate after edits.
         </p>
       </div>
 
-      {/* Summary badges */}
       <div className="flex flex-wrap gap-2">
-        <FilterBadge active={filter === 'all'} onClick={() => { setFilter('all'); setPage(1); }}
-          label="All Pending" count={summary.total_pending_review} />
-        <FilterBadge active={filter === 'verified'} onClick={() => { setFilter('verified'); setPage(1); }}
-          label="Exact GEC Match" count={summary.verified} color="green" />
-        <FilterBadge active={filter === 'flagged'} onClick={() => { setFilter('flagged'); setPage(1); }}
-          label="Needs Review" count={summary.flagged} color="amber" />
-        <FilterBadge active={filter === 'no_match'} onClick={() => { setFilter('no_match'); setPage(1); }}
-          label="No GEC Match" count={summary.no_match} color="red" />
-        <FilterBadge active={filter === 'referral'} onClick={() => { setFilter('referral'); setPage(1); }}
-          label="Village Referrals" count={summary.referrals} color="purple" />
+        <FilterBadge active={reviewBucket === 'pending'} onClick={() => { setReviewBucket('pending'); setPage(1); setSelectedIds(new Set()); }}
+          label="Pending" count={summary.pending} />
+        <FilterBadge active={reviewBucket === 'approved'} onClick={() => { setReviewBucket('approved'); setPage(1); setSelectedIds(new Set()); }}
+          label="Approved" count={summary.approved} />
+        <FilterBadge active={reviewBucket === 'rejected'} onClick={() => { setReviewBucket('rejected'); setPage(1); setSelectedIds(new Set()); }}
+          label="Rejected" count={summary.rejected} />
       </div>
 
-      {/* Filters */}
+      <div className="flex flex-wrap gap-2">
+        <FilterBadge active={filter === 'all'} onClick={() => { setFilter('all'); setPage(1); }}
+          label={reviewBucket === 'pending' ? 'All Pending' : `All ${reviewBucket}`} count={summary.total_needing_review} />
+        <FilterBadge active={filter === 'verified'} onClick={() => { setFilter('verified'); setPage(1); }}
+          label="Exact GEC Match" count={summary.verified} />
+        <FilterBadge active={filter === 'flagged'} onClick={() => { setFilter('flagged'); setPage(1); }}
+          label="Needs Review" count={summary.flagged} />
+        <FilterBadge active={filter === 'no_match'} onClick={() => { setFilter('no_match'); setPage(1); }}
+          label="No GEC Match" count={summary.no_match} />
+        <FilterBadge active={filter === 'referral'} onClick={() => { setFilter('referral'); setPage(1); }}
+          label="Village Referrals" count={summary.referrals} />
+      </div>
+
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-[200px] max-w-xs">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -330,23 +592,45 @@ export default function TeamVettingPage() {
         </select>
       </div>
 
-      {/* Bulk actions */}
+      {reviewBucket === 'pending' && supporters.length > 0 && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => bulkRevetMutation.mutate({ apply_current_filters: true })}
+            disabled={bulkRevetMutation.isPending}
+            className="inline-flex items-center gap-2 rounded-xl border border-blue-200 bg-blue-50 px-4 py-2 text-sm font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Re-vet Current Filtered Queue
+          </button>
+        </div>
+      )}
+
       {selectedIds.size > 0 && (
         <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-100 rounded-lg">
           <span className="text-sm font-medium text-blue-700">{selectedIds.size} selected</span>
+          {reviewBucket === 'pending' && (
+            <button
+              onClick={() => bulkMutation.mutate({ ids: Array.from(selectedIds) })}
+              disabled={bulkMutation.isPending || !selectedCanApprove}
+              className="px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
+              title={
+                selectedCanApprove
+                  ? 'Approve selected supporters into the official list'
+                  : selectedHasDuplicateWarnings
+                    ? 'Resolve duplicate warnings before approving these supporters'
+                    : 'Only pending submissions can be approved'
+              }
+            >
+              Approve Selected
+            </button>
+          )}
           <button
-            onClick={() => bulkMutation.mutate({ ids: Array.from(selectedIds) })}
-            disabled={bulkMutation.isPending || !selectedCanApprove}
-            className="px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-            title={
-              selectedCanApprove
-                ? 'Approve selected supporters into the official list'
-                : selectedHasDuplicateWarnings
-                  ? 'Resolve duplicate warnings before approving these supporters'
-                  : 'Only pending submissions can be approved'
-            }
+            onClick={() => bulkRevetMutation.mutate({ supporter_ids: Array.from(selectedIds) })}
+            disabled={bulkRevetMutation.isPending}
+            className="px-3 py-1.5 text-xs font-medium bg-white text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:opacity-50"
           >
-            Approve Selected
+            Re-vet Selected
           </button>
           {selectedHasDuplicateWarnings && (
             <Link
@@ -365,7 +649,6 @@ export default function TeamVettingPage() {
         </div>
       )}
 
-      {/* List */}
       {isLoading ? (
         <div className="space-y-3">
           {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-20 bg-gray-200 animate-pulse rounded-xl" />)}
@@ -374,191 +657,311 @@ export default function TeamVettingPage() {
         <div className="text-center py-16">
           <ShieldCheck className="w-12 h-12 text-green-300 mx-auto mb-3" />
           <h3 className="text-lg font-semibold text-gray-700">All caught up!</h3>
-          <p className="text-sm text-gray-400 mt-1">No pending supporter submissions need review right now.</p>
+          <p className="text-sm text-gray-400 mt-1">No {bucketLabel} supporter submissions match the current filters.</p>
         </div>
       ) : (
-        <div className="space-y-2">
-          {/* Select all */}
-          <div className="flex items-center gap-2 px-3 py-1">
-            <input type="checkbox" checked={selectedIds.size === supporters.length && supporters.length > 0}
-              onChange={toggleAll} className="rounded border-gray-300" />
-            <span className="text-xs text-gray-400">Select all on page</span>
-          </div>
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.3fr)_minmax(360px,0.9fr)]">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 px-3 py-1">
+              <input type="checkbox" checked={selectedIds.size === supporters.length && supporters.length > 0}
+                onChange={toggleAll} className="rounded border-gray-300" />
+              <span className="text-xs text-gray-400">Select all on page</span>
+            </div>
 
-          {supporters.map((s: Record<string, unknown>) => {
-            const id = s.id as number;
-            const expanded = expandedId === id;
-            const matches = (s.gec_matches || []) as Array<Record<string, unknown>>;
-            const statusLabel = verificationStatusLabel(s, matches.length > 0);
-            const statusDetail = verificationStatusDetail(s, matches.length > 0);
-            const canApprove = canApproveSupporter(s);
-            const hasDuplicateWarning = s.potential_duplicate === true;
-            const duplicatesPath = `/data/duplicates?focus_supporter_id=${id}`;
-            const statusColor = s.referred_from_village_id ? 'text-purple-600' :
-              s.verification_status === 'flagged' ? 'text-amber-600' :
-              s.verification_status === 'unverified' ? 'text-blue-600' : 'text-gray-600';
+            {supporters.map((supporter) => {
+              const id = supporter.id;
+              const matches = supporter.gec_matches || [];
+              const statusLabel = verificationStatusLabel(supporter, matches.length > 0);
+              const statusDetail = verificationStatusDetail(supporter, matches.length > 0);
+              const canApprove = canApproveSupporter(supporter);
+              const hasDuplicateWarning = supporter.potential_duplicate === true;
+              const duplicatesPath = `/data/duplicates?focus_supporter_id=${id}`;
+              const isSelected = selectedSupporterId === id;
+              const statusColor = supporter.referred_from_village_id ? 'text-purple-600 bg-purple-50' :
+                supporter.verification_status === 'flagged' ? 'text-amber-700 bg-amber-50' :
+                supporter.verification_status === 'unverified' ? 'text-red-700 bg-red-50' : 'text-green-700 bg-green-50';
 
-            return (
-              <div key={id} className="bg-white rounded-xl border border-gray-200 overflow-hidden">
-                <div className="flex items-center gap-3 p-4">
-                  <input type="checkbox" checked={selectedIds.has(id)} onChange={() => toggleSelect(id)}
-                    className="rounded border-gray-300 shrink-0" />
+              return (
+                <div
+                  key={id}
+                  className={`rounded-xl border overflow-hidden bg-white ${isSelected ? 'border-blue-400 ring-2 ring-blue-100' : 'border-gray-200'}`}
+                >
+                  <div className="flex gap-3 p-4">
+                    <input type="checkbox" checked={selectedIds.has(id)} onChange={() => toggleSelect(id)}
+                      className="mt-1 rounded border-gray-300 shrink-0" />
 
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <Link to={`/data/supporters/${id}?return_to=${encodeURIComponent(currentQueuePath())}`} className="font-medium text-gray-900 hover:text-blue-600 text-sm">
-                        {[s.last_name as string, [s.first_name as string, s.middle_name as string | undefined].filter(Boolean).join(' ')].filter(Boolean).join(', ')}
-                      </Link>
-                      <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded ${statusColor} bg-opacity-10`}>
-                        {statusLabel}
-                      </span>
-                      {s.referred_from_village_id && (
-                        <span className="text-[10px] font-semibold text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded flex items-center gap-0.5">
-                          <MapPin className="w-3 h-3" /> Village referral
+                    <button type="button" className="flex-1 min-w-0 text-left" onClick={() => setSelectedSupporterId(id)}>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="font-medium text-gray-900 text-sm">
+                          {[supporter.last_name, [supporter.first_name, supporter.middle_name].filter(Boolean).join(' ')].filter(Boolean).join(', ')}
                         </span>
-                      )}
-                      {hasDuplicateWarning && (
-                        <Link
-                          to={duplicatesPath}
-                          className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded hover:bg-amber-200"
-                        >
-                          Duplicate review required
-                        </Link>
-                      )}
-                    </div>
-                    <div className="text-xs text-gray-400 mt-0.5">
-                      {s.village_name as string} &middot; {s.contact_number as string || 'No phone'}
-                      {s.dob
-                        ? <> &middot; DOB: {new Date(s.dob as string).toLocaleDateString()}</>
-                        : s.birth_year
-                          ? <> &middot; Born: {s.birth_year as number}</>
-                          : null
-                      }
-                    </div>
-                    {statusDetail && (
-                      <div className={`text-xs mt-1 max-w-3xl leading-5 ${
-                        s.referred_from_village_id ? 'text-purple-700' : 'text-gray-500'
-                      }`}>
-                        {statusDetail}
-                      </div>
-                    )}
-                    {matches.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-1.5">
-                        {matches.slice(0, 3).map((m, i) => {
-                          const gv = m.gec_voter as Record<string, unknown>;
-                          const mc = m.match_count as number | undefined;
-                          return (
-                            <span key={i} className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${confidenceColor(m.confidence as string)}`}>
-                              {confidenceLabel(m.confidence as string, mc)} &middot; {matchTypeLabel(m.match_type as string)}
-                              {m.match_type === 'different_village' && ` — ${gv.village_name as string}`}
-                            </span>
-                          );
-                        })}
-                        {matches.length > 3 && (
-                          <span className="text-[10px] text-gray-400 px-2 py-0.5">+{matches.length - 3} more</span>
+                        <span className={`text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded ${statusColor}`}>
+                          {statusLabel}
+                        </span>
+                        {supporter.submitted_village_referral && (
+                          <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded flex items-center gap-1">
+                            <MapPin className="w-3 h-3" />
+                            Submitted by {supporter.submitted_village_name}
+                          </span>
+                        )}
+                        {hasDuplicateWarning && (
+                          <span className="text-[10px] font-semibold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
+                            Duplicate review required
+                          </span>
                         )}
                       </div>
-                    )}
-                    {matches.length === 0 && (
-                      <div className="flex items-center gap-1 mt-1.5">
-                        <XCircle className="w-3 h-3 text-red-400" />
-                        <span className="text-[10px] text-red-500 font-medium">No GEC match found in the current voter list</span>
+
+                      <div className="mt-1 text-xs text-gray-400">
+                        {supporter.village_name || 'No village'} &middot; {supporter.contact_number || 'No phone'}
+                        {supporter.dob ? <> &middot; DOB: {new Date(supporter.dob).toLocaleDateString()}</> : null}
                       </div>
-                    )}
+
+                      {statusDetail && (
+                        <div className={`mt-1 text-xs leading-5 ${supporter.referred_from_village_id ? 'text-purple-700' : 'text-gray-500'}`}>
+                          {statusDetail}
+                        </div>
+                      )}
+
+                      {supporter.submitted_village_referral && (
+                        <div className="mt-1 text-xs text-indigo-700">
+                          Original submission village: {supporter.submitted_village_name || 'Unknown'} · Current assignment: {supporter.village_name || 'Unknown'}
+                        </div>
+                      )}
+
+                      {matches.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {matches.slice(0, 3).map((match, index) => (
+                            <span key={`${id}-${index}`} className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${confidenceColor(match.confidence)}`}>
+                              {confidenceLabel(match.confidence, match.match_count)} &middot; {matchTypeLabel(match.match_type)}
+                              {match.match_type === 'different_village' && ` — ${match.gec_voter.village_name}`}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {matches.length === 0 && (
+                        <div className="flex items-center gap-1 mt-1.5">
+                          <XCircle className="w-3 h-3 text-red-400" />
+                          <span className="text-[10px] text-red-500 font-medium">No GEC match found in the current voter list</span>
+                        </div>
+                      )}
+                    </button>
+
+                    <div className="flex shrink-0 items-start gap-1">
+                      <Link
+                        to={`/data/supporters/${id}?return_to=${encodeURIComponent(currentQueuePath())}`}
+                        className="px-2.5 py-2 text-xs font-medium text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
+                        title="Open supporter detail"
+                      >
+                        <PencilLine className="w-4 h-4" />
+                      </Link>
+                      <button
+                        onClick={() => singleRevetMutation.mutate(id)}
+                        disabled={singleRevetMutation.isPending}
+                        className="px-2.5 py-2 text-xs font-medium text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Re-vet supporter against current GEC list"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </button>
+                      {reviewBucket === 'pending' && (hasDuplicateWarning ? (
+                        <Link
+                          to={duplicatesPath}
+                          className="px-2.5 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50 rounded-lg transition-colors"
+                          title="Resolve duplicate before approving"
+                        >
+                          Resolve
+                        </Link>
+                      ) : (
+                        <button
+                          onClick={() => approveMutation.mutate(id)}
+                          disabled={approveMutation.isPending || rejectMutation.isPending || !canApprove}
+                          className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                          title={canApprove ? 'Approve into official supporter list' : 'This submission is not ready for approval'}
+                        >
+                          <CheckCircle className="w-5 h-5" />
+                        </button>
+                      ))}
+                      {reviewBucket === 'pending' && (
+                        <button
+                          onClick={() => rejectMutation.mutate(id)}
+                          disabled={approveMutation.isPending || rejectMutation.isPending}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Reject submission"
+                        >
+                          <XCircle className="w-5 h-5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="space-y-4">
+            <section className="rounded-2xl border border-gray-200 bg-white p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-900">Quick Edit + Re-vet</h2>
+                  <p className="mt-1 text-xs text-gray-500">Edit the selected supporter, then save changes or save and immediately re-vet.</p>
+                </div>
+                {selectedSupporter && (
+                  <Link
+                    to={`/data/supporters/${selectedSupporter.id}?return_to=${encodeURIComponent(currentQueuePath())}`}
+                    className="text-xs text-blue-600 hover:text-blue-700"
+                  >
+                    Full detail
+                  </Link>
+                )}
+              </div>
+
+              {!selectedSupporter ? (
+                <div className="py-10 text-center text-sm text-gray-500">Select a supporter from the queue to start editing.</div>
+              ) : (
+                <div className="mt-4 space-y-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input value={draft.first_name} onChange={(e) => setDraft((prev) => ({ ...prev, first_name: e.target.value }))} placeholder="First name" className="rounded-xl border border-gray-200 px-3 py-2 text-sm" />
+                    <input value={draft.middle_name} onChange={(e) => setDraft((prev) => ({ ...prev, middle_name: e.target.value }))} placeholder="Middle name" className="rounded-xl border border-gray-200 px-3 py-2 text-sm" />
+                    <input value={draft.last_name} onChange={(e) => setDraft((prev) => ({ ...prev, last_name: e.target.value }))} placeholder="Last name" className="rounded-xl border border-gray-200 px-3 py-2 text-sm" />
+                    <input value={draft.dob} onChange={(e) => setDraft((prev) => ({ ...prev, dob: e.target.value }))} placeholder="DOB" type="date" className="rounded-xl border border-gray-200 px-3 py-2 text-sm" />
+                    <input value={draft.contact_number} onChange={(e) => setDraft((prev) => ({ ...prev, contact_number: e.target.value }))} placeholder="Phone" className="rounded-xl border border-gray-200 px-3 py-2 text-sm" />
+                    <input value={draft.email} onChange={(e) => setDraft((prev) => ({ ...prev, email: e.target.value }))} placeholder="Email" className="rounded-xl border border-gray-200 px-3 py-2 text-sm" />
+                  </div>
+                  <input value={draft.street_address} onChange={(e) => setDraft((prev) => ({ ...prev, street_address: e.target.value }))} placeholder="Street address" className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm" />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <select value={draft.village_id} onChange={(e) => setDraft((prev) => ({ ...prev, village_id: e.target.value, precinct_id: '' }))} className="rounded-xl border border-gray-200 px-3 py-2 text-sm">
+                      <option value="">Select village</option>
+                      {villageOptions.map((village: { id: number; name: string }) => (
+                        <option key={village.id} value={village.id}>{village.name}</option>
+                      ))}
+                    </select>
+                    <select value={draft.precinct_id} onChange={(e) => setDraft((prev) => ({ ...prev, precinct_id: e.target.value }))} className="rounded-xl border border-gray-200 px-3 py-2 text-sm">
+                      <option value="">Select precinct</option>
+                      {editPrecinctOptions.map((precinct: { id: number; number: string; village_name?: string }) => (
+                        <option key={precinct.id} value={precinct.id}>
+                          {precinct.village_name ? `${precinct.village_name} · ${precinct.number}` : precinct.number}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
-                  {/* Actions */}
-                  <div className="flex items-center gap-1 shrink-0">
-                    {hasDuplicateWarning ? (
-                      <Link
-                        to={duplicatesPath}
-                        className="px-2.5 py-2 text-xs font-medium text-amber-700 hover:bg-amber-50 rounded-lg transition-colors"
-                        title="Resolve duplicate before approving"
-                      >
-                        Resolve Duplicate
-                      </Link>
-                    ) : (
-                      <button
-                        onClick={() => approveMutation.mutate(id)}
-                        disabled={approveMutation.isPending || rejectMutation.isPending || !canApprove}
-                        className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                        title={canApprove ? 'Approve into official supporter list' : 'This submission is not ready for approval'}
-                      >
-                        <CheckCircle className="w-5 h-5" />
-                      </button>
-                    )}
+                  <div className="rounded-xl border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-700">
+                    Original submission village: {selectedSupporter.submitted_village_name || selectedSupporter.village_name || 'Unknown'}
+                  </div>
+
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     <button
-                      onClick={() => rejectMutation.mutate(id)}
-                      disabled={approveMutation.isPending || rejectMutation.isPending}
-                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Reject submission"
+                      type="button"
+                      onClick={() => saveDraftMutation.mutate({ reVet: false })}
+                      disabled={saveDraftMutation.isPending}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
                     >
-                      <XCircle className="w-5 h-5" />
+                      <Save className="w-4 h-4" />
+                      Save Changes
                     </button>
                     <button
-                      onClick={() => setExpandedId(expanded ? null : id)}
-                      className="p-2 text-gray-400 hover:bg-gray-50 rounded-lg transition-colors"
+                      type="button"
+                      onClick={() => saveDraftMutation.mutate({ reVet: true })}
+                      disabled={saveDraftMutation.isPending}
+                      className="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                     >
-                      {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      <RefreshCw className="w-4 h-4" />
+                      Save + Re-vet
                     </button>
                   </div>
                 </div>
+              )}
+            </section>
 
-                {/* Expanded details */}
-                {expanded && (
-                  <div className="px-4 pb-4 pt-0 border-t border-gray-100 bg-gray-50">
-                    {hasDuplicateWarning && (
-                      <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                        This submission has an unresolved duplicate warning and cannot be approved into the official supporter list yet.
-                        <Link to={duplicatesPath} className="ml-1 font-semibold hover:underline">
-                          Resolve duplicate
-                        </Link>
+            <section className="rounded-2xl border border-gray-200 bg-white p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-900">GEC Lookup</h2>
+                  <p className="mt-1 text-xs text-gray-500">Use separate presets for identity, location, and address so staff can copy only what they actually want from the matched GEC voter.</p>
+                </div>
+                <Database className="h-4 w-4 text-gray-400" />
+              </div>
+
+              <div className="relative mt-4">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  value={gecSearch}
+                  onChange={(e) => setGecSearch(e.target.value)}
+                  placeholder="Search GEC voter list"
+                  className="w-full rounded-xl border border-gray-200 py-2 pl-9 pr-3 text-sm"
+                />
+              </div>
+
+              <div className="mt-4 space-y-2">
+                {gecLookupLoading ? (
+                  <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-4 text-sm text-gray-500">Searching GEC list...</div>
+                ) : gecResults.length === 0 ? (
+                  <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-4 text-sm text-gray-500">No current GEC matches found for this search.</div>
+                ) : (
+                  gecResults.map((voter) => (
+                    <div key={voter.id} className="rounded-xl border border-gray-200 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-900">
+                            {[voter.first_name, voter.middle_name, voter.last_name].filter(Boolean).join(' ')}
+                          </p>
+                          <p className="mt-1 text-xs text-gray-500">
+                            {voter.village_name || 'Unknown village'}
+                            {voter.precinct_number ? ` · Precinct ${voter.precinct_number}` : ''}
+                            {voter.dob ? ` · DOB: ${new Date(voter.dob).toLocaleDateString()}` : ''}
+                            {!voter.dob && voter.birth_year ? ` · Born: ${voter.birth_year}` : ''}
+                            {voter.voter_registration_number ? ` · Reg: ${voter.voter_registration_number}` : ''}
+                          </p>
+                          {voter.address && (
+                            <p className="mt-1 text-xs text-gray-600">{voter.address}</p>
+                          )}
+                          <p className="mt-1 text-[11px] text-gray-400">
+                            {voter.status ? `Status: ${voter.status}` : 'Status: active'}
+                            {voter.previous_village_name ? ` · Previous village: ${voter.previous_village_name}` : ''}
+                            {voter.gec_list_date ? ` · List date: ${new Date(voter.gec_list_date).toLocaleDateString()}` : ''}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 flex-col items-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() => applyGecIdentity(voter)}
+                            className="rounded-lg border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
+                          >
+                            Apply Identity
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => applyGecLocation(voter)}
+                            className="rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100"
+                          >
+                            Apply Location
+                          </button>
+                          {voter.address && (
+                            <button
+                              type="button"
+                              onClick={() => applyGecAddress(voter)}
+                              className="rounded-lg border border-gray-200 bg-white px-2.5 py-1 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                            >
+                              Use GEC Address
+                            </button>
+                          )}
+                        </div>
                       </div>
-                    )}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 py-3 text-xs">
-                      <div><span className="text-gray-400">Origin:</span> <span className="font-medium text-gray-700">{(s.source as string)?.replace(/_/g, ' ')}</span></div>
-                      <div><span className="text-gray-400">Self-reported registered:</span> <span className="font-medium text-gray-700">{s.self_reported_registered_voter == null ? 'Unknown' : s.self_reported_registered_voter ? 'Yes' : 'No'}</span></div>
-                      <div><span className="text-gray-400">GEC found:</span> <span className="font-medium text-gray-700">{s.registered_voter ? 'Yes' : 'No'}</span></div>
-                      <div><span className="text-gray-400">Submitted:</span> <span className="font-medium text-gray-700">{new Date(s.created_at as string).toLocaleString()}</span></div>
-                      <div><span className="text-gray-400">Email:</span> <span className="font-medium text-gray-700">{(s.email as string) || 'N/A'}</span></div>
+                      <p className="mt-2 text-[11px] text-gray-400">
+                        `Apply Identity` copies name and a full DOB when the GEC record has one. If the GEC match only has a birth year, we keep the supporter DOB unchanged instead of guessing a date.
+                      </p>
+                      <p className="mt-1 text-[11px] text-gray-400">
+                        `Apply Location` copies village and precinct when available. `Use GEC Address` only replaces the supporter address.
+                      </p>
                     </div>
-                    {matches.length > 0 && (
-                      <div className="mt-2">
-                        <div className="text-[10px] font-semibold text-gray-400 uppercase mb-2">GEC Match Details</div>
-                        {matches.map((m, i) => {
-                          const gv = m.gec_voter as Record<string, unknown>;
-                          return (
-                            <div key={i} className="p-2 bg-white rounded-lg border border-gray-100 mb-1 text-xs flex justify-between items-start gap-2">
-                              <div>
-                                <span className="font-medium">{[gv.first_name as string, gv.middle_name as string | undefined, gv.last_name as string].filter(Boolean).join(' ')}</span>
-                                <span className="text-gray-400 ml-2">{gv.village_name as string}</span>
-                                {gv.dob && <span className="text-gray-400 ml-2">DOB: {new Date(gv.dob as string).toLocaleDateString()}</span>}
-                                {!gv.dob && gv.birth_year && <span className="text-gray-400 ml-2">Born: {gv.birth_year as number}</span>}
-                                {gv.voter_registration_number && <span className="text-gray-400 ml-2">Reg: {gv.voter_registration_number as string}</span>}
-                                <div className="text-gray-400 mt-0.5">{matchTypeLabel(m.match_type as string)}</div>
-                                {(m.match_count as number) > 1 && (
-                                  <div className="text-amber-600 mt-0.5">
-                                    {m.match_count as number} candidates matched — manual review recommended
-                                  </div>
-                                )}
-                              </div>
-                              <span className={`px-2 py-0.5 rounded-full font-semibold shrink-0 ${confidenceColor(m.confidence as string)}`}>
-                                {confidenceLabel(m.confidence as string, m.match_count as number)}
-                              </span>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
+                  ))
                 )}
               </div>
-            );
-          })}
+            </section>
+          </div>
         </div>
       )}
 
-      {/* Pagination */}
       {pagination.pages > 1 && (
         <div className="flex items-center justify-center gap-2">
           <button disabled={page <= 1} onClick={() => setPage(p => p - 1)}
@@ -577,7 +980,6 @@ function FilterBadge({ active, onClick, label, count }: {
   onClick: () => void;
   label: string;
   count?: number;
-  color?: string;
 }) {
   const base = active
     ? 'bg-gray-900 text-white border-gray-900'

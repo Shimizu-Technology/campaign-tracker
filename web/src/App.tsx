@@ -1,10 +1,12 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Link, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Link, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AdminLayout from './components/AdminLayout';
 import AnalyticsTracker from './components/AnalyticsTracker';
+import RoutePersistenceManager from './components/RoutePersistenceManager';
 import TeamLayout from './components/TeamLayout';
 import { useSession } from './hooks/useSession';
+import { resolvePreferredRoute } from './lib/workspaceRouting';
 import { Shield } from 'lucide-react';
 
 // Eagerly loaded (public pages — fast initial load)
@@ -88,6 +90,7 @@ function PermissionRoute({
   children: React.ReactNode;
 }) {
   const { data, isLoading } = useSession();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -98,6 +101,7 @@ function PermissionRoute({
   }
 
   const defaultRoute = data?.permissions?.default_route || '/admin';
+  const fallbackRoute = data ? resolvePreferredRoute(data, `${location.pathname}${location.search}`) : defaultRoute;
 
   if (!data?.permissions?.[permission]) {
     return (
@@ -108,7 +112,7 @@ function PermissionRoute({
           </div>
           <h1 className="text-xl font-bold text-(--text-primary) mb-2">Not Authorized</h1>
           <p className="text-sm text-(--text-secondary) mb-6 leading-relaxed">Your role does not have access to this tool.</p>
-          <Link to={defaultRoute} className="app-btn-primary">
+          <Link to={fallbackRoute} className="app-btn-primary">
             Back to Workspace
           </Link>
         </div>
@@ -124,6 +128,7 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AnalyticsTracker />
+        <RoutePersistenceManager />
         <Suspense fallback={<LazyFallback />}>
         <Routes>
           {/* Public — no auth required */}
