@@ -26,6 +26,9 @@ interface SupporterDetail {
   street_address: string | null;
   village_id: number;
   village_name: string;
+  submitted_village_id?: number | null;
+  submitted_village_name?: string | null;
+  submitted_village_referral?: boolean;
   precinct_id: number | null;
   precinct_number: string | null;
   self_reported_registered_voter: boolean | null;
@@ -240,21 +243,25 @@ function auditFieldLabel(field: string) {
   return AUDIT_FIELD_LABELS[field] || field.replaceAll('_', ' ');
 }
 
-function verificationStatusLabel(supporter: Pick<SupporterDetail, 'verification_status' | 'registered_voter' | 'referred_from_village_id' | 'verification_reason_label'>) {
+function verificationStatusLabel(supporter: Pick<SupporterDetail, 'verification_status' | 'registered_voter' | 'referred_from_village_id' | 'submitted_village_referral' | 'verification_reason_label'>) {
   if (supporter.verification_reason_label) return supporter.verification_reason_label;
   if (supporter.verification_status === 'verified') return 'Matched to GEC';
+  if (supporter.submitted_village_referral) return 'Village Referral';
   if (supporter.referred_from_village_id) return 'Village Referral';
   if (supporter.verification_status === 'flagged') return 'Flagged for review';
   if (supporter.verification_status === 'unverified' && !supporter.registered_voter) return 'No GEC Match';
   return 'Needs voter review';
 }
 
-function verificationStatusDetail(supporter: Pick<SupporterDetail, 'verification_status' | 'registered_voter' | 'referred_from_village_id' | 'village_name' | 'referred_from_village_name' | 'verification_reason_detail'>) {
+function verificationStatusDetail(supporter: Pick<SupporterDetail, 'verification_status' | 'registered_voter' | 'referred_from_village_id' | 'submitted_village_referral' | 'submitted_village_name' | 'village_name' | 'referred_from_village_name' | 'verification_reason_detail'>) {
   if (supporter.verification_reason_detail) {
     return supporter.verification_reason_detail;
   }
   if (supporter.verification_status === 'verified') {
     return 'This supporter has a current GEC match and can be treated as matched to the voter list.';
+  }
+  if (supporter.submitted_village_referral) {
+    return `This supporter was originally submitted under ${supporter.submitted_village_name || 'Unknown'}, but is currently assigned to ${supporter.village_name || 'Unknown'}.`;
   }
   if (supporter.referred_from_village_id) {
     if (supporter.village_name && supporter.referred_from_village_name) {
@@ -276,6 +283,18 @@ function verificationStatusDetail(supporter: Pick<SupporterDetail, 'verification
 
 function isNoGecMatch(supporter: Pick<SupporterDetail, 'verification_status' | 'registered_voter' | 'referred_from_village_id'>) {
   return supporter.verification_status === 'unverified' && !supporter.registered_voter && !supporter.referred_from_village_id;
+}
+
+function assignmentHistoryDetail(supporter: Pick<SupporterDetail, 'submitted_village_name' | 'submitted_village_referral' | 'village_name'>) {
+  const submittedVillage = supporter.submitted_village_name || supporter.village_name || 'Unknown';
+  const currentVillage = supporter.village_name || 'Unknown';
+  const statusLabel = supporter.submitted_village_referral ? 'Referral active' : 'Matches original submission';
+
+  return [
+    { label: 'Original submission village', value: submittedVillage },
+    { label: 'Current assignment', value: currentVillage },
+    { label: 'Assignment status', value: statusLabel },
+  ];
 }
 
 function isPublicOrigin(supporter: Pick<SupporterDetail, 'source'>) {
@@ -705,6 +724,32 @@ export default function SupporterDetailPage() {
               />
               Email updates
             </label>
+          </div>
+
+          <div className={`mt-4 rounded-xl border px-4 py-3 ${
+            supporter.submitted_village_referral ? 'border-purple-200 bg-purple-50' : 'border-slate-200 bg-slate-50'
+          }`}>
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-sm font-semibold text-[var(--text-primary)]">Assignment History</h3>
+              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
+                supporter.submitted_village_referral ? 'bg-purple-100 text-purple-700' : 'bg-slate-200 text-slate-700'
+              }`}>
+                {supporter.submitted_village_referral ? 'Village Referral' : 'Original Village Match'}
+              </span>
+            </div>
+            <div className="mt-3 grid gap-3 md:grid-cols-3">
+              {assignmentHistoryDetail(supporter).map((item) => (
+                <div key={item.label}>
+                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">{item.label}</p>
+                  <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">{item.value}</p>
+                </div>
+              ))}
+            </div>
+            {supporter.submitted_village_referral && (
+              <p className="mt-3 text-sm text-purple-700">
+                This supporter should appear on the Referral List report once they are approved into the official supporter list.
+              </p>
+            )}
           </div>
         </section>
 
