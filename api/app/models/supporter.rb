@@ -46,7 +46,7 @@ class Supporter < ApplicationRecord
   before_validation :sync_print_name
   before_validation :sync_review_workflow_fields
   before_validation :sync_submitted_village
-  before_validation :auto_assign_precinct, on: :create
+  before_validation :sync_precinct_assignment
   before_save :set_normalized_phone
   after_create :check_for_duplicates
   after_create :auto_vet_against_gec
@@ -209,10 +209,18 @@ class Supporter < ApplicationRecord
     errors.add(:block_id, "must belong to the selected village")
   end
 
-  # Auto-assign precinct from last name + village using GEC alpha_range data.
-  # Only runs on create; admins can still manually override after.
-  def auto_assign_precinct
-    return if precinct_id.present? # Don't override explicit selection
+  # Keep precinct assignment aligned with the selected village. On create we
+  # auto-fill blanks; on update we re-fill only when the village changes or the
+  # precinct was explicitly cleared, so manual selections remain respected.
+  def sync_precinct_assignment
+    if village_id.blank?
+      self.precinct_id = nil
+      return
+    end
+
+    return if precinct_id.present?
+    return unless new_record? || will_save_change_to_village_id? || will_save_change_to_precinct_id? || will_save_change_to_last_name?
+
     self.precinct_id = PrecinctAssigner.assign_id(self)
   end
 

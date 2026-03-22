@@ -4,6 +4,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, ChevronLeft, Pencil, Save, UserRound, X } from 'lucide-react';
 import { acceptToQuota, getSupporter, getVillages, updateSupporter, verifySupporter, updateOutreachStatus } from '../../lib/api';
 import { formatDateTime } from '../../lib/datetime';
+import { assignPrecinctIdByLastName } from '../../lib/precinctAssignment';
 import { useSession } from '../../hooks/useSession';
 import WorkspacePage from '../../components/WorkspacePage';
 
@@ -626,7 +627,16 @@ export default function SupporterDetailPage() {
             />
             <select
               value={String(currentForm.village_id || '')}
-              onChange={(e) => updateDraft({ village_id: Number(e.target.value), precinct_id: null })}
+              onChange={(e) => {
+                const nextVillageId = Number(e.target.value);
+                const nextVillage = villages.find((v) => v.id === nextVillageId);
+                const nextPrecinctId = assignPrecinctIdByLastName(currentForm.last_name, nextVillage?.precincts || []);
+
+                updateDraft({
+                  village_id: nextVillageId,
+                  precinct_id: nextPrecinctId,
+                });
+              }}
               className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] disabled:bg-[var(--surface-bg)] disabled:text-[var(--text-primary)]"
               disabled={!isEditing}
             >

@@ -96,4 +96,43 @@ class SupporterTest < ActiveSupport::TestCase
     assert_not supporter.valid?
     assert_includes supporter.errors[:contact_number], "can't be blank"
   end
+
+  test "auto-assigns a new precinct when village changes and precinct is cleared" do
+    single_precinct_village = Village.create!(name: "Single Precinct Village")
+    single_precinct = Precinct.create!(number: "SP-1", village: single_precinct_village)
+
+    supporter = Supporter.create!(
+      first_name: "Moved",
+      last_name: "Supporter",
+      contact_number: "6715551004",
+      village: @village_one,
+      precinct: @precinct_one,
+      source: "staff_entry",
+      status: "active",
+      verification_status: "unverified",
+      turnout_status: "unknown"
+    )
+
+    supporter.update!(village: single_precinct_village, precinct: nil)
+
+    assert_equal single_precinct.id, supporter.reload.precinct_id
+  end
+
+  test "keeps an explicitly selected precinct on update" do
+    supporter = Supporter.create!(
+      first_name: "Manual",
+      last_name: "Override",
+      contact_number: "6715551005",
+      village: @village_one,
+      precinct: @precinct_one,
+      source: "staff_entry",
+      status: "active",
+      verification_status: "unverified",
+      turnout_status: "unknown"
+    )
+
+    supporter.update!(precinct: @precinct_one)
+
+    assert_equal @precinct_one.id, supporter.reload.precinct_id
+  end
 end

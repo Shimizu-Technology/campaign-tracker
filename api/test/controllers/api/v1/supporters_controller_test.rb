@@ -225,6 +225,28 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal target_precinct.id, payload.dig("supporter", "precinct_id")
   end
 
+  test "changing village reassigns precinct when no precinct is provided" do
+    single_village = Village.create!(name: "Village Reassign Test")
+    single_precinct = Precinct.create!(number: "SP-4", village: single_village, registered_voters: 100)
+    supporter = Supporter.create!(
+      first_name: "Village", last_name: "Mover", print_name: "Village Mover",
+      contact_number: "6715557004",
+      village: @village,
+      precinct: @precinct,
+      source: "staff_entry",
+      status: "active"
+    )
+
+    patch "/api/v1/supporters/#{supporter.id}",
+      params: { supporter: { village_id: single_village.id } },
+      headers: auth_headers(@user)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal single_village.id, payload.dig("supporter", "village_id")
+    assert_equal single_precinct.id, payload.dig("supporter", "precinct_id")
+  end
+
   test "public create sets source to public_signup without auth header" do
     post "/api/v1/supporters",
       params: {
