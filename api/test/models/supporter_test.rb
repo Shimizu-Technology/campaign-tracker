@@ -96,4 +96,66 @@ class SupporterTest < ActiveSupport::TestCase
     assert_not supporter.valid?
     assert_includes supporter.errors[:contact_number], "can't be blank"
   end
+
+  test "auto-assigns a new precinct when village changes and precinct is cleared" do
+    single_precinct_village = Village.create!(name: "Single Precinct Village")
+    single_precinct = Precinct.create!(number: "SP-1", village: single_precinct_village)
+
+    supporter = Supporter.create!(
+      first_name: "Moved",
+      last_name: "Supporter",
+      contact_number: "6715551004",
+      village: @village_one,
+      precinct: @precinct_one,
+      source: "staff_entry",
+      status: "active",
+      verification_status: "unverified",
+      turnout_status: "unknown"
+    )
+
+    supporter.update!(village: single_precinct_village, precinct: nil)
+
+    assert_equal single_precinct.id, supporter.reload.precinct_id
+  end
+
+  test "keeps an explicitly selected precinct on update" do
+    precinct_b = Precinct.create!(number: "1B", village: @village_one)
+    supporter = Supporter.create!(
+      first_name: "Manual",
+      last_name: "Override",
+      contact_number: "6715551005",
+      village: @village_one,
+      precinct: @precinct_one,
+      source: "staff_entry",
+      status: "active",
+      verification_status: "unverified",
+      turnout_status: "unknown"
+    )
+
+    supporter.update!(precinct: precinct_b)
+
+    assert_equal precinct_b.id, supporter.reload.precinct_id
+  end
+
+  test "does not auto-assign precinct when only last name changes on an existing unassigned supporter" do
+    no_precinct_village = Village.create!(name: "No Precinct Village")
+    supporter = Supporter.create!(
+      first_name: "No",
+      last_name: "Precinct",
+      contact_number: "6715551006",
+      village: no_precinct_village,
+      precinct: nil,
+      source: "staff_entry",
+      status: "active",
+      verification_status: "unverified",
+      turnout_status: "unknown"
+    )
+    # Move the existing unassigned supporter into the target village without
+    # invoking the callback path this test is intentionally exercising.
+    supporter.update_columns(village_id: @village_one.id, precinct_id: nil)
+
+    supporter.update!(last_name: "Corrected")
+
+    assert_nil supporter.reload.precinct_id
+  end
 end

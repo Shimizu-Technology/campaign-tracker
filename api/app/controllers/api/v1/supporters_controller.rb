@@ -97,6 +97,11 @@ module Api
 
         supporter = scope_supporters(Supporter).find(params[:id])
         updates = normalized_supporter_update_params
+        # Clear the precinct so sync_precinct_assignment can re-assign it for
+        # the new village instead of preserving the old precinct_id.
+        if updates.key?(:village_id) && supporter.village_id != updates[:village_id].to_i && !updates.key?(:precinct_id)
+          updates[:precinct_id] = nil
+        end
         updates[:precinct_id] = nil if updates.key?(:precinct_id) && updates[:precinct_id].blank?
 
         if supporter.update(updates)

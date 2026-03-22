@@ -1,4 +1,4 @@
-import { useMemo, useState, type SetStateAction } from 'react';
+import { useMemo, useRef, useState, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   approveSupporter,
@@ -14,6 +14,7 @@ import {
 } from '../../lib/api';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { captureAnalyticsEvent } from '../../lib/analytics';
+import { assignPrecinctIdByLastName } from '../../lib/precinctAssignment';
 import {
   CheckCircle,
   ChevronLeft,
@@ -99,6 +100,13 @@ interface EditDraft {
   email: string;
 }
 
+interface PrecinctOption {
+  id: number;
+  number: string;
+  alpha_range?: string | null;
+  village_name?: string;
+}
+
 const EMPTY_SUPPORTERS: QueueSupporter[] = [];
 const EMPTY_DRAFT: EditDraft = {
   first_name: '',
@@ -177,6 +185,7 @@ function defaultGecSearchFor(supporter: QueueSupporter | null) {
 export default function TeamVettingPage() {
   const queryClient = useQueryClient();
   const location = useLocation();
+  const lastRequestedVillageRef = useRef<string | null>(null);
   const [searchParams] = useSearchParams();
   const [filter, setFilter] = useState<VettingFilter>('all');
   const [reviewBucket, setReviewBucket] = useState<QueueBucket>((searchParams.get('review_bucket') as QueueBucket) || 'pending');
@@ -402,7 +411,51 @@ export default function TeamVettingPage() {
   const selectedHasDuplicateWarnings = selectedSupporters.some((supporter) => supporter.potential_duplicate === true);
   const gecResults: GecVoter[] = gecLookupData?.gec_voters || [];
   const villageOptions = villages?.villages || [];
-  const editPrecinctOptions = editPrecincts?.precincts || [];
+  const editPrecinctOptions: PrecinctOption[] = editPrecincts?.precincts || [];
+
+  const handleDraftVillageChange = async (nextVillageId: string) => {
+    lastRequestedVillageRef.current = nextVillageId || null;
+    updateDraft((prev) => ({ ...prev, village_id: nextVillageId, precinct_id: '' }));
+
+    if (!nextVillageId) {
+      return;
+    }
+
+    try {
+      const precinctData = await queryClient.fetchQuery({
+        queryKey: ['vetting-edit-precincts', nextVillageId],
+        queryFn: () => getPrecincts({ village_id: nextVillageId }),
+      });
+      const nextPrecinctOptions: PrecinctOption[] = precinctData?.precincts || [];
+      if (lastRequestedVillageRef.current !== nextVillageId) {
+        return;
+      }
+
+      updateDraft((prev) => {
+        if (prev.village_id !== nextVillageId) {
+          return prev;
+        }
+
+        const nextPrecinctId = assignPrecinctIdByLastName(prev.last_name, nextPrecinctOptions);
+        return {
+          ...prev,
+          precinct_id: nextPrecinctId ? String(nextPrecinctId) : '',
+        };
+      });
+    } catch {
+      if (lastRequestedVillageRef.current !== nextVillageId) {
+        return;
+      }
+
+      updateDraft((prev) => {
+        if (prev.village_id !== nextVillageId) {
+          return prev;
+        }
+
+        return { ...prev, precinct_id: '' };
+      });
+    }
+  };
 
   const toggleSelect = (id: number) => {
     const next = new Set(selectedIds);
@@ -850,7 +903,7 @@ export default function TeamVettingPage() {
                   </div>
                   <input value={draft.street_address} onChange={(e) => updateDraft((prev) => ({ ...prev, street_address: e.target.value }))} placeholder="Street address" className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm" />
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <select value={draft.village_id} onChange={(e) => updateDraft((prev) => ({ ...prev, village_id: e.target.value, precinct_id: '' }))} className="rounded-xl border border-gray-200 px-3 py-2 text-sm">
+                    <select value={draft.village_id} onChange={(e) => { void handleDraftVillageChange(e.target.value); }} className="rounded-xl border border-gray-200 px-3 py-2 text-sm">
                       <option value="">Select village</option>
                       {villageOptions.map((village: { id: number; name: string }) => (
                         <option key={village.id} value={village.id}>{village.name}</option>
@@ -858,7 +911,7 @@ export default function TeamVettingPage() {
                     </select>
                     <select value={draft.precinct_id} onChange={(e) => updateDraft((prev) => ({ ...prev, precinct_id: e.target.value }))} className="rounded-xl border border-gray-200 px-3 py-2 text-sm">
                       <option value="">Select precinct</option>
-                      {editPrecinctOptions.map((precinct: { id: number; number: string; village_name?: string }) => (
+                      {editPrecinctOptions.map((precinct) => (
                         <option key={precinct.id} value={precinct.id}>
                           {precinct.village_name ? `${precinct.village_name} · ${precinct.number}` : precinct.number}
                         </option>
