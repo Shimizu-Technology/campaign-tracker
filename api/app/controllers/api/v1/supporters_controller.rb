@@ -11,9 +11,9 @@ module Api
 
       include Authenticatable
       include AuditLoggable
-      before_action :authenticate_request, only: [ :index, :check_duplicate, :export, :show, :update, :verify, :bulk_verify, :duplicates, :resolve_duplicate, :scan_duplicates, :outreach, :outreach_status, :public_review, :accept_to_quota, :reject_public_review, :vetting_queue, :approve_supporter, :reject_supporter ]
+      before_action :authenticate_request, only: [ :index, :check_duplicate, :export, :show, :update, :verify, :bulk_verify, :revet, :bulk_revet, :duplicates, :resolve_duplicate, :scan_duplicates, :outreach, :outreach_status, :public_review, :accept_to_quota, :reject_public_review, :vetting_queue, :approve_supporter, :reject_supporter ]
       before_action :require_supporter_access!, only: [ :index, :check_duplicate, :export, :show, :outreach, :outreach_status ]
-      before_action :require_data_ops_access!, only: [ :duplicates, :resolve_duplicate, :scan_duplicates, :public_review, :accept_to_quota, :reject_public_review, :vetting_queue, :approve_supporter, :reject_supporter ]
+      before_action :require_data_ops_access!, only: [ :revet, :bulk_revet, :duplicates, :resolve_duplicate, :scan_duplicates, :public_review, :accept_to_quota, :reject_public_review, :vetting_queue, :approve_supporter, :reject_supporter ]
       before_action :require_chief_or_above!, only: [ :verify, :bulk_verify ]
 
       # POST /api/v1/supporters (public signup — no auth required)
@@ -224,7 +224,7 @@ module Api
 
       # GET /api/v1/supporters (authenticated)
       def index
-        supporters = scope_supporters(Supporter.includes(:village, :precinct, :block, :referred_from_village).official_supporters)
+        supporters = scope_supporters(Supporter.includes(:village, :submitted_village, :precinct, :block, :referred_from_village).official_supporters)
 
         # Filters
         supporters = supporters.where(village_id: params[:village_id]) if params[:village_id].present?
@@ -298,7 +298,7 @@ module Api
 
       # GET /api/v1/supporters/:id
       def show
-        supporter = scope_supporters(Supporter.includes(:village, :precinct, :block, :referred_from_village, event_rsvps: :event)).find(params[:id])
+        supporter = scope_supporters(Supporter.includes(:village, :submitted_village, :precinct, :block, :referred_from_village, event_rsvps: :event)).find(params[:id])
         audit_logs = supporter.audit_logs.includes(:actor_user).recent.limit(50)
 
         render json: {
@@ -466,7 +466,7 @@ module Api
 
       # GET /api/v1/supporters/outreach
       def outreach
-        supporters = scope_supporters(Supporter.includes(:village, :precinct))
+        supporters = scope_supporters(Supporter.includes(:village, :submitted_village, :precinct))
                        .where("registered_voter IS NULL OR registered_voter = ?", false)
                        .working_supporters
 
@@ -724,42 +724,70 @@ module Api
         render json: { supporter: supporter_json(supporter), message: "Supporter submission rejected" }
       end
 
-      # GET /api/v1/supporters/vetting_queue
-      # Pending supporter submissions awaiting data-team approval.
-      def vetting_queue
-        base = scope_supporters(Supporter.includes(:village, :precinct, :entered_by))
-                 .pending_supporter_review
-        if params[:district_id].present?
-          base = base.joins(:village).where(villages: { district_id: params[:district_id] })
-        end
-        base = base.where(village_id: params[:village_id]) if params[:village_id].present?
-        base = base.where(precinct_id: params[:precinct_id]) if params[:precinct_id].present?
-        if params[:source_group] == "team"
-          base = base.where(source: Supporter::TEAM_SOURCES)
-        elsif params[:source].present?
-          base = base.where(source: params[:source])
-        end
+      # PATCH /api/v1/supporters/:id/revet
+      def revet
+        supporter = scope_supporters(Supporter).find(params[:id])
+        result = GecVettingService.new(supporter).call
+        supporter.reload
 
-        if params[:search].present?
-          sanitized = ActiveRecord::Base.sanitize_sql_like(params[:search].to_s.strip)
-          base = base.where(
-            "LOWER(first_name) LIKE :q OR LOWER(last_name) LIKE :q",
-            q: "%#{sanitized.downcase}%"
+        log_audit!(supporter, action: "supporter_re_vetted", changed_data: {
+          "verification_status" => supporter.verification_status,
+          "registered_voter" => supporter.registered_voter,
+          "verification_reason" => supporter.verification_reason
+        }, normalize: true)
+
+        render json: {
+          supporter: supporter_json(supporter),
+          result: {
+            status: result.status,
+            details: result.details,
+            match_count: result.match_count
+          }
+        }
+      end
+
+      # POST /api/v1/supporters/bulk_revet
+      def bulk_revet
+        supporters = bulk_revet_scope
+        if supporters.none?
+          return render_api_error(
+            message: "No supporters matched the bulk re-vet request",
+            status: :unprocessable_entity,
+            code: "invalid_supporter_ids"
           )
         end
 
-        scope = case params[:filter]
-        when "verified"
-          base.verified
-        when "flagged"
-          base.flagged.where(referred_from_village_id: nil)
-        when "no_match", "unregistered"
-          base.unverified.where(registered_voter: false)
-        when "referral"
-          base.where.not(referred_from_village_id: nil)
-        else
-          base
+        supporter_ids = supporters.pluck(:id)
+        results = Hash.new(0)
+        updated_count = 0
+
+        supporters.find_each do |supporter|
+          result = GecVettingService.new(supporter).call
+          results[result.status] += 1
+          updated_count += 1
+        rescue StandardError => e
+          results[:errors] += 1
+          Rails.logger.warn("Queue bulk re-vet error for supporter #{supporter.id}: #{e.message}")
         end
+
+        log_audit!(nil, action: "supporter_queue_bulk_re_vet", changed_data: {
+          supporter_ids: supporter_ids,
+          results: results
+        }, normalize: true)
+
+        render json: {
+          message: "Queue re-vet complete",
+          updated: updated_count,
+          results: results
+        }
+      end
+
+      # GET /api/v1/supporters/vetting_queue
+      # Supporter review workspace for pending, approved, and rejected submissions.
+      def vetting_queue
+        base = vetting_queue_base_scope
+        queue_scope = vetting_queue_bucket_scope(base)
+        scope = vetting_queue_filter_scope(queue_scope)
 
         scope = scope.order(created_at: :desc)
 
@@ -784,23 +812,27 @@ module Api
           verification_reasons[s.id] = SupporterVerificationReasonService.new(s, matches: matches).payload || {}
           gec_matches[s.id] = matches.first(3).map do |m|
             {
-              gec_voter: m[:gec_voter].as_json(only: [ :id, :first_name, :last_name, :dob, :village_name, :voter_registration_number ]),
+              gec_voter: m[:gec_voter].as_json(only: [ :id, :first_name, :middle_name, :last_name, :dob, :birth_year, :address, :village_name, :village_id, :precinct_id, :precinct_number, :previous_village_name, :voter_registration_number, :status, :gec_list_date ]),
               confidence: m[:confidence],
-              match_type: m[:match_type]
+              match_type: m[:match_type],
+              match_count: m[:match_count]
             }
           end
         end
 
         # Summary counts within the currently selected structural filters
         summary = {
-          total_pending_review: base.count,
-          total_needing_review: base.count,
-          verified: base.verified.count,
-          flagged: base.flagged.where(referred_from_village_id: nil).count,
-          unverified: base.unverified.where(registered_voter: false).count,
-          no_match: base.unverified.where(registered_voter: false).count,
-          unregistered: base.unverified.where(registered_voter: false).count,
-          referrals: base.where.not(referred_from_village_id: nil).count
+          pending: base.review_pending.count,
+          approved: base.review_approved.count,
+          rejected: base.review_rejected.count,
+          total_pending_review: base.review_pending.count,
+          total_needing_review: queue_scope.count,
+          verified: queue_scope.verified.count,
+          flagged: queue_scope.flagged.where.not(id: queue_scope.submitted_village_referrals.select(:id)).count,
+          unverified: queue_scope.unverified.where(registered_voter: false).count,
+          no_match: queue_scope.unverified.where(registered_voter: false).count,
+          unregistered: queue_scope.unverified.where(registered_voter: false).count,
+          referrals: queue_scope.submitted_village_referrals.count
         }
 
         render json: {
@@ -810,6 +842,7 @@ module Api
             )
           end,
           summary: summary,
+          current_bucket: vetting_queue_bucket,
           pagination: { page: page, per_page: per_page, total: total, pages: (total.to_f / per_page).ceil }
         }
       end
@@ -868,18 +901,20 @@ module Api
       end
 
       def public_supporter_params
-        params.require(:supporter).permit(
+        permitted = [
           :first_name, :middle_name, :last_name, :print_name, :contact_number, :dob, :email, :street_address,
           :village_id, :precinct_id, :registered_voter, :self_reported_registered_voter,
           :yard_sign, :motorcade_available,
           :opt_in_email, :opt_in_text
-        )
+        ]
+        permitted << :submitted_village_id if staff_entry_mode?
+        params.require(:supporter).permit(*permitted)
       end
 
       def supporter_update_params
         params.require(:supporter).permit(
           :first_name, :middle_name, :last_name, :print_name, :contact_number, :email, :dob, :street_address,
-          :village_id, :precinct_id, :registered_voter, :self_reported_registered_voter, :yard_sign, :motorcade_available,
+          :village_id, :submitted_village_id, :precinct_id, :registered_voter, :self_reported_registered_voter, :yard_sign, :motorcade_available,
           :opt_in_email, :opt_in_text, :status
         )
       end
@@ -928,8 +963,13 @@ module Api
         %w[pending approved rejected].include?(bucket) ? bucket : "pending"
       end
 
+      def vetting_queue_bucket
+        bucket = params[:review_bucket].to_s.presence || "pending"
+        %w[pending approved rejected].include?(bucket) ? bucket : "pending"
+      end
+
       def public_review_scope
-        base = scope_supporters(Supporter.includes(:village, :precinct)).active
+        base = scope_supporters(Supporter.includes(:village, :submitted_village, :precinct)).active
 
         case public_review_bucket
         when "approved"
@@ -943,6 +983,80 @@ module Api
 
       def staff_entry_mode?
         params[:entry_mode] == "staff"
+      end
+
+      def bulk_revet_scope
+        if ActiveModel::Type::Boolean.new.cast(params[:apply_current_filters])
+          vetting_queue_filter_scope(vetting_queue_bucket_scope(vetting_queue_base_scope))
+        else
+          ids = Array(params[:supporter_ids]).map(&:to_i).uniq
+          return Supporter.none if ids.empty?
+
+          scope_supporters(Supporter).where(id: ids)
+        end
+      end
+
+      def vetting_queue_base_scope
+        base = scope_supporters(Supporter.includes(:village, :submitted_village, :precinct, :entered_by))
+          .where(public_review_status: %w[approved not_applicable])
+
+        if params[:district_id].present?
+          base = base.joins(:village).where(villages: { district_id: params[:district_id] })
+        end
+        base = base.where(village_id: params[:village_id]) if params[:village_id].present?
+        base = base.where(precinct_id: params[:precinct_id]) if params[:precinct_id].present?
+
+        if params[:source_group] == "team"
+          base = base.where(source: Supporter::TEAM_SOURCES)
+        elsif params[:source].present?
+          base = base.where(source: params[:source])
+        end
+
+        if params[:search].present?
+          base = apply_loose_supporter_search(base, params[:search])
+        end
+
+        base
+      end
+
+      def vetting_queue_bucket_scope(base)
+        case vetting_queue_bucket
+        when "approved"
+          base.review_approved
+        when "rejected"
+          base.review_rejected
+        else
+          base.review_pending
+        end
+      end
+
+      def vetting_queue_filter_scope(queue_scope)
+        case params[:filter]
+        when "verified"
+          queue_scope.verified
+        when "flagged"
+          queue_scope.flagged.where.not(id: queue_scope.submitted_village_referrals.select(:id))
+        when "no_match", "unregistered"
+          queue_scope.unverified.where(registered_voter: false)
+        when "referral"
+          queue_scope.submitted_village_referrals
+        else
+          queue_scope
+        end
+      end
+
+      def apply_loose_supporter_search(scope, query)
+        tokens = query.to_s.downcase.split(/\s+/).reject(&:blank?).first(6)
+        return scope if tokens.empty?
+
+        tokens.reduce(scope) do |relation, token|
+          sanitized = ActiveRecord::Base.sanitize_sql_like(token)
+          pattern = "%#{sanitized}%"
+          relation.where(
+            "LOWER(first_name) LIKE :pattern OR LOWER(middle_name) LIKE :pattern OR LOWER(last_name) LIKE :pattern OR LOWER(print_name) LIKE :pattern OR LOWER(contact_number) LIKE :pattern",
+            pattern: pattern
+          )
+        end
       end
 
       def supporter_json(supporter, reason_payload: nil)
@@ -960,6 +1074,9 @@ module Api
           street_address: supporter.street_address,
           village_id: supporter.village_id,
           village_name: supporter.village&.name,
+          submitted_village_id: supporter.submitted_village_id,
+          submitted_village_name: supporter.submitted_village&.name,
+          submitted_village_referral: supporter.submitted_village_referral?,
           precinct_id: supporter.precinct_id,
           precinct_number: supporter.precinct&.number,
           block_id: supporter.block_id,

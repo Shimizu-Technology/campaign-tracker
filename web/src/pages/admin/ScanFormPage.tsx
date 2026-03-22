@@ -18,6 +18,7 @@ interface BatchRow {
   _row: number;
   _skip: boolean;
   _issues: string[];
+  _source_file_name?: string;
   first_name: string;
   middle_name: string;
   last_name: string;
@@ -50,6 +51,11 @@ interface RowIssue {
   code: string;
   message: string;
   severity: IssueSeverity;
+}
+
+interface SelectedScanFile {
+  name: string;
+  previewUrl: string;
 }
 
 function confidenceTag(level: ConfidenceLevel) {
@@ -201,13 +207,15 @@ function analyzeRowIssues(row: BatchRow): RowIssue[] {
 export default function ScanFormPage() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const [phase, setPhase] = useState<Phase>('capture');
   const [defaultVillageId, setDefaultVillageId] = useState('');
   const [rows, setRows] = useState<BatchRow[]>([]);
   const [scanError, setScanError] = useState('');
   const [scanWarning, setScanWarning] = useState('');
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<SelectedScanFile[]>([]);
+  const [scanProgress, setScanProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
   const [saveResult, setSaveResult] = useState<SaveResult | null>(null);
   const [saveProgress, setSaveProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
 
@@ -224,63 +232,87 @@ export default function ScanFormPage() {
     return all.filter((v: Village) => scopedVillageIds.includes(v.id));
   }, [villagesData, scopedVillageIds]);
 
-  const handleFileSelect = async (file: File) => {
+  const handleFileSelect = async (files: File[]) => {
     if (!defaultVillageId) {
       setScanError('Select a default village before scanning.');
       return;
     }
+    if (files.length === 0) return;
 
     setPhase('scanning');
     setScanError('');
     setScanWarning('');
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl(URL.createObjectURL(file));
+    selectedFiles.forEach((entry) => URL.revokeObjectURL(entry.previewUrl));
+    setSelectedFiles(files.map((file) => ({ name: file.name, previewUrl: URL.createObjectURL(file) })));
+    setScanProgress({ current: 0, total: files.length });
 
     try {
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = () => reject(new Error('Failed to read image'));
-        reader.readAsDataURL(file);
-      });
+      const allRows: BatchRow[] = [];
+      const warnings: string[] = [];
+      const failures: string[] = [];
+      let rowCounter = 1;
 
-      const result = await scanBatchForm(base64, Number(defaultVillageId));
-      if (!result.success) {
-        setScanError(result.error || 'Could not extract any supporter rows');
+      for (let index = 0; index < files.length; index += 1) {
+        const file = files[index];
+        setScanProgress({ current: index + 1, total: files.length });
+
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = () => reject(new Error(`Failed to read image: ${file.name}`));
+          reader.readAsDataURL(file);
+        });
+
+        const result = await scanBatchForm(base64, Number(defaultVillageId));
+        if (!result.success) {
+          failures.push(`${file.name}: ${result.error || 'Could not extract any supporter rows'}`);
+          continue;
+        }
+
+        const extractedRows: BatchRow[] = (result.rows || []).map((row: Record<string, unknown>) => ({
+          _row: rowCounter++,
+          _skip: Boolean(row._skip),
+          _issues: Array.isArray(row._issues) ? row._issues.map((x) => String(x)) : [],
+          _source_file_name: file.name,
+          first_name: String(row.first_name || ''),
+          middle_name: String(row.middle_name || ''),
+          last_name: String(row.last_name || ''),
+          contact_number: normalizePhone(String(row.contact_number || '')),
+          email: String(row.email || ''),
+          street_address: String(row.street_address || ''),
+          dob: formatDateForDisplay(String(row.dob || '')),
+          village_id: row.village_id ? Number(row.village_id) : Number(defaultVillageId),
+          registered_voter: row.registered_voter == null ? true : Boolean(row.registered_voter),
+          yard_sign: Boolean(row.yard_sign),
+          motorcade_available: Boolean(row.motorcade_available),
+          opt_in_email: false,
+          opt_in_text: false,
+          confidence: (row.confidence as ConfidenceMap) || {},
+        }));
+
+        if (extractedRows.length === 0) {
+          failures.push(`${file.name}: no supporter rows were detected`);
+          continue;
+        }
+
+        allRows.push(...extractedRows);
+        if (result.warning) warnings.push(`${file.name}: ${String(result.warning)}`);
+      }
+
+      if (allRows.length === 0) {
+        setScanError(failures[0] || 'No supporter rows were detected from the selected images.');
         setPhase('capture');
         return;
       }
 
-      const extractedRows: BatchRow[] = (result.rows || []).map((row: Record<string, unknown>, index: number) => ({
-        _row: Number(row._row || index + 1),
-        _skip: Boolean(row._skip),
-        _issues: Array.isArray(row._issues) ? row._issues.map((x) => String(x)) : [],
-        first_name: String(row.first_name || ''),
-        middle_name: String(row.middle_name || ''),
-        last_name: String(row.last_name || ''),
-        contact_number: normalizePhone(String(row.contact_number || '')),
-        email: String(row.email || ''),
-        street_address: String(row.street_address || ''),
-        dob: formatDateForDisplay(String(row.dob || '')),
-        village_id: row.village_id ? Number(row.village_id) : Number(defaultVillageId),
-        registered_voter: row.registered_voter == null ? true : Boolean(row.registered_voter),
-        yard_sign: Boolean(row.yard_sign),
-        motorcade_available: Boolean(row.motorcade_available),
-        opt_in_email: false,
-        opt_in_text: false,
-        confidence: (row.confidence as ConfidenceMap) || {},
-      }));
-
-      if (extractedRows.length === 0) {
-        setScanError('No supporter rows were detected from this image. Try a clearer photo or crop closer.');
-        setPhase('capture');
-        return;
+      const combinedWarnings = [
+        ...warnings,
+        ...(failures.length > 0 ? [ `${failures.length} file${failures.length === 1 ? '' : 's'} failed to scan.` ] : []),
+      ];
+      if (combinedWarnings.length > 0) {
+        setScanWarning(combinedWarnings.join(' '));
       }
-
-      if (result.warning) {
-        setScanWarning(String(result.warning));
-      }
-      setRows(extractedRows);
+      setRows(allRows);
       setPhase('review');
     } catch (err: unknown) {
       const error = err as { response?: { data?: { error?: string } } };
@@ -412,11 +444,12 @@ export default function ScanFormPage() {
     setRows([]);
     setScanError('');
     setScanWarning('');
+    setScanProgress({ current: 0, total: 0 });
     setShowIssuesOnly(false);
     setSaveResult(null);
     setSaveProgress({ current: 0, total: 0 });
-    if (previewUrl) URL.revokeObjectURL(previewUrl);
-    setPreviewUrl(null);
+    selectedFiles.forEach((entry) => URL.revokeObjectURL(entry.previewUrl));
+    setSelectedFiles([]);
     setPhase('capture');
   };
 
@@ -478,7 +511,20 @@ export default function ScanFormPage() {
             className="hidden"
             onChange={(e) => {
               const file = e.target.files?.[0];
-              if (file) handleFileSelect(file);
+              if (file) handleFileSelect([file]);
+              e.target.value = '';
+            }}
+          />
+
+          <input
+            ref={galleryInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={(e) => {
+              const files = Array.from(e.target.files || []);
+              if (files.length > 0) handleFileSelect(files);
               e.target.value = '';
             }}
           />
@@ -494,27 +540,18 @@ export default function ScanFormPage() {
             </div>
             <div className="text-center">
               <p className="text-lg font-semibold text-[var(--text-primary)]">Scan Full Blue Form</p>
-              <p className="text-sm text-[var(--text-secondary)] mt-1">Capture the whole page with all rows visible</p>
+              <p className="text-sm text-[var(--text-secondary)] mt-1">Capture one page at a time with all rows visible</p>
             </div>
           </button>
 
           <button
             type="button"
             disabled={!defaultVillageId}
-            onClick={() => {
-              const input = document.createElement('input');
-              input.type = 'file';
-              input.accept = 'image/*';
-              input.onchange = (e) => {
-                const file = (e.target as HTMLInputElement).files?.[0];
-                if (file) handleFileSelect(file);
-              };
-              input.click();
-            }}
+            onClick={() => galleryInputRef.current?.click()}
             className="w-full bg-[var(--surface-raised)] rounded-xl border border-[var(--border-soft)] p-4 inline-flex items-center justify-center gap-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] disabled:opacity-50"
           >
             <ImagePlus className="w-5 h-5" />
-            Upload photo from gallery
+            Upload one or more photos
           </button>
 
           {scanError && (
@@ -529,6 +566,7 @@ export default function ScanFormPage() {
             <ul className="space-y-1 text-xs sm:text-sm">
               <li>• Fill the frame with the full blue form</li>
               <li>• Good lighting improves row detection</li>
+              <li>• Desktop upload supports multiple images in one review session</li>
               <li>• You will review, edit, and skip rows before save</li>
             </ul>
           </div>
@@ -537,15 +575,25 @@ export default function ScanFormPage() {
 
       {phase === 'scanning' && (
         <div className="space-y-4">
-          {previewUrl && (
-            <div className="rounded-2xl overflow-hidden border border-[var(--border-soft)]">
-              <img src={previewUrl} alt="Scanned form preview" className="w-full" />
+          {selectedFiles.length > 0 && (
+            <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-raised)] p-4">
+              <p className="text-sm font-semibold text-[var(--text-primary)]">
+                Processing {scanProgress.current} of {scanProgress.total} image{scanProgress.total === 1 ? '' : 's'}
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {selectedFiles.slice(0, 8).map((file) => (
+                  <div key={file.previewUrl} className="overflow-hidden rounded-xl border border-[var(--border-soft)] bg-white">
+                    <img src={file.previewUrl} alt={file.name} className="h-28 w-full object-cover" />
+                    <p className="truncate px-2 py-1 text-[11px] text-[var(--text-secondary)]">{file.name}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
           <div className="flex flex-col items-center gap-3 py-8">
             <Loader2 className="w-12 h-12 text-primary animate-spin" />
             <p className="text-lg font-semibold text-[var(--text-primary)]">Extracting supporter rows...</p>
-            <p className="text-sm text-[var(--text-secondary)]">This can take a few seconds for full-page OCR.</p>
+            <p className="text-sm text-[var(--text-secondary)]">This can take a few seconds per image for full-page OCR.</p>
           </div>
         </div>
       )}
@@ -554,6 +602,9 @@ export default function ScanFormPage() {
         <div className="space-y-4">
           <section className="app-card p-4">
             <h2 className="font-semibold text-[var(--text-primary)] mb-2">Review OCR Rows</h2>
+            <p className="text-xs text-[var(--text-secondary)] mb-3">
+              Combined review for {selectedFiles.length || 1} scanned image{(selectedFiles.length || 1) === 1 ? '' : 's'}.
+            </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
               <div className="bg-[var(--surface-bg)] rounded-lg p-3">
                 <p className="text-2xl font-bold text-[var(--text-primary)]">{rows.length}</p>
@@ -628,7 +679,12 @@ export default function ScanFormPage() {
               return (
                 <div key={index} className={`app-card p-3 sm:p-4 ${row._skip ? 'opacity-50' : ''}`}>
                   <div className="flex items-center justify-between gap-2 mb-3">
-                    <p className="text-sm font-semibold text-[var(--text-primary)]">Row #{row._row}</p>
+                    <div>
+                      <p className="text-sm font-semibold text-[var(--text-primary)]">Row #{row._row}</p>
+                      {row._source_file_name && (
+                        <p className="text-[11px] text-[var(--text-secondary)]">{row._source_file_name}</p>
+                      )}
+                    </div>
                     <button
                       type="button"
                       onClick={() => updateRow(index, '_skip', !row._skip)}
@@ -755,7 +811,7 @@ export default function ScanFormPage() {
               className="bg-[var(--surface-overlay)] hover:bg-gray-200 text-[var(--text-primary)] px-4 py-2 rounded-xl min-h-[44px] inline-flex items-center justify-center gap-2"
             >
               <RotateCcw className="w-4 h-4" />
-              Re-scan page
+              Start new batch
             </button>
             <button
               type="button"

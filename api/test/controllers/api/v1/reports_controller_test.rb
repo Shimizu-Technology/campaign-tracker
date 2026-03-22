@@ -3,6 +3,7 @@ require "test_helper"
 class Api::V1::ReportsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @village = Village.find_or_create_by!(name: "Barrigada")
+    @other_village = Village.find_or_create_by!(name: "Dededo")
     @campaign = Campaign.create!(
       name: "Reports Campaign",
       election_year: Date.current.year,
@@ -79,14 +80,14 @@ class Api::V1::ReportsControllerTest < ActionDispatch::IntegrationTest
       first_name: "Referral",
       last_name: "Supporter",
       contact_number: "671-555-9997",
-      village: @village,
+      village: @other_village,
+      submitted_village: @village,
       source: "staff_entry",
       attribution_method: "staff_manual",
       status: "active",
       turnout_status: "unknown",
       review_status: "approved",
       public_review_status: "not_applicable",
-      referred_from_village_id: @village.id,
       verification_status: "flagged",
       registered_voter: true
     )

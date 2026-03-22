@@ -19,6 +19,7 @@ Rails.application.routes.draw do
       resources :supporters, only: [ :create, :index, :show, :update ] do
         member do
           patch :verify
+          patch :revet
           patch :resolve_duplicate
           patch :outreach_status
           patch :accept_to_quota
@@ -34,6 +35,7 @@ Rails.application.routes.draw do
           get :public_review
           get :vetting_queue
           post :bulk_verify
+          post :bulk_revet
           post :scan_duplicates
         end
       end

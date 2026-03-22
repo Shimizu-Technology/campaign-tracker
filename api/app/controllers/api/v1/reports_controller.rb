@@ -130,7 +130,7 @@ module Api
             public_signups: Supporter.active.public_signups.count,
             unregistered: Supporter.working_supporters.where(registered_voter: false).count,
             transfer_list_size: village_changes.count,
-            referral_list_size: Supporter.working_supporters.where.not(referred_from_village_id: nil).count,
+            referral_list_size: Supporter.working_supporters.submitted_village_referrals.count,
             mapping_issues_list_size: mapping_issues.count,
             transfers: village_changes.count,
             purge_list_size: GecVoter.where(status: "removed").count,
@@ -161,7 +161,7 @@ module Api
         when "transfer_list"
           "GEC voters whose official village changed between list versions"
         when "referral_list"
-          "Official supporters submitted under one village but matched to another"
+          "Official supporters submitted by one village but currently assigned to another"
         when "mapping_issues_list"
           "GEC voters whose latest village could not be mapped cleanly to an official village"
         when "quota_summary"

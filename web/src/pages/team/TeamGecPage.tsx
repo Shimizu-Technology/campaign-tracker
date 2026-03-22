@@ -253,6 +253,8 @@ function getImportStageLabel(stage: string, isPdfImport: boolean): string {
       return 'Re-vetting Supporters';
     case 'saving':
       return 'Saving Results';
+    case 'finalizing_artifact':
+      return 'Finalizing Import';
     case 'completed':
       return 'Completed';
     case 'failed':
@@ -294,6 +296,8 @@ function getImportStageMessage(
       return 'Calculating adds, updates, transfers, and removals.';
     case 'saving':
       return 'Saving import results and finishing up.';
+    case 'finalizing_artifact':
+      return 'Finishing import transparency files so Imported Data and download are ready as soon as the import completes.';
     default:
       return `${Math.max(5, Math.min(100, progressPercent))}% complete. Progress updates automatically.`;
   }
@@ -1035,7 +1039,9 @@ export default function TeamGecPage() {
                             <tr className="bg-gray-100">
                               <th className="text-left px-2 py-1 text-gray-500 font-medium">Reg No.</th>
                               <th className="text-left px-2 py-1 text-gray-500 font-medium">Name</th>
+                              <th className="text-left px-2 py-1 text-gray-500 font-medium">Address</th>
                               <th className="text-left px-2 py-1 text-gray-500 font-medium">Village</th>
+                              <th className="text-left px-2 py-1 text-gray-500 font-medium">Precinct</th>
                               <th className="text-left px-2 py-1 text-gray-500 font-medium">Birth Year</th>
                             </tr>
                           </thead>
@@ -1044,7 +1050,9 @@ export default function TeamGecPage() {
                               <tr key={i} className="border-t border-gray-200">
                                 <td className="px-2 py-1 text-gray-600">{String(row.voter_registration_number ?? '')}</td>
                                 <td className="px-2 py-1 text-gray-800">{String(row.name ?? '')}</td>
+                                <td className="px-2 py-1 text-gray-600">{String(row.address ?? '')}</td>
                                 <td className="px-2 py-1 text-gray-600">{String(row.village ?? '')}</td>
+                                <td className="px-2 py-1 text-gray-600">{String(row.precinct_number ?? '')}</td>
                                 <td className="px-2 py-1 text-gray-600">{String(row.birth_year ?? '')}</td>
                               </tr>
                             ))}
@@ -1079,7 +1087,9 @@ export default function TeamGecPage() {
                             <tr className="bg-gray-100">
                               <th className="text-left px-2 py-1 text-gray-500 font-medium">First Name</th>
                               <th className="text-left px-2 py-1 text-gray-500 font-medium">Last Name</th>
+                              <th className="text-left px-2 py-1 text-gray-500 font-medium">Address</th>
                               <th className="text-left px-2 py-1 text-gray-500 font-medium">Village</th>
+                              <th className="text-left px-2 py-1 text-gray-500 font-medium">Precinct</th>
                               <th className="text-left px-2 py-1 text-gray-500 font-medium">DOB / Year</th>
                               <th className="text-left px-2 py-1 text-gray-500 font-medium">Reg No.</th>
                             </tr>
@@ -1089,7 +1099,9 @@ export default function TeamGecPage() {
                               <tr key={i} className="border-t border-gray-200">
                                 <td className="px-2 py-1 text-gray-800">{String(row.first_name ?? '')}</td>
                                 <td className="px-2 py-1 text-gray-800">{String(row.last_name ?? '')}</td>
+                                <td className="px-2 py-1 text-gray-600">{String(row.address ?? '')}</td>
                                 <td className="px-2 py-1 text-gray-600">{String(row.village_name ?? '')}</td>
+                                <td className="px-2 py-1 text-gray-600">{String(row.precinct_number ?? '')}</td>
                                 <td className="px-2 py-1 text-gray-600">{String(row.dob ?? row.birth_year ?? '')}</td>
                                 <td className="px-2 py-1 text-gray-600">{String(row.voter_registration_number ?? '')}</td>
                               </tr>
@@ -1788,7 +1800,7 @@ function ImportViewerFilters({
         <input
           value={viewerSearchInput}
           onChange={(e) => onViewerSearchInputChange(e.target.value)}
-          placeholder={preview.source_type === 'pdf' ? 'Search name, village, reg no., birth year' : 'Search name, village, reg no., DOB'}
+          placeholder={preview.source_type === 'pdf' ? 'Search name, village, precinct, reg no., birth year' : 'Search name, village, precinct, reg no., DOB'}
           className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-200"
         />
       </div>
@@ -2655,7 +2667,9 @@ function PreviewRowsTable({ preview, onPageChange }: { preview: PreviewData; onP
             <tr>
               <th className="text-left px-4 py-2 text-gray-500 font-medium">Reg No.</th>
               <th className="text-left px-4 py-2 text-gray-500 font-medium">Name</th>
+              <th className="text-left px-4 py-2 text-gray-500 font-medium">Address</th>
               <th className="text-left px-4 py-2 text-gray-500 font-medium">Village</th>
+              <th className="text-left px-4 py-2 text-gray-500 font-medium">Precinct</th>
               <th className="text-left px-4 py-2 text-gray-500 font-medium">Birth Year</th>
             </tr>
           </thead>
@@ -2667,6 +2681,7 @@ function PreviewRowsTable({ preview, onPageChange }: { preview: PreviewData; onP
               <tr key={idx} className={`border-t ${routedToUnassigned ? 'border-amber-100 bg-amber-50/40' : 'border-gray-100'}`}>
                 <td className="px-4 py-2 text-gray-600">{String(row.voter_registration_number ?? '')}</td>
                 <td className="px-4 py-2 text-gray-800">{String(row.name ?? '')}</td>
+                <td className="px-4 py-2 text-gray-600">{String(row.address ?? '')}</td>
                 <td className="px-4 py-2 text-gray-600">
                   <div>{String(row.village ?? '')}</div>
                   {routedToUnassigned && (
@@ -2680,6 +2695,7 @@ function PreviewRowsTable({ preview, onPageChange }: { preview: PreviewData; onP
                     </div>
                   )}
                 </td>
+                <td className="px-4 py-2 text-gray-600">{String(row.precinct_number ?? '')}</td>
                 <td className="px-4 py-2 text-gray-600">{String(row.birth_year ?? '')}</td>
               </tr>
             )})}
@@ -2703,7 +2719,9 @@ function PreviewRowsTable({ preview, onPageChange }: { preview: PreviewData; onP
             <tr>
               <th className="text-left px-4 py-2 text-gray-500 font-medium">First Name</th>
               <th className="text-left px-4 py-2 text-gray-500 font-medium">Last Name</th>
+              <th className="text-left px-4 py-2 text-gray-500 font-medium">Address</th>
               <th className="text-left px-4 py-2 text-gray-500 font-medium">Village</th>
+              <th className="text-left px-4 py-2 text-gray-500 font-medium">Precinct</th>
               <th className="text-left px-4 py-2 text-gray-500 font-medium">DOB / Year</th>
               <th className="text-left px-4 py-2 text-gray-500 font-medium">Reg No.</th>
             </tr>
@@ -2716,6 +2734,7 @@ function PreviewRowsTable({ preview, onPageChange }: { preview: PreviewData; onP
               <tr key={idx} className={`border-t ${routedToUnassigned ? 'border-amber-100 bg-amber-50/40' : 'border-gray-100'}`}>
                 <td className="px-4 py-2 text-gray-800">{String(row.first_name ?? '')}</td>
                 <td className="px-4 py-2 text-gray-800">{String(row.last_name ?? '')}</td>
+                <td className="px-4 py-2 text-gray-600">{String(row.address ?? '')}</td>
                 <td className="px-4 py-2 text-gray-600">
                   <div>{String(row.village_name ?? row.village ?? '')}</div>
                   {routedToUnassigned && (
@@ -2729,6 +2748,7 @@ function PreviewRowsTable({ preview, onPageChange }: { preview: PreviewData; onP
                     </div>
                   )}
                 </td>
+                <td className="px-4 py-2 text-gray-600">{String(row.precinct_number ?? '')}</td>
                 <td className="px-4 py-2 text-gray-600">{String(row.dob ?? row.birth_year ?? '')}</td>
                 <td className="px-4 py-2 text-gray-600">{String(row.voter_registration_number ?? '')}</td>
               </tr>

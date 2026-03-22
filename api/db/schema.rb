@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_20_121500) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_23_093000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -371,6 +371,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_20_121500) do
   end
 
   create_table "gec_voters", force: :cascade do |t|
+    t.text "address"
     t.integer "birth_year"
     t.datetime "created_at", null: false
     t.date "dob"
@@ -380,6 +381,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_20_121500) do
     t.datetime "imported_at", null: false
     t.string "last_name", null: false
     t.string "middle_name"
+    t.bigint "precinct_id"
+    t.string "precinct_number"
     t.string "previous_village_name"
     t.bigint "removal_detected_by_import_id"
     t.datetime "removed_at"
@@ -394,9 +397,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_20_121500) do
     t.index ["gec_list_date"], name: "index_gec_voters_on_gec_list_date"
     t.index ["last_name", "first_name", "birth_year"], name: "index_gec_voters_on_name_and_birth_year"
     t.index ["last_name", "first_name", "dob"], name: "index_gec_voters_on_name_and_dob"
+    t.index ["precinct_id"], name: "index_gec_voters_on_precinct_id"
     t.index ["removed_at"], name: "index_gec_voters_on_removed_at", where: "(removed_at IS NOT NULL)"
     t.index ["status"], name: "index_gec_voters_on_status"
     t.index ["village_id", "last_name"], name: "index_gec_voters_on_village_and_last_name"
+    t.index ["village_id", "precinct_number"], name: "index_gec_voters_on_village_id_and_precinct_number"
     t.index ["village_id"], name: "index_gec_voters_on_village_id"
     t.index ["village_name"], name: "index_gec_voters_on_village_name"
     t.index ["voter_registration_number"], name: "index_gec_voters_on_voter_registration_number"
@@ -741,6 +746,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_20_121500) do
     t.string "source"
     t.string "status"
     t.string "street_address"
+    t.bigint "submitted_village_id"
     t.text "turnout_note"
     t.string "turnout_source"
     t.string "turnout_status", default: "not_yet_voted", null: false
@@ -784,6 +790,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_20_121500) do
     t.index ["status", "village_id", "motorcade_available"], name: "idx_on_status_village_id_motorcade_available_edb4af7743"
     t.index ["status", "village_id"], name: "index_supporters_on_status_and_village_id"
     t.index ["status"], name: "index_supporters_on_status"
+    t.index ["submitted_village_id"], name: "index_supporters_on_submitted_village_id"
     t.index ["turnout_status"], name: "index_supporters_on_turnout_status"
     t.index ["turnout_updated_by_user_id"], name: "index_supporters_on_turnout_updated_by_user_id"
     t.index ["verification_reason"], name: "index_supporters_on_verification_reason"
@@ -871,6 +878,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_20_121500) do
   add_foreign_key "gec_import_uploads", "gec_imports"
   add_foreign_key "gec_imports", "users", column: "uploaded_by_user_id"
   add_foreign_key "gec_pdf_previews", "users", column: "uploaded_by_user_id"
+  add_foreign_key "gec_voters", "precincts"
   add_foreign_key "gec_voters", "villages"
   add_foreign_key "pay_periods", "companies"
   add_foreign_key "payroll_items", "employees"
@@ -901,6 +909,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_20_121500) do
   add_foreign_key "supporters", "supporters", column: "duplicate_of_id"
   add_foreign_key "supporters", "users", column: "turnout_updated_by_user_id"
   add_foreign_key "supporters", "villages"
+  add_foreign_key "supporters", "villages", column: "submitted_village_id"
   add_foreign_key "village_quotas", "quota_periods"
   add_foreign_key "village_quotas", "villages"
   add_foreign_key "villages", "districts"

@@ -4,6 +4,7 @@ class GecVoter < ApplicationRecord
   STATUSES = %w[active removed].freeze
 
   belongs_to :village, optional: true
+  belongs_to :precinct, optional: true
   belongs_to :removal_detected_by_import, class_name: "GecImport", optional: true
 
   validates :first_name, presence: true
@@ -12,7 +13,9 @@ class GecVoter < ApplicationRecord
   validates :gec_list_date, presence: true
   validates :status, inclusion: { in: STATUSES }
 
+  before_validation :normalize_precinct_number
   before_validation :resolve_village
+  before_validation :resolve_precinct
 
   scope :active, -> { where(status: "active") }
   scope :removed, -> { where(status: "removed") }
@@ -367,6 +370,10 @@ class GecVoter < ApplicationRecord
   end
   private_class_method :build_match_input_for, :resolve_batch_matches!, :batch_query_matches, :match_lookup_values_sql
 
+  def normalize_precinct_number
+    self.precinct_number = precinct_number.to_s.strip.upcase.presence
+  end
+
   def resolve_village
     return if village_id.present? || village_name.blank?
 
@@ -375,5 +382,14 @@ class GecVoter < ApplicationRecord
 
     found = Village.find_by("LOWER(name) = ?", canonical_name.downcase)
     self.village_id = found&.id
+  end
+
+  def resolve_precinct
+    if village_id.blank? || precinct_number.blank?
+      self.precinct_id = nil
+      return
+    end
+
+    self.precinct_id = Precinct.find_by(village_id: village_id, number: precinct_number)&.id
   end
 end

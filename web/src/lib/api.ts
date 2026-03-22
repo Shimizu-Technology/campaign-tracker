@@ -306,6 +306,9 @@ export const downloadReport = (reportType: string, params?: QueryParams) =>
 
 // Vetting Queue
 export const getVettingQueue = (params?: QueryParams) => api.get('/supporters/vetting_queue', { params }).then(r => r.data);
+export const revetSupporter = (id: number) => api.patch(`/supporters/${id}/revet`).then(r => r.data);
+export const bulkRevetSupporters = (payload: { supporter_ids?: number[]; apply_current_filters?: boolean } & QueryParams) =>
+  api.post('/supporters/bulk_revet', payload).then(r => r.data);
 
 // Public Review
 export const getPublicReview = (params?: QueryParams) => api.get('/supporters/public_review', { params }).then(r => r.data);

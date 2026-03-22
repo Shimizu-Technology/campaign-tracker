@@ -271,6 +271,25 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "qr_self_signup", payload.dig("supporter", "attribution_method")
   end
 
+  test "public create ignores crafted submitted village id" do
+    other_village = Village.create!(name: "Other Submission Village")
+
+    post "/api/v1/supporters",
+      params: {
+        supporter: {
+          first_name: "Public", last_name: "Spoof", print_name: "Public Spoof",
+          contact_number: "6715558003",
+          village_id: @village.id,
+          submitted_village_id: other_village.id,
+          registered_voter: true
+        }
+      }
+
+    assert_response :created
+    payload = JSON.parse(response.body)
+    assert_equal @village.id, payload.dig("supporter", "submitted_village_id")
+  end
+
   test "create with staff entry mode sets source to staff_entry and entered_by user" do
     staff_user = User.create!(
       clerk_id: "clerk-staff-entry",
@@ -295,6 +314,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     payload = JSON.parse(response.body)
     assert_equal "staff_entry", payload.dig("supporter", "source")
     assert_equal "staff_manual", payload.dig("supporter", "attribution_method")
+    assert_equal @village.id, payload.dig("supporter", "submitted_village_id")
     assert_equal "accepted", payload.dig("supporter", "intake_status")
     assert_equal "not_applicable", payload.dig("supporter", "public_review_status")
     assert_equal "pending", payload.dig("supporter", "review_status")
@@ -1298,6 +1318,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
 
   test "vetting queue summary uses distinct review buckets" do
     Supporter.update_all(verification_status: "verified", registered_voter: true)
+    other_village = Village.create!(name: "Referral Village")
 
     needs_review = Supporter.create!(
       first_name: "Needs", last_name: "Review", print_name: "Needs Review",
@@ -1310,7 +1331,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
       verification_status: "flagged",
       registered_voter: true
     )
-    needs_review.update_columns(verification_status: "flagged", registered_voter: true, referred_from_village_id: nil)
+    needs_review.update_columns(verification_status: "flagged", registered_voter: true, submitted_village_id: @village.id)
     pending_review = Supporter.create!(
       first_name: "Pending", last_name: "Review", print_name: "Pending Review",
       contact_number: "6715559011",
@@ -1322,7 +1343,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
       verification_status: "unverified",
       registered_voter: true
     )
-    pending_review.update_columns(verification_status: "unverified", registered_voter: true, referred_from_village_id: nil)
+    pending_review.update_columns(verification_status: "unverified", registered_voter: true, submitted_village_id: @village.id)
     no_gec_match = Supporter.create!(
       first_name: "No", last_name: "Match", print_name: "No Match",
       contact_number: "6715559012",
@@ -1334,11 +1355,12 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
       verification_status: "unverified",
       registered_voter: false
     )
-    no_gec_match.update_columns(verification_status: "unverified", registered_voter: false, referred_from_village_id: nil)
+    no_gec_match.update_columns(verification_status: "unverified", registered_voter: false, submitted_village_id: @village.id)
     referral = Supporter.create!(
       first_name: "Village", last_name: "Referral", print_name: "Village Referral",
       contact_number: "6715559013",
-      village: @village,
+      village: other_village,
+      submitted_village: @village,
       source: "staff_entry",
       review_status: "pending",
       public_review_status: "not_applicable",
@@ -1346,7 +1368,7 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
       verification_status: "flagged",
       registered_voter: true
     )
-    referral.update_columns(verification_status: "flagged", registered_voter: true, referred_from_village_id: @village.id)
+    referral.update_columns(verification_status: "flagged", registered_voter: true, submitted_village_id: @village.id)
 
     get "/api/v1/supporters/vetting_queue", headers: auth_headers(@data_team)
 
@@ -1363,6 +1385,24 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_includes returned_ids, pending_review.id
     assert_includes returned_ids, no_gec_match.id
     assert_includes returned_ids, referral.id
+
+    get "/api/v1/supporters/vetting_queue",
+      params: { filter: "referral" },
+      headers: auth_headers(@data_team)
+
+    assert_response :success
+    referral_payload = JSON.parse(response.body)
+    assert_equal [ referral.id ], referral_payload.fetch("supporters").map { |supporter_payload| supporter_payload.fetch("id") }
+
+    get "/api/v1/supporters/vetting_queue",
+      params: { filter: "flagged" },
+      headers: auth_headers(@data_team)
+
+    assert_response :success
+    flagged_payload = JSON.parse(response.body)
+    flagged_ids = flagged_payload.fetch("supporters").map { |supporter_payload| supporter_payload.fetch("id") }
+    assert_includes flagged_ids, needs_review.id
+    assert_not_includes flagged_ids, referral.id
   end
 
   test "vetting queue reuses precomputed verification reason payloads" do
@@ -1420,5 +1460,207 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     supporter_payload = payload.fetch("supporters").find { |item| item["id"] == supporter.id }
     assert_equal "fuzzy_name_match", supporter_payload["verification_reason"]
     assert_equal 1, service_calls
+  end
+
+  test "vetting queue supports approved bucket" do
+    approved = Supporter.create!(
+      first_name: "Approved",
+      last_name: "Queue",
+      print_name: "Approved Queue",
+      contact_number: "6715559201",
+      village: @village,
+      source: "staff_entry",
+      review_status: "approved",
+      public_review_status: "not_applicable",
+      status: "active",
+      verification_status: "verified",
+      registered_voter: true
+    )
+    Supporter.create!(
+      first_name: "Pending",
+      last_name: "Queue",
+      print_name: "Pending Queue",
+      contact_number: "6715559202",
+      village: @village,
+      source: "staff_entry",
+      review_status: "pending",
+      public_review_status: "not_applicable",
+      status: "active",
+      verification_status: "flagged",
+      registered_voter: true
+    )
+
+    get "/api/v1/supporters/vetting_queue",
+      params: { review_bucket: "approved", search: "Queue" },
+      headers: auth_headers(@data_team)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal "approved", payload["current_bucket"]
+    returned_ids = payload.fetch("supporters").map { |item| item["id"] }
+    assert_equal [ approved.id ], returned_ids
+  end
+
+  test "revet refreshes supporter verification against current GEC data" do
+    GecVoter.create!(
+      first_name: "Revet",
+      last_name: "Match",
+      dob: Date.new(1984, 5, 10),
+      village_name: @village.name,
+      village_id: @village.id,
+      voter_registration_number: "VR-REVET-1",
+      gec_list_date: Date.current,
+      imported_at: Time.current,
+      status: "active"
+    )
+
+    supporter = Supporter.create!(
+      first_name: "Revet",
+      last_name: "Match",
+      print_name: "Revet Match",
+      contact_number: "6715559203",
+      dob: Date.new(1984, 5, 10),
+      village: @village,
+      source: "staff_entry",
+      review_status: "pending",
+      public_review_status: "not_applicable",
+      status: "active",
+      verification_status: "flagged",
+      registered_voter: true
+    )
+    supporter.update_columns(
+      verification_status: "flagged",
+      registered_voter: true,
+      verification_reason: "manual_staff_flag",
+      verification_reason_metadata: {}
+    )
+
+    patch "/api/v1/supporters/#{supporter.id}/revet", headers: auth_headers(@data_team)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal "auto_verified", payload.dig("result", "status")
+    assert_equal "verified", payload.dig("supporter", "verification_status")
+    assert_equal "matched_current_gec", payload.dig("supporter", "verification_reason")
+  end
+
+  test "vetting queue includes GEC precinct details for matched voters" do
+    precinct = Precinct.create!(village: @village, number: "19", alpha_range: "A-Z")
+    GecVoter.create!(
+      first_name: "Queue",
+      last_name: "Precinct",
+      birth_year: 1984,
+      village_name: @village.name,
+      village_id: @village.id,
+      precinct_id: precinct.id,
+      precinct_number: "19",
+      voter_registration_number: "VR-QUEUE-PCT",
+      gec_list_date: Date.current,
+      imported_at: Time.current,
+      status: "active"
+    )
+
+    supporter = Supporter.create!(
+      first_name: "Queue",
+      last_name: "Precinct",
+      print_name: "Queue Precinct",
+      contact_number: "6715559219",
+      dob: Date.new(1984, 1, 1),
+      village: @village,
+      source: "staff_entry",
+      review_status: "pending",
+      public_review_status: "not_applicable",
+      status: "active",
+      verification_status: "flagged",
+      registered_voter: true
+    )
+    supporter.update_columns(
+      verification_status: "flagged",
+      registered_voter: true,
+      verification_reason: "manual_staff_flag",
+      verification_reason_metadata: {}
+    )
+
+    get "/api/v1/supporters/vetting_queue",
+      params: { search: "Queue Precinct" },
+      headers: auth_headers(@data_team)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    supporter_payload = payload.fetch("supporters").find { |item| item["id"] == supporter.id }
+    gec_voter = supporter_payload.fetch("gec_matches").first.fetch("gec_voter")
+    assert_equal precinct.id, gec_voter["precinct_id"]
+    assert_equal "19", gec_voter["precinct_number"]
+  end
+
+  test "bulk revet can apply current queue filters instead of explicit ids" do
+    matching_supporter = Supporter.create!(
+      first_name: "Bulk",
+      last_name: "Revet",
+      print_name: "Bulk Revet",
+      contact_number: "6715559204",
+      dob: Date.new(1986, 6, 11),
+      village: @village,
+      source: "staff_entry",
+      review_status: "pending",
+      public_review_status: "not_applicable",
+      status: "active",
+      verification_status: "flagged",
+      registered_voter: true
+    )
+    matching_supporter.update_columns(
+      verification_status: "flagged",
+      registered_voter: true,
+      verification_reason: "manual_staff_flag",
+      verification_reason_metadata: {}
+    )
+
+    other_supporter = Supporter.create!(
+      first_name: "Other",
+      last_name: "Person",
+      print_name: "Other Person",
+      contact_number: "6715559205",
+      dob: Date.new(1981, 7, 12),
+      village: @village,
+      source: "staff_entry",
+      review_status: "pending",
+      public_review_status: "not_applicable",
+      status: "active",
+      verification_status: "flagged",
+      registered_voter: true
+    )
+    other_supporter.update_columns(
+      verification_status: "flagged",
+      registered_voter: true,
+      verification_reason: "manual_staff_flag",
+      verification_reason_metadata: {}
+    )
+
+    GecVoter.create!(
+      first_name: "Bulk",
+      last_name: "Revet",
+      dob: Date.new(1986, 6, 11),
+      village_name: @village.name,
+      village_id: @village.id,
+      voter_registration_number: "VR-BULK-1",
+      gec_list_date: Date.current,
+      imported_at: Time.current,
+      status: "active"
+    )
+
+    post "/api/v1/supporters/bulk_revet",
+      params: {
+        apply_current_filters: true,
+        review_bucket: "pending",
+        search: "Bulk Revet"
+      },
+      headers: auth_headers(@data_team)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal 1, payload["updated"]
+    assert_equal 1, payload.dig("results", "auto_verified")
+    assert_equal "verified", matching_supporter.reload.verification_status
+    assert_equal "flagged", other_supporter.reload.verification_status
   end
 end

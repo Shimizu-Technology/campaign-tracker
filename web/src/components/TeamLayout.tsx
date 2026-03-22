@@ -6,6 +6,7 @@ import api, { getSession } from '../lib/api';
 import TeamShell from './TeamShell';
 import { useSession } from '../hooks/useSession';
 import { identifyStaffUser, isAnalyticsEnabled } from '../lib/analytics';
+import { resolvePreferredRoute } from '../lib/workspaceRouting';
 
 function getHttpStatus(error: unknown): number | undefined {
   const maybeAxiosError = error as { response?: { status?: number } };
@@ -138,10 +139,9 @@ function TeamAccessGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Only campaign_admin and data_team can access /team
-  const role = data?.user?.role;
-  if (role !== 'campaign_admin' && role !== 'data_team') {
-    return <Navigate to={data?.permissions?.default_route || '/admin'} replace />;
+  const fallbackRoute = data ? resolvePreferredRoute(data, '/data') : '/admin';
+  if (!data?.permissions?.can_access_data_team) {
+    return <Navigate to={fallbackRoute} replace />;
   }
 
   return <>{children}</>;
