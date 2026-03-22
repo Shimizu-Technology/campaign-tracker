@@ -898,12 +898,14 @@ module Api
       end
 
       def public_supporter_params
-        params.require(:supporter).permit(
+        permitted = [
           :first_name, :middle_name, :last_name, :print_name, :contact_number, :dob, :email, :street_address,
-          :village_id, :submitted_village_id, :precinct_id, :registered_voter, :self_reported_registered_voter,
+          :village_id, :precinct_id, :registered_voter, :self_reported_registered_voter,
           :yard_sign, :motorcade_available,
           :opt_in_email, :opt_in_text
-        )
+        ]
+        permitted << :submitted_village_id if staff_entry_mode?
+        params.require(:supporter).permit(*permitted)
       end
 
       def supporter_update_params

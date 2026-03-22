@@ -271,6 +271,25 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "qr_self_signup", payload.dig("supporter", "attribution_method")
   end
 
+  test "public create ignores crafted submitted village id" do
+    other_village = Village.create!(name: "Other Submission Village")
+
+    post "/api/v1/supporters",
+      params: {
+        supporter: {
+          first_name: "Public", last_name: "Spoof", print_name: "Public Spoof",
+          contact_number: "6715558003",
+          village_id: @village.id,
+          submitted_village_id: other_village.id,
+          registered_voter: true
+        }
+      }
+
+    assert_response :created
+    payload = JSON.parse(response.body)
+    assert_equal @village.id, payload.dig("supporter", "submitted_village_id")
+  end
+
   test "create with staff entry mode sets source to staff_entry and entered_by user" do
     staff_user = User.create!(
       clerk_id: "clerk-staff-entry",
