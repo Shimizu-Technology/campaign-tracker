@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_20_121500) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_20_130000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -402,6 +402,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_20_121500) do
     t.index ["voter_registration_number"], name: "index_gec_voters_on_voter_registration_number"
   end
 
+  create_table "household_groups", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "primary_contact_number"
+    t.string "primary_email"
+    t.string "street_address"
+    t.datetime "updated_at", null: false
+    t.bigint "village_id"
+    t.index ["village_id"], name: "index_household_groups_on_village_id"
+  end
+
   create_table "pay_periods", force: :cascade do |t|
     t.bigint "approved_by_id"
     t.datetime "committed_at"
@@ -713,11 +723,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_20_121500) do
     t.string "email"
     t.integer "entered_by_user_id"
     t.string "first_name"
+    t.bigint "household_group_id"
     t.string "intake_status", default: "accepted", null: false
     t.string "last_name"
     t.string "leader_code"
     t.string "middle_name"
     t.boolean "motorcade_available"
+    t.boolean "needs_absentee_ballot_help", default: false, null: false
+    t.boolean "needs_election_day_ride", default: false, null: false
+    t.boolean "needs_homebound_voting_help", default: false, null: false
+    t.boolean "needs_voter_registration_help", default: false, null: false
     t.string "normalized_phone"
     t.boolean "opt_in_email", default: false, null: false
     t.boolean "opt_in_text", default: false, null: false
@@ -729,15 +744,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_20_121500) do
     t.bigint "public_reviewed_by_user_id"
     t.bigint "quota_period_id"
     t.bigint "referral_code_id"
+    t.string "referred_by_name"
     t.integer "referred_from_village_id"
     t.boolean "registered_voter"
     t.datetime "registration_outreach_date"
     t.text "registration_outreach_notes"
     t.string "registration_outreach_status"
+    t.bigint "registration_outreach_updated_by_user_id"
     t.string "review_status", default: "approved", null: false
     t.datetime "reviewed_at"
     t.bigint "reviewed_by_user_id"
     t.boolean "self_reported_registered_voter"
+    t.string "self_reported_registered_voter_status"
+    t.string "self_reported_voting_location"
     t.string "source"
     t.string "status"
     t.string "street_address"
@@ -753,6 +772,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_20_121500) do
     t.datetime "verified_at"
     t.bigint "verified_by_user_id"
     t.bigint "village_id", null: false
+    t.boolean "wants_to_volunteer", default: false, null: false
     t.boolean "yard_sign"
     t.index "lower((email)::text)", name: "index_supporters_on_lower_email", where: "(email IS NOT NULL)"
     t.index "lower((print_name)::text) gin_trgm_ops", name: "index_supporters_on_lower_print_name_trgm", using: :gin
@@ -763,10 +783,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_20_121500) do
     t.index ["created_at"], name: "index_supporters_on_created_at"
     t.index ["duplicate_of_id"], name: "index_supporters_on_duplicate_of_id"
     t.index ["entered_by_user_id"], name: "index_supporters_on_entered_by_user_id"
+    t.index ["household_group_id"], name: "index_supporters_on_household_group_id"
     t.index ["intake_status"], name: "index_supporters_on_intake_status"
     t.index ["last_name", "first_name"], name: "index_supporters_on_last_name_and_first_name"
     t.index ["last_name"], name: "index_supporters_on_last_name"
     t.index ["leader_code"], name: "index_supporters_on_leader_code"
+    t.index ["needs_voter_registration_help"], name: "index_supporters_on_needs_voter_registration_help"
     t.index ["normalized_phone"], name: "index_supporters_on_normalized_phone"
     t.index ["potential_duplicate"], name: "index_supporters_on_potential_duplicate"
     t.index ["precinct_id", "created_at"], name: "index_supporters_on_precinct_id_and_created_at"
@@ -777,9 +799,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_20_121500) do
     t.index ["public_reviewed_by_user_id"], name: "index_supporters_on_public_reviewed_by_user_id"
     t.index ["quota_period_id"], name: "index_supporters_on_quota_period_id"
     t.index ["referral_code_id"], name: "index_supporters_on_referral_code_id"
+    t.index ["registration_outreach_updated_by_user_id"], name: "index_supporters_on_registration_outreach_updated_by_user_id"
     t.index ["review_status"], name: "index_supporters_on_review_status"
     t.index ["reviewed_by_user_id"], name: "index_supporters_on_reviewed_by_user_id"
     t.index ["self_reported_registered_voter"], name: "index_supporters_on_self_reported_registered_voter"
+    t.index ["self_reported_registered_voter_status"], name: "index_supporters_on_self_reported_registered_voter_status"
     t.index ["source"], name: "index_supporters_on_source"
     t.index ["status", "village_id", "motorcade_available"], name: "idx_on_status_village_id_motorcade_available_edb4af7743"
     t.index ["status", "village_id"], name: "index_supporters_on_status_and_village_id"
@@ -872,6 +896,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_20_121500) do
   add_foreign_key "gec_imports", "users", column: "uploaded_by_user_id"
   add_foreign_key "gec_pdf_previews", "users", column: "uploaded_by_user_id"
   add_foreign_key "gec_voters", "villages"
+  add_foreign_key "household_groups", "villages"
   add_foreign_key "pay_periods", "companies"
   add_foreign_key "payroll_items", "employees"
   add_foreign_key "payroll_items", "pay_periods"
@@ -895,10 +920,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_20_121500) do
   add_foreign_key "supporter_contact_attempts", "supporters"
   add_foreign_key "supporter_contact_attempts", "users", column: "recorded_by_user_id"
   add_foreign_key "supporters", "blocks"
+  add_foreign_key "supporters", "household_groups"
   add_foreign_key "supporters", "precincts"
   add_foreign_key "supporters", "quota_periods"
   add_foreign_key "supporters", "referral_codes"
   add_foreign_key "supporters", "supporters", column: "duplicate_of_id"
+  add_foreign_key "supporters", "users", column: "registration_outreach_updated_by_user_id"
   add_foreign_key "supporters", "users", column: "turnout_updated_by_user_id"
   add_foreign_key "supporters", "villages"
   add_foreign_key "village_quotas", "quota_periods"

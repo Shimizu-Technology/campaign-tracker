@@ -5,6 +5,7 @@ class Supporter < ApplicationRecord
   PUBLIC_REVIEW_STATUSES = %w[not_applicable pending approved rejected].freeze
   TURNOUT_STATUSES = %w[unknown not_yet_voted voted].freeze
   TURNOUT_SOURCES = %w[poll_watcher war_room admin_override].freeze
+  SELF_REPORTED_REGISTERED_VOTER_STATUSES = %w[yes no not_sure].freeze
   VERIFICATION_STATUSES = %w[unverified verified flagged].freeze
   VERIFICATION_REASONS = %w[
     matched_current_gec
@@ -24,11 +25,13 @@ class Supporter < ApplicationRecord
   belongs_to :precinct, optional: true
   belongs_to :block, optional: true
   belongs_to :referral_code, optional: true
+  belongs_to :household_group, optional: true
   belongs_to :entered_by, class_name: "User", foreign_key: :entered_by_user_id, optional: true
   belongs_to :turnout_updated_by_user, class_name: "User", optional: true
   belongs_to :verified_by, class_name: "User", foreign_key: :verified_by_user_id, optional: true
   belongs_to :reviewed_by, class_name: "User", foreign_key: :reviewed_by_user_id, optional: true
   belongs_to :public_reviewed_by, class_name: "User", foreign_key: :public_reviewed_by_user_id, optional: true
+  belongs_to :registration_outreach_updated_by_user, class_name: "User", optional: true
   belongs_to :duplicate_of, class_name: "Supporter", foreign_key: :duplicate_of_id, optional: true
   has_many :duplicates, class_name: "Supporter", foreign_key: :duplicate_of_id, dependent: :nullify
 
@@ -44,6 +47,7 @@ class Supporter < ApplicationRecord
   # Keep print_name in sync as "Last, First" for display and backward compatibility
   before_validation :sync_print_name
   before_validation :sync_review_workflow_fields
+  before_validation :sync_self_reported_registered_voter_status
   before_validation :auto_assign_precinct, on: :create
   before_save :set_normalized_phone
   after_create :check_for_duplicates
@@ -63,6 +67,7 @@ class Supporter < ApplicationRecord
   validates :public_review_status, inclusion: { in: PUBLIC_REVIEW_STATUSES }
   validates :turnout_status, inclusion: { in: TURNOUT_STATUSES }
   validates :turnout_source, inclusion: { in: TURNOUT_SOURCES }, allow_blank: true
+  validates :self_reported_registered_voter_status, inclusion: { in: SELF_REPORTED_REGISTERED_VOTER_STATUSES }, allow_nil: true
   validates :verification_status, inclusion: { in: VERIFICATION_STATUSES }
   validates :verification_reason, inclusion: { in: VERIFICATION_REASONS }, allow_nil: true
   validate :precinct_matches_village
@@ -97,6 +102,23 @@ class Supporter < ApplicationRecord
   scope :quota_eligible, -> { official_supporters.verified }
   scope :motorcade_available, -> { where(motorcade_available: true) }
   scope :yard_sign, -> { where(yard_sign: true) }
+  scope :needs_registration_followup, -> {
+    where(
+      "supporters.registered_voter = ? OR supporters.needs_voter_registration_help = ? OR supporters.self_reported_registered_voter_status IN (?)",
+      false,
+      true,
+      %w[no not_sure]
+    )
+  }
+  scope :needs_support_followup, -> {
+    where(
+      "supporters.needs_absentee_ballot_help = ? OR supporters.needs_homebound_voting_help = ? OR supporters.needs_election_day_ride = ? OR supporters.needs_voter_registration_help = ?",
+      true,
+      true,
+      true,
+      true
+    )
+  }
   scope :potential_duplicates_only, -> { duplicate_review_candidates.where(potential_duplicate: true) }
   scope :today, -> { where("supporters.created_at >= ?", Time.current.beginning_of_day) }
   scope :this_week, -> { where("supporters.created_at >= ?", Time.current.beginning_of_week) }
@@ -136,6 +158,16 @@ class Supporter < ApplicationRecord
     invited = events_invited_count
     return nil if invited == 0
     ((events_attended_count.to_f / invited) * 100).round(1)
+  end
+
+  def campaign_help_requests
+    [].tap do |requests|
+      requests << "campaign involvement" if wants_to_volunteer
+      requests << "absentee ballot assistance" if needs_absentee_ballot_help
+      requests << "homebound voting assistance" if needs_homebound_voting_help
+      requests << "voter registration help" if needs_voter_registration_help
+      requests << "election-day ride" if needs_election_day_ride
+    end
   end
 
   private
@@ -178,6 +210,24 @@ class Supporter < ApplicationRecord
     else
       self.public_review_status = "not_applicable"
       self.review_status = review_status.presence || "approved"
+    end
+  end
+
+  def sync_self_reported_registered_voter_status
+    if will_save_change_to_self_reported_registered_voter? || (!will_save_change_to_self_reported_registered_voter_status? && self_reported_registered_voter_status.blank?)
+      return if self_reported_registered_voter.nil?
+
+      self.self_reported_registered_voter_status = self_reported_registered_voter ? "yes" : "no"
+      return
+    end
+
+    if self_reported_registered_voter_status.present?
+      self.self_reported_registered_voter =
+        case self_reported_registered_voter_status
+        when "yes" then true
+        when "no" then false
+        else nil
+        end
     end
   end
 

@@ -28,9 +28,17 @@ interface SupporterDetail {
   precinct_id: number | null;
   precinct_number: string | null;
   self_reported_registered_voter: boolean | null;
+  self_reported_registered_voter_status?: 'yes' | 'no' | 'not_sure' | null;
+  self_reported_voting_location?: string | null;
   registered_voter: boolean;
   yard_sign: boolean;
   motorcade_available: boolean;
+  wants_to_volunteer?: boolean;
+  needs_absentee_ballot_help?: boolean;
+  needs_homebound_voting_help?: boolean;
+  needs_voter_registration_help?: boolean;
+  needs_election_day_ride?: boolean;
+  campaign_help_requests?: string[];
   opt_in_email: boolean;
   opt_in_text: boolean;
   verification_status: string;
@@ -62,10 +70,23 @@ interface SupporterDetail {
   leader_code?: string | null;
   referral_code_id?: number | null;
   referral_display_name?: string | null;
+  referred_by_name?: string | null;
+  household_group_id?: number | null;
+  household_members?: Array<{
+    id: number;
+    first_name: string;
+    middle_name?: string | null;
+    last_name: string;
+    print_name: string;
+    self_reported_registered_voter_status?: string | null;
+    registered_voter: boolean;
+    campaign_help_requests?: string[];
+  }>;
   created_at: string;
   events_invited_count: number;
   events_attended_count: number;
   reliability_score: number | null;
+  registration_outreach_updated_by_user_name?: string | null;
 }
 
 interface AuditLogItem {
@@ -99,14 +120,22 @@ const AUDIT_FIELD_LABELS: Record<string, string> = {
   review_status: 'Review status',
   public_review_status: 'Public review status',
   leader_code: 'Referral code',
+  referred_by_name: 'Referred by',
   status: 'Status',
   verification_status: 'Verification status',
   attribution_method: 'Entry method',
   referral_code_id: 'Referrer',
   self_reported_registered_voter: 'Self-reported registered voter',
+  self_reported_registered_voter_status: 'Self-reported voter status',
+  self_reported_voting_location: 'Voting location note',
   registered_voter: 'GEC found registered voter',
   yard_sign: 'Yard sign',
   motorcade_available: 'Motorcade available',
+  wants_to_volunteer: 'Campaign involvement',
+  needs_absentee_ballot_help: 'Absentee ballot help',
+  needs_homebound_voting_help: 'Homebound voting help',
+  needs_voter_registration_help: 'Registration help',
+  needs_election_day_ride: 'Ride to the polls',
   opt_in_email: 'Opt-in email',
   opt_in_text: 'Opt-in text',
   created_at: 'Created at',
@@ -864,13 +893,27 @@ export default function SupporterDetailPage() {
           <h2 className="font-semibold text-[var(--text-primary)] mb-2">Voter Registration Outreach</h2>
           <div className="space-y-3">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-[var(--text-secondary)]">Self-reported registered voter:</span>
+              <span className="text-sm text-[var(--text-secondary)]">Self-reported voter status:</span>
               <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-semibold ${
-                supporter.self_reported_registered_voter ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
+                supporter.self_reported_registered_voter_status === 'yes'
+                  ? 'bg-blue-100 text-blue-700'
+                  : supporter.self_reported_registered_voter_status === 'no'
+                    ? 'bg-slate-100 text-slate-700'
+                    : 'bg-amber-100 text-amber-800'
               }`}>
-                {supporter.self_reported_registered_voter == null ? 'Unknown' : supporter.self_reported_registered_voter ? 'Yes' : 'No'}
+                {supporter.self_reported_registered_voter_status === 'yes'
+                  ? 'Yes'
+                  : supporter.self_reported_registered_voter_status === 'no'
+                    ? 'No'
+                    : 'Not sure'}
               </span>
             </div>
+            {supporter.self_reported_voting_location && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-[var(--text-secondary)]">Voting location note:</span>
+                <span className="text-sm font-medium text-[var(--text-primary)]">{supporter.self_reported_voting_location}</span>
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-[var(--text-secondary)]">GEC found registered voter:</span>
               <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-semibold ${
@@ -912,6 +955,28 @@ export default function SupporterDetailPage() {
                 </span>
               )}
             </div>
+            <div className="flex flex-wrap items-start gap-2">
+              <span className="text-sm text-[var(--text-secondary)]">Help requests:</span>
+              {supporter.campaign_help_requests && supporter.campaign_help_requests.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {supporter.campaign_help_requests.map(request => (
+                    <span key={request} className="inline-block px-3 py-1.5 rounded-full text-sm font-medium bg-violet-50 text-violet-700">
+                      {request}
+                    </span>
+                  ))}
+                </div>
+              ) : (
+                <span className="text-sm text-[var(--text-primary)]">None recorded</span>
+              )}
+            </div>
+            {(supporter.referral_display_name || supporter.referred_by_name) && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-[var(--text-secondary)]">Referral:</span>
+                <span className="text-sm font-medium text-[var(--text-primary)]">
+                  {supporter.referral_display_name || supporter.referred_by_name}
+                </span>
+              </div>
+            )}
             {canEdit && (
               <div>
                 <label className="text-sm text-[var(--text-secondary)] block mb-1">Outreach notes</label>
@@ -944,6 +1009,39 @@ export default function SupporterDetailPage() {
               <p className="text-xs text-[var(--text-muted)]">
                 Last outreach: {formatDateTime(supporter.registration_outreach_date)}
               </p>
+            )}
+            {supporter.registration_outreach_updated_by_user_name && (
+              <p className="text-xs text-[var(--text-muted)]">
+                Last updated by: {supporter.registration_outreach_updated_by_user_name}
+              </p>
+            )}
+            {supporter.household_members && supporter.household_members.length > 0 && (
+              <div className="border-t border-[var(--border-soft)] pt-3">
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Linked household members</h3>
+                <div className="mt-2 space-y-2">
+                  {supporter.household_members.map(member => (
+                    <div key={member.id} className="rounded-xl border border-[var(--border-soft)] bg-[var(--surface-raised)] px-3 py-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="font-medium text-[var(--text-primary)]">
+                          {[member.first_name, member.middle_name, member.last_name].filter(Boolean).join(' ')}
+                        </span>
+                        <span className="text-xs text-[var(--text-secondary)]">
+                          {member.self_reported_registered_voter_status === 'yes'
+                            ? 'Self-reported voter'
+                            : member.self_reported_registered_voter_status === 'no'
+                              ? 'Needs registration'
+                              : 'Registration unsure'}
+                        </span>
+                      </div>
+                      {member.campaign_help_requests && member.campaign_help_requests.length > 0 && (
+                        <p className="text-xs text-[var(--text-secondary)] mt-1">
+                          Help requests: {member.campaign_help_requests.join(', ')}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         </section>
