@@ -717,8 +717,7 @@ class GecImportService
     if column_map["address"]
       address = row[column_map["address"]]&.to_s&.strip.presence
     elsif column_map["combined_name"]
-      # Official GEC exports place ADDRESS immediately after NAME.
-      address = row[3]&.to_s&.strip.presence if row.size > 3
+      address = infer_combined_name_address(row, column_map)
     end
 
     dob = nil
@@ -766,6 +765,35 @@ class GecImportService
       voter_registration_number: vrn,
       source_name: column_map["combined_name"] ? row[column_map["combined_name"]]&.to_s&.strip : nil
     }
+  end
+
+  def infer_combined_name_address(row, column_map)
+    combined_name_index = column_map["combined_name"]
+    return nil if combined_name_index.nil?
+
+    candidate_indices = ((combined_name_index + 1)..[ row.size - 1, 8 ].min).to_a
+    return nil if candidate_indices.empty?
+
+    detected_village_index = candidate_indices.find do |index|
+      detect_known_village_name(row[index]).present?
+    end
+
+    address_indices = detected_village_index ? candidate_indices.select { |index| index < detected_village_index } : candidate_indices
+
+    address_indices.each do |index|
+      raw_value = row[index]&.to_s&.strip
+      next if raw_value.blank?
+      next if detect_known_village_name(raw_value).present?
+      next if %w[GU GUAM].include?(raw_value.upcase)
+      next if raw_value.match?(/\A\d+[A-Z]?\z/)
+
+      parsed_dob, = parse_dob(raw_value)
+      next if parsed_dob.present? || parse_birth_year(raw_value).present?
+
+      return raw_value
+    end
+
+    nil
   end
 
   def process_row(row, column_map, row_number)

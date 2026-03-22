@@ -801,6 +801,26 @@ class GecImportServiceTest < ActiveSupport::TestCase
     file&.close!
   end
 
+  test "combined-name fallback does not treat village column as address when address is missing" do
+    Village.find_or_create_by!(name: "Dededo")
+
+    file = create_test_excel([
+      [ 16431, "REG. NO.", "NAME", nil, nil, "DOB", "PCT" ],
+      [ 1, "43881", "ABAD, BRENDA R.", "DEDEDO", "GU", Date.new(1975, 11, 16), 18 ]
+    ])
+
+    service = GecImportService.new(
+      file_path: file.path,
+      gec_list_date: Date.new(2025, 12, 25)
+    )
+    preview = service.preview(limit: 5)
+
+    assert_equal "Dededo", preview[:preview_rows][0][:village_name]
+    assert_nil preview[:preview_rows][0][:address]
+  ensure
+    file&.close!
+  end
+
   test "placeholder NEW registration numbers do not merge unrelated rows" do
     file = create_test_excel([
       [ 16431, "REG. NO.", "NAME", "ADDRESS", nil, nil, "DOB", "PCT", "CONTACT 1", "CONTACT 2", "EMAIL", "NOTES", "Q", "BL SOURCE", "MISC" ],

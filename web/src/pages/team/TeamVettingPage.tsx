@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   approveSupporter,
@@ -169,6 +169,11 @@ function sameDraft(a: EditDraft, b: EditDraft) {
     a.email === b.email;
 }
 
+function defaultGecSearchFor(supporter: QueueSupporter | null) {
+  if (!supporter) return '';
+  return [supporter.first_name, supporter.middle_name, supporter.last_name].filter(Boolean).join(' ');
+}
+
 export default function TeamVettingPage() {
   const queryClient = useQueryClient();
   const location = useLocation();
@@ -183,8 +188,14 @@ export default function TeamVettingPage() {
   const [page, setPage] = useState(Number(searchParams.get('page') || 1));
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [selectedSupporterId, setSelectedSupporterId] = useState<number | null>(null);
-  const [draft, setDraft] = useState<EditDraft>(buildDraft(null));
-  const [gecSearch, setGecSearch] = useState('');
+  const [draftState, setDraftState] = useState<{ supporterId: number | null; value: EditDraft }>({
+    supporterId: null,
+    value: EMPTY_DRAFT,
+  });
+  const [gecSearchState, setGecSearchState] = useState<{ supporterId: number | null; value: string }>({
+    supporterId: null,
+    value: '',
+  });
   const returnTo = searchParams.get('return_to') || '';
 
   const { data: villages } = useQuery({ queryKey: ['villages'], queryFn: getVillages });
@@ -212,30 +223,40 @@ export default function TeamVettingPage() {
   const supporters = useMemo<QueueSupporter[]>(() => data?.supporters ?? EMPTY_SUPPORTERS, [data?.supporters]);
   const summary = data?.summary || {};
   const pagination = data?.pagination || {};
-  const selectedSupporter = supporters.find((supporter) => supporter.id === selectedSupporterId) || null;
-
-  useEffect(() => {
-    if (supporters.length === 0) {
-      if (selectedSupporterId !== null) {
-        setSelectedSupporterId(null);
-      }
-      return;
+  const effectiveSelectedSupporterId = useMemo(() => {
+    if (supporters.length === 0) return null;
+    if (selectedSupporterId && supporters.some((supporter) => supporter.id === selectedSupporterId)) {
+      return selectedSupporterId;
     }
-    if (!selectedSupporterId || !supporters.some((supporter) => supporter.id === selectedSupporterId)) {
-      setSelectedSupporterId(supporters[0].id);
-    }
+    return supporters[0].id;
   }, [selectedSupporterId, supporters]);
+  const selectedSupporter = supporters.find((supporter) => supporter.id === effectiveSelectedSupporterId) || null;
+  const defaultDraft = useMemo(() => buildDraft(selectedSupporter), [selectedSupporter]);
+  const draft = draftState.supporterId === effectiveSelectedSupporterId ? draftState.value : defaultDraft;
+  const defaultGecSearch = useMemo(() => defaultGecSearchFor(selectedSupporter), [selectedSupporter]);
+  const gecSearch = gecSearchState.supporterId === effectiveSelectedSupporterId ? gecSearchState.value : defaultGecSearch;
 
-  useEffect(() => {
-    const nextDraft = buildDraft(selectedSupporter);
-    setDraft((prev) => (sameDraft(prev, nextDraft) ? prev : nextDraft));
-    if (selectedSupporter) {
-      const nextSearch = [selectedSupporter.first_name, selectedSupporter.middle_name, selectedSupporter.last_name].filter(Boolean).join(' ');
-      setGecSearch((prev) => (prev === nextSearch ? prev : nextSearch));
-    } else {
-      setGecSearch((prev) => (prev === '' ? prev : ''));
-    }
-  }, [selectedSupporter]);
+  const updateDraft = (value: SetStateAction<EditDraft>) => {
+    const baseDraft = draftState.supporterId === effectiveSelectedSupporterId ? draftState.value : defaultDraft;
+    const nextDraft = typeof value === 'function' ? value(baseDraft) : value;
+    setDraftState((prev) => {
+      if (prev.supporterId === effectiveSelectedSupporterId && sameDraft(prev.value, nextDraft)) {
+        return prev;
+      }
+      return { supporterId: effectiveSelectedSupporterId, value: nextDraft };
+    });
+  };
+
+  const updateGecSearch = (value: SetStateAction<string>) => {
+    const baseSearch = gecSearchState.supporterId === effectiveSelectedSupporterId ? gecSearchState.value : defaultGecSearch;
+    const nextSearch = typeof value === 'function' ? value(baseSearch) : value;
+    setGecSearchState((prev) => {
+      if (prev.supporterId === effectiveSelectedSupporterId && prev.value === nextSearch) {
+        return prev;
+      }
+      return { supporterId: effectiveSelectedSupporterId, value: nextSearch };
+    });
+  };
 
   const { data: editPrecincts } = useQuery({
     queryKey: ['vetting-edit-precincts', draft.village_id],
@@ -250,7 +271,7 @@ export default function TeamVettingPage() {
       village_id: draft.village_id || undefined,
       per_page: 25,
     }),
-    enabled: Boolean(selectedSupporterId),
+    enabled: Boolean(effectiveSelectedSupporterId),
   });
 
   const invalidateQueueData = () => {
@@ -456,7 +477,7 @@ export default function TeamVettingPage() {
   }, [reviewBucket]);
 
   const applyGecIdentity = (voter: GecVoter) => {
-    setDraft((prev) => ({
+    updateDraft((prev) => ({
       ...prev,
       first_name: voter.first_name || '',
       middle_name: voter.middle_name || '',
@@ -469,7 +490,7 @@ export default function TeamVettingPage() {
     const nextVillageId = voter.village_id ? String(voter.village_id) : '';
     const nextPrecinctId = voter.precinct_id ? String(voter.precinct_id) : '';
 
-    setDraft((prev) => ({
+    updateDraft((prev) => ({
       ...prev,
       village_id: nextVillageId || prev.village_id,
       precinct_id: nextPrecinctId || (nextVillageId && nextVillageId !== prev.village_id ? '' : prev.precinct_id),
@@ -478,7 +499,7 @@ export default function TeamVettingPage() {
 
   const applyGecAddress = (voter: GecVoter) => {
     if (!voter.address) return;
-    setDraft((prev) => ({
+    updateDraft((prev) => ({
       ...prev,
       street_address: voter.address || prev.street_address,
     }));
@@ -677,7 +698,7 @@ export default function TeamVettingPage() {
               const canApprove = canApproveSupporter(supporter);
               const hasDuplicateWarning = supporter.potential_duplicate === true;
               const duplicatesPath = `/data/duplicates?focus_supporter_id=${id}`;
-              const isSelected = selectedSupporterId === id;
+              const isSelected = effectiveSelectedSupporterId === id;
               const statusColor = supporter.submitted_village_referral ? 'text-purple-600 bg-purple-50' :
                 supporter.verification_status === 'flagged' ? 'text-amber-700 bg-amber-50' :
                 supporter.verification_status === 'unverified' ? 'text-red-700 bg-red-50' : 'text-green-700 bg-green-50';
@@ -820,22 +841,22 @@ export default function TeamVettingPage() {
               ) : (
                 <div className="mt-4 space-y-3">
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <input value={draft.first_name} onChange={(e) => setDraft((prev) => ({ ...prev, first_name: e.target.value }))} placeholder="First name" className="rounded-xl border border-gray-200 px-3 py-2 text-sm" />
-                    <input value={draft.middle_name} onChange={(e) => setDraft((prev) => ({ ...prev, middle_name: e.target.value }))} placeholder="Middle name" className="rounded-xl border border-gray-200 px-3 py-2 text-sm" />
-                    <input value={draft.last_name} onChange={(e) => setDraft((prev) => ({ ...prev, last_name: e.target.value }))} placeholder="Last name" className="rounded-xl border border-gray-200 px-3 py-2 text-sm" />
-                    <input value={draft.dob} onChange={(e) => setDraft((prev) => ({ ...prev, dob: e.target.value }))} placeholder="DOB" type="date" className="rounded-xl border border-gray-200 px-3 py-2 text-sm" />
-                    <input value={draft.contact_number} onChange={(e) => setDraft((prev) => ({ ...prev, contact_number: e.target.value }))} placeholder="Phone" className="rounded-xl border border-gray-200 px-3 py-2 text-sm" />
-                    <input value={draft.email} onChange={(e) => setDraft((prev) => ({ ...prev, email: e.target.value }))} placeholder="Email" className="rounded-xl border border-gray-200 px-3 py-2 text-sm" />
+                    <input value={draft.first_name} onChange={(e) => updateDraft((prev) => ({ ...prev, first_name: e.target.value }))} placeholder="First name" className="rounded-xl border border-gray-200 px-3 py-2 text-sm" />
+                    <input value={draft.middle_name} onChange={(e) => updateDraft((prev) => ({ ...prev, middle_name: e.target.value }))} placeholder="Middle name" className="rounded-xl border border-gray-200 px-3 py-2 text-sm" />
+                    <input value={draft.last_name} onChange={(e) => updateDraft((prev) => ({ ...prev, last_name: e.target.value }))} placeholder="Last name" className="rounded-xl border border-gray-200 px-3 py-2 text-sm" />
+                    <input value={draft.dob} onChange={(e) => updateDraft((prev) => ({ ...prev, dob: e.target.value }))} placeholder="DOB" type="date" className="rounded-xl border border-gray-200 px-3 py-2 text-sm" />
+                    <input value={draft.contact_number} onChange={(e) => updateDraft((prev) => ({ ...prev, contact_number: e.target.value }))} placeholder="Phone" className="rounded-xl border border-gray-200 px-3 py-2 text-sm" />
+                    <input value={draft.email} onChange={(e) => updateDraft((prev) => ({ ...prev, email: e.target.value }))} placeholder="Email" className="rounded-xl border border-gray-200 px-3 py-2 text-sm" />
                   </div>
-                  <input value={draft.street_address} onChange={(e) => setDraft((prev) => ({ ...prev, street_address: e.target.value }))} placeholder="Street address" className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm" />
+                  <input value={draft.street_address} onChange={(e) => updateDraft((prev) => ({ ...prev, street_address: e.target.value }))} placeholder="Street address" className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm" />
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <select value={draft.village_id} onChange={(e) => setDraft((prev) => ({ ...prev, village_id: e.target.value, precinct_id: '' }))} className="rounded-xl border border-gray-200 px-3 py-2 text-sm">
+                    <select value={draft.village_id} onChange={(e) => updateDraft((prev) => ({ ...prev, village_id: e.target.value, precinct_id: '' }))} className="rounded-xl border border-gray-200 px-3 py-2 text-sm">
                       <option value="">Select village</option>
                       {villageOptions.map((village: { id: number; name: string }) => (
                         <option key={village.id} value={village.id}>{village.name}</option>
                       ))}
                     </select>
-                    <select value={draft.precinct_id} onChange={(e) => setDraft((prev) => ({ ...prev, precinct_id: e.target.value }))} className="rounded-xl border border-gray-200 px-3 py-2 text-sm">
+                    <select value={draft.precinct_id} onChange={(e) => updateDraft((prev) => ({ ...prev, precinct_id: e.target.value }))} className="rounded-xl border border-gray-200 px-3 py-2 text-sm">
                       <option value="">Select precinct</option>
                       {editPrecinctOptions.map((precinct: { id: number; number: string; village_name?: string }) => (
                         <option key={precinct.id} value={precinct.id}>
@@ -887,7 +908,7 @@ export default function TeamVettingPage() {
                 <input
                   type="text"
                   value={gecSearch}
-                  onChange={(e) => setGecSearch(e.target.value)}
+                    onChange={(e) => updateGecSearch(e.target.value)}
                   placeholder="Search GEC voter list"
                   className="w-full rounded-xl border border-gray-200 py-2 pl-9 pr-3 text-sm"
                 />
