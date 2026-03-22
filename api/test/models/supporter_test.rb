@@ -119,6 +119,7 @@ class SupporterTest < ActiveSupport::TestCase
   end
 
   test "keeps an explicitly selected precinct on update" do
+    precinct_b = Precinct.create!(number: "1B", village: @village_one)
     supporter = Supporter.create!(
       first_name: "Manual",
       last_name: "Override",
@@ -131,8 +132,8 @@ class SupporterTest < ActiveSupport::TestCase
       turnout_status: "unknown"
     )
 
-    supporter.update!(precinct: @precinct_one)
+    supporter.update!(precinct: precinct_b)
 
-    assert_equal @precinct_one.id, supporter.reload.precinct_id
+    assert_equal precinct_b.id, supporter.reload.precinct_id
   end
 end

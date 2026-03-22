@@ -1,4 +1,4 @@
-import { useMemo, useState, type SetStateAction } from 'react';
+import { useMemo, useRef, useState, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   approveSupporter,
@@ -185,6 +185,7 @@ function defaultGecSearchFor(supporter: QueueSupporter | null) {
 export default function TeamVettingPage() {
   const queryClient = useQueryClient();
   const location = useLocation();
+  const lastRequestedVillageRef = useRef<string | null>(null);
   const [searchParams] = useSearchParams();
   const [filter, setFilter] = useState<VettingFilter>('all');
   const [reviewBucket, setReviewBucket] = useState<QueueBucket>((searchParams.get('review_bucket') as QueueBucket) || 'pending');
@@ -413,8 +414,10 @@ export default function TeamVettingPage() {
   const editPrecinctOptions: PrecinctOption[] = editPrecincts?.precincts || [];
 
   const handleDraftVillageChange = async (nextVillageId: string) => {
+    lastRequestedVillageRef.current = nextVillageId || null;
+    updateDraft((prev) => ({ ...prev, village_id: nextVillageId, precinct_id: '' }));
+
     if (!nextVillageId) {
-      updateDraft((prev) => ({ ...prev, village_id: '', precinct_id: '' }));
       return;
     }
 
@@ -424,15 +427,33 @@ export default function TeamVettingPage() {
         queryFn: () => getPrecincts({ village_id: nextVillageId }),
       });
       const nextPrecinctOptions: PrecinctOption[] = precinctData?.precincts || [];
-      const nextPrecinctId = assignPrecinctIdByLastName(draft.last_name, nextPrecinctOptions);
+      if (lastRequestedVillageRef.current !== nextVillageId) {
+        return;
+      }
 
-      updateDraft((prev) => ({
-        ...prev,
-        village_id: nextVillageId,
-        precinct_id: nextPrecinctId ? String(nextPrecinctId) : '',
-      }));
+      updateDraft((prev) => {
+        if (prev.village_id !== nextVillageId) {
+          return prev;
+        }
+
+        const nextPrecinctId = assignPrecinctIdByLastName(prev.last_name, nextPrecinctOptions);
+        return {
+          ...prev,
+          precinct_id: nextPrecinctId ? String(nextPrecinctId) : '',
+        };
+      });
     } catch {
-      updateDraft((prev) => ({ ...prev, village_id: nextVillageId, precinct_id: '' }));
+      if (lastRequestedVillageRef.current !== nextVillageId) {
+        return;
+      }
+
+      updateDraft((prev) => {
+        if (prev.village_id !== nextVillageId) {
+          return prev;
+        }
+
+        return { ...prev, precinct_id: '' };
+      });
     }
   };
 
