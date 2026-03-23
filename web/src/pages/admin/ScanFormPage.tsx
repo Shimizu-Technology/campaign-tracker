@@ -312,11 +312,18 @@ export default function ScanFormPage() {
     const preparedFiles = options?.preparedFiles;
     const newSelectedFiles = preparedFiles ?? buildSelectedFiles(files);
     const shouldRevokeNewSelectedFiles = !preparedFiles;
+    const restoreNewSelectedFiles = () => {
+      if (shouldRevokeNewSelectedFiles) {
+        revokeSelectedFiles(newSelectedFiles);
+      } else if (!append) {
+        setCaptureFiles(newSelectedFiles);
+      }
+    };
 
     setPhase('scanning');
     setScanError('');
-    setScanWarnings([]);
     if (!append) {
+      setScanWarnings([]);
       revokeSelectedFiles(selectedFiles);
       setCaptureFiles([]);
     }
@@ -380,13 +387,10 @@ export default function ScanFormPage() {
 
       if (addedRowCount === 0) {
         setScanError(failures[0] || 'No supporter rows were detected from the selected images.');
-        if (append || shouldRevokeNewSelectedFiles) {
-          revokeSelectedFiles(newSelectedFiles);
-        } else {
-          setCaptureFiles(newSelectedFiles);
-        }
+        restoreNewSelectedFiles();
         setSelectedFiles(existingFiles);
         setScanWarnings(mergeWarningEntries(previousWarnings, warnings));
+        setScanProgress({ current: 0, total: 0 });
         setRows(existingRows);
         setPhase(append ? previousPhase : 'capture');
         return;
@@ -401,14 +405,11 @@ export default function ScanFormPage() {
       setPhase('review');
     } catch (err: unknown) {
       const error = err as { response?: { data?: { error?: string } } };
-      if (shouldRevokeNewSelectedFiles) {
-        revokeSelectedFiles(newSelectedFiles);
-      } else {
-        setCaptureFiles(newSelectedFiles);
-      }
+      restoreNewSelectedFiles();
       setSelectedFiles(existingFiles);
       setScanError(error?.response?.data?.error || 'Batch scan failed — try again');
       setScanWarnings(previousWarnings);
+      setScanProgress({ current: 0, total: 0 });
       setRows(existingRows);
       setPhase(append ? previousPhase : 'capture');
     }
