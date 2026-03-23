@@ -261,7 +261,11 @@ function verificationStatusDetail(supporter: Pick<SupporterDetail, 'verification
     return 'This supporter has a current GEC match and can be treated as matched to the voter list.';
   }
   if (supporter.submitted_village_referral) {
-    return `This supporter was originally submitted under ${supporter.submitted_village_name || 'Unknown'}, but is currently assigned to ${supporter.village_name || 'Unknown'}.`;
+    const base = `This supporter was originally submitted under ${supporter.submitted_village_name || 'Unknown'}, but is currently assigned to ${supporter.village_name || 'Unknown'}.`;
+    if (supporter.referred_from_village_id && supporter.referred_from_village_name) {
+      return `${base} Their current GEC match is in ${supporter.referred_from_village_name}.`;
+    }
+    return base;
   }
   if (supporter.referred_from_village_id) {
     if (supporter.village_name && supporter.referred_from_village_name) {
@@ -295,6 +299,10 @@ function assignmentHistoryDetail(supporter: Pick<SupporterDetail, 'submitted_vil
     { label: 'Current assignment', value: currentVillage },
     { label: 'Assignment status', value: statusLabel },
   ];
+}
+
+function hasAssignmentHistory(supporter: Pick<SupporterDetail, 'submitted_village_referral'>) {
+  return supporter.submitted_village_referral === true;
 }
 
 function isPublicOrigin(supporter: Pick<SupporterDetail, 'source'>) {
@@ -726,31 +734,27 @@ export default function SupporterDetailPage() {
             </label>
           </div>
 
-          <div className={`mt-4 rounded-xl border px-4 py-3 ${
-            supporter.submitted_village_referral ? 'border-purple-200 bg-purple-50' : 'border-slate-200 bg-slate-50'
-          }`}>
-            <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-sm font-semibold text-[var(--text-primary)]">Assignment History</h3>
-              <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                supporter.submitted_village_referral ? 'bg-purple-100 text-purple-700' : 'bg-slate-200 text-slate-700'
-              }`}>
-                {supporter.submitted_village_referral ? 'Village Referral' : 'Original Village Match'}
-              </span>
-            </div>
-            <div className="mt-3 grid gap-3 md:grid-cols-3">
-              {assignmentHistoryDetail(supporter).map((item) => (
-                <div key={item.label}>
-                  <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">{item.label}</p>
-                  <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">{item.value}</p>
-                </div>
-              ))}
-            </div>
-            {supporter.submitted_village_referral && (
+          {hasAssignmentHistory(supporter) && (
+            <div className="mt-4 rounded-xl border border-purple-200 bg-purple-50 px-4 py-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-sm font-semibold text-[var(--text-primary)]">Assignment History</h3>
+                <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-700">
+                  Village Referral
+                </span>
+              </div>
+              <div className="mt-3 grid gap-3 md:grid-cols-3">
+                {assignmentHistoryDetail(supporter).map((item) => (
+                  <div key={item.label}>
+                    <p className="text-xs uppercase tracking-wide text-[var(--text-muted)]">{item.label}</p>
+                    <p className="mt-1 text-sm font-medium text-[var(--text-primary)]">{item.value}</p>
+                  </div>
+                ))}
+              </div>
               <p className="mt-3 text-sm text-purple-700">
                 This supporter should appear on the Referral List report once they are approved into the official supporter list.
               </p>
-            )}
-          </div>
+            </div>
+          )}
         </section>
 
         <section className="app-card p-4">
