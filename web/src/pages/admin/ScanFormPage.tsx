@@ -83,6 +83,14 @@ function normalizePhone(value: string) {
   return value.trim();
 }
 
+function mergeWarningEntries(existing: string[], additions: string[]) {
+  const normalized = [...existing, ...additions]
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  return Array.from(new Set(normalized));
+}
+
 const STATESIDE_ADDRESS_HINTS = [
   'alabama', 'alaska', 'arizona', 'arkansas', 'california', 'colorado', 'connecticut', 'delaware', 'florida',
   'georgia', 'hawaii', 'idaho', 'illinois', 'indiana', 'iowa', 'kansas', 'kentucky', 'louisiana', 'maine',
@@ -220,12 +228,13 @@ export default function ScanFormPage() {
   const [defaultVillageId, setDefaultVillageId] = useState('');
   const [rows, setRows] = useState<BatchRow[]>([]);
   const [scanError, setScanError] = useState('');
-  const [scanWarning, setScanWarning] = useState('');
+  const [scanWarnings, setScanWarnings] = useState<string[]>([]);
   const [captureFiles, setCaptureFiles] = useState<SelectedScanFile[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<SelectedScanFile[]>([]);
   const [scanProgress, setScanProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
   const [saveResult, setSaveResult] = useState<SaveResult | null>(null);
   const [saveProgress, setSaveProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
+  const scanWarning = scanWarnings.join(' | ');
 
   const { data: sessionData } = useSession();
   const scopedVillageIds = sessionData?.user?.scoped_village_ids ?? null;
@@ -284,14 +293,14 @@ export default function ScanFormPage() {
     const previousPhase = phase;
     const existingRows = append ? rows : [];
     const existingFiles = append ? selectedFiles : [];
-    const previousWarning = append ? scanWarning : '';
+    const previousWarnings = append ? scanWarnings : [];
     const preparedFiles = options?.preparedFiles;
     const newSelectedFiles = preparedFiles ?? buildSelectedFiles(files);
     const shouldRevokeNewSelectedFiles = !preparedFiles;
 
     setPhase('scanning');
     setScanError('');
-    setScanWarning('');
+    setScanWarnings([]);
     if (!append) {
       revokeSelectedFiles(selectedFiles);
       setCaptureFiles([]);
@@ -362,18 +371,17 @@ export default function ScanFormPage() {
           setCaptureFiles(newSelectedFiles);
         }
         setSelectedFiles(existingFiles);
-        setScanWarning([...(previousWarning ? [previousWarning] : []), ...warnings].join(' '));
+        setScanWarnings(mergeWarningEntries(previousWarnings, warnings));
         setRows(existingRows);
         setPhase(append ? previousPhase : 'capture');
         return;
       }
 
-      const combinedWarnings = [
-        ...(previousWarning ? [ previousWarning ] : []),
+      const combinedWarnings = mergeWarningEntries(previousWarnings, [
         ...warnings,
-        ...(failures.length > 0 ? [ `${failures.length} file${failures.length === 1 ? '' : 's'} failed to scan.` ] : []),
-      ];
-      setScanWarning(combinedWarnings.join(' '));
+        ...(failures.length > 0 ? [`${failures.length} file${failures.length === 1 ? '' : 's'} failed to scan.`] : []),
+      ]);
+      setScanWarnings(combinedWarnings);
       setRows(allRows);
       setPhase('review');
     } catch (err: unknown) {
@@ -385,7 +393,7 @@ export default function ScanFormPage() {
       }
       setSelectedFiles(existingFiles);
       setScanError(error?.response?.data?.error || 'Batch scan failed — try again');
-      setScanWarning(previousWarning);
+      setScanWarnings(previousWarnings);
       setRows(existingRows);
       setPhase(append ? previousPhase : 'capture');
     }
@@ -513,7 +521,7 @@ export default function ScanFormPage() {
   const resetForNextBatch = () => {
     setRows([]);
     setScanError('');
-    setScanWarning('');
+    setScanWarnings([]);
     setScanProgress({ current: 0, total: 0 });
     setShowIssuesOnly(false);
     setSaveResult(null);
@@ -653,6 +661,7 @@ export default function ScanFormPage() {
                     revokeSelectedFiles(captureFiles);
                     setCaptureFiles([]);
                     setScanError('');
+                    setScanWarnings([]);
                   }}
                   className="bg-[var(--surface-raised)] border border-[var(--border-soft)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 py-2 rounded-xl min-h-[44px]"
                 >
