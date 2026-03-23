@@ -752,7 +752,7 @@ export default function ScanFormPage() {
               )}
               <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
                 {scanningBatchFiles.slice(0, 8).map((file) => (
-                  <div key={file.previewUrl} className="overflow-hidden rounded-xl border border-[var(--border-soft)] bg-white">
+                  <div key={file.id} className="overflow-hidden rounded-xl border border-[var(--border-soft)] bg-white">
                     <img src={file.previewUrl} alt={file.name} className="h-28 w-full object-cover" />
                     <p className="truncate px-2 py-1 text-[11px] text-[var(--text-secondary)]">{file.name}</p>
                   </div>
