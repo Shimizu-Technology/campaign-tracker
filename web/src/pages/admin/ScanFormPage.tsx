@@ -317,6 +317,9 @@ export default function ScanFormPage() {
         revokeSelectedFiles(newSelectedFiles);
       } else if (!append) {
         setCaptureFiles(newSelectedFiles);
+      } else {
+        // `append + preparedFiles` is not a supported call site today. If that
+        // ever changes, the caller should own the prepared preview lifecycle.
       }
     };
 
@@ -534,7 +537,7 @@ export default function ScanFormPage() {
     [rows, rowIssuesMatrix, showIssuesOnly]
   );
   const scanningBatchFiles = useMemo(() => {
-    if (scanProgress.total <= 0) return selectedFiles;
+    if (scanProgress.total <= 0) return [];
     return selectedFiles.slice(-scanProgress.total);
   }, [selectedFiles, scanProgress.total]);
   const isAppendingWhileScanning = phase === 'scanning' && selectedFiles.length > scanProgress.total;
