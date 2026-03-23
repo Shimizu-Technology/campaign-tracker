@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, Camera, Check, ImagePlus, Loader2, RotateCcw, Upload } from 'lucide-react';
@@ -89,6 +89,10 @@ function mergeWarningEntries(existing: string[], additions: string[]) {
     .filter(Boolean);
 
   return Array.from(new Set(normalized));
+}
+
+function revokeSelectedFiles(files: SelectedScanFile[]) {
+  files.forEach((entry) => URL.revokeObjectURL(entry.previewUrl));
 }
 
 const STATESIDE_ADDRESS_HINTS = [
@@ -223,6 +227,8 @@ export default function ScanFormPage() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
+  const captureFilesRef = useRef<SelectedScanFile[]>([]);
+  const selectedFilesRef = useRef<SelectedScanFile[]>([]);
 
   const [phase, setPhase] = useState<Phase>('capture');
   const [defaultVillageId, setDefaultVillageId] = useState('');
@@ -256,10 +262,6 @@ export default function ScanFormPage() {
     previewUrl: URL.createObjectURL(file),
   }));
 
-  const revokeSelectedFiles = (files: SelectedScanFile[]) => {
-    files.forEach((entry) => URL.revokeObjectURL(entry.previewUrl));
-  };
-
   const queueCaptureFiles = (files: File[]) => {
     if (!defaultVillageId) {
       setScanError('Select a default village before scanning.');
@@ -281,6 +283,19 @@ export default function ScanFormPage() {
       return prev.filter((file) => file.id !== fileId);
     });
   };
+
+  useEffect(() => {
+    captureFilesRef.current = captureFiles;
+  }, [captureFiles]);
+
+  useEffect(() => {
+    selectedFilesRef.current = selectedFiles;
+  }, [selectedFiles]);
+
+  useEffect(() => () => {
+    revokeSelectedFiles(captureFilesRef.current);
+    revokeSelectedFiles(selectedFilesRef.current);
+  }, []);
 
   const handleFileSelect = async (files: File[], options?: HandleFileSelectOptions) => {
     if (!defaultVillageId) {
@@ -517,6 +532,11 @@ export default function ScanFormPage() {
       .filter((entry) => !showIssuesOnly || entry.issues.length > 0),
     [rows, rowIssuesMatrix, showIssuesOnly]
   );
+  const scanningBatchFiles = useMemo(() => {
+    if (scanProgress.total <= 0) return selectedFiles;
+    return selectedFiles.slice(-scanProgress.total);
+  }, [selectedFiles, scanProgress.total]);
+  const isAppendingWhileScanning = phase === 'scanning' && selectedFiles.length > scanProgress.total;
 
   const resetForNextBatch = () => {
     setRows([]);
@@ -717,13 +737,20 @@ export default function ScanFormPage() {
 
       {phase === 'scanning' && (
         <div className="space-y-4">
-          {selectedFiles.length > 0 && (
+          {scanningBatchFiles.length > 0 && (
             <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-raised)] p-4">
               <p className="text-sm font-semibold text-[var(--text-primary)]">
-                Processing {scanProgress.current} of {scanProgress.total} image{scanProgress.total === 1 ? '' : 's'}
+                {isAppendingWhileScanning
+                  ? `Processing ${scanProgress.current} of ${scanProgress.total} new image${scanProgress.total === 1 ? '' : 's'}`
+                  : `Processing ${scanProgress.current} of ${scanProgress.total} image${scanProgress.total === 1 ? '' : 's'}`}
               </p>
+              {isAppendingWhileScanning && (
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                  Adding to an existing batch with {selectedFiles.length} total image{selectedFiles.length === 1 ? '' : 's'}.
+                </p>
+              )}
               <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                {selectedFiles.slice(0, 8).map((file) => (
+                {scanningBatchFiles.slice(0, 8).map((file) => (
                   <div key={file.previewUrl} className="overflow-hidden rounded-xl border border-[var(--border-soft)] bg-white">
                     <img src={file.previewUrl} alt={file.name} className="h-28 w-full object-cover" />
                     <p className="truncate px-2 py-1 text-[11px] text-[var(--text-secondary)]">{file.name}</p>
