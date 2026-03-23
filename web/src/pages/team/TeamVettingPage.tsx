@@ -246,24 +246,30 @@ export default function TeamVettingPage() {
   const gecSearch = gecSearchState.supporterId === effectiveSelectedSupporterId ? gecSearchState.value : defaultGecSearch;
 
   const updateDraft = (value: SetStateAction<EditDraft>) => {
-    const baseDraft = draftState.supporterId === effectiveSelectedSupporterId ? draftState.value : defaultDraft;
-    const nextDraft = typeof value === 'function' ? value(baseDraft) : value;
+    const supporterId = effectiveSelectedSupporterId;
     setDraftState((prev) => {
-      if (prev.supporterId === effectiveSelectedSupporterId && sameDraft(prev.value, nextDraft)) {
+      const baseDraft = prev.supporterId === supporterId ? prev.value : defaultDraft;
+      const nextDraft = typeof value === 'function' ? value(baseDraft) : value;
+
+      if (prev.supporterId === supporterId && sameDraft(prev.value, nextDraft)) {
         return prev;
       }
-      return { supporterId: effectiveSelectedSupporterId, value: nextDraft };
+
+      return { supporterId, value: nextDraft };
     });
   };
 
   const updateGecSearch = (value: SetStateAction<string>) => {
-    const baseSearch = gecSearchState.supporterId === effectiveSelectedSupporterId ? gecSearchState.value : defaultGecSearch;
-    const nextSearch = typeof value === 'function' ? value(baseSearch) : value;
+    const supporterId = effectiveSelectedSupporterId;
     setGecSearchState((prev) => {
-      if (prev.supporterId === effectiveSelectedSupporterId && prev.value === nextSearch) {
+      const baseSearch = prev.supporterId === supporterId ? prev.value : defaultGecSearch;
+      const nextSearch = typeof value === 'function' ? value(baseSearch) : value;
+
+      if (prev.supporterId === supporterId && prev.value === nextSearch) {
         return prev;
       }
-      return { supporterId: effectiveSelectedSupporterId, value: nextSearch };
+
+      return { supporterId, value: nextSearch };
     });
   };
 
