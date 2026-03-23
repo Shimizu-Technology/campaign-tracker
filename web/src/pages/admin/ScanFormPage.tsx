@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, Camera, Check, ImagePlus, Loader2, RotateCcw, Upload } from 'lucide-react';
@@ -54,8 +54,15 @@ interface RowIssue {
 }
 
 interface SelectedScanFile {
+  id: string;
+  file: File;
   name: string;
   previewUrl: string;
+}
+
+interface HandleFileSelectOptions {
+  append?: boolean;
+  preparedFiles?: SelectedScanFile[];
 }
 
 function confidenceTag(level: ConfidenceLevel) {
@@ -74,6 +81,18 @@ function inputBorderForConfidence(level: ConfidenceLevel) {
 
 function normalizePhone(value: string) {
   return value.trim();
+}
+
+function mergeWarningEntries(existing: string[], additions: string[]) {
+  const normalized = [...existing, ...additions]
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  return Array.from(new Set(normalized));
+}
+
+function revokeSelectedFiles(files: SelectedScanFile[]) {
+  files.forEach((entry) => URL.revokeObjectURL(entry.previewUrl));
 }
 
 const STATESIDE_ADDRESS_HINTS = [
@@ -208,16 +227,20 @@ export default function ScanFormPage() {
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
+  const captureFilesRef = useRef<SelectedScanFile[]>([]);
+  const selectedFilesRef = useRef<SelectedScanFile[]>([]);
 
   const [phase, setPhase] = useState<Phase>('capture');
   const [defaultVillageId, setDefaultVillageId] = useState('');
   const [rows, setRows] = useState<BatchRow[]>([]);
   const [scanError, setScanError] = useState('');
-  const [scanWarning, setScanWarning] = useState('');
+  const [scanWarnings, setScanWarnings] = useState<string[]>([]);
+  const [captureFiles, setCaptureFiles] = useState<SelectedScanFile[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<SelectedScanFile[]>([]);
   const [scanProgress, setScanProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
   const [saveResult, setSaveResult] = useState<SaveResult | null>(null);
   const [saveProgress, setSaveProgress] = useState<{ current: number; total: number }>({ current: 0, total: 0 });
+  const scanWarning = scanWarnings.join(' | ');
 
   const { data: sessionData } = useSession();
   const scopedVillageIds = sessionData?.user?.scoped_village_ids ?? null;
@@ -232,25 +255,101 @@ export default function ScanFormPage() {
     return all.filter((v: Village) => scopedVillageIds.includes(v.id));
   }, [villagesData, scopedVillageIds]);
 
-  const handleFileSelect = async (files: File[]) => {
+  const buildSelectedFiles = (files: File[]) => files.map((file) => ({
+    id: `${file.name}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`,
+    file,
+    name: file.name,
+    previewUrl: URL.createObjectURL(file),
+  }));
+
+  const syncCaptureFiles = (nextValue: SetStateAction<SelectedScanFile[]>) => {
+    setCaptureFiles((prev) => {
+      const nextFiles = typeof nextValue === 'function'
+        ? (nextValue as (current: SelectedScanFile[]) => SelectedScanFile[])(prev)
+        : nextValue;
+      captureFilesRef.current = nextFiles;
+      return nextFiles;
+    });
+  };
+
+  const syncSelectedFiles = (nextValue: SetStateAction<SelectedScanFile[]>) => {
+    setSelectedFiles((prev) => {
+      const nextFiles = typeof nextValue === 'function'
+        ? (nextValue as (current: SelectedScanFile[]) => SelectedScanFile[])(prev)
+        : nextValue;
+      selectedFilesRef.current = nextFiles;
+      return nextFiles;
+    });
+  };
+
+  const queueCaptureFiles = (files: File[]) => {
     if (!defaultVillageId) {
       setScanError('Select a default village before scanning.');
       return;
     }
     if (files.length === 0) return;
 
+    setScanError('');
+    const newFiles = buildSelectedFiles(files);
+    syncCaptureFiles((prev) => [...prev, ...newFiles]);
+  };
+
+  const removeCaptureFile = (fileId: string) => {
+    syncCaptureFiles((prev) => {
+      const fileToRemove = prev.find((file) => file.id === fileId);
+      if (fileToRemove) {
+        URL.revokeObjectURL(fileToRemove.previewUrl);
+      }
+      return prev.filter((file) => file.id !== fileId);
+    });
+  };
+
+  useEffect(() => () => {
+    revokeSelectedFiles(captureFilesRef.current);
+    revokeSelectedFiles(selectedFilesRef.current);
+  }, []);
+
+  const handleFileSelect = async (files: File[], options?: HandleFileSelectOptions) => {
+    if (!defaultVillageId) {
+      setScanError('Select a default village before scanning.');
+      return;
+    }
+    if (files.length === 0) return;
+
+    const append = options?.append ?? false;
+    const previousPhase = phase;
+    const existingRows = append ? rows : [];
+    const existingFiles = append ? selectedFiles : [];
+    const previousWarnings = append ? scanWarnings : [];
+    const preparedFiles = options?.preparedFiles;
+    const newSelectedFiles = preparedFiles ?? buildSelectedFiles(files);
+    const shouldRevokeNewSelectedFiles = !preparedFiles;
+    const restoreNewSelectedFiles = () => {
+      if (shouldRevokeNewSelectedFiles) {
+        revokeSelectedFiles(newSelectedFiles);
+      } else if (!append) {
+        syncCaptureFiles(newSelectedFiles);
+      } else {
+        // `append + preparedFiles` is not a supported call site today. If that
+        // ever changes, the caller should own the prepared preview lifecycle.
+      }
+    };
+
     setPhase('scanning');
     setScanError('');
-    setScanWarning('');
-    selectedFiles.forEach((entry) => URL.revokeObjectURL(entry.previewUrl));
-    setSelectedFiles(files.map((file) => ({ name: file.name, previewUrl: URL.createObjectURL(file) })));
+    if (!append) {
+      setScanWarnings([]);
+      revokeSelectedFiles(selectedFiles);
+      syncCaptureFiles([]);
+    }
+    syncSelectedFiles(append ? [...existingFiles, ...newSelectedFiles] : newSelectedFiles);
     setScanProgress({ current: 0, total: files.length });
 
     try {
-      const allRows: BatchRow[] = [];
+      const allRows: BatchRow[] = [ ...existingRows ];
       const warnings: string[] = [];
       const failures: string[] = [];
-      let rowCounter = 1;
+      let rowCounter = existingRows.reduce((max, row) => Math.max(max, row._row), 0) + 1;
 
       for (let index = 0; index < files.length; index += 1) {
         const file = files[index];
@@ -299,25 +398,35 @@ export default function ScanFormPage() {
         if (result.warning) warnings.push(`${file.name}: ${String(result.warning)}`);
       }
 
-      if (allRows.length === 0) {
+      const addedRowCount = allRows.length - existingRows.length;
+
+      if (addedRowCount === 0) {
         setScanError(failures[0] || 'No supporter rows were detected from the selected images.');
-        setPhase('capture');
+        restoreNewSelectedFiles();
+        syncSelectedFiles(existingFiles);
+        setScanWarnings(mergeWarningEntries(previousWarnings, warnings));
+        setScanProgress({ current: 0, total: 0 });
+        setRows(existingRows);
+        setPhase(append ? previousPhase : 'capture');
         return;
       }
 
-      const combinedWarnings = [
+      const combinedWarnings = mergeWarningEntries(previousWarnings, [
         ...warnings,
-        ...(failures.length > 0 ? [ `${failures.length} file${failures.length === 1 ? '' : 's'} failed to scan.` ] : []),
-      ];
-      if (combinedWarnings.length > 0) {
-        setScanWarning(combinedWarnings.join(' '));
-      }
+        ...failures,
+      ]);
+      setScanWarnings(combinedWarnings);
       setRows(allRows);
       setPhase('review');
     } catch (err: unknown) {
       const error = err as { response?: { data?: { error?: string } } };
+      restoreNewSelectedFiles();
+      syncSelectedFiles(existingFiles);
       setScanError(error?.response?.data?.error || 'Batch scan failed — try again');
-      setPhase('capture');
+      setScanWarnings(previousWarnings);
+      setScanProgress({ current: 0, total: 0 });
+      setRows(existingRows);
+      setPhase(append ? previousPhase : 'capture');
     }
   };
 
@@ -439,17 +548,25 @@ export default function ScanFormPage() {
       .filter((entry) => !showIssuesOnly || entry.issues.length > 0),
     [rows, rowIssuesMatrix, showIssuesOnly]
   );
+  const scanningBatchFiles = useMemo(() => {
+    if (scanProgress.total <= 0) return [];
+    return selectedFiles.slice(-scanProgress.total);
+  }, [selectedFiles, scanProgress.total]);
+  const isAppendingWhileScanning = phase === 'scanning' && selectedFiles.length > scanProgress.total;
+  const existingBatchCountWhileScanning = Math.max(selectedFiles.length - scanProgress.total, 0);
 
   const resetForNextBatch = () => {
     setRows([]);
     setScanError('');
-    setScanWarning('');
+    setScanWarnings([]);
     setScanProgress({ current: 0, total: 0 });
     setShowIssuesOnly(false);
     setSaveResult(null);
     setSaveProgress({ current: 0, total: 0 });
-    selectedFiles.forEach((entry) => URL.revokeObjectURL(entry.previewUrl));
-    setSelectedFiles([]);
+    revokeSelectedFiles(captureFiles);
+    revokeSelectedFiles(selectedFiles);
+    syncCaptureFiles([]);
+    syncSelectedFiles([]);
     setPhase('capture');
   };
 
@@ -484,6 +601,44 @@ export default function ScanFormPage() {
         </div>
       </div>
 
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          const files = Array.from(e.target.files || []);
+          if (files.length > 0) {
+            if (phase === 'review') {
+              void handleFileSelect(files, { append: true });
+            } else {
+              queueCaptureFiles(files);
+            }
+          }
+          e.target.value = '';
+        }}
+      />
+
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          const files = Array.from(e.target.files || []);
+          if (files.length > 0) {
+            if (phase === 'review') {
+              void handleFileSelect(files, { append: true });
+            } else {
+              queueCaptureFiles(files);
+            }
+          }
+          e.target.value = '';
+        }}
+      />
+
       {phase === 'capture' && (
         <div className="space-y-4">
           <section className="app-card p-4">
@@ -502,32 +657,6 @@ export default function ScanFormPage() {
               ))}
             </select>
           </section>
-
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleFileSelect([file]);
-              e.target.value = '';
-            }}
-          />
-
-          <input
-            ref={galleryInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            className="hidden"
-            onChange={(e) => {
-              const files = Array.from(e.target.files || []);
-              if (files.length > 0) handleFileSelect(files);
-              e.target.value = '';
-            }}
-          />
 
           <button
             type="button"
@@ -554,6 +683,56 @@ export default function ScanFormPage() {
             Upload one or more photos
           </button>
 
+          {captureFiles.length > 0 && (
+            <section className="app-card p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h2 className="font-semibold text-[var(--text-primary)]">Selected Photos</h2>
+                  <p className="text-sm text-[var(--text-secondary)]">
+                    {captureFiles.length} photo{captureFiles.length === 1 ? '' : 's'} ready for OCR review.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    revokeSelectedFiles(captureFiles);
+                    syncCaptureFiles([]);
+                    setScanError('');
+                    setScanWarnings([]);
+                  }}
+                  className="bg-[var(--surface-raised)] border border-[var(--border-soft)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] px-3 py-2 rounded-xl min-h-[44px]"
+                >
+                  Clear photos
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                {captureFiles.map((file) => (
+                  <div key={file.id} className="overflow-hidden rounded-xl border border-[var(--border-soft)] bg-white">
+                    <img src={file.previewUrl} alt={file.name} className="h-28 w-full object-cover" />
+                    <div className="flex items-center gap-2 px-2 py-2">
+                      <p className="min-w-0 flex-1 truncate text-[11px] text-[var(--text-secondary)]">{file.name}</p>
+                      <button
+                        type="button"
+                        onClick={() => removeCaptureFile(file.id)}
+                        className="rounded-lg border border-red-200 px-2 py-1 text-[11px] font-medium text-red-600 hover:bg-red-50"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <button
+                type="button"
+                onClick={() => void handleFileSelect(captureFiles.map((file) => file.file), { preparedFiles: captureFiles })}
+                className="w-full bg-primary text-white px-4 py-3 rounded-xl min-h-[44px] inline-flex items-center justify-center gap-2 font-medium"
+              >
+                <Upload className="w-4 h-4" />
+                Review {captureFiles.length} photo{captureFiles.length === 1 ? '' : 's'}
+              </button>
+            </section>
+          )}
+
           {scanError && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 shrink-0" />
@@ -566,7 +745,7 @@ export default function ScanFormPage() {
             <ul className="space-y-1 text-xs sm:text-sm">
               <li>• Fill the frame with the full blue form</li>
               <li>• Good lighting improves row detection</li>
-              <li>• Desktop upload supports multiple images in one review session</li>
+              <li>• Take or choose multiple photos first, then open one combined OCR review</li>
               <li>• You will review, edit, and skip rows before save</li>
             </ul>
           </div>
@@ -575,14 +754,21 @@ export default function ScanFormPage() {
 
       {phase === 'scanning' && (
         <div className="space-y-4">
-          {selectedFiles.length > 0 && (
+          {scanningBatchFiles.length > 0 && (
             <div className="rounded-2xl border border-[var(--border-soft)] bg-[var(--surface-raised)] p-4">
               <p className="text-sm font-semibold text-[var(--text-primary)]">
-                Processing {scanProgress.current} of {scanProgress.total} image{scanProgress.total === 1 ? '' : 's'}
+                {isAppendingWhileScanning
+                  ? `Processing ${scanProgress.current} of ${scanProgress.total} new image${scanProgress.total === 1 ? '' : 's'}`
+                  : `Processing ${scanProgress.current} of ${scanProgress.total} image${scanProgress.total === 1 ? '' : 's'}`}
               </p>
+              {isAppendingWhileScanning && (
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                  Adding to an existing batch with {existingBatchCountWhileScanning} existing image{existingBatchCountWhileScanning === 1 ? '' : 's'}.
+                </p>
+              )}
               <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                {selectedFiles.slice(0, 8).map((file) => (
-                  <div key={file.previewUrl} className="overflow-hidden rounded-xl border border-[var(--border-soft)] bg-white">
+                {scanningBatchFiles.slice(0, 8).map((file) => (
+                  <div key={file.id} className="overflow-hidden rounded-xl border border-[var(--border-soft)] bg-white">
                     <img src={file.previewUrl} alt={file.name} className="h-28 w-full object-cover" />
                     <p className="truncate px-2 py-1 text-[11px] text-[var(--text-secondary)]">{file.name}</p>
                   </div>
@@ -634,11 +820,34 @@ export default function ScanFormPage() {
                 {scanWarning}
               </p>
             )}
+            {scanError && (
+              <p className="text-xs text-red-800 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-2">
+                {scanError}
+              </p>
+            )}
             {activeCriticalRows > 0 && (
               <p className="text-xs text-red-800 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-2">
                 {activeCriticalRows} included row{activeCriticalRows === 1 ? '' : 's'} have critical issues. Skip those rows or fix them before saving.
               </p>
             )}
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="bg-[var(--surface-raised)] hover:bg-blue-50 border border-[var(--border-soft)] text-[var(--text-primary)] px-3 py-2 rounded-xl min-h-[44px] inline-flex items-center justify-center gap-2"
+              >
+                <Camera className="w-4 h-4" />
+                Add another scanned page
+              </button>
+              <button
+                type="button"
+                onClick={() => galleryInputRef.current?.click()}
+                className="bg-[var(--surface-raised)] hover:bg-blue-50 border border-[var(--border-soft)] text-[var(--text-primary)] px-3 py-2 rounded-xl min-h-[44px] inline-flex items-center justify-center gap-2"
+              >
+                <ImagePlus className="w-4 h-4" />
+                Add more photos
+              </button>
+            </div>
           </section>
 
           <section className="app-card p-3 sm:p-4">
