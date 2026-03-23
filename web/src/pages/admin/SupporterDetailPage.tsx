@@ -247,6 +247,8 @@ function verificationStatusLabel(supporter: Pick<SupporterDetail, 'verification_
   if (supporter.verification_reason_label) return supporter.verification_reason_label;
   if (supporter.verification_status === 'verified') return 'Matched to GEC';
   if (supporter.submitted_village_referral) return 'Village Referral';
+  // Keep this branch for cross-village GEC matches that were not submitted as
+  // referral records; both states share the same reviewer-facing label.
   if (supporter.referred_from_village_id) return 'Village Referral';
   if (supporter.verification_status === 'flagged') return 'Flagged for review';
   if (supporter.verification_status === 'unverified' && !supporter.registered_voter) return 'No GEC Match';
@@ -290,7 +292,7 @@ function isNoGecMatch(supporter: Pick<SupporterDetail, 'verification_status' | '
 }
 
 function assignmentHistoryDetail(supporter: Pick<SupporterDetail, 'submitted_village_name' | 'village_name'>) {
-  const submittedVillage = supporter.submitted_village_name ?? 'Unknown';
+  const submittedVillage = supporter.submitted_village_name || 'Unknown';
   const currentVillage = supporter.village_name || 'Unknown';
   const statusLabel = 'Referral active';
 
