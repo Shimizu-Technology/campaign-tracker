@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type SetStateAction } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { AlertTriangle, Camera, Check, ImagePlus, Loader2, RotateCcw, Upload } from 'lucide-react';
@@ -262,6 +262,26 @@ export default function ScanFormPage() {
     previewUrl: URL.createObjectURL(file),
   }));
 
+  const syncCaptureFiles = (nextValue: SetStateAction<SelectedScanFile[]>) => {
+    setCaptureFiles((prev) => {
+      const nextFiles = typeof nextValue === 'function'
+        ? (nextValue as (current: SelectedScanFile[]) => SelectedScanFile[])(prev)
+        : nextValue;
+      captureFilesRef.current = nextFiles;
+      return nextFiles;
+    });
+  };
+
+  const syncSelectedFiles = (nextValue: SetStateAction<SelectedScanFile[]>) => {
+    setSelectedFiles((prev) => {
+      const nextFiles = typeof nextValue === 'function'
+        ? (nextValue as (current: SelectedScanFile[]) => SelectedScanFile[])(prev)
+        : nextValue;
+      selectedFilesRef.current = nextFiles;
+      return nextFiles;
+    });
+  };
+
   const queueCaptureFiles = (files: File[]) => {
     if (!defaultVillageId) {
       setScanError('Select a default village before scanning.');
@@ -271,11 +291,11 @@ export default function ScanFormPage() {
 
     setScanError('');
     const newFiles = buildSelectedFiles(files);
-    setCaptureFiles((prev) => [...prev, ...newFiles]);
+    syncCaptureFiles((prev) => [...prev, ...newFiles]);
   };
 
   const removeCaptureFile = (fileId: string) => {
-    setCaptureFiles((prev) => {
+    syncCaptureFiles((prev) => {
       const fileToRemove = prev.find((file) => file.id === fileId);
       if (fileToRemove) {
         URL.revokeObjectURL(fileToRemove.previewUrl);
@@ -283,14 +303,6 @@ export default function ScanFormPage() {
       return prev.filter((file) => file.id !== fileId);
     });
   };
-
-  useEffect(() => {
-    captureFilesRef.current = captureFiles;
-  }, [captureFiles]);
-
-  useEffect(() => {
-    selectedFilesRef.current = selectedFiles;
-  }, [selectedFiles]);
 
   useEffect(() => () => {
     revokeSelectedFiles(captureFilesRef.current);
@@ -316,7 +328,7 @@ export default function ScanFormPage() {
       if (shouldRevokeNewSelectedFiles) {
         revokeSelectedFiles(newSelectedFiles);
       } else if (!append) {
-        setCaptureFiles(newSelectedFiles);
+        syncCaptureFiles(newSelectedFiles);
       } else {
         // `append + preparedFiles` is not a supported call site today. If that
         // ever changes, the caller should own the prepared preview lifecycle.
@@ -328,9 +340,9 @@ export default function ScanFormPage() {
     if (!append) {
       setScanWarnings([]);
       revokeSelectedFiles(selectedFiles);
-      setCaptureFiles([]);
+      syncCaptureFiles([]);
     }
-    setSelectedFiles(append ? [...existingFiles, ...newSelectedFiles] : newSelectedFiles);
+    syncSelectedFiles(append ? [...existingFiles, ...newSelectedFiles] : newSelectedFiles);
     setScanProgress({ current: 0, total: files.length });
 
     try {
@@ -391,7 +403,7 @@ export default function ScanFormPage() {
       if (addedRowCount === 0) {
         setScanError(failures[0] || 'No supporter rows were detected from the selected images.');
         restoreNewSelectedFiles();
-        setSelectedFiles(existingFiles);
+        syncSelectedFiles(existingFiles);
         setScanWarnings(mergeWarningEntries(previousWarnings, warnings));
         setScanProgress({ current: 0, total: 0 });
         setRows(existingRows);
@@ -409,7 +421,7 @@ export default function ScanFormPage() {
     } catch (err: unknown) {
       const error = err as { response?: { data?: { error?: string } } };
       restoreNewSelectedFiles();
-      setSelectedFiles(existingFiles);
+      syncSelectedFiles(existingFiles);
       setScanError(error?.response?.data?.error || 'Batch scan failed — try again');
       setScanWarnings(previousWarnings);
       setScanProgress({ current: 0, total: 0 });
@@ -541,6 +553,7 @@ export default function ScanFormPage() {
     return selectedFiles.slice(-scanProgress.total);
   }, [selectedFiles, scanProgress.total]);
   const isAppendingWhileScanning = phase === 'scanning' && selectedFiles.length > scanProgress.total;
+  const existingBatchCountWhileScanning = Math.max(selectedFiles.length - scanProgress.total, 0);
 
   const resetForNextBatch = () => {
     setRows([]);
@@ -552,8 +565,8 @@ export default function ScanFormPage() {
     setSaveProgress({ current: 0, total: 0 });
     revokeSelectedFiles(captureFiles);
     revokeSelectedFiles(selectedFiles);
-    setCaptureFiles([]);
-    setSelectedFiles([]);
+    syncCaptureFiles([]);
+    syncSelectedFiles([]);
     setPhase('capture');
   };
 
@@ -683,7 +696,7 @@ export default function ScanFormPage() {
                   type="button"
                   onClick={() => {
                     revokeSelectedFiles(captureFiles);
-                    setCaptureFiles([]);
+                    syncCaptureFiles([]);
                     setScanError('');
                     setScanWarnings([]);
                   }}
@@ -750,7 +763,7 @@ export default function ScanFormPage() {
               </p>
               {isAppendingWhileScanning && (
                 <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                  Adding to an existing batch with {selectedFiles.length} total image{selectedFiles.length === 1 ? '' : 's'}.
+                  Adding to an existing batch with {existingBatchCountWhileScanning} existing image{existingBatchCountWhileScanning === 1 ? '' : 's'}.
                 </p>
               )}
               <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
