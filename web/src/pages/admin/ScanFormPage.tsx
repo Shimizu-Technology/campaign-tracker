@@ -413,7 +413,7 @@ export default function ScanFormPage() {
 
       const combinedWarnings = mergeWarningEntries(previousWarnings, [
         ...warnings,
-        ...(failures.length > 0 ? [`${failures.length} file${failures.length === 1 ? '' : 's'} failed to scan.`] : []),
+        ...failures,
       ]);
       setScanWarnings(combinedWarnings);
       setRows(allRows);
