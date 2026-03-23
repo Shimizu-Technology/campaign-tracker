@@ -292,7 +292,7 @@ function isNoGecMatch(supporter: Pick<SupporterDetail, 'verification_status' | '
 function assignmentHistoryDetail(supporter: Pick<SupporterDetail, 'submitted_village_name' | 'submitted_village_referral' | 'village_name'>) {
   const submittedVillage = supporter.submitted_village_name || supporter.village_name || 'Unknown';
   const currentVillage = supporter.village_name || 'Unknown';
-  const statusLabel = supporter.submitted_village_referral ? 'Referral active' : 'Matches original submission';
+  const statusLabel = 'Referral active';
 
   return [
     { label: 'Original submission village', value: submittedVillage },
@@ -751,7 +751,9 @@ export default function SupporterDetailPage() {
                 ))}
               </div>
               <p className="mt-3 text-sm text-purple-700">
-                This supporter should appear on the Referral List report once they are approved into the official supporter list.
+                {supporter.review_status === 'approved'
+                  ? 'This supporter appears on the Referral List report as an approved referral.'
+                  : 'This supporter should appear on the Referral List report once they are approved into the official supporter list.'}
               </p>
             </div>
           )}
