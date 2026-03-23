@@ -58,6 +58,10 @@ interface SelectedScanFile {
   previewUrl: string;
 }
 
+interface HandleFileSelectOptions {
+  append?: boolean;
+}
+
 function confidenceTag(level: ConfidenceLevel) {
   if (level === 'high') return 'text-green-700 bg-green-50 border-green-200';
   if (level === 'medium') return 'text-amber-700 bg-amber-50 border-amber-200';
@@ -232,25 +236,34 @@ export default function ScanFormPage() {
     return all.filter((v: Village) => scopedVillageIds.includes(v.id));
   }, [villagesData, scopedVillageIds]);
 
-  const handleFileSelect = async (files: File[]) => {
+  const handleFileSelect = async (files: File[], options?: HandleFileSelectOptions) => {
     if (!defaultVillageId) {
       setScanError('Select a default village before scanning.');
       return;
     }
     if (files.length === 0) return;
 
+    const append = options?.append ?? false;
+    const previousPhase = phase;
+    const existingRows = append ? rows : [];
+    const existingFiles = append ? selectedFiles : [];
+    const previousWarning = append ? scanWarning : '';
+    const newSelectedFiles = files.map((file) => ({ name: file.name, previewUrl: URL.createObjectURL(file) }));
+
     setPhase('scanning');
     setScanError('');
     setScanWarning('');
-    selectedFiles.forEach((entry) => URL.revokeObjectURL(entry.previewUrl));
-    setSelectedFiles(files.map((file) => ({ name: file.name, previewUrl: URL.createObjectURL(file) })));
+    if (!append) {
+      selectedFiles.forEach((entry) => URL.revokeObjectURL(entry.previewUrl));
+    }
+    setSelectedFiles(append ? [ ...existingFiles, ...newSelectedFiles ] : newSelectedFiles);
     setScanProgress({ current: 0, total: files.length });
 
     try {
-      const allRows: BatchRow[] = [];
+      const allRows: BatchRow[] = [ ...existingRows ];
       const warnings: string[] = [];
       const failures: string[] = [];
-      let rowCounter = 1;
+      let rowCounter = existingRows.reduce((max, row) => Math.max(max, row._row), 0) + 1;
 
       for (let index = 0; index < files.length; index += 1) {
         const file = files[index];
@@ -301,23 +314,30 @@ export default function ScanFormPage() {
 
       if (allRows.length === 0) {
         setScanError(failures[0] || 'No supporter rows were detected from the selected images.');
-        setPhase('capture');
+        newSelectedFiles.forEach((entry) => URL.revokeObjectURL(entry.previewUrl));
+        setSelectedFiles(existingFiles);
+        setScanWarning(previousWarning);
+        setRows(existingRows);
+        setPhase(append ? previousPhase : 'capture');
         return;
       }
 
       const combinedWarnings = [
+        ...(previousWarning ? [ previousWarning ] : []),
         ...warnings,
         ...(failures.length > 0 ? [ `${failures.length} file${failures.length === 1 ? '' : 's'} failed to scan.` ] : []),
       ];
-      if (combinedWarnings.length > 0) {
-        setScanWarning(combinedWarnings.join(' '));
-      }
+      setScanWarning(combinedWarnings.join(' '));
       setRows(allRows);
       setPhase('review');
     } catch (err: unknown) {
       const error = err as { response?: { data?: { error?: string } } };
+      newSelectedFiles.forEach((entry) => URL.revokeObjectURL(entry.previewUrl));
+      setSelectedFiles(existingFiles);
       setScanError(error?.response?.data?.error || 'Batch scan failed — try again');
-      setPhase('capture');
+      setScanWarning(previousWarning);
+      setRows(existingRows);
+      setPhase(append ? previousPhase : 'capture');
     }
   };
 
@@ -508,10 +528,11 @@ export default function ScanFormPage() {
             type="file"
             accept="image/*"
             capture="environment"
+            multiple
             className="hidden"
             onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) handleFileSelect([file]);
+              const files = Array.from(e.target.files || []);
+              if (files.length > 0) handleFileSelect(files, { append: phase === 'review' });
               e.target.value = '';
             }}
           />
@@ -524,7 +545,7 @@ export default function ScanFormPage() {
             className="hidden"
             onChange={(e) => {
               const files = Array.from(e.target.files || []);
-              if (files.length > 0) handleFileSelect(files);
+              if (files.length > 0) handleFileSelect(files, { append: phase === 'review' });
               e.target.value = '';
             }}
           />
@@ -566,7 +587,7 @@ export default function ScanFormPage() {
             <ul className="space-y-1 text-xs sm:text-sm">
               <li>• Fill the frame with the full blue form</li>
               <li>• Good lighting improves row detection</li>
-              <li>• Desktop upload supports multiple images in one review session</li>
+              <li>• Add more photos or camera pages into the same review session before saving</li>
               <li>• You will review, edit, and skip rows before save</li>
             </ul>
           </div>
@@ -634,11 +655,34 @@ export default function ScanFormPage() {
                 {scanWarning}
               </p>
             )}
+            {scanError && (
+              <p className="text-xs text-red-800 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-2">
+                {scanError}
+              </p>
+            )}
             {activeCriticalRows > 0 && (
               <p className="text-xs text-red-800 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-2">
                 {activeCriticalRows} included row{activeCriticalRows === 1 ? '' : 's'} have critical issues. Skip those rows or fix them before saving.
               </p>
             )}
+            <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="bg-[var(--surface-raised)] hover:bg-blue-50 border border-[var(--border-soft)] text-[var(--text-primary)] px-3 py-2 rounded-xl min-h-[44px] inline-flex items-center justify-center gap-2"
+              >
+                <Camera className="w-4 h-4" />
+                Add another scanned page
+              </button>
+              <button
+                type="button"
+                onClick={() => galleryInputRef.current?.click()}
+                className="bg-[var(--surface-raised)] hover:bg-blue-50 border border-[var(--border-soft)] text-[var(--text-primary)] px-3 py-2 rounded-xl min-h-[44px] inline-flex items-center justify-center gap-2"
+              >
+                <ImagePlus className="w-4 h-4" />
+                Add more photos
+              </button>
+            </div>
           </section>
 
           <section className="app-card p-3 sm:p-4">
