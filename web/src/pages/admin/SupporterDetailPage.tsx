@@ -289,8 +289,8 @@ function isNoGecMatch(supporter: Pick<SupporterDetail, 'verification_status' | '
   return supporter.verification_status === 'unverified' && !supporter.registered_voter && !supporter.referred_from_village_id;
 }
 
-function assignmentHistoryDetail(supporter: Pick<SupporterDetail, 'submitted_village_name' | 'submitted_village_referral' | 'village_name'>) {
-  const submittedVillage = supporter.submitted_village_name || supporter.village_name || 'Unknown';
+function assignmentHistoryDetail(supporter: Pick<SupporterDetail, 'submitted_village_name' | 'village_name'>) {
+  const submittedVillage = supporter.submitted_village_name ?? 'Unknown';
   const currentVillage = supporter.village_name || 'Unknown';
   const statusLabel = 'Referral active';
 
