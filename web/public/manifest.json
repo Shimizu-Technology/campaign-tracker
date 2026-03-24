@@ -4,8 +4,8 @@
   "description": "Official Josh Tenorio and Tina Muña-Barnes supporter signup for Guam.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#1B3A6B",
-  "theme_color": "#1B3A6B",
+  "background_color": "#0F3E86",
+  "theme_color": "#0F3E86",
   "orientation": "portrait-primary",
   "scope": "/",
   "icons": [
