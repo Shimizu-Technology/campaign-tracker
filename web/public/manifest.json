@@ -1,7 +1,7 @@
 {
-  "name": "Josh & Tina 2026 Campaign Tracker",
-  "short_name": "J&T 2026",
-  "description": "Track supporters, manage events, and monitor campaign progress across all 19 villages of Guam.",
+  "name": "Josh & Tina for Guam",
+  "short_name": "Josh & Tina",
+  "description": "Official Josh Tenorio and Tina Muña-Barnes supporter signup for Guam.",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#1B3A6B",
