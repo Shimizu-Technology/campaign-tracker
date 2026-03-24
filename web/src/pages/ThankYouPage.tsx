@@ -101,7 +101,7 @@ export default function ThankYouPage() {
               <img
                 src="/joshtina-thank-you.avif"
                 alt="Thank you for supporting Josh and Tina"
-                className="h-full w-full rounded-[24px] object-cover"
+                className="h-72 w-full rounded-[24px] object-cover md:h-80"
               />
             </div>
 
