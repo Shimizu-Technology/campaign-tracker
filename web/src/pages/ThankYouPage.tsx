@@ -62,7 +62,7 @@ export default function ThankYouPage() {
               </Link>
             </div>
 
-            {(campaignInfo?.instagram_url || campaignInfo?.facebook_url || campaignInfo?.tiktok_url || campaignInfo?.twitter_url) && (
+            {(campaignInfo?.instagram_url || campaignInfo?.facebook_url) && (
               <div className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="flex items-center gap-2 text-slate-900">
                   <Share2 className="h-5 w-5 text-primary" />

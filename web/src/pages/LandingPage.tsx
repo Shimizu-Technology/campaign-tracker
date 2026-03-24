@@ -154,7 +154,7 @@ export default function LandingPage() {
             </a>
           </div>
 
-          {(campaignInfo?.instagram_url || campaignInfo?.facebook_url || campaignInfo?.tiktok_url || campaignInfo?.twitter_url) && (
+          {(campaignInfo?.instagram_url || campaignInfo?.facebook_url) && (
             <div>
               <h3 className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500">Connect</h3>
               <div className="mt-3 flex flex-wrap gap-4">
