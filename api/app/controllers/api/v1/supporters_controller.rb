@@ -573,16 +573,17 @@ module Api
                        .needs_follow_up
         base_scope = base_scope.where(village_id: params[:village_id]) if params[:village_id].present?
         open_scope = open_follow_up_scope(base_scope)
+        registered_follow_up_count = base_scope.where(registration_outreach_status: "registered").count
         counts = {
           total: base_scope.count,
           open: open_scope.count,
           registration_priority: registration_priority_scope(open_scope).count,
           support_requests: open_scope.needs_campaign_help.count,
-          registered_follow_up: base_scope.where(registration_outreach_status: "registered").count,
+          registered_follow_up: registered_follow_up_count,
           completed: base_scope.where(registration_outreach_status: %w[registered declined]).count,
           not_contacted: base_scope.where(registration_outreach_status: nil).count,
           contacted: base_scope.where(registration_outreach_status: "contacted").count,
-          registered: base_scope.where(registration_outreach_status: "registered").count,
+          registered: registered_follow_up_count,
           declined: base_scope.where(registration_outreach_status: "declined").count
         }
 
