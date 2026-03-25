@@ -24,6 +24,7 @@ import {
   Target,
   Settings,
 } from 'lucide-react';
+import WorkspaceBrandPanel from './WorkspaceBrandPanel';
 
 interface NavItem {
   to: string;
@@ -114,13 +115,13 @@ export default function TeamShell({ children }: { children: React.ReactNode }) {
         key={item.to}
         to={item.to}
         onClick={() => setSidebarOpen(false)}
-        className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-all duration-150 ${
+        className={`flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-medium transition-all duration-150 ${
           active
-            ? 'bg-primary text-white shadow-sm'
-            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+            ? 'bg-primary text-white shadow-[0_12px_24px_-16px_rgba(15,42,91,0.8)]'
+            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
         }`}
       >
-        <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-blue-200' : 'text-gray-400'}`} />
+        <Icon className={`h-4 w-4 shrink-0 ${active ? 'text-blue-100' : 'text-slate-400'}`} />
         <span className="truncate">{item.label}</span>
         {item.badge && item.badge > 0 ? (
           <span className="ml-auto bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center leading-tight">
@@ -134,31 +135,30 @@ export default function TeamShell({ children }: { children: React.ReactNode }) {
   const sidebarContent = (
     <nav className="flex flex-col h-full">
       {/* Brand */}
-      <div className="px-5 pt-6 pb-5">
-        <Link to="/data" className="block group" onClick={() => setSidebarOpen(false)}>
-          <div className="flex items-center gap-2 mb-1">
-            <Database className="w-5 h-5 text-primary" />
-            <span className="text-sm font-bold text-gray-900">Data Ops Workspace</span>
-          </div>
-          <p className="text-[11px] text-gray-400 font-medium">
-            Daily voter operations
-          </p>
+      <div className="px-4 pt-5 pb-4">
+        <Link to="/data" className="block" onClick={() => setSidebarOpen(false)}>
+          <WorkspaceBrandPanel
+            compact
+            workspaceName="Data Ops Workspace"
+            workspaceDescription="Daily voter operations, imports, and supporter review."
+            badge="Internal campaign workspace"
+          />
         </Link>
       </div>
 
       {/* Quota Progress */}
       {counts?.official_supporters !== undefined && (
-        <div className="mx-3 mb-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
-          <div className="text-[10px] font-semibold text-blue-600 uppercase tracking-wider mb-1">Official Supporters</div>
+        <div className="mx-3 mb-4 rounded-[20px] border border-blue-100 bg-blue-50 p-3.5 shadow-sm">
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-600">Official Supporters</div>
           <div className="text-2xl font-bold text-blue-900">{(counts.official_supporters || 0).toLocaleString()}</div>
         </div>
       )}
 
       {/* Nav Groups */}
-      <div className="flex-1 overflow-y-auto px-3 pb-4 space-y-5">
+      <div className="flex-1 space-y-5 overflow-y-auto px-3 pb-4">
         {navGroups.map((group) => (
           <div key={group.label}>
-            <div className="px-3 mb-1.5 text-[10px] font-semibold text-gray-400 uppercase tracking-[0.08em]">
+            <div className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-400">
               {group.label}
             </div>
             <div className="space-y-0.5">
@@ -170,36 +170,36 @@ export default function TeamShell({ children }: { children: React.ReactNode }) {
 
       {/* Admin link (for campaign_admin users) */}
       {sessionData?.user?.role === 'campaign_admin' && (
-        <div className="border-t border-gray-200 pt-3 px-3 pb-2">
+        <div className="border-t border-slate-200 px-3 pt-3 pb-2">
           <Link
             to="/admin"
-            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-all duration-150"
+            className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-medium text-slate-500 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900"
           >
-            <Settings className="w-4 h-4 shrink-0 text-gray-400" />
+            <Settings className="h-4 w-4 shrink-0 text-slate-400" />
             <span>More Campaign Tools</span>
           </Link>
         </div>
       )}
 
       {/* View Public Site */}
-      <div className="border-t border-gray-200 pt-3 px-3 pb-2">
+      <div className="border-t border-slate-200 px-3 pt-3 pb-2">
         <Link
           to="/"
-          className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-900 transition-all duration-150"
+          className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 text-[13px] font-medium text-slate-500 transition-all duration-150 hover:bg-slate-100 hover:text-slate-900"
         >
-          <Home className="w-4 h-4 shrink-0 text-gray-400" />
+          <Home className="h-4 w-4 shrink-0 text-slate-400" />
           <span>View Public Site</span>
         </Link>
       </div>
 
       {/* User */}
-      <div className="border-t border-gray-200 px-4 py-4 flex items-center gap-3">
+      <div className="flex items-center gap-3 border-t border-slate-200 px-4 py-4">
         <UserButton afterSignOutUrl="/" />
         <div className="min-w-0 flex-1">
-          <div className="text-[13px] font-medium text-gray-900 truncate">
+          <div className="truncate text-[13px] font-medium text-slate-900">
             {sessionData?.user?.name || sessionData?.user?.email || 'Loading...'}
           </div>
-          <div className="text-[11px] text-gray-400 truncate capitalize">
+          <div className="truncate text-[11px] capitalize text-slate-400">
             {sessionData?.user?.role?.replace(/_/g, ' ') || ''}
           </div>
         </div>
@@ -208,7 +208,7 @@ export default function TeamShell({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-[#f6f8fc]">
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 lg:hidden"
@@ -216,25 +216,25 @@ export default function TeamShell({ children }: { children: React.ReactNode }) {
         />
       )}
 
-      <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:flex lg:w-[220px] lg:flex-col bg-white border-r border-gray-200 shadow-sm z-30">
+      <aside className="z-30 hidden border-r border-slate-200 bg-[#f8fbff] shadow-sm lg:fixed lg:inset-y-0 lg:left-0 lg:flex lg:w-[240px] lg:flex-col">
         {sidebarContent}
       </aside>
 
       <aside
-        className={`fixed inset-y-0 left-0 w-[280px] bg-white border-r border-gray-200 shadow-xl z-50 transform transition-transform duration-200 ease-out lg:hidden ${
+        className={`fixed inset-y-0 left-0 z-50 w-[300px] transform border-r border-slate-200 bg-[#f8fbff] shadow-xl transition-transform duration-200 ease-out lg:hidden ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
         <button
           onClick={() => setSidebarOpen(false)}
-          className="absolute top-5 right-4 text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100 transition-colors"
+          className="absolute top-5 right-4 rounded-lg p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
         >
           <X className="w-5 h-5" />
         </button>
         {sidebarContent}
       </aside>
 
-      <div className="lg:pl-[220px]">
+      <div className="lg:pl-[240px]">
         {toasts.length > 0 && (
           <div className="fixed top-16 left-2 right-2 sm:left-auto sm:right-4 z-50 space-y-2 max-w-sm sm:max-w-md">
             {toasts.map(toast => (
@@ -258,14 +258,17 @@ export default function TeamShell({ children }: { children: React.ReactNode }) {
           </div>
         )}
 
-        <header className="lg:hidden sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-gray-200 px-4 py-3 flex items-center justify-between shadow-sm">
+        <header className="sticky top-0 z-20 flex items-center justify-between border-b border-slate-200 bg-white/95 px-4 py-3 shadow-sm backdrop-blur-md lg:hidden">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="text-gray-500 hover:text-gray-700 p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
+            className="rounded-lg p-1.5 text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
           >
             <Menu className="w-5 h-5" />
           </button>
-          <h1 className="text-sm font-bold text-gray-900 tracking-tight">Data Ops</h1>
+          <div className="text-center">
+            <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Josh &amp; Tina</div>
+            <h1 className="text-sm font-bold tracking-tight text-slate-900">Data Ops</h1>
+          </div>
           <UserButton afterSignOutUrl="/" />
         </header>
 

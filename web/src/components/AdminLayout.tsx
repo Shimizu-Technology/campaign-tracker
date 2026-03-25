@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import api, { getSession } from '../lib/api';
 import AdminShell from './AdminShell';
+import WorkspaceBrandPanel from './WorkspaceBrandPanel';
 import { useSession } from '../hooks/useSession';
 import { identifyStaffUser, isAnalyticsEnabled } from '../lib/analytics';
 
@@ -260,25 +261,35 @@ function AuthorizedContent({ children }: { children: React.ReactNode }) {
 
   if (sessionState === 'unauthorized') {
     return (
-      <div className="min-h-screen bg-linear-to-br from-primary to-primary-dark flex items-center justify-center">
-        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full mx-4 text-center">
-          <div className="text-5xl mb-4">🚫</div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h1>
-          <p className="text-gray-500 mb-6">
+      <div className="min-h-screen bg-[#f6f8fc] px-4 py-10">
+        <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-md items-center justify-center">
+          <div className="w-full space-y-5">
+            <WorkspaceBrandPanel
+              centered
+              workspaceName="Campaign Operations"
+              workspaceDescription="Leadership tools, outreach, and campaign administration."
+              badge="Staff workspace"
+            />
+            <div className="rounded-[28px] border border-slate-200 bg-white p-8 text-center shadow-[0_24px_60px_-32px_rgba(15,42,91,0.35)]">
+              <div className="mb-4 text-5xl">🚫</div>
+              <h1 className="mb-2 text-2xl font-bold text-gray-900">Access Denied</h1>
+              <p className="mb-6 text-gray-500">
             Your account is not authorized to access this application. Please contact the campaign admin to request access.
-          </p>
-          <button
-            onClick={() => signOut({ redirectUrl: '/admin' })}
-            className="w-full bg-primary hover:bg-primary-dark text-white font-bold py-3 rounded-xl text-lg transition-all"
-          >
-            Sign Out &amp; Switch Account
-          </button>
-          <button
-            onClick={() => window.location.href = '/'}
-            className="w-full mt-3 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 rounded-xl text-lg transition-all"
-          >
-            Back to Home
-          </button>
+              </p>
+              <button
+                onClick={() => signOut({ redirectUrl: '/admin' })}
+                className="w-full rounded-xl bg-primary py-3 text-lg font-bold text-white transition-all hover:bg-primary-dark"
+              >
+                Sign Out &amp; Switch Account
+              </button>
+              <button
+                onClick={() => window.location.href = '/'}
+                className="mt-3 w-full rounded-xl bg-gray-100 py-3 text-lg font-semibold text-gray-700 transition-all hover:bg-gray-200"
+              >
+                Back to Home
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -306,24 +317,34 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         )}
       </SignedIn>
       <SignedOut>
-        <div className="min-h-screen bg-linear-to-br from-primary to-primary-dark flex items-center justify-center">
-          <div className="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full mx-4 text-center">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">Campaign Tracker</h1>
-            <p className="text-gray-500 mb-6">Sign in to access the staff dashboard</p>
-            <SignInButton mode="modal">
-              <button className="w-full bg-primary hover:bg-primary-dark text-white font-bold py-3 rounded-xl text-lg transition-all">
-                Sign In
-              </button>
-            </SignInButton>
-            <p className="text-xs text-gray-400 mt-4">
-              Contact your campaign admin for an account
-            </p>
-            <Link
-              to="/"
-              className="mt-4 inline-flex items-center justify-center text-sm text-primary hover:text-primary-dark font-medium"
-            >
-              Back to Home
-            </Link>
+        <div className="min-h-screen bg-[#f6f8fc] px-4 py-10">
+          <div className="mx-auto flex min-h-[calc(100vh-5rem)] max-w-md items-center justify-center">
+            <div className="w-full space-y-5">
+              <WorkspaceBrandPanel
+                centered
+                workspaceName="Campaign Operations"
+                workspaceDescription="Leadership tools, outreach, and internal campaign administration."
+                badge="Staff workspace"
+              />
+              <div className="rounded-[28px] border border-slate-200 bg-white p-8 text-center shadow-[0_24px_60px_-32px_rgba(15,42,91,0.35)]">
+                <h1 className="mb-2 text-2xl font-bold text-gray-900">Campaign Operations Sign In</h1>
+                <p className="mb-6 text-gray-500">Sign in to access the staff dashboard</p>
+                <SignInButton mode="modal">
+                  <button className="w-full rounded-xl bg-primary py-3 text-lg font-bold text-white transition-all hover:bg-primary-dark">
+                    Sign In
+                  </button>
+                </SignInButton>
+                <p className="mt-4 text-xs text-gray-400">
+                  Contact your campaign admin for an account
+                </p>
+                <Link
+                  to="/"
+                  className="mt-4 inline-flex items-center justify-center text-sm font-medium text-primary hover:text-primary-dark"
+                >
+                  Back to Home
+                </Link>
+              </div>
+            </div>
           </div>
         </div>
       </SignedOut>

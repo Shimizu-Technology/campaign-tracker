@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630" fill="none">
+  <rect width="1200" height="630" fill="#ECF3FB" />
+  <rect x="0" y="0" width="1200" height="144" fill="#0F3E86" />
+  <circle cx="1088" cy="88" r="164" fill="#1D74D1" fill-opacity="0.18" />
+  <circle cx="1188" cy="32" r="112" fill="#D5A332" fill-opacity="0.16" />
+  <circle cx="1028" cy="16" r="72" fill="#FFFFFF" fill-opacity="0.14" />
+
+  <rect x="72" y="190" width="632" height="340" rx="32" fill="#FFFFFF" />
+  <rect x="72.5" y="190.5" width="631" height="339" rx="31.5" stroke="#D8E4F2" />
+  <rect x="748" y="190" width="380" height="340" rx="32" fill="#0F3E86" />
+  <rect x="748.5" y="190.5" width="379" height="339" rx="31.5" stroke="#2F67B4" />
+
+  <rect x="72" y="190" width="632" height="18" rx="9" fill="#E23A22" />
+  <rect x="748" y="190" width="380" height="18" rx="9" fill="#D5A332" />
+
+  <rect x="72" y="96" width="292" height="36" rx="18" fill="#FFFFFF" fill-opacity="0.14" />
+  <text x="218" y="119" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="16" font-weight="700" letter-spacing="2.6" fill="#FFFFFF">
+    OFFICIAL SUPPORTER SIGNUP
+  </text>
+
+  <text x="72" y="266" font-family="Arial, Helvetica, sans-serif" font-size="74" font-style="italic" font-weight="900" letter-spacing="-5.8" fill="#0F3E86">
+    JOSH
+  </text>
+  <text x="352" y="266" font-family="Arial, Helvetica, sans-serif" font-size="60" font-weight="900" fill="#E23A22">
+    &amp;
+  </text>
+  <text x="430" y="266" font-family="Arial, Helvetica, sans-serif" font-size="74" font-style="italic" font-weight="900" letter-spacing="-5.8" fill="#0F3E86">
+    TINA
+  </text>
+  <text x="72" y="296" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" letter-spacing="4" fill="#64748B">
+    FOR GOVERNOR &amp; LT. GOVERNOR
+  </text>
+
+  <text x="72" y="368" font-family="Arial, Helvetica, sans-serif" font-size="48" font-weight="800" letter-spacing="-1.4" fill="#0F172A">
+    Building Guam&apos;s Future Together
+  </text>
+  <text x="72" y="420" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="500" fill="#475569">
+    Join the official Josh Tenorio and Tina Mu&#241;a-Barnes supporter signup
+  </text>
+  <text x="72" y="456" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="500" fill="#475569">
+    to stay connected, receive campaign updates, and help build momentum
+  </text>
+  <text x="72" y="492" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="500" fill="#475569">
+    across Guam.
+  </text>
+
+  <rect x="72" y="548" width="264" height="56" rx="28" fill="#E23A22" />
+  <text x="204" y="583" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="26" font-weight="800" fill="#FFFFFF">
+    joshtina.support
+  </text>
+
+  <path d="M938 246l15.12 46.53h48.93l-39.59 28.76 15.11 46.51-39.57-28.75-39.58 28.75 15.11-46.51-39.58-28.76h48.94L938 246Z" fill="#D5A332" />
+  <text x="938" y="421" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="42" font-style="italic" font-weight="800" fill="#8DC5FF">
+    PLEASE VOTE
+  </text>
+  <text x="938" y="476" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="58" font-style="italic" font-weight="900" letter-spacing="-4">
+    <tspan fill="#FFFFFF">J</tspan><tspan dx="-2" fill="#E23A22">&amp;</tspan><tspan dx="-2" fill="#FFFFFF">T</tspan>
+  </text>
+  <text x="938" y="512" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="20" font-weight="700" letter-spacing="3" fill="#D7E8FF">
+    PEOPLE-POWERED CAMPAIGN
+  </text>
+</svg>
