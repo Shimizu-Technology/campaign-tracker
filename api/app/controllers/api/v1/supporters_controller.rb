@@ -259,7 +259,16 @@ module Api
 
       # GET /api/v1/supporters (authenticated)
       def index
-        supporters = scope_supporters(Supporter.includes(:village, :submitted_village, :precinct, :block, :referred_from_village, :household_group).official_supporters)
+        supporters = scope_supporters(
+          Supporter.includes(
+            :village,
+            :submitted_village,
+            :precinct,
+            :block,
+            :referred_from_village,
+            household_group: :supporters
+          ).official_supporters
+        )
 
         # Filters
         supporters = supporters.where(village_id: params[:village_id]) if params[:village_id].present?
@@ -294,13 +303,13 @@ module Api
           if phone_digits.present?
             phone_query = "%#{ActiveRecord::Base.sanitize_sql_like(phone_digits)}%"
             supporters = supporters.where(
-              "LOWER(print_name) LIKE :name_query OR LOWER(first_name) LIKE :name_query OR LOWER(last_name) LIKE :name_query OR regexp_replace(contact_number, '\\D', '', 'g') LIKE :phone_query",
+              "LOWER(supporters.print_name) LIKE :name_query OR LOWER(supporters.first_name) LIKE :name_query OR LOWER(supporters.last_name) LIKE :name_query OR regexp_replace(supporters.contact_number, '\\D', '', 'g') LIKE :phone_query",
               name_query: name_query,
               phone_query: phone_query
             )
           else
             supporters = supporters.where(
-              "LOWER(print_name) LIKE :q OR LOWER(first_name) LIKE :q OR LOWER(last_name) LIKE :q",
+              "LOWER(supporters.print_name) LIKE :q OR LOWER(supporters.first_name) LIKE :q OR LOWER(supporters.last_name) LIKE :q",
               q: name_query
             )
           end
@@ -548,7 +557,7 @@ module Api
           sanitized = ActiveRecord::Base.sanitize_sql_like(raw)
           name_query = "%#{sanitized.downcase}%"
           supporters = supporters.where(
-            "LOWER(print_name) LIKE :q OR LOWER(first_name) LIKE :q OR LOWER(last_name) LIKE :q",
+            "LOWER(supporters.print_name) LIKE :q OR LOWER(supporters.first_name) LIKE :q OR LOWER(supporters.last_name) LIKE :q",
             q: name_query
           )
         end
@@ -629,7 +638,7 @@ module Api
         if params[:search].present?
           sanitized = ActiveRecord::Base.sanitize_sql_like(params[:search].to_s.strip)
           supporters = supporters.where(
-            "LOWER(first_name) LIKE :q OR LOWER(last_name) LIKE :q",
+            "LOWER(supporters.first_name) LIKE :q OR LOWER(supporters.last_name) LIKE :q",
             q: "%#{sanitized.downcase}%"
           )
         end
@@ -646,7 +655,7 @@ module Api
         if params[:search].present?
           sanitized = ActiveRecord::Base.sanitize_sql_like(params[:search].to_s.strip)
           summary_base = summary_base.where(
-            "LOWER(first_name) LIKE :q OR LOWER(last_name) LIKE :q",
+            "LOWER(supporters.first_name) LIKE :q OR LOWER(supporters.last_name) LIKE :q",
             q: "%#{sanitized.downcase}%"
           )
         end
@@ -961,13 +970,13 @@ module Api
           if phone_digits.present?
             phone_query = "%#{ActiveRecord::Base.sanitize_sql_like(phone_digits)}%"
             supporters = supporters.where(
-              "LOWER(print_name) LIKE :name_query OR LOWER(first_name) LIKE :name_query OR LOWER(last_name) LIKE :name_query OR regexp_replace(contact_number, '\\D', '', 'g') LIKE :phone_query",
+              "LOWER(supporters.print_name) LIKE :name_query OR LOWER(supporters.first_name) LIKE :name_query OR LOWER(supporters.last_name) LIKE :name_query OR regexp_replace(supporters.contact_number, '\\D', '', 'g') LIKE :phone_query",
               name_query: name_query,
               phone_query: phone_query
             )
           else
             supporters = supporters.where(
-              "LOWER(print_name) LIKE :q OR LOWER(first_name) LIKE :q OR LOWER(last_name) LIKE :q",
+              "LOWER(supporters.print_name) LIKE :q OR LOWER(supporters.first_name) LIKE :q OR LOWER(supporters.last_name) LIKE :q",
               q: name_query
             )
           end
@@ -1043,8 +1052,6 @@ module Api
             else
               "not_sure"
             end
-        else
-          attributes["registered_voter_status"] = "not_sure"
         end
 
         attributes
@@ -1084,7 +1091,7 @@ module Api
       end
 
       def public_review_scope
-        base = scope_supporters(Supporter.includes(:village, :submitted_village, :precinct, :household_group)).active
+        base = scope_supporters(Supporter.includes(:village, :submitted_village, :precinct, household_group: :supporters)).active
 
         case public_review_bucket
         when "approved"
@@ -1112,7 +1119,7 @@ module Api
       end
 
       def vetting_queue_base_scope
-        base = scope_supporters(Supporter.includes(:village, :submitted_village, :precinct, :entered_by, :household_group))
+        base = scope_supporters(Supporter.includes(:village, :submitted_village, :precinct, :entered_by, household_group: :supporters))
           .where(public_review_status: %w[approved not_applicable])
 
         if params[:district_id].present?
@@ -1172,7 +1179,7 @@ module Api
           sanitized = ActiveRecord::Base.sanitize_sql_like(token)
           pattern = "%#{sanitized}%"
           relation.where(
-            "LOWER(first_name) LIKE :pattern OR LOWER(middle_name) LIKE :pattern OR LOWER(last_name) LIKE :pattern OR LOWER(print_name) LIKE :pattern OR LOWER(contact_number) LIKE :pattern",
+            "LOWER(supporters.first_name) LIKE :pattern OR LOWER(supporters.middle_name) LIKE :pattern OR LOWER(supporters.last_name) LIKE :pattern OR LOWER(supporters.print_name) LIKE :pattern OR LOWER(supporters.contact_number) LIKE :pattern",
             pattern: pattern
           )
         end
@@ -1243,7 +1250,7 @@ module Api
           duplicate_notes: supporter.duplicate_notes,
           household_group_id: supporter.household_group_id,
           household_primary: supporter.household_primary,
-          household_member_count: supporter.household_group&.supporters&.size || 0,
+          household_member_count: household_member_count(supporter),
           registration_outreach_status: supporter.registration_outreach_status,
           registration_outreach_notes: supporter.registration_outreach_notes,
           registration_outreach_date: supporter.registration_outreach_date&.iso8601,
@@ -1273,7 +1280,7 @@ module Api
           needs_election_day_ride: supporter.needs_election_day_ride,
           referred_by_name: supporter.referred_by_name,
           household_group_id: supporter.household_group_id,
-          household_member_count: supporter.household_group&.supporters&.size || 0,
+          household_member_count: household_member_count(supporter),
           follow_up_priority: outreach_priority_label(supporter),
           follow_up_reasons: outreach_reasons(supporter),
           needs_registration_follow_up: needs_registration_follow_up?(supporter),
@@ -1539,6 +1546,19 @@ module Api
 
       def follow_up_open?(supporter)
         supporter.registration_outreach_status.blank? || supporter.registration_outreach_status == "contacted"
+      end
+
+      def household_member_count(supporter)
+        return 0 unless supporter.household_group_id.present?
+
+        group = supporter.household_group
+        return 0 unless group.present?
+
+        if supporter.association(:household_group).loaded? && group.association(:supporters).loaded?
+          group.supporters.size
+        else
+          group.supporters.count
+        end
       end
 
       def verification_update_attributes(supporter, new_status, match_payload: nil)

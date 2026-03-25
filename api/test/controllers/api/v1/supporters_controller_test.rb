@@ -393,6 +393,33 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal false, supporter.registered_voter
   end
 
+  test "partial supporter update preserves Becky voter status fields when none are submitted" do
+    supporter = Supporter.create!(
+      first_name: "Preserve",
+      last_name: "VoterStatus",
+      print_name: "VoterStatus, Preserve",
+      contact_number: "6715558022",
+      village: @village,
+      source: "staff_entry",
+      review_status: "approved",
+      public_review_status: "not_applicable",
+      status: "active",
+      registered_voter: true,
+      registered_voter_status: "yes",
+      self_reported_registered_voter: true
+    )
+
+    patch "/api/v1/supporters/#{supporter.id}",
+      params: { supporter: { first_name: "Updated" } },
+      headers: auth_headers(@user)
+
+    assert_response :success
+    supporter.reload
+    assert_equal "Updated", supporter.first_name
+    assert_equal "yes", supporter.registered_voter_status
+    assert_equal true, supporter.self_reported_registered_voter
+  end
+
   test "outreach returns Becky queue metadata and prioritizes registration follow-up" do
     high_priority = Supporter.create!(
       first_name: "Queue",
