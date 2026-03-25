@@ -203,7 +203,7 @@ class SupporterEmailService
                           <tr>
                             <td style="border-radius: 999px; background: #eef4ff; border: 1px solid #d8e4f2; padding: 10px 16px;">
                               <p style="margin: 0; color: #0f3e86; font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase; font-weight: 700;">
-                                #{section_label}
+                                #{ERB::Util.html_escape(section_label)}
                               </p>
                             </td>
                           </tr>
