@@ -92,6 +92,10 @@ class SupporterEmailService
       ENV["FRONTEND_URL"].presence || "http://localhost:5175"
     end
 
+    def escaped_frontend_url
+      ERB::Util.html_escape(frontend_url)
+    end
+
     def personalize(text, supporter)
       text.gsub("{first_name}", ERB::Util.html_escape(supporter.first_name.to_s))
           .gsub("{last_name}", ERB::Util.html_escape(supporter.last_name.to_s))
@@ -101,46 +105,87 @@ class SupporterEmailService
     def welcome_html(supporter)
       name = ERB::Util.html_escape(supporter.first_name.presence || "Supporter")
 
+      intro = <<~HTML
+        <p style="margin: 0 0 18px 0; font-size: 16px; line-height: 1.7; color: #475569;">
+          Thank you for signing up to support <strong style="color: #0f172a;">Josh Tenorio &amp; Tina Mu&ntilde;a-Barnes</strong>.
+          Your response helps the campaign understand where support is growing and how to stay connected with people across Guam.
+        </p>
+        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 0 0 20px 0; background: #fff9ec; border: 1px solid #f0d9a4; border-radius: 18px;">
+          <tr>
+            <td style="padding: 16px 18px;">
+              <p style="margin: 0 0 8px 0; color: #93650d; font-size: 12px; letter-spacing: 0.2em; text-transform: uppercase; font-weight: 700;">
+                Supporter next step
+              </p>
+              <p style="margin: 0; font-size: 15px; line-height: 1.7; color: #475569;">
+                If you opted in for updates, the campaign may reach out with announcements, volunteer opportunities, motorcades, and other important moments.
+              </p>
+            </td>
+          </tr>
+        </table>
+        <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0 auto;">
+          <tr>
+            <td style="border-radius: 999px; background: #e23a22;">
+              <a href="#{escaped_frontend_url}" target="_blank" style="display: inline-block; padding: 14px 28px; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 800; letter-spacing: 0.02em;">
+                Visit official signup
+              </a>
+            </td>
+          </tr>
+        </table>
+      HTML
+
+      email_layout_html(
+        section_label: "Official campaign supporter update",
+        title: "Si Yu'os Ma'&aring;se, #{name}!",
+        intro_html: intro,
+        content_html: nil,
+        footer_html: "You&apos;re receiving this because you signed up at #{escaped_frontend_url} and opted in to email updates.<br>If you no longer wish to receive campaign emails, please contact the campaign team."
+      )
+    end
+
+    def blast_wrapper_html(content)
+      email_layout_html(
+        section_label: "Campaign email update",
+        title: nil,
+        intro_html: nil,
+        content_html: content,
+        footer_html: "You&apos;re receiving this because you opted in to email updates from #{ERB::Util.html_escape(CampaignBranding::CAMPAIGN_LABEL)}.<br>To unsubscribe, please contact the campaign team."
+      )
+    end
+
+    def email_layout_html(section_label:, title:, intro_html:, content_html:, footer_html:)
+      body_content = [ intro_html, content_html ].compact.join("\n")
+
       <<~HTML
         <!doctype html>
         <html>
           <head>
             <meta charset="utf-8">
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <title>Thank You for Your Support</title>
+            <meta name="color-scheme" content="light only">
+            <meta name="supported-color-schemes" content="light only">
+            <title>#{ERB::Util.html_escape(CampaignBranding::CAMPAIGN_LABEL)}</title>
           </head>
-          <body style="margin: 0; padding: 0; background: #0f2341; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding: 28px 12px; background: #0f2341;">
+          <body style="margin: 0; padding: 0; background: #eef3fb; color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding: 0; background: #eef3fb;">
+              <tr>
+                <td style="background: #0f3e86; padding: 10px 20px; text-align: center;">
+                  <p style="margin: 0; color: #ffffff; font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; font-weight: 700;">#{ERB::Util.html_escape(CampaignBranding::CAMPAIGN_TAGLINE)}</p>
+                </td>
+              </tr>
+            </table>
+            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding: 16px 12px 24px 12px; background: #eef3fb;">
               <tr>
                 <td align="center">
-                  <!-- Header -->
-                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 620px;">
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 640px;">
                     <tr>
-                      <td style="padding: 16px 24px 24px 24px; text-align: center;">
-                        <p style="margin: 0; color: #93aed4; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600;">Josh &amp; Tina 2026</p>
-                        <p style="margin: 4px 0 0 0; color: #6b84b0; font-size: 11px;">For Governor &amp; Lt. Governor of Guam</p>
-                      </td>
-                    </tr>
-                  </table>
-
-                  <!-- Main Card -->
-                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 620px; background: #1a3259; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; overflow: hidden;">
-                    <tr>
-                      <td style="padding: 40px 32px 32px 32px; text-align: center;">
-                        <h1 style="margin: 0 0 8px 0; color: #ffffff; font-size: 28px; line-height: 1.2; font-weight: 700;">Si Yu'os Ma'&aring;se, #{name}!</h1>
-                        <p style="margin: 0 0 20px 0; font-size: 16px; color: #c4d5ef; line-height: 1.5;">
-                          Thank you for signing up to support <strong style="color: #ffffff;">Josh Tenorio &amp; Tina Mu&ntilde;a Barnes</strong> for Guam 2026.
-                        </p>
-                        <p style="margin: 0 0 28px 0; font-size: 15px; color: #93aed4; line-height: 1.6;">
-                          Together, we'll build a stronger Guam. We'll keep you updated on campaign events, motorcades, and important milestones.
-                        </p>
-
-                        <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0 auto 24px auto;">
+                      <td style="padding: 0 8px 10px 8px;">
+                        <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background: #f8fbff; border: 1px solid #d8e4f2; border-radius: 20px;">
                           <tr>
-                            <td style="border-radius: 12px; background: #dc2626;">
-                              <a href="#{frontend_url}" target="_blank" style="display: inline-block; padding: 14px 32px; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 700; letter-spacing: 0.02em;">
-                                Visit Campaign Page
-                              </a>
+                            <td style="padding: 16px 22px; text-align: center;">
+                              <p style="margin: 0; color: #0f3e86; font-size: 34px; line-height: 1; font-style: italic; font-weight: 900; letter-spacing: -0.08em;">
+                                Josh <span style="color: #e23a22; font-style: normal;">&amp;</span> Tina
+                              </p>
+                              <p style="margin: 8px 0 0 0; color: #64748b; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;">#{ERB::Util.html_escape(CampaignBranding::CAMPAIGN_SUBLABEL)}</p>
                             </td>
                           </tr>
                         </table>
@@ -148,62 +193,39 @@ class SupporterEmailService
                     </tr>
                   </table>
 
-                  <!-- Footer -->
-                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 620px;">
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 640px; background: #ffffff; border: 1px solid #d8e4f2; border-radius: 24px; overflow: hidden; box-shadow: 0 18px 40px rgba(15, 62, 134, 0.08);">
                     <tr>
-                      <td style="padding: 20px 24px; text-align: center;">
-                        <p style="margin: 0; font-size: 11px; color: #5a7199; line-height: 1.5;">
-                          You're receiving this because you signed up at #{frontend_url} and opted in to email updates.<br>
-                          If you no longer wish to receive emails, please contact the campaign team.
-                        </p>
+                      <td style="height: 8px; background: #d5a332; font-size: 0; line-height: 0;">&nbsp;</td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 20px 24px 0 24px; background: #ffffff;">
+                        <table role="presentation" cellspacing="0" cellpadding="0">
+                          <tr>
+                            <td style="border-radius: 999px; background: #eef4ff; border: 1px solid #d8e4f2; padding: 10px 16px;">
+                              <p style="margin: 0; color: #0f3e86; font-size: 12px; letter-spacing: 0.22em; text-transform: uppercase; font-weight: 700;">
+                                #{ERB::Util.html_escape(section_label)}
+                              </p>
+                            </td>
+                          </tr>
+                        </table>
                       </td>
                     </tr>
-                  </table>
-                </td>
-              </tr>
-            </table>
-          </body>
-        </html>
-      HTML
-    end
-
-    def blast_wrapper_html(content)
-      <<~HTML
-        <!doctype html>
-        <html>
-          <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          </head>
-          <body style="margin: 0; padding: 0; background: #0f2341; color: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
-            <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding: 28px 12px; background: #0f2341;">
-              <tr>
-                <td align="center">
-                  <!-- Header -->
-                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 620px;">
                     <tr>
-                      <td style="padding: 16px 24px; text-align: center;">
-                        <p style="margin: 0; color: #93aed4; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600;">Josh &amp; Tina 2026</p>
+                      <td style="padding: 28px 28px 30px 28px;">
+                        #{title.present? ? "<h1 style=\"margin: 0 0 14px 0; color: #0f172a; font-size: 30px; line-height: 1.2; font-weight: 800; text-align: center;\">#{title}</h1>" : ""}
+                        #{title.present? ? "<div style=\"width: 72px; height: 4px; margin: 0 auto 22px auto; border-radius: 999px; background: #e23a22;\"></div>" : ""}
+                        <div style="font-size: 15px; line-height: 1.7; color: #334155;">
+                          #{body_content}
+                        </div>
                       </td>
                     </tr>
                   </table>
 
-                  <!-- Main Card -->
-                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 620px; background: #1a3259; border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; overflow: hidden;">
+                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 640px;">
                     <tr>
-                      <td style="padding: 32px; font-size: 15px; line-height: 1.6; color: #c4d5ef;">
-                        #{content}
-                      </td>
-                    </tr>
-                  </table>
-
-                  <!-- Footer -->
-                  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width: 620px;">
-                    <tr>
-                      <td style="padding: 20px 24px; text-align: center;">
-                        <p style="margin: 0; font-size: 11px; color: #5a7199; line-height: 1.5;">
-                          You're receiving this because you opted in to email updates from the Josh &amp; Tina 2026 campaign.<br>
-                          To unsubscribe, please contact the campaign team.
+                      <td style="padding: 18px 24px 0 24px; text-align: center;">
+                        <p style="margin: 0; font-size: 11px; line-height: 1.6; color: #64748b;">
+                          #{footer_html}
                         </p>
                       </td>
                     </tr>
