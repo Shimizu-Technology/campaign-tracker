@@ -21,6 +21,7 @@ class SupporterEmailServiceTest < ActiveSupport::TestCase
   def teardown
     ENV["RESEND_API_KEY"] = @original_api_key
     ENV["RESEND_FROM_EMAIL"] = @original_from_email
+    ENV["FRONTEND_URL"] = nil
   end
 
   test "configured? returns false when RESEND_API_KEY is missing" do
@@ -99,9 +100,19 @@ class SupporterEmailServiceTest < ActiveSupport::TestCase
     html = SupporterEmailService.send(:welcome_html, @supporter)
     assert_includes html, "Maria"
     assert_includes html, "Josh &amp; Tina for Guam"
-    assert_includes html, "Building Guam's Future Together"
+    assert_includes html, "For Governor &amp; Lt. Governor"
+    assert_includes html, "Building Guam&#39;s Future Together"
     assert_includes html, "Visit official signup"
     assert_includes html, "<!doctype html>"
+  end
+
+  test "welcome_html escapes frontend url in footer and link" do
+    ENV["FRONTEND_URL"] = "https://example.com/?utm_source=email&step=1"
+
+    html = SupporterEmailService.send(:welcome_html, @supporter)
+
+    assert_includes html, "https://example.com/?utm_source=email&amp;step=1"
+    refute_includes html, "https://example.com/?utm_source=email&step=1"
   end
 
   test "blast_wrapper_html wraps content in template" do

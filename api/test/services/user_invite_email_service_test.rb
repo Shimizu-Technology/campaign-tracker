@@ -23,6 +23,7 @@ class UserInviteEmailServiceTest < ActiveSupport::TestCase
   def teardown
     ENV["RESEND_API_KEY"] = @original_api_key
     ENV["RESEND_FROM_EMAIL"] = @original_from_email
+    ENV["FRONTEND_URL"] = nil
   end
 
   test "configured? returns false when RESEND_API_KEY is missing" do
@@ -51,6 +52,7 @@ class UserInviteEmailServiceTest < ActiveSupport::TestCase
     html = UserInviteEmailService.send(:invite_html, user: @user, invited_by: @invited_by)
 
     assert_includes html, "Josh &amp; Tina for Guam"
+    assert_includes html, "For Governor &amp; Lt. Governor"
     assert_includes html, "Staff workspace invitation"
     assert_includes html, "Building Guam&#39;s Future Together"
     assert_includes html, "Campaign Admin"
@@ -59,5 +61,14 @@ class UserInviteEmailServiceTest < ActiveSupport::TestCase
     assert_includes html, "Barrigada"
     assert_includes html, "Open staff workspace"
     assert_includes html, "/staff"
+  end
+
+  test "invite_html escapes frontend url in href and fallback text" do
+    ENV["FRONTEND_URL"] = "https://example.com/?utm_source=email&step=1"
+
+    html = UserInviteEmailService.send(:invite_html, user: @user, invited_by: @invited_by)
+
+    assert_includes html, "https://example.com/?utm_source=email&amp;step=1/staff"
+    refute_includes html, "https://example.com/?utm_source=email&step=1/staff"
   end
 end

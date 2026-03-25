@@ -1,10 +1,6 @@
 # frozen_string_literal: true
 
 class SupporterEmailService
-  CAMPAIGN_LABEL = "Josh & Tina for Guam"
-  CAMPAIGN_SUBLABEL = "For Governor & Lt. Governor"
-  CAMPAIGN_TAGLINE = "Building Guam's Future Together"
-
   class << self
     # Send welcome email to a new supporter who opted in to email updates.
     def send_welcome(supporter)
@@ -96,6 +92,10 @@ class SupporterEmailService
       ENV["FRONTEND_URL"].presence || "http://localhost:5175"
     end
 
+    def escaped_frontend_url
+      ERB::Util.html_escape(frontend_url)
+    end
+
     def personalize(text, supporter)
       text.gsub("{first_name}", ERB::Util.html_escape(supporter.first_name.to_s))
           .gsub("{last_name}", ERB::Util.html_escape(supporter.last_name.to_s))
@@ -125,7 +125,7 @@ class SupporterEmailService
         <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0 auto;">
           <tr>
             <td style="border-radius: 999px; background: #e23a22;">
-              <a href="#{frontend_url}" target="_blank" style="display: inline-block; padding: 14px 28px; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 800; letter-spacing: 0.02em;">
+              <a href="#{escaped_frontend_url}" target="_blank" style="display: inline-block; padding: 14px 28px; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 800; letter-spacing: 0.02em;">
                 Visit official signup
               </a>
             </td>
@@ -138,7 +138,7 @@ class SupporterEmailService
         title: "Si Yu'os Ma'&aring;se, #{name}!",
         intro_html: intro,
         content_html: nil,
-        footer_html: "You&apos;re receiving this because you signed up at #{frontend_url} and opted in to email updates.<br>If you no longer wish to receive campaign emails, please contact the campaign team."
+        footer_html: "You&apos;re receiving this because you signed up at #{escaped_frontend_url} and opted in to email updates.<br>If you no longer wish to receive campaign emails, please contact the campaign team."
       )
     end
 
@@ -148,7 +148,7 @@ class SupporterEmailService
         title: nil,
         intro_html: nil,
         content_html: content,
-        footer_html: "You&apos;re receiving this because you opted in to email updates from #{ERB::Util.html_escape(CAMPAIGN_LABEL)}.<br>To unsubscribe, please contact the campaign team."
+        footer_html: "You&apos;re receiving this because you opted in to email updates from #{ERB::Util.html_escape(CampaignBranding::CAMPAIGN_LABEL)}.<br>To unsubscribe, please contact the campaign team."
       )
     end
 
@@ -163,13 +163,13 @@ class SupporterEmailService
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <meta name="color-scheme" content="light only">
             <meta name="supported-color-schemes" content="light only">
-            <title>#{ERB::Util.html_escape(CAMPAIGN_LABEL)}</title>
+            <title>#{ERB::Util.html_escape(CampaignBranding::CAMPAIGN_LABEL)}</title>
           </head>
           <body style="margin: 0; padding: 0; background: #eef3fb; color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding: 0; background: #eef3fb;">
               <tr>
                 <td style="background: #0f3e86; padding: 10px 20px; text-align: center;">
-                  <p style="margin: 0; color: #ffffff; font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; font-weight: 700;">#{CAMPAIGN_TAGLINE}</p>
+                  <p style="margin: 0; color: #ffffff; font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; font-weight: 700;">#{ERB::Util.html_escape(CampaignBranding::CAMPAIGN_TAGLINE)}</p>
                 </td>
               </tr>
             </table>
@@ -185,7 +185,7 @@ class SupporterEmailService
                               <p style="margin: 0; color: #0f3e86; font-size: 34px; line-height: 1; font-style: italic; font-weight: 900; letter-spacing: -0.08em;">
                                 Josh <span style="color: #e23a22; font-style: normal;">&amp;</span> Tina
                               </p>
-                              <p style="margin: 8px 0 0 0; color: #64748b; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;">#{CAMPAIGN_SUBLABEL}</p>
+                              <p style="margin: 8px 0 0 0; color: #64748b; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;">#{ERB::Util.html_escape(CampaignBranding::CAMPAIGN_SUBLABEL)}</p>
                             </td>
                           </tr>
                         </table>

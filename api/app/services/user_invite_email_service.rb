@@ -3,10 +3,6 @@
 require "cgi"
 
 class UserInviteEmailService
-  CAMPAIGN_LABEL = "Josh & Tina for Guam"
-  CAMPAIGN_SUBLABEL = "For Governor & Lt. Governor"
-  CAMPAIGN_TAGLINE = "Building Guam's Future Together"
-
   class << self
     def send_invite(user:, invited_by:)
       return false unless configured?
@@ -51,6 +47,10 @@ class UserInviteEmailService
       ENV["FRONTEND_URL"].presence || "http://localhost:5175"
     end
 
+    def escaped_frontend_url
+      escape_html(frontend_url)
+    end
+
     def role_label(role)
       role.to_s.tr("_", " ")
     end
@@ -86,13 +86,13 @@ class UserInviteEmailService
             <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <meta name="color-scheme" content="light only">
             <meta name="supported-color-schemes" content="light only">
-            <title>#{escape_html(CAMPAIGN_LABEL)} Staff Invite</title>
+            <title>#{escape_html(CampaignBranding::CAMPAIGN_LABEL)} Staff Invite</title>
           </head>
           <body style="margin: 0; padding: 0; background: #eef3fb; color: #0f172a; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;">
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="padding: 0; background: #eef3fb;">
               <tr>
                 <td style="background: #0f3e86; padding: 10px 20px; text-align: center;">
-                  <p style="margin: 0; color: #ffffff; font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; font-weight: 700;">#{escape_html(CAMPAIGN_TAGLINE)}</p>
+                  <p style="margin: 0; color: #ffffff; font-size: 12px; letter-spacing: 0.24em; text-transform: uppercase; font-weight: 700;">#{escape_html(CampaignBranding::CAMPAIGN_TAGLINE)}</p>
                 </td>
               </tr>
             </table>
@@ -108,7 +108,7 @@ class UserInviteEmailService
                               <p style="margin: 0; color: #0f3e86; font-size: 34px; line-height: 1; font-style: italic; font-weight: 900; letter-spacing: -0.08em;">
                                 Josh <span style="color: #e23a22; font-style: normal;">&amp;</span> Tina
                               </p>
-                              <p style="margin: 8px 0 0 0; color: #64748b; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;">#{escape_html(CAMPAIGN_SUBLABEL)}</p>
+                              <p style="margin: 8px 0 0 0; color: #64748b; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; font-weight: 700;">#{escape_html(CampaignBranding::CAMPAIGN_SUBLABEL)}</p>
                             </td>
                           </tr>
                         </table>
@@ -139,7 +139,7 @@ class UserInviteEmailService
                         </h1>
                         <div style="width: 72px; height: 4px; margin: 0 auto 22px auto; border-radius: 999px; background: #e23a22;"></div>
                         <p style="margin: 0 0 16px 0; font-size: 16px; line-height: 1.7; color: #475569;">
-                          #{inviter} added you as <strong style="color: #0f172a;">#{role}</strong> for #{escape_html(CAMPAIGN_LABEL)}.
+                          #{inviter} added you as <strong style="color: #0f172a;">#{role}</strong> for #{escape_html(CampaignBranding::CAMPAIGN_LABEL)}.
                         </p>
                         #{assignment_context}
                         <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="margin: 0 0 20px 0; background: #fff9ec; border: 1px solid #f0d9a4; border-radius: 18px;">
@@ -158,7 +158,7 @@ class UserInviteEmailService
                         <table role="presentation" cellspacing="0" cellpadding="0" style="margin: 0 auto 18px auto;">
                           <tr>
                             <td style="border-radius: 999px; background: #e23a22;">
-                              <a href="#{frontend_url}/staff" target="_blank" style="display: inline-block; padding: 14px 28px; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 800; letter-spacing: 0.02em;">
+                              <a href="#{escaped_frontend_url}/staff" target="_blank" style="display: inline-block; padding: 14px 28px; color: #ffffff; text-decoration: none; font-size: 15px; font-weight: 800; letter-spacing: 0.02em;">
                                 Open staff workspace
                               </a>
                             </td>
@@ -168,7 +168,7 @@ class UserInviteEmailService
                           Or copy this URL into your browser:
                         </p>
                         <p style="margin: 0 0 20px 0; font-size: 13px; color: #0f3e86; word-break: break-all;">
-                          #{frontend_url}/staff
+                          #{escaped_frontend_url}/staff
                         </p>
                         <p style="margin: 0; font-size: 12px; line-height: 1.6; color: #64748b;">
                           If you already created your account, you can sign in normally.<br>
