@@ -29,7 +29,10 @@ module Api
           village_id: params[:village_id],
           precinct_id: params[:precinct_id],
           district_id: params[:district_id],
-          campaign_id: params[:campaign_id]
+          campaign_id: params[:campaign_id],
+          registered_voter_status: params[:registered_voter_status],
+          support_need: params[:support_need],
+          outreach_status: params[:outreach_status]
         )
 
         begin
@@ -46,6 +49,11 @@ module Api
         log_audit!(nil, action: "report_generated", changed_data: {
           "report_type" => report_type,
           "village_id" => params[:village_id],
+          "district_id" => params[:district_id],
+          "precinct_id" => params[:precinct_id],
+          "registered_voter_status" => params[:registered_voter_status],
+          "support_need" => params[:support_need],
+          "outreach_status" => params[:outreach_status],
           "filename" => result[:filename]
         })
 
@@ -73,7 +81,10 @@ module Api
           precinct_id: params[:precinct_id],
           district_id: params[:district_id],
           campaign_id: params[:campaign_id],
-          preview_limit: (params[:limit] || 100).to_i.clamp(1, 250)
+          preview_limit: (params[:limit] || 100).to_i.clamp(1, 250),
+          registered_voter_status: params[:registered_voter_status],
+          support_need: params[:support_need],
+          outreach_status: params[:outreach_status]
         )
 
         begin
@@ -92,7 +103,10 @@ module Api
           filters: {
             village_id: params[:village_id],
             precinct_id: params[:precinct_id],
-            district_id: params[:district_id]
+            district_id: params[:district_id],
+            registered_voter_status: params[:registered_voter_status],
+            support_need: params[:support_need],
+            outreach_status: params[:outreach_status]
           }
         )
       end

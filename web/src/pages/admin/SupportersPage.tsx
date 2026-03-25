@@ -30,7 +30,15 @@ interface SupporterItem {
   village_name: string;
   precinct_id: number | null;
   precinct_number: string | null;
+  registered_voter_status?: string | null;
+  registered_voter_location_note?: string | null;
   registered_voter: boolean;
+  wants_to_volunteer?: boolean;
+  needs_absentee_ballot_help?: boolean;
+  needs_homebound_voting_help?: boolean;
+  needs_voter_registration_help?: boolean;
+  needs_election_day_ride?: boolean;
+  referred_by_name?: string | null;
   yard_sign: boolean;
   motorcade_available: boolean;
   opt_in_email: boolean;
@@ -47,6 +55,9 @@ interface SupporterItem {
   intake_status?: string;
   review_status?: string;
   public_review_status?: string;
+  household_group_id?: number | null;
+  household_member_count?: number;
+  registration_outreach_status?: string | null;
   status: string;
   created_at: string;
 }
@@ -177,6 +188,37 @@ function supporterSortName(supporter: Pick<SupporterItem, 'first_name' | 'middle
   ].filter(Boolean).join(', ');
 }
 
+function selfReportedStatusLabel(supporter: Pick<SupporterItem, 'registered_voter_status'>) {
+  if (supporter.registered_voter_status === 'yes') return 'Self: Yes';
+  if (supporter.registered_voter_status === 'no') return 'Self: No';
+  return 'Self: Not sure';
+}
+
+function supportRequestBadges(supporter: Pick<SupporterItem, 'needs_voter_registration_help' | 'needs_absentee_ballot_help' | 'needs_homebound_voting_help' | 'needs_election_day_ride' | 'wants_to_volunteer' | 'household_member_count'>) {
+  const badges: string[] = [];
+  if (supporter.needs_voter_registration_help) badges.push('Registration');
+  if (supporter.needs_absentee_ballot_help) badges.push('Absentee');
+  if (supporter.needs_homebound_voting_help) badges.push('Homebound');
+  if (supporter.needs_election_day_ride) badges.push('Ride');
+  if (supporter.wants_to_volunteer) badges.push('Volunteer');
+  if ((supporter.household_member_count || 0) > 1) badges.push(`Household ${supporter.household_member_count}`);
+  return badges;
+}
+
+function followUpResultLabel(supporter: Pick<SupporterItem, 'registration_outreach_status'>) {
+  if (supporter.registration_outreach_status === 'registered') return 'Registered via follow-up';
+  if (supporter.registration_outreach_status === 'contacted') return 'Contacted';
+  if (supporter.registration_outreach_status === 'declined') return 'Declined';
+  return null;
+}
+
+function followUpResultClass(supporter: Pick<SupporterItem, 'registration_outreach_status'>) {
+  if (supporter.registration_outreach_status === 'registered') return 'bg-green-100 text-green-700';
+  if (supporter.registration_outreach_status === 'contacted') return 'bg-blue-100 text-blue-700';
+  if (supporter.registration_outreach_status === 'declined') return 'bg-red-100 text-red-700';
+  return 'bg-gray-100 text-gray-700';
+}
+
 export default function SupportersPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
@@ -189,6 +231,8 @@ export default function SupportersPage() {
   const [sourceFilter, setSourceFilter] = useState(searchParams.get('source') || '');
   const [optInFilter, setOptInFilter] = useState(searchParams.get('opt_in') || '');
   const [verificationFilter, setVerificationFilter] = useState(searchParams.get('verification_status') || '');
+  const [registeredStatusFilter, setRegisteredStatusFilter] = useState(searchParams.get('registered_voter_status') || '');
+  const [supportNeedFilter, setSupportNeedFilter] = useState(searchParams.get('support_need') || '');
   const [lifecycleFilter, setLifecycleFilter] = useState(searchParams.get('status') || 'active');
   const [unassignedPrecinct, setUnassignedPrecinct] = useState(searchParams.get('unassigned_precinct') === 'true');
   const [sortBy, setSortBy] = useState<SortField>(parseSortField(searchParams.get('sort_by')));
@@ -238,6 +282,8 @@ export default function SupportersPage() {
     if (sourceFilter) params.set('source', sourceFilter);
     if (optInFilter) params.set('opt_in', optInFilter);
     if (verificationFilter) params.set('verification_status', verificationFilter);
+    if (registeredStatusFilter) params.set('registered_voter_status', registeredStatusFilter);
+    if (supportNeedFilter) params.set('support_need', supportNeedFilter);
     if (lifecycleFilter) params.set('status', lifecycleFilter);
     if (unassignedPrecinct) params.set('unassigned_precinct', 'true');
     params.set('sort_by', sortBy);
@@ -245,10 +291,10 @@ export default function SupportersPage() {
     params.set('per_page', String(perPage));
     if (returnTo) params.set('return_to', returnTo);
     setSearchParams(params, { replace: true });
-  }, [debouncedSearch, effectiveVillageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, lifecycleFilter, unassignedPrecinct, sortBy, sortDir, perPage, returnTo, setSearchParams]);
+  }, [debouncedSearch, effectiveVillageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, registeredStatusFilter, supportNeedFilter, lifecycleFilter, unassignedPrecinct, sortBy, sortDir, perPage, returnTo, setSearchParams]);
 
   const { data, isFetching } = useQuery<SupportersResponse>({
-    queryKey: ['supporters', debouncedSearch, effectiveVillageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, lifecycleFilter, unassignedPrecinct, sortBy, sortDir, page, perPage],
+    queryKey: ['supporters', debouncedSearch, effectiveVillageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, registeredStatusFilter, supportNeedFilter, lifecycleFilter, unassignedPrecinct, sortBy, sortDir, page, perPage],
     queryFn: () => getSupporters({
       search: debouncedSearch,
       village_id: effectiveVillageFilter || undefined,
@@ -257,6 +303,8 @@ export default function SupportersPage() {
       opt_in_email: optInFilter === 'email' || optInFilter === 'both' ? 'true' : undefined,
       opt_in_text: optInFilter === 'text' || optInFilter === 'both' ? 'true' : undefined,
       verification_status: verificationFilter || undefined,
+      registered_voter_status: registeredStatusFilter || undefined,
+      support_need: supportNeedFilter || undefined,
       status: lifecycleFilter || undefined,
       unassigned_precinct: unassignedPrecinct ? 'true' : undefined,
       sort_by: sortBy,
@@ -278,7 +326,7 @@ export default function SupportersPage() {
   useEffect(() => {
     const timer = window.setTimeout(() => setVisibleRows(80), 0);
     return () => window.clearTimeout(timer);
-  }, [progressiveRenderingEnabled, page, debouncedSearch, effectiveVillageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, lifecycleFilter, unassignedPrecinct, sortBy, sortDir, perPage]);
+  }, [progressiveRenderingEnabled, page, debouncedSearch, effectiveVillageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, registeredStatusFilter, supportNeedFilter, lifecycleFilter, unassignedPrecinct, sortBy, sortDir, perPage]);
 
   useEffect(() => {
     if (!progressiveRenderingEnabled) return;
@@ -295,7 +343,7 @@ export default function SupportersPage() {
     const totalPages = data.pagination.pages;
     if (page < totalPages) {
       void queryClient.prefetchQuery({
-        queryKey: ['supporters', debouncedSearch, effectiveVillageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, lifecycleFilter, unassignedPrecinct, sortBy, sortDir, page + 1, perPage],
+        queryKey: ['supporters', debouncedSearch, effectiveVillageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, registeredStatusFilter, supportNeedFilter, lifecycleFilter, unassignedPrecinct, sortBy, sortDir, page + 1, perPage],
         queryFn: () => getSupporters({
           search: debouncedSearch,
           village_id: effectiveVillageFilter || undefined,
@@ -304,6 +352,8 @@ export default function SupportersPage() {
           opt_in_email: optInFilter === 'email' || optInFilter === 'both' ? 'true' : undefined,
           opt_in_text: optInFilter === 'text' || optInFilter === 'both' ? 'true' : undefined,
           verification_status: verificationFilter || undefined,
+          registered_voter_status: registeredStatusFilter || undefined,
+          support_need: supportNeedFilter || undefined,
           status: lifecycleFilter || undefined,
           unassigned_precinct: unassignedPrecinct ? 'true' : undefined,
           sort_by: sortBy,
@@ -313,7 +363,7 @@ export default function SupportersPage() {
         }),
       });
     }
-  }, [data, page, perPage, debouncedSearch, effectiveVillageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, lifecycleFilter, unassignedPrecinct, sortBy, sortDir, queryClient]);
+  }, [data, page, perPage, debouncedSearch, effectiveVillageFilter, precinctFilter, sourceFilter, optInFilter, verificationFilter, registeredStatusFilter, supportNeedFilter, lifecycleFilter, unassignedPrecinct, sortBy, sortDir, queryClient]);
 
   const assignPrecinctMutation = useMutation({
     mutationFn: ({ supporterId, precinctId }: { supporterId: number; precinctId: number }) =>
@@ -413,6 +463,8 @@ export default function SupportersPage() {
                 source: sourceFilter || undefined,
                 opt_in: optInFilter || undefined,
                 verification_status: verificationFilter || undefined,
+                registered_voter_status: registeredStatusFilter || undefined,
+                support_need: supportNeedFilter || undefined,
                 status: lifecycleFilter || undefined,
                 unassigned_precinct: unassignedPrecinct ? 'true' : undefined,
                 search: debouncedSearch || undefined,
@@ -510,6 +562,35 @@ export default function SupportersPage() {
             <option value="unverified">Needs voter review</option>
             <option value="verified">Matched to GEC</option>
             <option value="flagged">Flagged for review</option>
+          </select>
+          <select
+            value={registeredStatusFilter}
+            onChange={(e) => {
+              setRegisteredStatusFilter(e.target.value);
+              setPage(1);
+            }}
+            className="md:col-span-2 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-primary focus:border-transparent min-w-0"
+          >
+            <option value="">All self-reported voter status</option>
+            <option value="yes">Self-reported yes</option>
+            <option value="no">Self-reported no</option>
+            <option value="not_sure">Self-reported not sure</option>
+          </select>
+          <select
+            value={supportNeedFilter}
+            onChange={(e) => {
+              setSupportNeedFilter(e.target.value);
+              setPage(1);
+            }}
+            className="md:col-span-2 px-3 py-3 border border-[var(--border-soft)] rounded-xl bg-[var(--surface-raised)] text-[var(--text-primary)] focus:ring-2 focus:ring-primary focus:border-transparent min-w-0"
+          >
+            <option value="">All support requests</option>
+            <option value="registration">Registration help</option>
+            <option value="absentee">Absentee help</option>
+            <option value="homebound">Homebound help</option>
+            <option value="ride">Ride to polls</option>
+            <option value="volunteer">Volunteer</option>
+            <option value="any">Any help request</option>
           </select>
           <select
             value={lifecycleFilter}
@@ -642,6 +723,7 @@ export default function SupportersPage() {
                   <span>{s.contact_number}</span>
                 </div>
                 <div>{renderPrecinctAssignControl(s)}</div>
+                <div className="text-xs text-[var(--text-muted)]">{selfReportedStatusLabel(s)}</div>
                 {verificationStatusDetail(s) && (
                   <div className={`text-xs leading-5 ${
                     s.referred_from_village_id ? 'text-purple-700' : 'text-[var(--text-muted)]'
@@ -656,7 +738,13 @@ export default function SupportersPage() {
                   {s.motorcade_available && (
                     <span className="app-chip bg-cyan-100 text-cyan-700">Motorcade</span>
                   )}
-                  {!s.yard_sign && !s.motorcade_available && (
+                  {followUpResultLabel(s) && (
+                    <span className={`app-chip ${followUpResultClass(s)}`}>{followUpResultLabel(s)}</span>
+                  )}
+                  {supportRequestBadges(s).map((badge) => (
+                    <span key={`${s.id}-${badge}`} className="app-chip bg-yellow-100 text-yellow-800">{badge}</span>
+                  ))}
+                  {!s.yard_sign && !s.motorcade_available && !followUpResultLabel(s) && supportRequestBadges(s).length === 0 && (
                     <span className="text-xs text-[var(--text-muted)]">No extra flags</span>
                   )}
                 </div>
@@ -744,17 +832,29 @@ export default function SupportersPage() {
                       {s.motorcade_available && (
                         <span className="app-chip bg-cyan-100 text-cyan-700">Motorcade</span>
                       )}
-                      {!s.yard_sign && !s.motorcade_available && (
+                      {followUpResultLabel(s) && (
+                        <span className={`app-chip ${followUpResultClass(s)}`}>{followUpResultLabel(s)}</span>
+                      )}
+                      {supportRequestBadges(s).map((badge) => (
+                        <span key={`${s.id}-${badge}`} className="app-chip bg-yellow-100 text-yellow-800">{badge}</span>
+                      ))}
+                      {!s.yard_sign && !s.motorcade_available && !followUpResultLabel(s) && supportRequestBadges(s).length === 0 && (
                         <span className="text-xs text-[var(--text-muted)]">—</span>
                       )}
                     </div>
+                    <div className="mt-1 text-xs text-[var(--text-muted)]">{selfReportedStatusLabel(s)}</div>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    {s.registered_voter ? (
-                      <span className="text-green-600 font-medium">Yes</span>
-                    ) : (
-                      <span className="text-[var(--text-muted)]">No</span>
-                    )}
+                    <div className="space-y-1">
+                      {s.registered_voter ? (
+                        <span className="text-green-600 font-medium">Yes</span>
+                      ) : (
+                        <span className="text-[var(--text-muted)]">No</span>
+                      )}
+                      {s.registration_outreach_status === 'registered' && (
+                        <div className="text-xs text-green-700">Follow-up says registered</div>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span className={`app-chip ${

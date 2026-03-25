@@ -13,13 +13,26 @@
 class ReportGenerator
   REPORT_TYPES = %w[support_list purge_list transfer_list referral_list mapping_issues_list quota_summary].freeze
 
-  def initialize(report_type:, village_id: nil, precinct_id: nil, district_id: nil, campaign_id: nil, preview_limit: 100)
+  def initialize(
+    report_type:,
+    village_id: nil,
+    precinct_id: nil,
+    district_id: nil,
+    campaign_id: nil,
+    preview_limit: 100,
+    registered_voter_status: nil,
+    support_need: nil,
+    outreach_status: nil
+  )
     @report_type = report_type
     @village_id = village_id
     @precinct_id = precinct_id
     @district_id = district_id
     @campaign_id = campaign_id
     @preview_limit = preview_limit
+    @registered_voter_status = registered_voter_status
+    @support_need = support_need
+    @outreach_status = outreach_status
   end
 
   def generate
@@ -76,9 +89,80 @@ class ReportGenerator
     scope
   end
 
+  def apply_supporter_report_filters(scope)
+    scope = scope.where(registered_voter_status: @registered_voter_status) if @registered_voter_status.present?
+    scope = scope.where(registration_outreach_status: @outreach_status) if @outreach_status.present?
+    apply_support_need_filter(scope)
+  end
+
+  def apply_support_need_filter(scope)
+    case @support_need
+    when "registration"
+      scope.where(needs_voter_registration_help: true)
+    when "absentee"
+      scope.where(needs_absentee_ballot_help: true)
+    when "homebound"
+      scope.where(needs_homebound_voting_help: true)
+    when "ride"
+      scope.where(needs_election_day_ride: true)
+    when "volunteer"
+      scope.where(wants_to_volunteer: true)
+    when "any"
+      scope.needs_campaign_help
+    else
+      scope
+    end
+  end
+
+  def support_request_summary(supporter)
+    requests = []
+    requests << "Registration" if supporter.needs_voter_registration_help
+    requests << "Absentee" if supporter.needs_absentee_ballot_help
+    requests << "Homebound" if supporter.needs_homebound_voting_help
+    requests << "Ride" if supporter.needs_election_day_ride
+    requests << "Volunteer" if supporter.wants_to_volunteer
+    requests.join(", ").presence
+  end
+
+  def follow_up_result_label(status)
+    case status
+    when "registered"
+      "Registered via follow-up"
+    when "contacted"
+      "Contacted"
+    when "declined"
+      "Declined"
+    else
+      nil
+    end
+  end
+
+  def supporter_report_headers(base_headers)
+    base_headers + [
+      "Self-Reported Voter Status",
+      "Votes Elsewhere Note",
+      "Campaign Requests",
+      "Follow-Up Result",
+      "Referred By",
+      "Household Signup"
+    ]
+  end
+
+  def supporter_report_values(supporter)
+    [
+      supporter.registered_voter_status&.humanize,
+      supporter.registered_voter_location_note,
+      support_request_summary(supporter),
+      follow_up_result_label(supporter.registration_outreach_status),
+      supporter.referred_by_name,
+      supporter.household_group_id.present? ? "Yes" : nil
+    ]
+  end
+
   def support_list_scope
     scope = Supporter.official_supporters.includes(:village, :precinct, :entered_by)
-    apply_supporter_geography_filters(scope)
+    scope = apply_supporter_geography_filters(scope)
+    apply_supporter_report_filters(scope)
   end
 
   def transfer_scope
@@ -94,7 +178,7 @@ class ReportGenerator
     scope = scope.where(submitted_village_id: @village_id) if @village_id.present?
     scope = scope.joins(:village).where(villages: { district_id: @district_id }) if @district_id.present?
     scope = scope.where(precinct_id: @precinct_id) if @precinct_id.present?
-    scope
+    apply_supporter_report_filters(scope)
   end
 
   def mapping_issue_scope
@@ -145,9 +229,11 @@ class ReportGenerator
 
     package = Axlsx::Package.new
     wb = package.workbook
-    headers = [ "Last Name", "First Name", "DOB", "Phone", "Street Address",
-                "Village", "Precinct", "Voter Reg #", "Date Submitted",
-                "Submitted By", "Verification Status" ]
+    headers = supporter_report_headers([
+      "Last Name", "First Name", "DOB", "Phone", "Street Address",
+      "Village", "Precinct", "Voter Reg #", "Date Submitted",
+      "Submitted By", "Verification Status"
+    ])
 
     if @village_id.present?
       village = Village.find_by(id: @village_id) || raise(ArgumentError, "Village not found")
@@ -175,10 +261,11 @@ class ReportGenerator
           gec_match&.voter_registration_number,
           s.created_at&.strftime("%m/%d/%Y"),
           s.entered_by&.name || "System",
-          s.verification_status&.humanize
+          s.verification_status&.humanize,
+          *supporter_report_values(s)
         ]
       end
-      sheet.column_widths 15, 15, 12, 15, 25, 15, 10, 15, 12, 15, 15
+      sheet.column_widths 15, 15, 12, 15, 25, 15, 10, 15, 12, 15, 15, 18, 24, 24, 24, 18, 16
     end
   end
 
@@ -250,9 +337,11 @@ class ReportGenerator
 
     package = Axlsx::Package.new
     wb = package.workbook
-    headers = [ "Last Name", "First Name", "DOB", "Phone",
-                "Submitted Under", "Current Assigned Village",
-                "Submitted By", "Date", "Referral Reason" ]
+    headers = supporter_report_headers([
+      "Last Name", "First Name", "DOB", "Phone",
+      "Submitted Under", "Current Assigned Village",
+      "Submitted By", "Date", "Referral Reason"
+    ])
 
     wb.add_worksheet(name: "Referral List") do |sheet|
       sheet.add_row headers, style: header_style(wb)
@@ -264,10 +353,11 @@ class ReportGenerator
           s.village&.name || "Unknown",
           s.entered_by&.name || "System",
           s.created_at&.strftime("%m/%d/%Y"),
-          "Submitted under #{s.submitted_village&.name || 'Unknown'} but currently assigned to #{s.village&.name || 'Unknown'}"
+          "Submitted under #{s.submitted_village&.name || 'Unknown'} but currently assigned to #{s.village&.name || 'Unknown'}",
+          *supporter_report_values(s)
         ]
       end
-      sheet.column_widths 15, 15, 12, 15, 18, 18, 15, 12, 45
+      sheet.column_widths 15, 15, 12, 15, 18, 18, 15, 12, 45, 18, 24, 24, 24, 18, 16
     end
 
     { package: package, filename: "referral-list-#{date_today}.xlsx" }
@@ -403,16 +493,17 @@ class ReportGenerator
     gec_lookup = build_gec_lookup(rows)
 
     {
-      columns: [
+      columns: supporter_report_headers([
         "Last Name", "First Name", "DOB", "Phone", "Street Address",
         "Village", "Precinct", "Voter Reg #", "Date Submitted", "Submitted By", "Verification Status"
-      ],
+      ]),
       rows: rows.map do |s|
         gec_match = lookup_gec_voter(gec_lookup, s)
         [
           s.last_name, s.first_name, format_date(s.dob), s.contact_number, s.street_address,
           s.village&.name, s.precinct&.number, gec_match&.voter_registration_number,
-          format_date(s.created_at), s.entered_by&.name || "System", s.verification_status&.humanize
+          format_date(s.created_at), s.entered_by&.name || "System", s.verification_status&.humanize,
+          *supporter_report_values(s)
         ]
       end,
       total_count: total_count
@@ -460,12 +551,15 @@ class ReportGenerator
     rows = scope.limit(@preview_limit)
 
     {
-      columns: [ "Last Name", "First Name", "DOB", "Phone", "Submitted Under", "Current Assigned Village", "Submitted By", "Date", "Referral Reason" ],
+      columns: supporter_report_headers([
+        "Last Name", "First Name", "DOB", "Phone", "Submitted Under", "Current Assigned Village", "Submitted By", "Date", "Referral Reason"
+      ]),
       rows: rows.map do |s|
         [
           s.last_name, s.first_name, format_date(s.dob), s.contact_number,
           s.submitted_village&.name, s.village&.name || "Unknown", s.entered_by&.name || "System", format_date(s.created_at),
-          "Submitted under #{s.submitted_village&.name || 'Unknown'} but currently assigned to #{s.village&.name || 'Unknown'}"
+          "Submitted under #{s.submitted_village&.name || 'Unknown'} but currently assigned to #{s.village&.name || 'Unknown'}",
+          *supporter_report_values(s)
         ]
       end,
       total_count: total_count
