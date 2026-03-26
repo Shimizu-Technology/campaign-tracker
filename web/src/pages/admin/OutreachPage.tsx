@@ -127,7 +127,7 @@ export default function OutreachPage() {
   const params: Record<string, string | number> = { page, per_page: 50 };
   if (debouncedSearch) params.search = debouncedSearch;
   if (queueView) params.queue_view = queueView;
-  if (statusFilter && statusFilter !== 'not_contacted') {
+  if (statusFilter) {
     params.outreach_status = statusFilter;
   }
   if (effectiveVillageFilter) params.village_id = effectiveVillageFilter;
