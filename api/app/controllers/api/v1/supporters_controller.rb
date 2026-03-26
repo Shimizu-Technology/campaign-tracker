@@ -1569,9 +1569,7 @@ module Api
       def outreach_priority_label(supporter)
         return "Resolved" unless follow_up_open?(supporter)
         return "Registration Priority" if registration_follow_up_open?(supporter)
-        return "Support Help" if support_follow_up_open?(supporter)
-
-        "General Follow-Up"
+        "Support Help"
       end
 
       def outreach_reasons(supporter)
