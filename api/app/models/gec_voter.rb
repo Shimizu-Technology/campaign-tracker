@@ -231,6 +231,10 @@ class GecVoter < ApplicationRecord
       match_type: :name_year_only
     )
 
+    # NOTE: The fuzzy-match path requires pg_trgm GIN indexes on gec_voters.first_name
+    # and gec_voters.last_name for performance. Without them, this step does a full
+    # sequential scan for each birth_year group, which becomes expensive at scale.
+    # TODO: Add trigram indexes on gec_voters first_name/last_name for fuzzy batch path
     resolve_batch_matches!(results, unresolved,
       where_sql: <<~SQL.squish,
         supporter_lookups.birth_year IS NOT NULL

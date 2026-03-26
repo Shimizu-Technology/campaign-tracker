@@ -642,13 +642,16 @@ export default function SupportersPage() {
                   <span>{s.contact_number}</span>
                 </div>
                 <div>{renderPrecinctAssignControl(s)}</div>
-                {verificationStatusDetail(s) && (
-                  <div className={`text-xs leading-5 ${
-                    s.referred_from_village_id ? 'text-purple-700' : 'text-[var(--text-muted)]'
-                  }`}>
-                    {verificationStatusDetail(s)}
-                  </div>
-                )}
+                {(() => {
+                  const detail = verificationStatusDetail(s);
+                  return detail ? (
+                    <div className={`text-xs leading-5 ${
+                      s.referred_from_village_id ? 'text-purple-700' : 'text-[var(--text-muted)]'
+                    }`}>
+                      {detail}
+                    </div>
+                  ) : null;
+                })()}
                 <div className="flex items-center gap-2 pt-1">
                   {s.yard_sign && (
                     <span className="app-chip bg-amber-100 text-amber-700">Yard Sign</span>
@@ -777,15 +780,18 @@ export default function SupportersPage() {
                       }`}>
                         {verificationStatusLabel(s)}
                       </span>
-                      {verificationStatusDetail(s) && (
-                        <div
-                          title={verificationStatusDetail(s) || undefined}
-                          className={`text-xs whitespace-normal break-words leading-5 max-w-[300px] ${
-                          s.referred_from_village_id ? 'text-purple-700' : 'text-[var(--text-muted)]'
-                        }`}>
-                          {verificationStatusDetail(s)}
-                        </div>
-                      )}
+                      {(() => {
+                        const detail = verificationStatusDetail(s);
+                        return detail ? (
+                          <div
+                            title={detail}
+                            className={`text-xs whitespace-normal break-words leading-5 max-w-[300px] ${
+                            s.referred_from_village_id ? 'text-purple-700' : 'text-[var(--text-muted)]'
+                          }`}>
+                            {detail}
+                          </div>
+                        ) : null;
+                      })()}
                     </div>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
