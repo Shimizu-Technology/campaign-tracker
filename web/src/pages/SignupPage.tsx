@@ -140,11 +140,13 @@ export default function SignupPage() {
     e.preventDefault();
     signup.mutate({
       ...form,
+      registered_voter_location_note: form.registered_voter_status === 'yes' ? form.registered_voter_location_note : '',
       self_reported_registered_voter:
         form.registered_voter_status === 'yes' ? true : form.registered_voter_status === 'no' ? false : null,
       village_id: Number(form.village_id),
       household_members: form.household_members.map((member) => ({
         ...member,
+        registered_voter_location_note: member.registered_voter_status === 'yes' ? member.registered_voter_location_note : '',
         self_reported_registered_voter:
           member.registered_voter_status === 'yes' ? true : member.registered_voter_status === 'no' ? false : null,
       })),
@@ -152,13 +154,25 @@ export default function SignupPage() {
   };
 
   const updateField = <K extends keyof SignupForm>(field: K, value: SignupForm[K]) =>
-    setForm((prev) => ({ ...prev, [field]: value }));
+    setForm((prev) => {
+      const next = { ...prev, [field]: value };
+      if (field === 'registered_voter_status' && value !== 'yes') {
+        next.registered_voter_location_note = '';
+      }
+      return next;
+    });
 
   const updateHouseholdMember = <K extends keyof HouseholdMemberForm>(index: number, field: K, value: HouseholdMemberForm[K]) => {
     setForm((prev) => ({
       ...prev,
       household_members: prev.household_members.map((member, memberIndex) => (
-        memberIndex === index ? { ...member, [field]: value } : member
+        memberIndex === index
+          ? {
+              ...member,
+              [field]: value,
+              ...(field === 'registered_voter_status' && value !== 'yes' ? { registered_voter_location_note: '' } : {}),
+            }
+          : member
       )),
     }));
   };
