@@ -608,16 +608,21 @@ module Api
         allowed_statuses = %w[contacted registered declined]
 
         updates = {}
-        if params[:registration_outreach_status].present?
-          unless allowed_statuses.include?(params[:registration_outreach_status])
-            return render_api_error(
-              message: "Invalid outreach status. Must be: #{allowed_statuses.join(', ')}",
-              status: :unprocessable_entity,
-              code: "invalid_outreach_status"
-            )
+        if params.key?(:registration_outreach_status)
+          if params[:registration_outreach_status].present?
+            unless allowed_statuses.include?(params[:registration_outreach_status])
+              return render_api_error(
+                message: "Invalid outreach status. Must be: #{allowed_statuses.join(', ')}",
+                status: :unprocessable_entity,
+                code: "invalid_outreach_status"
+              )
+            end
+            updates[:registration_outreach_status] = params[:registration_outreach_status]
+            updates[:registration_outreach_date] = Time.current
+          else
+            updates[:registration_outreach_status] = nil
+            updates[:registration_outreach_date] = nil
           end
-          updates[:registration_outreach_status] = params[:registration_outreach_status]
-          updates[:registration_outreach_date] = Time.current
         end
 
         updates[:registration_outreach_notes] = params[:registration_outreach_notes] if params.key?(:registration_outreach_notes)

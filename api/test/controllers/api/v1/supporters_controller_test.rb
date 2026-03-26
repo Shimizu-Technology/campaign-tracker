@@ -452,6 +452,35 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal false, supporter.registered_voter
   end
 
+  test "outreach status can be reset back to not contacted" do
+    supporter = Supporter.create!(
+      first_name: "Outreach",
+      last_name: "Reset",
+      print_name: "Reset, Outreach",
+      contact_number: "67155580171",
+      village: @village,
+      source: "staff_entry",
+      review_status: "approved",
+      public_review_status: "not_applicable",
+      status: "active",
+      registered_voter: false,
+      registered_voter_status: "no",
+      registration_outreach_status: "contacted",
+      registration_outreach_date: Time.current,
+      registration_outreach_notes: "Left voicemail"
+    )
+
+    patch "/api/v1/supporters/#{supporter.id}/outreach_status",
+      params: { registration_outreach_status: nil },
+      headers: auth_headers(@user)
+
+    assert_response :success
+    supporter.reload
+    assert_nil supporter.registration_outreach_status
+    assert_nil supporter.registration_outreach_date
+    assert_equal "Left voicemail", supporter.registration_outreach_notes
+  end
+
   test "partial supporter update preserves Becky voter status fields when none are submitted" do
     supporter = Supporter.create!(
       first_name: "Preserve",
@@ -658,6 +687,49 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "pending", payload.dig("supporter", "review_status")
     assert_equal true, payload.dig("supporter", "self_reported_registered_voter")
     assert_equal staff_user.id, Supporter.find(payload.dig("supporter", "id")).entered_by_user_id
+  end
+
+  test "create with staff entry mode persists Becky intake fields" do
+    staff_user = User.create!(
+      clerk_id: "clerk-staff-becky",
+      email: "staff-becky@example.com",
+      name: "Staff Becky User",
+      role: "block_leader",
+      assigned_village_id: @village.id
+    )
+
+    post "/api/v1/supporters?entry_mode=staff",
+      params: {
+        supporter: {
+          first_name: "Staff",
+          last_name: "Becky",
+          print_name: "Becky, Staff",
+          contact_number: "6715558002",
+          village_id: @village.id,
+          registered_voter_status: "yes",
+          registered_voter_location_note: "Barrigada precinct",
+          referred_by_name: "Neighbor Nora",
+          wants_to_volunteer: true,
+          needs_absentee_ballot_help: true,
+          needs_homebound_voting_help: false,
+          needs_voter_registration_help: true,
+          needs_election_day_ride: true
+        }
+      },
+      headers: auth_headers(staff_user)
+
+    assert_response :created
+    payload = JSON.parse(response.body)
+    supporter = Supporter.find(payload.dig("supporter", "id"))
+
+    assert_equal "yes", supporter.registered_voter_status
+    assert_equal true, supporter.self_reported_registered_voter
+    assert_equal "Barrigada precinct", supporter.registered_voter_location_note
+    assert_equal "Neighbor Nora", supporter.referred_by_name
+    assert_equal true, supporter.wants_to_volunteer
+    assert_equal true, supporter.needs_absentee_ballot_help
+    assert_equal true, supporter.needs_voter_registration_help
+    assert_equal true, supporter.needs_election_day_ride
   end
 
   test "accepting public signup preserves origin and marks supporter accepted" do

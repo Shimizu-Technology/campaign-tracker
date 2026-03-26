@@ -157,7 +157,7 @@ export default function OutreachPage() {
   const updateMutation = useMutation({
     mutationFn: ({ id, status, notes }: { id: number; status?: string; notes?: string }) => {
       const payload: Record<string, unknown> = {};
-      if (status) payload.registration_outreach_status = status;
+      if (status !== undefined) payload.registration_outreach_status = status === '' ? null : status;
       if (notes !== undefined) payload.registration_outreach_notes = notes;
       return updateOutreachStatus(id, payload);
     },

@@ -10,6 +10,8 @@ interface Village {
   name: string;
 }
 
+type RegisteredVoterStatus = 'yes' | 'no' | 'not_sure';
+
 type StaffForm = {
   first_name: string;
   middle_name: string;
@@ -19,7 +21,14 @@ type StaffForm = {
   dob: string;
   street_address: string;
   village_id: string;
-  registered_voter: boolean;
+  registered_voter_status: RegisteredVoterStatus;
+  registered_voter_location_note: string;
+  referred_by_name: string;
+  wants_to_volunteer: boolean;
+  needs_absentee_ballot_help: boolean;
+  needs_homebound_voting_help: boolean;
+  needs_voter_registration_help: boolean;
+  needs_election_day_ride: boolean;
   yard_sign: boolean;
   motorcade_available: boolean;
   opt_in_email: boolean;
@@ -46,6 +55,20 @@ type SaveFeedback = {
   verificationStatus: 'unverified' | 'verified' | 'flagged' | string;
 };
 
+const SUPPORT_NEED_OPTIONS = [
+  { key: 'wants_to_volunteer', label: 'Get involved in the campaign' },
+  { key: 'needs_absentee_ballot_help', label: 'Absentee ballot help' },
+  { key: 'needs_homebound_voting_help', label: 'Homebound voting help' },
+  { key: 'needs_voter_registration_help', label: 'Register to vote help' },
+  { key: 'needs_election_day_ride', label: 'Ride to the polls' },
+] as const;
+
+function voterStatusChipClass(active: boolean) {
+  return active
+    ? 'border-primary bg-primary text-white'
+    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300';
+}
+
 const emptyForm = {
   first_name: '',
   middle_name: '',
@@ -55,7 +78,14 @@ const emptyForm = {
   dob: '',
   street_address: '',
   village_id: '',
-  registered_voter: true,
+  registered_voter_status: 'not_sure' as RegisteredVoterStatus,
+  registered_voter_location_note: '',
+  referred_by_name: '',
+  wants_to_volunteer: false,
+  needs_absentee_ballot_help: false,
+  needs_homebound_voting_help: false,
+  needs_voter_registration_help: false,
+  needs_election_day_ride: false,
   yard_sign: false,
   motorcade_available: false,
   opt_in_email: false,
@@ -156,7 +186,10 @@ export default function StaffEntryPage() {
         if (data.email) { updates.email = data.email; filled.add('email'); }
         if (data.dob) { updates.dob = data.dob; filled.add('dob'); }
         if (data.street_address) { updates.street_address = data.street_address; filled.add('street_address'); }
-        if (data.registered_voter != null) { updates.registered_voter = data.registered_voter; filled.add('registered_voter'); }
+        if (data.registered_voter != null) {
+          updates.registered_voter_status = data.registered_voter ? 'yes' : 'no';
+          filled.add('registered_voter_status');
+        }
         if (data.yard_sign != null) { updates.yard_sign = data.yard_sign; filled.add('yard_sign'); }
         if (data.motorcade_available != null) { updates.motorcade_available = data.motorcade_available; filled.add('motorcade_available'); }
 
@@ -214,14 +247,22 @@ export default function StaffEntryPage() {
     e.preventDefault();
     submit.mutate({
       ...form,
-      self_reported_registered_voter: form.registered_voter,
+      registered_voter_location_note: form.registered_voter_status === 'yes' ? form.registered_voter_location_note : '',
+      self_reported_registered_voter:
+        form.registered_voter_status === 'yes' ? true : form.registered_voter_status === 'no' ? false : null,
       contact_number: form.contact_number.trim() || null,
       village_id: Number(form.village_id),
     });
   };
 
   const updateField = <K extends keyof StaffForm>(field: K, value: StaffForm[K]) => {
-    setForm(prev => ({ ...prev, [field]: value }));
+    setForm(prev => {
+      const next = { ...prev, [field]: value };
+      if (field === 'registered_voter_status' && value !== 'yes') {
+        next.registered_voter_location_note = '';
+      }
+      return next;
+    });
     if (saveFeedback) setSaveFeedback(null);
     // Clear scan highlight when user edits
     setScannedFields(prev => { const next = new Set(prev); next.delete(field); return next; });
@@ -460,12 +501,74 @@ export default function StaffEntryPage() {
           />
         </div>
 
-        {/* Checkboxes */}
+        <div className="space-y-3 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-raised)] p-4">
+          <div>
+            <p className="text-sm font-medium text-[var(--text-primary)]">Self-reported voter status</p>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">Capture what the supporter says, even if the GEC check later disagrees.</p>
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+            {[
+              { value: 'yes' as const, label: 'Yes, registered' },
+              { value: 'no' as const, label: 'No, not registered' },
+              { value: 'not_sure' as const, label: 'Not sure' },
+            ].map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => updateField('registered_voter_status', option.value)}
+                className={`min-h-[44px] rounded-xl border px-4 py-3 text-sm font-semibold transition ${voterStatusChipClass(form.registered_voter_status === option.value)}`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+          {form.registered_voter_status === 'yes' && (
+            <div>
+              <label className="mb-1 block text-sm font-medium text-[var(--text-primary)]">If registered somewhere else, where?</label>
+              <input
+                type="text"
+                value={form.registered_voter_location_note}
+                onChange={e => updateField('registered_voter_location_note', e.target.value)}
+                className={inputClass('registered_voter_location_note')}
+                placeholder="Optional note"
+              />
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-3 rounded-xl border border-[var(--border-soft)] bg-[var(--surface-raised)] p-4">
+          <div>
+            <p className="text-sm font-medium text-[var(--text-primary)]">Support requests</p>
+            <p className="mt-1 text-xs text-[var(--text-muted)]">Track any campaign or voter help this supporter asked for.</p>
+          </div>
+          <div className="space-y-3">
+            {SUPPORT_NEED_OPTIONS.map((option) => (
+              <label key={option.key} className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={form[option.key]}
+                  onChange={e => updateField(option.key, e.target.checked)}
+                  className="h-5 w-5 rounded text-primary"
+                />
+                <span className="text-[var(--text-primary)]">{option.label}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">Who referred them?</label>
+          <input
+            type="text"
+            value={form.referred_by_name}
+            onChange={e => updateField('referred_by_name', e.target.value)}
+            className={inputClass('referred_by_name')}
+            placeholder="Optional name"
+          />
+        </div>
+
+        {/* Campaign flags */}
         <div className="space-y-3 py-2">
-          <label className="flex items-center gap-3">
-            <input type="checkbox" checked={form.registered_voter} onChange={e => updateField('registered_voter', e.target.checked)} className="w-5 h-5 rounded text-primary" />
-            <span className="text-[var(--text-primary)]">Self-reported registered voter</span>
-          </label>
           <label className="flex items-center gap-3">
             <input type="checkbox" checked={form.yard_sign} onChange={e => updateField('yard_sign', e.target.checked)} className="w-5 h-5 rounded text-primary" />
             <span className="text-[var(--text-primary)]">Yard Sign</span>
