@@ -414,7 +414,7 @@ export default function OutreachPage() {
                       <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
                         <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Household / referral</div>
                         <div className="mt-1 text-sm text-gray-700">
-                          {supporter.household_member_count && supporter.household_member_count > 1 ? `Household ${supporter.household_member_count}` : 'Single supporter'}
+                          {(supporter.household_member_count || 0) > 0 ? `${supporter.household_member_count} linked supporter${supporter.household_member_count === 1 ? '' : 's'}` : 'Single supporter'}
                         </div>
                         <div className="mt-1 text-xs text-gray-500">
                           {supporter.referred_by_name ? `Referred by ${supporter.referred_by_name}` : 'No referral note'}

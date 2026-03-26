@@ -254,9 +254,9 @@ export default function TeamPublicReviewPage() {
                           Votes elsewhere: {s.registered_voter_location_note as string}
                         </div>
                       )}
-                      {Number(s.household_member_count || 0) > 1 && (
+                      {Number(s.household_member_count || 0) > 0 && (
                         <div className="text-xs text-indigo-600">
-                          Household signup ({s.household_member_count as number} supporters)
+                          Household signup ({s.household_member_count as number} linked supporter{Number(s.household_member_count || 0) === 1 ? '' : 's'})
                         </div>
                       )}
                     </div>

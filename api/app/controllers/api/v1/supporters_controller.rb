@@ -88,6 +88,8 @@ module Api
           end
         rescue ActiveRecord::RecordInvalid => e
           return render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+        rescue ActiveRecord::StatementInvalid
+          return render json: { errors: [ "Could not save this household signup. Please review the submission and try again." ] }, status: :unprocessable_entity
         end
 
         supporter = created_supporters.first
@@ -1558,11 +1560,14 @@ module Api
         group = supporter.household_group
         return 0 unless group.present?
 
-        if supporter.association(:household_group).loaded? && group.association(:supporters).loaded?
-          group.supporters.size
-        else
-          group.supporters.count
-        end
+        linked_supporter_count =
+          if supporter.association(:household_group).loaded? && group.association(:supporters).loaded?
+            group.supporters.size
+          else
+            group.supporters.count
+          end
+
+        [ linked_supporter_count - 1, 0 ].max
       end
 
       def verification_update_attributes(supporter, new_status, match_payload: nil)

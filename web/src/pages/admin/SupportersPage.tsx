@@ -201,7 +201,7 @@ function supportRequestBadges(supporter: Pick<SupporterItem, 'needs_voter_regist
   if (supporter.needs_homebound_voting_help) badges.push('Homebound');
   if (supporter.needs_election_day_ride) badges.push('Ride');
   if (supporter.wants_to_volunteer) badges.push('Volunteer');
-  if ((supporter.household_member_count || 0) > 1) badges.push(`Household ${supporter.household_member_count}`);
+  if ((supporter.household_member_count || 0) > 0) badges.push(`Household +${supporter.household_member_count}`);
   return badges;
 }
 

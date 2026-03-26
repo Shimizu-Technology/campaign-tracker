@@ -835,10 +835,10 @@ export default function TeamVettingPage() {
                         {supporter.registered_voter_location_note ? ` · Votes elsewhere: ${supporter.registered_voter_location_note}` : ''}
                       </div>
 
-                      {(Boolean(supporter.referred_by_name) || Number(supporter.household_member_count || 0) > 1) && (
+                      {(Boolean(supporter.referred_by_name) || Number(supporter.household_member_count || 0) > 0) && (
                         <div className="mt-1 text-xs text-indigo-700">
                           {supporter.referred_by_name ? `Referred by: ${supporter.referred_by_name}` : 'Household signup'}
-                          {Number(supporter.household_member_count || 0) > 1 ? ` · Household size: ${supporter.household_member_count}` : ''}
+                          {Number(supporter.household_member_count || 0) > 0 ? ` · Linked supporters: ${supporter.household_member_count}` : ''}
                         </div>
                       )}
 

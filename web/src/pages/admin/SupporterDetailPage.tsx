@@ -1284,7 +1284,7 @@ export default function SupporterDetailPage() {
                   {supporter.household_primary ? 'Primary household contact' : 'Household member'}
                 </span>
                 <span className="text-sm text-[var(--text-secondary)]">
-                  {Math.max((supporter.household_member_count || 0) - 1, 0)} linked supporter{Math.max((supporter.household_member_count || 0) - 1, 0) === 1 ? '' : 's'} in this household group.
+                  {supporter.household_member_count || 0} linked supporter{(supporter.household_member_count || 0) === 1 ? '' : 's'} in this household group.
                 </span>
               </div>
               {supporter.household_members && supporter.household_members.length > 0 ? (

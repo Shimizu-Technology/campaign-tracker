@@ -393,6 +393,40 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal true, household_members.last.needs_voter_registration_help
   end
 
+  test "public create returns validation-style error when household group creation hits a db constraint failure" do
+    controller_class = Api::V1::SupportersController
+    original_build_household_group = controller_class.instance_method(:build_household_group)
+
+    controller_class.define_method(:build_household_group) do |_primary_attributes, _household_members|
+      raise ActiveRecord::StatementInvalid, "constraint failure"
+    end
+
+    post "/api/v1/supporters",
+      params: {
+        supporter: {
+          first_name: "Primary",
+          last_name: "Constraint",
+          print_name: "Constraint, Primary",
+          contact_number: "6715558018",
+          village_id: @village.id,
+          registered_voter_status: "yes",
+          household_members: [
+            {
+              first_name: "Second",
+              last_name: "Constraint",
+              registered_voter_status: "no"
+            }
+          ]
+        }
+      }
+
+    assert_response :unprocessable_entity
+    payload = JSON.parse(response.body)
+    assert_includes payload["errors"], "Could not save this household signup. Please review the submission and try again."
+  ensure
+    controller_class.define_method(:build_household_group, original_build_household_group)
+  end
+
   test "outreach status registered does not mark supporter as GEC found" do
     supporter = Supporter.create!(
       first_name: "Outreach",
@@ -980,6 +1014,39 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal true, payload.dig("permissions", "can_edit")
     assert_equal "district_coordinator", payload.dig("audit_logs", 0, "actor_role")
     assert_equal "Supporter updated", payload.dig("audit_logs", 0, "action_label")
+  end
+
+  test "show returns household member count excluding the current supporter" do
+    household_group = HouseholdGroup.create!(village: @village)
+    primary = Supporter.create!(
+      first_name: "Primary",
+      last_name: "Counted",
+      print_name: "Counted, Primary",
+      contact_number: "6715559445",
+      village: @village,
+      source: "staff_entry",
+      status: "active",
+      household_group: household_group,
+      household_primary: true
+    )
+    member = Supporter.create!(
+      first_name: "Second",
+      last_name: "Counted",
+      print_name: "Counted, Second",
+      contact_number: "6715559446",
+      village: @village,
+      source: "staff_entry",
+      status: "active",
+      household_group: household_group,
+      household_primary: false
+    )
+
+    get "/api/v1/supporters/#{primary.id}", headers: auth_headers(@user)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal 1, payload.dig("supporter", "household_member_count")
+    assert_equal [ member.id ], payload.dig("supporter", "household_members").map { |item| item["id"] }
   end
 
   test "show derives flagged reason detail for legacy supporter without persisted reason" do
