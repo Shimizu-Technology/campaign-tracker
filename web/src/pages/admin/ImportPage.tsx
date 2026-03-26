@@ -264,7 +264,7 @@ export default function ImportPage() {
 
   return (
     <WorkspacePage width="full" className="space-y-6">
-      <DataOpsImportBanner />
+      {location.pathname.startsWith('/admin') && sessionData?.permissions?.can_access_data_team && <DataOpsImportBanner />}
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Import Supporters</h1>

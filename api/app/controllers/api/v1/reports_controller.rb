@@ -6,7 +6,7 @@ module Api
       include Authenticatable
       include AuditLoggable
       before_action :authenticate_request
-      before_action :require_data_ops_access!
+      before_action :require_reports_access!
 
       # GET /api/v1/reports/:report_type
       # Generate and download an Excel report.
@@ -15,6 +15,8 @@ module Api
       #   village_id (optional): filter to a specific village
       def show
         report_type = params[:report_type]
+        report_filters = resolved_report_filters
+        return if performed?
 
         unless ReportGenerator::REPORT_TYPES.include?(report_type)
           return render_api_error(
@@ -24,15 +26,24 @@ module Api
           )
         end
 
+        unless allowed_report_types.include?(report_type)
+          return render_api_error(
+            message: "Report access denied for type: #{report_type}",
+            status: :forbidden,
+            code: "report_type_access_denied"
+          )
+        end
+
         generator = ReportGenerator.new(
           report_type: report_type,
-          village_id: params[:village_id],
-          precinct_id: params[:precinct_id],
-          district_id: params[:district_id],
+          village_id: report_filters[:village_id],
+          precinct_id: report_filters[:precinct_id],
+          district_id: report_filters[:district_id],
           campaign_id: params[:campaign_id],
           registered_voter_status: params[:registered_voter_status],
           support_need: params[:support_need],
-          outreach_status: params[:outreach_status]
+          registration_outreach_status: params[:registration_outreach_status] || params[:outreach_status],
+          support_follow_up_status: params[:support_follow_up_status]
         )
 
         begin
@@ -48,12 +59,13 @@ module Api
 
         log_audit!(nil, action: "report_generated", changed_data: {
           "report_type" => report_type,
-          "village_id" => params[:village_id],
-          "district_id" => params[:district_id],
-          "precinct_id" => params[:precinct_id],
+          "village_id" => report_filters[:village_id],
+          "district_id" => report_filters[:district_id],
+          "precinct_id" => report_filters[:precinct_id],
           "registered_voter_status" => params[:registered_voter_status],
           "support_need" => params[:support_need],
-          "outreach_status" => params[:outreach_status],
+          "registration_outreach_status" => params[:registration_outreach_status] || params[:outreach_status],
+          "support_follow_up_status" => params[:support_follow_up_status],
           "filename" => result[:filename]
         })
 
@@ -66,6 +78,8 @@ module Api
       # GET /api/v1/reports/:report_type/preview
       def preview
         report_type = params[:report_type]
+        report_filters = resolved_report_filters
+        return if performed?
 
         unless ReportGenerator::REPORT_TYPES.include?(report_type)
           return render_api_error(
@@ -75,16 +89,25 @@ module Api
           )
         end
 
+        unless allowed_report_types.include?(report_type)
+          return render_api_error(
+            message: "Report access denied for type: #{report_type}",
+            status: :forbidden,
+            code: "report_type_access_denied"
+          )
+        end
+
         generator = ReportGenerator.new(
           report_type: report_type,
-          village_id: params[:village_id],
-          precinct_id: params[:precinct_id],
-          district_id: params[:district_id],
+          village_id: report_filters[:village_id],
+          precinct_id: report_filters[:precinct_id],
+          district_id: report_filters[:district_id],
           campaign_id: params[:campaign_id],
           preview_limit: (params[:limit] || 100).to_i.clamp(1, 250),
           registered_voter_status: params[:registered_voter_status],
           support_need: params[:support_need],
-          outreach_status: params[:outreach_status]
+          registration_outreach_status: params[:registration_outreach_status] || params[:outreach_status],
+          support_follow_up_status: params[:support_follow_up_status]
         )
 
         begin
@@ -101,12 +124,13 @@ module Api
         render json: result.merge(
           report_type: report_type,
           filters: {
-            village_id: params[:village_id],
-            precinct_id: params[:precinct_id],
-            district_id: params[:district_id],
+            village_id: report_filters[:village_id],
+            precinct_id: report_filters[:precinct_id],
+            district_id: report_filters[:district_id],
             registered_voter_status: params[:registered_voter_status],
             support_need: params[:support_need],
-            outreach_status: params[:outreach_status]
+            registration_outreach_status: params[:registration_outreach_status] || params[:outreach_status],
+            support_follow_up_status: params[:support_follow_up_status]
           }
         )
       end
@@ -114,6 +138,7 @@ module Api
       # GET /api/v1/reports
       # List available report types with current counts
       def index
+        available_report_types = allowed_report_types
         latest_gec = GecVoter.maximum(:gec_list_date)
         latest_import = GecImport.completed.latest.first
         current_period = CampaignCycle.current_quota_period
@@ -122,9 +147,37 @@ module Api
           .where.not(previous_village_name: GecImportService::UNASSIGNED_VILLAGE_NAME)
         mapping_issues = GecVoter.transferred.where(village_name: GecImportService::UNASSIGNED_VILLAGE_NAME)
           .or(GecVoter.transferred.where(previous_village_name: GecImportService::UNASSIGNED_VILLAGE_NAME))
+        supporter_scope = scoped_report_supporters
+        quick_stats = {
+          official_supporters: supporter_scope.count,
+          matched_to_gec: supporter_scope.verified.count,
+          current_quota_progress: current_period&.total_assigned.to_i,
+          current_quota_target: current_period&.effective_quota_target.to_i,
+          quota_eligible: scope_supporters(Supporter.quota_eligible).count,
+          total_verified: supporter_scope.verified.count,
+          total_active: supporter_scope.count,
+          public_signups: scope_supporters(Supporter.active.public_signups).count,
+          unregistered: supporter_scope.where(registered_voter: false).count,
+          referral_list_size: scope_supporters(Supporter.working_supporters.submitted_village_referrals).count,
+          transfer_list_size: 0,
+          mapping_issues_list_size: 0,
+          transfers: 0,
+          purge_list_size: 0,
+          latest_import_removed_voters: 0
+        }
+
+        if full_report_access?
+          quick_stats.merge!(
+            transfer_list_size: village_changes.count,
+            mapping_issues_list_size: mapping_issues.count,
+            transfers: village_changes.count,
+            purge_list_size: GecVoter.where(status: "removed").count,
+            latest_import_removed_voters: latest_import&.removed_records.to_i
+          )
+        end
 
         render json: {
-          available_reports: ReportGenerator::REPORT_TYPES.map do |rt|
+          available_reports: available_report_types.map do |rt|
             {
               type: rt,
               name: report_name(rt),
@@ -133,27 +186,14 @@ module Api
           end,
           latest_gec_list_date: latest_gec,
           gec_data_loaded: GecVoter.active.any?,
-          quick_stats: {
-            official_supporters: Supporter.working_supporters.count,
-            matched_to_gec: Supporter.working_supporters.verified.count,
-            current_quota_progress: current_period&.total_assigned.to_i,
-            current_quota_target: current_period&.effective_quota_target.to_i,
-            quota_eligible: Supporter.quota_eligible.count,
-            total_verified: Supporter.working_supporters.verified.count,
-            total_active: Supporter.working_supporters.count,
-            public_signups: Supporter.active.public_signups.count,
-            unregistered: Supporter.working_supporters.where(registered_voter: false).count,
-            transfer_list_size: village_changes.count,
-            referral_list_size: Supporter.working_supporters.submitted_village_referrals.count,
-            mapping_issues_list_size: mapping_issues.count,
-            transfers: village_changes.count,
-            purge_list_size: GecVoter.where(status: "removed").count,
-            latest_import_removed_voters: latest_import&.removed_records.to_i
-          }
+          quick_stats: quick_stats
         }
       end
 
       private
+
+      FULL_REPORT_TYPES = ReportGenerator::REPORT_TYPES
+      COORDINATOR_REPORT_TYPES = %w[support_list referral_list quota_summary].freeze
 
       def report_name(type)
         case type
@@ -181,6 +221,59 @@ module Api
         when "quota_summary"
           "Per-village quota progress for the current period with official totals and status"
         end
+      end
+
+      def allowed_report_types
+        return FULL_REPORT_TYPES if full_report_access?
+        return COORDINATOR_REPORT_TYPES if current_user&.coordinator?
+
+        []
+      end
+
+      def full_report_access?
+        current_user&.admin? || current_user&.data_team?
+      end
+
+      def scoped_report_supporters
+        scope = scope_supporters(Supporter.working_supporters)
+        if current_user&.coordinator? && current_user.assigned_district_id.present?
+          scope = scope.joins(:village).where(villages: { district_id: current_user.assigned_district_id })
+        end
+        scope
+      end
+
+      def resolved_report_filters
+        village_id = params[:village_id].presence
+        precinct_id = params[:precinct_id].presence
+        district_id = params[:district_id].presence
+        return { village_id: village_id, precinct_id: precinct_id, district_id: district_id } unless current_user&.coordinator?
+
+        if current_user.assigned_district_id.present?
+          if district_id.present? && district_id.to_i != current_user.assigned_district_id
+            render_api_error(message: "District not in your assigned scope", status: :forbidden, code: "district_scope_denied")
+            return {}
+          end
+
+          if village_id.present?
+            village = Village.find_by(id: village_id)
+            if village.blank? || village.district_id != current_user.assigned_district_id
+              render_api_error(message: "Village not in your assigned scope", status: :forbidden, code: "village_scope_denied")
+              return {}
+            end
+          end
+
+          if precinct_id.present?
+            precinct = Precinct.find_by(id: precinct_id)
+            if precinct.blank? || precinct.village_id.blank? || !Village.where(id: precinct.village_id, district_id: current_user.assigned_district_id).exists?
+              render_api_error(message: "Precinct not in your assigned scope", status: :forbidden, code: "precinct_scope_denied")
+              return {}
+            end
+          end
+
+          district_id ||= current_user.assigned_district_id
+        end
+
+        { village_id: village_id, precinct_id: precinct_id, district_id: district_id }
       end
     end
   end

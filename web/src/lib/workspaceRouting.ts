@@ -7,6 +7,7 @@ type SessionLike = Pick<SessionResponse, 'user' | 'permissions'>;
 type PermissionKey =
   | 'can_view_supporters'
   | 'can_create_staff_supporters'
+  | 'can_import_supporters'
   | 'can_access_duplicates'
   | 'can_access_events'
   | 'can_access_qr'
@@ -31,7 +32,9 @@ type PermissionRule = {
 const PERMISSION_RULES: PermissionRule[] = [
   { prefix: '/admin/supporters/new', permission: 'can_create_staff_supporters' },
   { prefix: '/admin/scan', permission: 'can_create_staff_supporters' },
+  { prefix: '/admin/import', permission: 'can_import_supporters' },
   { prefix: '/admin/supporters', permission: 'can_view_supporters' },
+  { prefix: '/admin/reports', permission: 'can_access_reports' },
   { prefix: '/admin/duplicates', permission: 'can_access_duplicates' },
   { prefix: '/admin/events', permission: 'can_access_events' },
   { prefix: '/admin/qr', permission: 'can_access_qr' },
@@ -54,6 +57,7 @@ const PERMISSION_RULES: PermissionRule[] = [
   { prefix: '/data/campaign-settings', permission: 'can_manage_configuration' },
   { prefix: '/data/supporters', permission: 'can_view_supporters' },
   { prefix: '/data/reports', permission: 'can_access_reports' },
+  { prefix: '/data/import', permission: 'can_import_supporters' },
   { prefix: '/data/public-review', permission: 'can_review_public' },
   { prefix: '/data/gec', permission: 'can_upload_gec' },
 ];
@@ -93,7 +97,6 @@ export function canonicalizeWorkspaceRoute(route: string) {
   if (pathname.startsWith('/team/')) {
     return `/data/${pathname.slice('/team/'.length)}${search}`;
   }
-  if (pathname === '/admin/import') return `/data/import${search}`;
   if (pathname === '/admin/vetting') return `/data/vetting${search}`;
 
   return `${pathname}${search}`;

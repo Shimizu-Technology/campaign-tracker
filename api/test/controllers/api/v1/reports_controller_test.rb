@@ -2,13 +2,17 @@ require "test_helper"
 
 class Api::V1::ReportsControllerTest < ActionDispatch::IntegrationTest
   setup do
-    @village = Village.find_or_create_by!(name: "Barrigada")
-    @other_village = Village.find_or_create_by!(name: "Dededo")
     @campaign = Campaign.create!(
       name: "Reports Campaign",
       election_year: Date.current.year,
       status: "active"
     )
+    @district = District.create!(name: "Northern", campaign: @campaign)
+    @other_district = District.create!(name: "Central", campaign: @campaign)
+    @village = Village.find_or_create_by!(name: "Barrigada")
+    @village.update!(district: @district)
+    @other_village = Village.find_or_create_by!(name: "Dededo")
+    @other_village.update!(district: @other_district)
     Quota.create!(
       campaign: @campaign,
       village: @village,
@@ -26,6 +30,13 @@ class Api::V1::ReportsControllerTest < ActionDispatch::IntegrationTest
       email: "report-data-team-#{SecureRandom.hex(4)}@example.com",
       name: "Report Data Team",
       role: "data_team"
+    )
+    @coordinator = User.create!(
+      clerk_id: "clerk-report-coordinator-#{SecureRandom.hex(4)}",
+      email: "report-coordinator-#{SecureRandom.hex(4)}@example.com",
+      name: "Report Coordinator",
+      role: "district_coordinator",
+      assigned_district_id: @district.id
     )
 
     @cycle = CampaignCycle.create!(
@@ -161,7 +172,7 @@ class Api::V1::ReportsControllerTest < ActionDispatch::IntegrationTest
       params: {
         registered_voter_status: "yes",
         support_need: "registration",
-        outreach_status: "registered"
+        registration_outreach_status: "registered"
       },
       headers: auth_headers(@admin)
 
@@ -169,14 +180,39 @@ class Api::V1::ReportsControllerTest < ActionDispatch::IntegrationTest
     json = JSON.parse(response.body)
     assert_equal 1, json["total_count"]
     assert_equal "Test", json["rows"].first[1]
-    assert_includes json["columns"], "Follow-Up Result"
-    assert_equal "registered", json.dig("filters", "outreach_status")
+    assert_includes json["columns"], "Registration Follow-Up Result"
+    assert_equal "registered", json.dig("filters", "registration_outreach_status")
   end
 
   test "data team can access reports" do
     get "/api/v1/reports", headers: auth_headers(@data_team)
 
     assert_response :success
+  end
+
+  test "district coordinator can access limited reports only" do
+    get "/api/v1/reports", headers: auth_headers(@coordinator)
+
+    assert_response :success
+    json = JSON.parse(response.body)
+    assert_equal %w[quota_summary referral_list support_list], json["available_reports"].map { |report| report["type"] }.sort
+  end
+
+  test "district coordinator is denied full data ops report types" do
+    get "/api/v1/reports/purge_list", headers: auth_headers(@coordinator)
+
+    assert_response :forbidden
+    payload = JSON.parse(response.body)
+    assert_equal "report_type_access_denied", payload["code"]
+  end
+
+  test "district coordinator reports are automatically scoped to assigned district" do
+    get "/api/v1/reports/support_list/preview", headers: auth_headers(@coordinator)
+
+    assert_response :success
+    json = JSON.parse(response.body)
+    assert_equal @district.id, json.dig("filters", "district_id")
+    assert_equal 2, json["total_count"]
   end
 
   test "show generates quota summary xlsx" do
@@ -216,18 +252,13 @@ class Api::V1::ReportsControllerTest < ActionDispatch::IntegrationTest
     assert_response :unauthorized
   end
 
-  test "district coordinator cannot access data ops reports" do
-    coordinator = User.create!(
-      clerk_id: "clerk-report-coordinator-#{SecureRandom.hex(4)}",
-      email: "report-coordinator-#{SecureRandom.hex(4)}@example.com",
-      name: "Coordinator",
-      role: "district_coordinator"
-    )
-
-    get "/api/v1/reports", headers: auth_headers(coordinator)
+  test "district coordinator cannot request a village outside assigned district" do
+    get "/api/v1/reports/support_list/preview",
+      params: { village_id: @other_village.id },
+      headers: auth_headers(@coordinator)
 
     assert_response :forbidden
     payload = JSON.parse(response.body)
-    assert_equal "data_ops_access_required", payload["code"]
+    assert_equal "village_scope_denied", payload["code"]
   end
 end

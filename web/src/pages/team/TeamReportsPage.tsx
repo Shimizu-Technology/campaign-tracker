@@ -44,7 +44,8 @@ export default function TeamReportsPage() {
   const [selectedPrecinct, setSelectedPrecinct] = useState('');
   const [registeredStatusFilter, setRegisteredStatusFilter] = useState('');
   const [supportNeedFilter, setSupportNeedFilter] = useState('');
-  const [outreachStatusFilter, setOutreachStatusFilter] = useState('');
+  const [registrationFollowUpFilter, setRegistrationFollowUpFilter] = useState('');
+  const [supportFollowUpFilter, setSupportFollowUpFilter] = useState('');
   const [downloadingReport, setDownloadingReport] = useState<string | null>(null);
   const supportsBeckyFilters = SUPPORTER_REPORT_TYPES.has(selectedReport);
 
@@ -57,7 +58,8 @@ export default function TeamReportsPage() {
     if (SUPPORTER_REPORT_TYPES.has(reportType)) {
       if (registeredStatusFilter) params.registered_voter_status = registeredStatusFilter;
       if (supportNeedFilter) params.support_need = supportNeedFilter;
-      if (outreachStatusFilter) params.outreach_status = outreachStatusFilter;
+      if (registrationFollowUpFilter) params.registration_outreach_status = registrationFollowUpFilter;
+      if (supportFollowUpFilter) params.support_follow_up_status = supportFollowUpFilter;
     }
 
     if (includePreviewLimit) params.limit = 100;
@@ -72,7 +74,7 @@ export default function TeamReportsPage() {
     queryFn: () => getPrecincts(selectedVillage ? { village_id: selectedVillage } : undefined),
   });
   const { data: preview, isLoading: previewLoading } = useQuery({
-    queryKey: ['report-preview', selectedReport, selectedDistrict, selectedVillage, selectedPrecinct, registeredStatusFilter, supportNeedFilter, outreachStatusFilter],
+    queryKey: ['report-preview', selectedReport, selectedDistrict, selectedVillage, selectedPrecinct, registeredStatusFilter, supportNeedFilter, registrationFollowUpFilter, supportFollowUpFilter],
     queryFn: () => getReportPreview(selectedReport, buildReportParams(selectedReport, true)),
     enabled: Boolean(selectedReport),
   });
@@ -88,7 +90,8 @@ export default function TeamReportsPage() {
         precinct_id: selectedPrecinct ? Number(selectedPrecinct) : undefined,
         registered_voter_status: SUPPORTER_REPORT_TYPES.has(reportType) ? registeredStatusFilter || undefined : undefined,
         support_need: SUPPORTER_REPORT_TYPES.has(reportType) ? supportNeedFilter || undefined : undefined,
-        outreach_status: SUPPORTER_REPORT_TYPES.has(reportType) ? outreachStatusFilter || undefined : undefined,
+        registration_outreach_status: SUPPORTER_REPORT_TYPES.has(reportType) ? registrationFollowUpFilter || undefined : undefined,
+        support_follow_up_status: SUPPORTER_REPORT_TYPES.has(reportType) ? supportFollowUpFilter || undefined : undefined,
       });
     } catch (err) {
       console.error('Download failed:', err);
@@ -170,7 +173,7 @@ export default function TeamReportsPage() {
       </div>
       {supportsBeckyFilters && (
         <div className="space-y-2">
-          <div className="grid md:grid-cols-3 gap-3">
+          <div className="grid md:grid-cols-4 gap-3">
             <select
               value={registeredStatusFilter}
               onChange={e => setRegisteredStatusFilter(e.target.value)}
@@ -195,13 +198,23 @@ export default function TeamReportsPage() {
               <option value="any">Any help request</option>
             </select>
             <select
-              value={outreachStatusFilter}
-              onChange={e => setOutreachStatusFilter(e.target.value)}
+              value={registrationFollowUpFilter}
+              onChange={e => setRegistrationFollowUpFilter(e.target.value)}
               className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
             >
-              <option value="">All follow-up results</option>
+              <option value="">All registration follow-up results</option>
               <option value="contacted">Contacted</option>
               <option value="registered">Registered via follow-up</option>
+              <option value="declined">Declined</option>
+            </select>
+            <select
+              value={supportFollowUpFilter}
+              onChange={e => setSupportFollowUpFilter(e.target.value)}
+              className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All support follow-up progress</option>
+              <option value="in_progress">In progress</option>
+              <option value="completed">Completed</option>
               <option value="declined">Declined</option>
             </select>
           </div>

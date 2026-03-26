@@ -36,10 +36,16 @@ interface OutreachSupporter {
   follow_up_priority?: string;
   follow_up_reasons?: string[];
   needs_registration_follow_up?: boolean;
+  needs_support_follow_up?: boolean;
+  registration_follow_up_open?: boolean;
+  support_follow_up_open?: boolean;
   follow_up_open?: boolean;
   registration_outreach_status: string | null;
   registration_outreach_date: string | null;
   registration_outreach_notes: string | null;
+  support_follow_up_status: string | null;
+  support_follow_up_date: string | null;
+  support_follow_up_notes: string | null;
   created_at?: string | null;
 }
 
@@ -50,10 +56,6 @@ interface OutreachCounts {
   support_requests: number;
   registered_follow_up: number;
   completed: number;
-  not_contacted: number;
-  contacted: number;
-  registered: number;
-  declined: number;
 }
 
 const QUEUE_VIEWS = [
@@ -64,45 +66,60 @@ const QUEUE_VIEWS = [
   { value: 'completed', label: 'Resolved Outcomes', countKey: 'completed', icon: ClipboardCheck },
 ] as const;
 
-const STATUS_OPTIONS = [
-  { value: '', label: 'All' },
+const REGISTRATION_STATUS_OPTIONS = [
+  { value: '', label: 'All registration follow-up' },
   { value: 'not_contacted', label: 'Not Contacted' },
   { value: 'contacted', label: 'Contacted' },
   { value: 'registered', label: 'Registered via follow-up' },
   { value: 'declined', label: 'Declined' },
 ];
 
-const ALLOWED_STATUS_BY_QUEUE_VIEW: Record<string, string[]> = {
-  open: ['', 'not_contacted', 'contacted'],
-  registration_priority: ['', 'not_contacted', 'contacted'],
-  support_requests: ['', 'not_contacted', 'contacted'],
-  registered_follow_up: ['', 'registered'],
-  completed: ['', 'registered', 'declined'],
-};
+const SUPPORT_STATUS_OPTIONS = [
+  { value: '', label: 'All support help progress' },
+  { value: 'not_started', label: 'Not Started' },
+  { value: 'in_progress', label: 'In Progress' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'declined', label: 'Declined' },
+];
 
-const STATUS_BADGES: Record<string, { bg: string; text: string; label: string }> = {
+const REGISTRATION_STATUS_BADGES: Record<string, { bg: string; text: string; label: string }> = {
   contacted: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Contacted' },
   registered: { bg: 'bg-green-100', text: 'text-green-800', label: 'Registered via follow-up' },
   declined: { bg: 'bg-red-100', text: 'text-red-800', label: 'Declined' },
 };
 
-function StatusBadge({ status }: { status: string | null }) {
+const SUPPORT_STATUS_BADGES: Record<string, { bg: string; text: string; label: string }> = {
+  in_progress: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'In Progress' },
+  completed: { bg: 'bg-green-100', text: 'text-green-800', label: 'Completed' },
+  declined: { bg: 'bg-red-100', text: 'text-red-800', label: 'Declined' },
+};
+
+function StatusBadge({
+  status,
+  emptyLabel,
+  badges,
+}: {
+  status: string | null;
+  emptyLabel: string;
+  badges: Record<string, { bg: string; text: string; label: string }>;
+}) {
   if (!status) {
-    return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Not Contacted</span>;
+    return <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">{emptyLabel}</span>;
   }
-  const badge = STATUS_BADGES[status] || { bg: 'bg-gray-100', text: 'text-gray-600', label: status };
+  const badge = badges[status] || { bg: 'bg-gray-100', text: 'text-gray-600', label: status };
   return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${badge.bg} ${badge.text}`}>{badge.label}</span>;
 }
 
 function priorityBadgeClass(priority?: string | null) {
   if (priority === 'Registration Priority') return 'bg-red-100 text-red-700';
-  if (priority === 'Campaign Help') return 'bg-amber-100 text-amber-800';
+  if (priority === 'Support Help') return 'bg-amber-100 text-amber-800';
   if (priority === 'Resolved') return 'bg-emerald-100 text-emerald-700';
   return 'bg-slate-100 text-slate-700';
 }
 
 function reasonChipClass(reason: string) {
   if (reason.includes('Registered via follow-up')) return 'bg-green-100 text-green-700';
+  if (reason.includes('Support help completed')) return 'bg-green-100 text-green-700';
   if (reason.includes('Declined')) return 'bg-red-100 text-red-700';
   if (reason.includes('registration') || reason.includes('No GEC match') || reason.includes('not registered')) return 'bg-amber-100 text-amber-800';
   return 'bg-blue-100 text-blue-700';
@@ -114,11 +131,17 @@ export default function OutreachPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [queueView, setQueueView] = useState('open');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [registrationStatusFilter, setRegistrationStatusFilter] = useState('');
+  const [supportStatusFilter, setSupportStatusFilter] = useState('');
   const [registeredStatusFilter, setRegisteredStatusFilter] = useState('');
   const [supportNeedFilter, setSupportNeedFilter] = useState('');
   const [villageFilter, setVillageFilter] = useState('');
-  const [drafts, setDrafts] = useState<Record<number, { status: string; notes: string }>>({});
+  const [drafts, setDrafts] = useState<Record<number, {
+    registrationStatus: string;
+    registrationNotes: string;
+    supportStatus: string;
+    supportNotes: string;
+  }>>({});
   const debouncedSearch = useDebouncedValue(search, 250);
 
   const { data: villageData } = useQuery({ queryKey: ['villages'], queryFn: getVillages });
@@ -131,34 +154,41 @@ export default function OutreachPage() {
   }, [scopedVillageIds, villages]);
   const singleScopedVillageId = scopedVillageIds && scopedVillageIds.length === 1 ? String(scopedVillageIds[0]) : '';
   const effectiveVillageFilter = villageFilter || singleScopedVillageId;
-  const allowedStatusValues = ALLOWED_STATUS_BY_QUEUE_VIEW[queueView] || STATUS_OPTIONS.map((option) => option.value);
-  const availableStatusOptions = useMemo(
-    () => STATUS_OPTIONS.filter((option) => allowedStatusValues.includes(option.value)),
-    [allowedStatusValues]
-  );
-  const effectiveStatusFilter = allowedStatusValues.includes(statusFilter) ? statusFilter : '';
 
   const params: Record<string, string | number> = { page, per_page: 50 };
   if (debouncedSearch) params.search = debouncedSearch;
   if (queueView) params.queue_view = queueView;
-  if (effectiveStatusFilter) {
-    params.outreach_status = effectiveStatusFilter;
-  }
+  if (registrationStatusFilter) params.registration_outreach_status = registrationStatusFilter;
+  if (supportStatusFilter) params.support_follow_up_status = supportStatusFilter;
   if (effectiveVillageFilter) params.village_id = effectiveVillageFilter;
   if (registeredStatusFilter) params.registered_voter_status = registeredStatusFilter;
   if (supportNeedFilter) params.support_need = supportNeedFilter;
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['outreach', page, debouncedSearch, queueView, effectiveStatusFilter, effectiveVillageFilter, registeredStatusFilter, supportNeedFilter],
+    queryKey: ['outreach', page, debouncedSearch, queueView, registrationStatusFilter, supportStatusFilter, effectiveVillageFilter, registeredStatusFilter, supportNeedFilter],
     queryFn: () => getOutreachSupporters(params),
     placeholderData: (previous) => previous,
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, status, notes }: { id: number; status?: string; notes?: string }) => {
+    mutationFn: ({
+      id,
+      registrationStatus,
+      registrationNotes,
+      supportStatus,
+      supportNotes,
+    }: {
+      id: number;
+      registrationStatus?: string;
+      registrationNotes?: string;
+      supportStatus?: string;
+      supportNotes?: string;
+    }) => {
       const payload: Record<string, unknown> = {};
-      if (status !== undefined) payload.registration_outreach_status = status === '' ? null : status;
-      if (notes !== undefined) payload.registration_outreach_notes = notes;
+      if (registrationStatus !== undefined) payload.registration_outreach_status = registrationStatus === '' ? null : registrationStatus;
+      if (registrationNotes !== undefined) payload.registration_outreach_notes = registrationNotes;
+      if (supportStatus !== undefined) payload.support_follow_up_status = supportStatus === '' ? null : supportStatus;
+      if (supportNotes !== undefined) payload.support_follow_up_notes = supportNotes;
       return updateOutreachStatus(id, payload);
     },
     onSuccess: (data, variables) => {
@@ -167,8 +197,10 @@ export default function OutreachPage() {
         setDrafts((prev) => ({
           ...prev,
           [variables.id]: {
-            status: updatedSupporter.registration_outreach_status || '',
-            notes: updatedSupporter.registration_outreach_notes || '',
+            registrationStatus: updatedSupporter.registration_outreach_status || '',
+            registrationNotes: updatedSupporter.registration_outreach_notes || '',
+            supportStatus: updatedSupporter.support_follow_up_status || '',
+            supportNotes: updatedSupporter.support_follow_up_notes || '',
           },
         }));
       }
@@ -184,10 +216,6 @@ export default function OutreachPage() {
     support_requests: 0,
     registered_follow_up: 0,
     completed: 0,
-    not_contacted: 0,
-    contacted: 0,
-    registered: 0,
-    declined: 0,
   };
   const pagination = data?.pagination || { page: 1, pages: 1, total: 0 };
   const showInitialLoading = isLoading && !data;
@@ -201,13 +229,28 @@ export default function OutreachPage() {
 
   const getDraft = (supporter: OutreachSupporter) =>
     drafts[supporter.id] || {
-      status: supporter.registration_outreach_status || '',
-      notes: supporter.registration_outreach_notes || '',
+      registrationStatus: supporter.registration_outreach_status || '',
+      registrationNotes: supporter.registration_outreach_notes || '',
+      supportStatus: supporter.support_follow_up_status || '',
+      supportNotes: supporter.support_follow_up_notes || '',
     };
 
-  const updateDraft = (supporterId: number, patch: Partial<{ status: string; notes: string }>) => {
+  const updateDraft = (
+    supporterId: number,
+    patch: Partial<{
+      registrationStatus: string;
+      registrationNotes: string;
+      supportStatus: string;
+      supportNotes: string;
+    }>
+  ) => {
     setDrafts((prev) => {
-      const existing = prev[supporterId] || { status: '', notes: '' };
+      const existing = prev[supporterId] || {
+        registrationStatus: '',
+        registrationNotes: '',
+        supportStatus: '',
+        supportNotes: '',
+      };
       return {
         ...prev,
         [supporterId]: { ...existing, ...patch },
@@ -217,14 +260,18 @@ export default function OutreachPage() {
 
   const saveDraft = (supporter: OutreachSupporter) => {
     const draft = getDraft(supporter);
-    const statusChanged = draft.status !== (supporter.registration_outreach_status || '');
-    const notesChanged = draft.notes !== (supporter.registration_outreach_notes || '');
-    if (!statusChanged && !notesChanged) return;
+    const registrationStatusChanged = draft.registrationStatus !== (supporter.registration_outreach_status || '');
+    const registrationNotesChanged = draft.registrationNotes !== (supporter.registration_outreach_notes || '');
+    const supportStatusChanged = draft.supportStatus !== (supporter.support_follow_up_status || '');
+    const supportNotesChanged = draft.supportNotes !== (supporter.support_follow_up_notes || '');
+    if (!registrationStatusChanged && !registrationNotesChanged && !supportStatusChanged && !supportNotesChanged) return;
 
     updateMutation.mutate({
       id: supporter.id,
-      status: statusChanged ? draft.status : undefined,
-      notes: notesChanged ? draft.notes : undefined,
+      registrationStatus: registrationStatusChanged ? draft.registrationStatus : undefined,
+      registrationNotes: registrationNotesChanged ? draft.registrationNotes : undefined,
+      supportStatus: supportStatusChanged ? draft.supportStatus : undefined,
+      supportNotes: supportNotesChanged ? draft.supportNotes : undefined,
     });
   };
 
@@ -232,9 +279,9 @@ export default function OutreachPage() {
     <WorkspacePage width="full" className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
-          <ClipboardCheck className="w-5 h-5 text-primary" /> Voter Help Follow-Up
+          <ClipboardCheck className="w-5 h-5 text-primary" /> Follow-Up Queue
         </h1>
-        <p className="text-gray-500 text-sm mt-1">Action queue for approved supporters who still need registration or campaign-help follow-up</p>
+        <p className="text-gray-500 text-sm mt-1">One queue for approved supporters who still need registration follow-up, campaign-help follow-up, or both.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
@@ -273,20 +320,20 @@ export default function OutreachPage() {
           <div className="text-xs text-gray-500">Total Follow-Up</div>
         </div>
         <div className="app-card p-3 text-center">
-          <div className="text-2xl font-bold text-gray-500">{counts.not_contacted}</div>
-          <div className="text-xs text-gray-500">Not Contacted</div>
+          <div className="text-2xl font-bold text-red-600">{counts.registration_priority}</div>
+          <div className="text-xs text-gray-500">Open Registration</div>
         </div>
         <div className="app-card p-3 text-center">
-          <div className="text-2xl font-bold text-blue-600">{counts.contacted}</div>
-          <div className="text-xs text-gray-500">Contacted</div>
+          <div className="text-2xl font-bold text-amber-600">{counts.support_requests}</div>
+          <div className="text-xs text-gray-500">Open Support Help</div>
         </div>
         <div className="app-card p-3 text-center">
-          <div className="text-2xl font-bold text-green-600">{counts.registered}</div>
-          <div className="text-xs text-gray-500">Registered Via Follow-Up</div>
+          <div className="text-2xl font-bold text-green-600">{counts.completed}</div>
+          <div className="text-xs text-gray-500">Fully Resolved</div>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
@@ -314,11 +361,20 @@ export default function OutreachPage() {
           </select>
         )}
         <select
-          value={effectiveStatusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+          value={registrationStatusFilter}
+          onChange={(e) => { setRegistrationStatusFilter(e.target.value); setPage(1); }}
           className="border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white"
         >
-          {availableStatusOptions.map((opt) => (
+          {REGISTRATION_STATUS_OPTIONS.map((opt) => (
+            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          ))}
+        </select>
+        <select
+          value={supportStatusFilter}
+          onChange={(e) => { setSupportStatusFilter(e.target.value); setPage(1); }}
+          className="border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white"
+        >
+          {SUPPORT_STATUS_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </select>
@@ -373,9 +429,23 @@ export default function OutreachPage() {
         ) : (
           supporters.map((supporter) => {
             const draft = getDraft(supporter);
-            const statusChanged = draft.status !== (supporter.registration_outreach_status || '');
-            const notesChanged = draft.notes !== (supporter.registration_outreach_notes || '');
+            const registrationStatusChanged = draft.registrationStatus !== (supporter.registration_outreach_status || '');
+            const registrationNotesChanged = draft.registrationNotes !== (supporter.registration_outreach_notes || '');
+            const supportStatusChanged = draft.supportStatus !== (supporter.support_follow_up_status || '');
+            const supportNotesChanged = draft.supportNotes !== (supporter.support_follow_up_notes || '');
+            const hasPendingChanges = registrationStatusChanged || registrationNotesChanged || supportStatusChanged || supportNotesChanged;
             const isSaving = updateMutation.isPending && updateMutation.variables?.id === supporter.id;
+            const latestFollowUpDate = [supporter.registration_outreach_date, supporter.support_follow_up_date]
+              .filter((value): value is string => Boolean(value))
+              .sort()
+              .at(-1);
+            const queueStatusText = supporter.follow_up_open
+              ? supporter.registration_follow_up_open && supporter.support_follow_up_open
+                ? 'Registration + support help still open'
+                : supporter.registration_follow_up_open
+                  ? 'Registration follow-up still open'
+                  : 'Support help still open'
+              : 'All needed follow-up resolved';
 
             return (
               <div key={supporter.id} className="app-card p-5">
@@ -396,7 +466,20 @@ export default function OutreachPage() {
                       <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${priorityBadgeClass(supporter.follow_up_priority)}`}>
                         {supporter.follow_up_priority || 'Low'} priority
                       </span>
-                      <StatusBadge status={supporter.registration_outreach_status} />
+                      {supporter.needs_registration_follow_up && (
+                        <StatusBadge
+                          status={supporter.registration_outreach_status}
+                          emptyLabel="Registration: Not Contacted"
+                          badges={REGISTRATION_STATUS_BADGES}
+                        />
+                      )}
+                      {supporter.needs_support_follow_up && (
+                        <StatusBadge
+                          status={supporter.support_follow_up_status}
+                          emptyLabel="Support: Not Started"
+                          badges={SUPPORT_STATUS_BADGES}
+                        />
+                      )}
                     </div>
 
                     <div className="flex flex-wrap gap-2">
@@ -420,9 +503,9 @@ export default function OutreachPage() {
                       </div>
                       <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
                         <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Queue status</div>
-                        <div className="mt-1 text-sm text-gray-700">{supporter.follow_up_open ? 'Open follow-up' : 'Resolved follow-up'}</div>
+                        <div className="mt-1 text-sm text-gray-700">{queueStatusText}</div>
                         <div className="mt-1 text-xs text-gray-500">
-                          {supporter.registration_outreach_date ? `Last updated ${formatDateTime(supporter.registration_outreach_date)}` : 'No follow-up update yet'}
+                          {latestFollowUpDate ? `Last updated ${formatDateTime(latestFollowUpDate)}` : 'No follow-up update yet'}
                         </div>
                       </div>
                       <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
@@ -436,7 +519,7 @@ export default function OutreachPage() {
                       </div>
                     </div>
 
-                    {(supporter.registered_voter_location_note || supporter.registration_outreach_notes) && (
+                    {(supporter.registered_voter_location_note || supporter.registration_outreach_notes || supporter.support_follow_up_notes) && (
                       <div className="space-y-2">
                         {supporter.registered_voter_location_note && (
                           <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800">
@@ -447,9 +530,18 @@ export default function OutreachPage() {
                           <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-900">
                             <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-amber-700">
                               <StickyNote className="h-3.5 w-3.5" />
-                              Latest follow-up note
+                              Registration follow-up note
                             </div>
                             <div className="mt-1 whitespace-pre-wrap">{supporter.registration_outreach_notes}</div>
+                          </div>
+                        )}
+                        {supporter.support_follow_up_notes && (
+                          <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+                            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-blue-700">
+                              <StickyNote className="h-3.5 w-3.5" />
+                              Support follow-up note
+                            </div>
+                            <div className="mt-1 whitespace-pre-wrap">{supporter.support_follow_up_notes}</div>
                           </div>
                         )}
                       </div>
@@ -459,36 +551,75 @@ export default function OutreachPage() {
                   <div className="w-full lg:w-[340px] shrink-0 rounded-2xl border border-gray-200 bg-white p-4">
                     <div className="text-sm font-semibold text-gray-900">Update Follow-Up</div>
                     <div className="mt-3 space-y-3">
-                      <div>
-                        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">Result</label>
-                        <select
-                          value={draft.status}
-                          onChange={(e) => updateDraft(supporter.id, { status: e.target.value })}
-                          className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm"
-                        >
-                          <option value="">Set result...</option>
-                          <option value="contacted">Contacted</option>
-                          <option value="registered">Registered via follow-up</option>
-                          <option value="declined">Declined</option>
-                        </select>
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">Notes</label>
-                        <textarea
-                          value={draft.notes}
-                          onChange={(e) => updateDraft(supporter.id, { notes: e.target.value })}
-                          rows={4}
-                          placeholder="Add registrar / follow-up notes..."
-                          className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
-                        />
-                      </div>
+                      {supporter.needs_registration_follow_up && (
+                        <div className="space-y-3 rounded-xl border border-amber-100 bg-amber-50/60 p-3">
+                          <div>
+                            <div className="text-xs font-semibold uppercase tracking-wide text-amber-700">Registration follow-up</div>
+                            <div className="mt-1 text-xs text-amber-900">Track registration outreach separately from any campaign-help requests.</div>
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">Result</label>
+                            <select
+                              value={draft.registrationStatus}
+                              onChange={(e) => updateDraft(supporter.id, { registrationStatus: e.target.value })}
+                              className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm"
+                            >
+                              <option value="">Not contacted</option>
+                              <option value="contacted">Contacted</option>
+                              <option value="registered">Registered via follow-up</option>
+                              <option value="declined">Declined</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">Notes</label>
+                            <textarea
+                              value={draft.registrationNotes}
+                              onChange={(e) => updateDraft(supporter.id, { registrationNotes: e.target.value })}
+                              rows={3}
+                              placeholder="Add registration outreach notes..."
+                              className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {supporter.needs_support_follow_up && (
+                        <div className="space-y-3 rounded-xl border border-blue-100 bg-blue-50/60 p-3">
+                          <div>
+                            <div className="text-xs font-semibold uppercase tracking-wide text-blue-700">Campaign-help follow-up</div>
+                            <div className="mt-1 text-xs text-blue-900">Use this track for volunteer, absentee, homebound, and ride-to-polls requests.</div>
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">Progress</label>
+                            <select
+                              value={draft.supportStatus}
+                              onChange={(e) => updateDraft(supporter.id, { supportStatus: e.target.value })}
+                              className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm"
+                            >
+                              <option value="">Not started</option>
+                              <option value="in_progress">In progress</option>
+                              <option value="completed">Completed</option>
+                              <option value="declined">Declined</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">Notes</label>
+                            <textarea
+                              value={draft.supportNotes}
+                              onChange={(e) => updateDraft(supporter.id, { supportNotes: e.target.value })}
+                              rows={3}
+                              placeholder="Add campaign-help follow-up notes..."
+                              className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                            />
+                          </div>
+                        </div>
+                      )}
                       <button
                         type="button"
                         onClick={() => saveDraft(supporter)}
-                        disabled={(!statusChanged && !notesChanged) || isSaving}
+                        disabled={!hasPendingChanges || isSaving}
                         className="w-full rounded-xl bg-primary px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
                       >
-                        {isSaving ? 'Saving...' : 'Save Follow-Up Update'}
+                        {isSaving ? 'Saving...' : 'Save Follow-Up Updates'}
                       </button>
                     </div>
                   </div>

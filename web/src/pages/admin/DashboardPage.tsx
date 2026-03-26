@@ -12,6 +12,8 @@ import {
   CalendarPlus,
   TrendingUp,
   MapPin,
+  Upload,
+  FileSpreadsheet,
 } from 'lucide-react';
 import DashboardSkeleton from '../../components/DashboardSkeleton';
 import { getCurrentCycle, getDashboard } from '../../lib/api';
@@ -151,6 +153,8 @@ export default function DashboardPage() {
   const quickActions = [
     permissions?.can_create_staff_supporters ? { to: '/admin/scan', icon: Camera, label: 'Scan Form' } : null,
     permissions?.can_create_staff_supporters ? { to: '/admin/supporters/new', icon: ClipboardPlus, label: 'New Entry' } : null,
+    permissions?.can_import_supporters ? { to: '/admin/import', icon: Upload, label: 'Excel Import' } : null,
+    permissions?.can_access_reports ? { to: '/admin/reports', icon: FileSpreadsheet, label: 'Reports' } : null,
     permissions?.can_view_supporters ? { to: '/admin/supporters', icon: ClipboardCheck, label: 'Supporters' } : null,
     permissions?.can_access_events ? { to: '/admin/events', icon: CalendarPlus, label: 'Events' } : null,
     permissions?.can_access_war_room ? { to: '/admin/war-room', icon: TrendingUp, label: 'War Room' } : null,

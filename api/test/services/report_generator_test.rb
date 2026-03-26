@@ -34,6 +34,7 @@ class ReportGeneratorTest < ActiveSupport::TestCase
       registered_voter_status: "yes",
       needs_voter_registration_help: true,
       registration_outreach_status: "registered",
+      support_follow_up_status: "completed",
       referred_by_name: "Maria Cruz"
     )
 
@@ -52,7 +53,8 @@ class ReportGeneratorTest < ActiveSupport::TestCase
       registered_voter: true,
       registered_voter_status: "no",
       needs_absentee_ballot_help: true,
-      registration_outreach_status: "contacted"
+      registration_outreach_status: "contacted",
+      support_follow_up_status: "in_progress"
     )
 
     # GEC voter data
@@ -103,15 +105,18 @@ class ReportGeneratorTest < ActiveSupport::TestCase
       report_type: "support_list",
       registered_voter_status: "yes",
       support_need: "registration",
-      outreach_status: "registered"
+      registration_outreach_status: "registered",
+      support_follow_up_status: "completed"
     ).preview
 
     assert_equal 1, result[:total_count]
     assert_equal "Juan", result[:rows].first[1]
     assert_includes result[:columns], "Self-Reported Voter Status"
     assert_includes result[:columns], "Campaign Requests"
-    assert_includes result[:columns], "Follow-Up Result"
+    assert_includes result[:columns], "Registration Follow-Up Result"
+    assert_includes result[:columns], "Support Follow-Up Result"
     assert_includes result[:rows].first, "Registered via follow-up"
+    assert_includes result[:rows].first, "Completed"
   end
 
   test "generates purge list" do
@@ -162,12 +167,14 @@ class ReportGeneratorTest < ActiveSupport::TestCase
       report_type: "referral_list",
       registered_voter_status: "no",
       support_need: "absentee",
-      outreach_status: "contacted"
+      registration_outreach_status: "contacted",
+      support_follow_up_status: "in_progress"
     ).preview
 
     assert_equal 1, result[:total_count]
     assert_equal "Ana", result[:rows].first[1]
     assert_includes result[:rows].first, "Absentee"
+    assert_includes result[:rows].first, "In progress"
   end
 
   test "generates mapping issues list" do

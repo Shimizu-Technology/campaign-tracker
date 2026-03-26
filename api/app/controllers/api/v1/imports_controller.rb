@@ -6,7 +6,7 @@ module Api
       include Authenticatable
       include AuditLoggable
       before_action :authenticate_request
-      before_action :require_data_ops_access!
+      before_action :require_supporter_import_access!
 
       # POST /api/v1/imports/preview
       # Upload a file, parse it, return sheet metadata + sample rows for review.
