@@ -548,10 +548,11 @@ module Api
           supporters = apply_outreach_queue_view(supporters, params[:queue_view])
         end
 
-        if params[:outreach_status] == "not_contacted"
+        effective_outreach_status = normalized_outreach_status_filter(params[:queue_view], params[:outreach_status])
+        if effective_outreach_status == "not_contacted"
           supporters = supporters.where(registration_outreach_status: nil)
-        elsif params[:outreach_status].present?
-          supporters = supporters.where(registration_outreach_status: params[:outreach_status])
+        elsif effective_outreach_status.present?
+          supporters = supporters.where(registration_outreach_status: effective_outreach_status)
         end
 
         supporters = supporters.where(registered_voter_status: params[:registered_voter_status]) if params[:registered_voter_status].present?
@@ -1474,6 +1475,26 @@ module Api
           scope.where(registration_outreach_status: %w[registered declined])
         else
           scope
+        end
+      end
+
+      def normalized_outreach_status_filter(queue_view, outreach_status)
+        normalized_status = outreach_status.to_s.presence
+        return nil unless normalized_status.present?
+
+        allowed_outreach_status_filters(queue_view).include?(normalized_status) ? normalized_status : nil
+      end
+
+      def allowed_outreach_status_filters(queue_view)
+        case queue_view
+        when "registered_follow_up"
+          %w[registered]
+        when "completed"
+          %w[registered declined]
+        when "open", "registration_priority", "support_requests"
+          %w[not_contacted contacted]
+        else
+          %w[not_contacted contacted registered declined]
         end
       end
 

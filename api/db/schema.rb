@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_24_091500) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_24_103000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -807,6 +807,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_24_091500) do
     t.index ["quota_period_id"], name: "index_supporters_on_quota_period_id"
     t.index ["referral_code_id"], name: "index_supporters_on_referral_code_id"
     t.index ["registered_voter_status"], name: "index_supporters_on_registered_voter_status"
+    t.index ["registration_outreach_status"], name: "index_supporters_on_registration_outreach_status"
     t.index ["review_status"], name: "index_supporters_on_review_status"
     t.index ["reviewed_by_user_id"], name: "index_supporters_on_reviewed_by_user_id"
     t.index ["self_reported_registered_voter"], name: "index_supporters_on_self_reported_registered_voter"

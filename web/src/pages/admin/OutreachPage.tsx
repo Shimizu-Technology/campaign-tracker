@@ -72,6 +72,14 @@ const STATUS_OPTIONS = [
   { value: 'declined', label: 'Declined' },
 ];
 
+const ALLOWED_STATUS_BY_QUEUE_VIEW: Record<string, string[]> = {
+  open: ['', 'not_contacted', 'contacted'],
+  registration_priority: ['', 'not_contacted', 'contacted'],
+  support_requests: ['', 'not_contacted', 'contacted'],
+  registered_follow_up: ['', 'registered'],
+  completed: ['', 'registered', 'declined'],
+};
+
 const STATUS_BADGES: Record<string, { bg: string; text: string; label: string }> = {
   contacted: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Contacted' },
   registered: { bg: 'bg-green-100', text: 'text-green-800', label: 'Registered via follow-up' },
@@ -123,19 +131,25 @@ export default function OutreachPage() {
   }, [scopedVillageIds, villages]);
   const singleScopedVillageId = scopedVillageIds && scopedVillageIds.length === 1 ? String(scopedVillageIds[0]) : '';
   const effectiveVillageFilter = villageFilter || singleScopedVillageId;
+  const allowedStatusValues = ALLOWED_STATUS_BY_QUEUE_VIEW[queueView] || STATUS_OPTIONS.map((option) => option.value);
+  const availableStatusOptions = useMemo(
+    () => STATUS_OPTIONS.filter((option) => allowedStatusValues.includes(option.value)),
+    [allowedStatusValues]
+  );
+  const effectiveStatusFilter = allowedStatusValues.includes(statusFilter) ? statusFilter : '';
 
   const params: Record<string, string | number> = { page, per_page: 50 };
   if (debouncedSearch) params.search = debouncedSearch;
   if (queueView) params.queue_view = queueView;
-  if (statusFilter) {
-    params.outreach_status = statusFilter;
+  if (effectiveStatusFilter) {
+    params.outreach_status = effectiveStatusFilter;
   }
   if (effectiveVillageFilter) params.village_id = effectiveVillageFilter;
   if (registeredStatusFilter) params.registered_voter_status = registeredStatusFilter;
   if (supportNeedFilter) params.support_need = supportNeedFilter;
 
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['outreach', page, debouncedSearch, queueView, statusFilter, effectiveVillageFilter, registeredStatusFilter, supportNeedFilter],
+    queryKey: ['outreach', page, debouncedSearch, queueView, effectiveStatusFilter, effectiveVillageFilter, registeredStatusFilter, supportNeedFilter],
     queryFn: () => getOutreachSupporters(params),
     placeholderData: (previous) => previous,
   });
@@ -300,11 +314,11 @@ export default function OutreachPage() {
           </select>
         )}
         <select
-          value={statusFilter}
+          value={effectiveStatusFilter}
           onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
           className="border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white"
         >
-          {STATUS_OPTIONS.map((opt) => (
+          {availableStatusOptions.map((opt) => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </select>

@@ -568,6 +568,47 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_includes payload["supporters"].first["follow_up_reasons"], "Registered via follow-up"
   end
 
+  test "outreach ignores incompatible status filters for the selected queue view" do
+    open_supporter = Supporter.create!(
+      first_name: "Queue",
+      last_name: "OpenOnly",
+      print_name: "OpenOnly, Queue",
+      contact_number: "6715558023",
+      village: @village,
+      source: "staff_entry",
+      review_status: "approved",
+      public_review_status: "not_applicable",
+      status: "active",
+      registered_voter: false,
+      registered_voter_status: "no"
+    )
+    Supporter.create!(
+      first_name: "Queue",
+      last_name: "ResolvedOnly",
+      print_name: "ResolvedOnly, Queue",
+      contact_number: "6715558024",
+      village: @village,
+      source: "staff_entry",
+      review_status: "approved",
+      public_review_status: "not_applicable",
+      status: "active",
+      registered_voter: false,
+      registered_voter_status: "no",
+      registration_outreach_status: "registered"
+    )
+
+    get "/api/v1/supporters/outreach",
+      params: { search: "Queue", queue_view: "open", outreach_status: "registered" },
+      headers: auth_headers(@user)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    returned_last_names = payload.fetch("supporters").map { |supporter| supporter["last_name"] }
+
+    assert_includes returned_last_names, open_supporter.last_name
+    assert_not_includes returned_last_names, "ResolvedOnly"
+  end
+
   test "public create ignores crafted submitted village id" do
     other_village = Village.create!(name: "Other Submission Village")
 
