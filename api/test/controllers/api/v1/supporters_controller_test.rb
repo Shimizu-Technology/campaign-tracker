@@ -205,6 +205,31 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal single_precinct.id, payload.dig("supporter", "precinct_id")
   end
 
+  test "create rejects more than the household submission limit" do
+    post "/api/v1/supporters",
+      params: {
+        supporter: {
+          first_name: "Primary",
+          last_name: "Too Many",
+          print_name: "Primary Too Many",
+          contact_number: "6715557010",
+          village_id: @village.id,
+          registered_voter: false,
+          household_members: 9.times.map do |index|
+            {
+              first_name: "Member#{index + 1}",
+              last_name: "Too Many",
+              registered_voter_status: "not_sure"
+            }
+          end
+        }
+      }
+
+    assert_response :unprocessable_entity
+    payload = JSON.parse(response.body)
+    assert_includes payload["errors"], "You can add up to 8 household supporters per submission"
+  end
+
   test "authenticated user can assign supporter precinct" do
     target_precinct = Precinct.create!(number: "SP-2", village: @village, registered_voters: 100)
     supporter = Supporter.create!(

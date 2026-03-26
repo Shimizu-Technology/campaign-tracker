@@ -168,14 +168,10 @@ class Supporter < ApplicationRecord
   end
 
   def household_members
-    return Supporter.none unless household_group_id.present?
+    return [] unless household_group_id.present?
     return [] unless household_group.present?
 
-    if household_group.association(:supporters).loaded?
-      household_group.supporters.reject { |member| member.id == id }
-    else
-      household_group.supporters.where.not(id: id)
-    end
+    household_group.supporters.to_a.reject { |member| member.id == id }
   end
 
   private

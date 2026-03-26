@@ -188,6 +188,7 @@ class SupporterTest < ActiveSupport::TestCase
 
     loaded_primary = Supporter.includes(household_group: :supporters).find(primary.id)
 
+    assert_kind_of Array, loaded_primary.household_members
     assert_equal [ member.id ], loaded_primary.household_members.map(&:id)
   end
 end

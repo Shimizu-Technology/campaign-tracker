@@ -7,6 +7,7 @@ module Api
     class SupportersController < ApplicationController
       MAX_PER_PAGE = 200
       MAX_EXPORT_ROWS = 10_000
+      MAX_HOUSEHOLD_MEMBERS = 8
       ALLOWED_SORT_FIELDS = %w[created_at print_name last_name first_name village_name precinct_number source registered_voter].freeze
 
       include Authenticatable
@@ -33,6 +34,9 @@ module Api
 
         primary_attributes = normalized_public_supporter_params
         household_members = normalized_household_member_params
+        if household_members.size > MAX_HOUSEHOLD_MEMBERS
+          return render json: { errors: [ "You can add up to #{MAX_HOUSEHOLD_MEMBERS} household supporters per submission" ] }, status: :unprocessable_entity
+        end
         normalized_leader_code = params[:leader_code].to_s.strip.presence
         referral_code = resolve_referral_code(normalized_leader_code)
         source = create_source
@@ -105,7 +109,6 @@ module Api
           created_supporter.reload
           CampaignBroadcast.new_supporter(created_supporter)
         end
-        supporter.reload
 
         render json: {
           message: "Si Yu'os Ma'åse! Thank you for supporting Josh & Tina!",

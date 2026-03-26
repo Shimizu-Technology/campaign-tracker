@@ -52,6 +52,8 @@ type SignupForm = {
   household_members: HouseholdMemberForm[];
 };
 
+const MAX_HOUSEHOLD_MEMBERS = 8;
+
 const EMPTY_HOUSEHOLD_MEMBER: HouseholdMemberForm = {
   first_name: '',
   middle_name: '',
@@ -178,6 +180,8 @@ export default function SignupPage() {
   };
 
   const addHouseholdMember = () => {
+    if (form.household_members.length >= MAX_HOUSEHOLD_MEMBERS) return;
+
     setForm((prev) => ({
       ...prev,
       household_members: [ ...prev.household_members, { ...EMPTY_HOUSEHOLD_MEMBER } ],
@@ -496,14 +500,18 @@ export default function SignupPage() {
                     <p className="mt-1 text-sm leading-6 text-slate-500">
                       Add other supporters in this household. They will become separate supporter records with the shared address and contact information above.
                     </p>
+                    <p className="mt-1 text-xs font-medium uppercase tracking-[0.14em] text-slate-400">
+                      Up to {MAX_HOUSEHOLD_MEMBERS} additional supporters per submission
+                    </p>
                   </div>
                   <button
                     type="button"
                     onClick={addHouseholdMember}
-                    className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-primary/20 bg-white px-4 py-2 text-sm font-semibold text-primary hover:border-primary/40"
+                    disabled={form.household_members.length >= MAX_HOUSEHOLD_MEMBERS}
+                    className="inline-flex min-h-[44px] items-center gap-2 rounded-full border border-primary/20 bg-white px-4 py-2 text-sm font-semibold text-primary hover:border-primary/40 disabled:cursor-not-allowed disabled:border-slate-200 disabled:text-slate-400"
                   >
                     <Plus className="h-4 w-4" />
-                    Add another supporter
+                    {form.household_members.length >= MAX_HOUSEHOLD_MEMBERS ? 'Household limit reached' : 'Add another supporter'}
                   </button>
                 </div>
 
