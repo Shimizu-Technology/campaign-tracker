@@ -246,6 +246,8 @@ module Api
         village_id = params[:village_id].presence
         precinct_id = params[:precinct_id].presence
         district_id = params[:district_id].presence
+        # Coordinators without an assigned district currently have campaign-wide
+        # report access, which mirrors `compute_scoped_village_ids` returning nil.
         return { village_id: village_id, precinct_id: precinct_id, district_id: district_id } unless current_user&.coordinator?
 
         if current_user.assigned_district_id.present?
