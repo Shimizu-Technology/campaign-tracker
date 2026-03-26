@@ -1,42 +1,88 @@
-import { useState } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMemo, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { ClipboardCheck, Search, ChevronLeft, ChevronRight } from 'lucide-react';
-import { getOutreachSupporters, updateOutreachStatus } from '../../lib/api';
+import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Clock3, MapPinned, Search, StickyNote, Users } from 'lucide-react';
+import { getOutreachSupporters, getVillages, updateOutreachStatus } from '../../lib/api';
 import { formatDateTime } from '../../lib/datetime';
 import WorkspacePage from '../../components/WorkspacePage';
+import { useSession } from '../../hooks/useSession';
+import { useDebouncedValue } from '../../hooks/useDebouncedValue';
+
+interface VillageOption {
+  id: number;
+  name: string;
+}
 
 interface OutreachSupporter {
   id: number;
   first_name: string;
+  middle_name?: string | null;
   last_name: string;
+  village_id?: number;
   village_name: string;
+  precinct_number?: string | null;
   contact_number: string;
   email: string | null;
+  registered_voter?: boolean;
+  registered_voter_status?: string | null;
+  registered_voter_location_note?: string | null;
+  wants_to_volunteer?: boolean;
+  needs_absentee_ballot_help?: boolean;
+  needs_homebound_voting_help?: boolean;
+  needs_voter_registration_help?: boolean;
+  needs_election_day_ride?: boolean;
+  referred_by_name?: string | null;
+  household_member_count?: number;
+  follow_up_priority?: string;
+  follow_up_reasons?: string[];
+  needs_registration_follow_up?: boolean;
+  follow_up_open?: boolean;
   registration_outreach_status: string | null;
   registration_outreach_date: string | null;
   registration_outreach_notes: string | null;
+  created_at?: string | null;
 }
 
 interface OutreachCounts {
   total: number;
+  open: number;
+  registration_priority: number;
+  support_requests: number;
+  registered_follow_up: number;
+  completed: number;
   not_contacted: number;
   contacted: number;
   registered: number;
   declined: number;
 }
 
+const QUEUE_VIEWS = [
+  { value: 'open', label: 'All Open Follow-Up', countKey: 'open', icon: Clock3 },
+  { value: 'registration_priority', label: 'Registration Priority', countKey: 'registration_priority', icon: AlertCircle },
+  { value: 'support_requests', label: 'Campaign Help Requests', countKey: 'support_requests', icon: Users },
+  { value: 'registered_follow_up', label: 'Registered Via Follow-Up', countKey: 'registered_follow_up', icon: CheckCircle2 },
+  { value: 'completed', label: 'Resolved Outcomes', countKey: 'completed', icon: ClipboardCheck },
+] as const;
+
 const STATUS_OPTIONS = [
   { value: '', label: 'All' },
   { value: 'not_contacted', label: 'Not Contacted' },
   { value: 'contacted', label: 'Contacted' },
-  { value: 'registered', label: 'Registered' },
+  { value: 'registered', label: 'Registered via follow-up' },
   { value: 'declined', label: 'Declined' },
 ];
 
+const ALLOWED_STATUS_BY_QUEUE_VIEW: Record<string, string[]> = {
+  open: ['', 'not_contacted', 'contacted'],
+  registration_priority: ['', 'not_contacted', 'contacted'],
+  support_requests: ['', 'not_contacted', 'contacted'],
+  registered_follow_up: ['', 'registered'],
+  completed: ['', 'registered', 'declined'],
+};
+
 const STATUS_BADGES: Record<string, { bg: string; text: string; label: string }> = {
   contacted: { bg: 'bg-blue-100', text: 'text-blue-800', label: 'Contacted' },
-  registered: { bg: 'bg-green-100', text: 'text-green-800', label: 'Registered' },
+  registered: { bg: 'bg-green-100', text: 'text-green-800', label: 'Registered via follow-up' },
   declined: { bg: 'bg-red-100', text: 'text-red-800', label: 'Declined' },
 };
 
@@ -48,49 +94,183 @@ function StatusBadge({ status }: { status: string | null }) {
   return <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${badge.bg} ${badge.text}`}>{badge.label}</span>;
 }
 
+function priorityBadgeClass(priority?: string | null) {
+  if (priority === 'Registration Priority') return 'bg-red-100 text-red-700';
+  if (priority === 'Campaign Help') return 'bg-amber-100 text-amber-800';
+  if (priority === 'Resolved') return 'bg-emerald-100 text-emerald-700';
+  return 'bg-slate-100 text-slate-700';
+}
+
+function reasonChipClass(reason: string) {
+  if (reason.includes('Registered via follow-up')) return 'bg-green-100 text-green-700';
+  if (reason.includes('Declined')) return 'bg-red-100 text-red-700';
+  if (reason.includes('registration') || reason.includes('No GEC match') || reason.includes('not registered')) return 'bg-amber-100 text-amber-800';
+  return 'bg-blue-100 text-blue-700';
+}
+
 export default function OutreachPage() {
   const queryClient = useQueryClient();
+  const { data: sessionData } = useSession();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [queueView, setQueueView] = useState('open');
   const [statusFilter, setStatusFilter] = useState('');
+  const [registeredStatusFilter, setRegisteredStatusFilter] = useState('');
+  const [supportNeedFilter, setSupportNeedFilter] = useState('');
+  const [villageFilter, setVillageFilter] = useState('');
+  const [drafts, setDrafts] = useState<Record<number, { status: string; notes: string }>>({});
+  const debouncedSearch = useDebouncedValue(search, 250);
+
+  const { data: villageData } = useQuery({ queryKey: ['villages'], queryFn: getVillages });
+  const villages: VillageOption[] = useMemo(() => villageData?.villages || [], [villageData]);
+  const scopedVillageIds = sessionData?.user?.scoped_village_ids ?? null;
+  const accessibleVillages = useMemo(() => {
+    if (scopedVillageIds === null) return villages;
+    const allowed = new Set(scopedVillageIds);
+    return villages.filter((village) => allowed.has(village.id));
+  }, [scopedVillageIds, villages]);
+  const singleScopedVillageId = scopedVillageIds && scopedVillageIds.length === 1 ? String(scopedVillageIds[0]) : '';
+  const effectiveVillageFilter = villageFilter || singleScopedVillageId;
+  const allowedStatusValues = ALLOWED_STATUS_BY_QUEUE_VIEW[queueView] || STATUS_OPTIONS.map((option) => option.value);
+  const availableStatusOptions = useMemo(
+    () => STATUS_OPTIONS.filter((option) => allowedStatusValues.includes(option.value)),
+    [allowedStatusValues]
+  );
+  const effectiveStatusFilter = allowedStatusValues.includes(statusFilter) ? statusFilter : '';
 
   const params: Record<string, string | number> = { page, per_page: 50 };
-  if (search) params.search = search;
-  if (statusFilter && statusFilter !== 'not_contacted') {
-    params.outreach_status = statusFilter;
+  if (debouncedSearch) params.search = debouncedSearch;
+  if (queueView) params.queue_view = queueView;
+  if (effectiveStatusFilter) {
+    params.outreach_status = effectiveStatusFilter;
   }
+  if (effectiveVillageFilter) params.village_id = effectiveVillageFilter;
+  if (registeredStatusFilter) params.registered_voter_status = registeredStatusFilter;
+  if (supportNeedFilter) params.support_need = supportNeedFilter;
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['outreach', page, search, statusFilter],
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ['outreach', page, debouncedSearch, queueView, effectiveStatusFilter, effectiveVillageFilter, registeredStatusFilter, supportNeedFilter],
     queryFn: () => getOutreachSupporters(params),
+    placeholderData: (previous) => previous,
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, status }: { id: number; status: string }) =>
-      updateOutreachStatus(id, { registration_outreach_status: status }),
-    onSuccess: () => {
+    mutationFn: ({ id, status, notes }: { id: number; status?: string; notes?: string }) => {
+      const payload: Record<string, unknown> = {};
+      if (status !== undefined) payload.registration_outreach_status = status === '' ? null : status;
+      if (notes !== undefined) payload.registration_outreach_notes = notes;
+      return updateOutreachStatus(id, payload);
+    },
+    onSuccess: (data, variables) => {
+      const updatedSupporter = data?.supporter as OutreachSupporter | undefined;
+      if (updatedSupporter) {
+        setDrafts((prev) => ({
+          ...prev,
+          [variables.id]: {
+            status: updatedSupporter.registration_outreach_status || '',
+            notes: updatedSupporter.registration_outreach_notes || '',
+          },
+        }));
+      }
       queryClient.invalidateQueries({ queryKey: ['outreach'] });
     },
   });
 
   const supporters: OutreachSupporter[] = data?.supporters || [];
-  const counts: OutreachCounts = data?.counts || { total: 0, not_contacted: 0, contacted: 0, registered: 0, declined: 0 };
+  const counts: OutreachCounts = data?.counts || {
+    total: 0,
+    open: 0,
+    registration_priority: 0,
+    support_requests: 0,
+    registered_follow_up: 0,
+    completed: 0,
+    not_contacted: 0,
+    contacted: 0,
+    registered: 0,
+    declined: 0,
+  };
   const pagination = data?.pagination || { page: 1, pages: 1, total: 0 };
+  const showInitialLoading = isLoading && !data;
+  const showUpdatingState = isFetching && !showInitialLoading;
+
+  const selfReportedLabel = (status?: string | null) => {
+    if (status === 'yes') return 'Self: Yes';
+    if (status === 'no') return 'Self: No';
+    return 'Self: Not sure';
+  };
+
+  const getDraft = (supporter: OutreachSupporter) =>
+    drafts[supporter.id] || {
+      status: supporter.registration_outreach_status || '',
+      notes: supporter.registration_outreach_notes || '',
+    };
+
+  const updateDraft = (supporterId: number, patch: Partial<{ status: string; notes: string }>) => {
+    setDrafts((prev) => {
+      const existing = prev[supporterId] || { status: '', notes: '' };
+      return {
+        ...prev,
+        [supporterId]: { ...existing, ...patch },
+      };
+    });
+  };
+
+  const saveDraft = (supporter: OutreachSupporter) => {
+    const draft = getDraft(supporter);
+    const statusChanged = draft.status !== (supporter.registration_outreach_status || '');
+    const notesChanged = draft.notes !== (supporter.registration_outreach_notes || '');
+    if (!statusChanged && !notesChanged) return;
+
+    updateMutation.mutate({
+      id: supporter.id,
+      status: statusChanged ? draft.status : undefined,
+      notes: notesChanged ? draft.notes : undefined,
+    });
+  };
 
   return (
     <WorkspacePage width="full" className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center gap-2">
-          <ClipboardCheck className="w-5 h-5 text-[#1B3A6B]" /> Voter Outreach
+          <ClipboardCheck className="w-5 h-5 text-primary" /> Voter Help Follow-Up
         </h1>
-        <p className="text-gray-500 text-sm mt-1">Non-registered supporters needing voter registration outreach</p>
+        <p className="text-gray-500 text-sm mt-1">Action queue for approved supporters who still need registration or campaign-help follow-up</p>
       </div>
 
-      {/* Count cards */}
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+        {QUEUE_VIEWS.map((view) => {
+          const Icon = view.icon;
+          const active = queueView === view.value;
+          const count = counts[view.countKey];
+
+          return (
+            <button
+              key={view.value}
+              type="button"
+              onClick={() => {
+                setQueueView(view.value);
+                setPage(1);
+              }}
+              className={`app-card p-4 text-left transition ${active ? 'ring-2 ring-primary border-primary bg-blue-50/40' : 'hover:border-gray-300'}`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-semibold text-gray-900">{view.label}</div>
+                  <div className="mt-1 text-2xl font-bold text-gray-900">{count}</div>
+                </div>
+                <span className={`rounded-full p-2 ${active ? 'bg-primary text-white' : 'bg-gray-100 text-gray-500'}`}>
+                  <Icon className="h-4 w-4" />
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="app-card p-3 text-center">
           <div className="text-2xl font-bold text-gray-900">{counts.total}</div>
-          <div className="text-xs text-gray-500">Total Unregistered</div>
+          <div className="text-xs text-gray-500">Total Follow-Up</div>
         </div>
         <div className="app-card p-3 text-center">
           <div className="text-2xl font-bold text-gray-500">{counts.not_contacted}</div>
@@ -102,12 +282,11 @@ export default function OutreachPage() {
         </div>
         <div className="app-card p-3 text-center">
           <div className="text-2xl font-bold text-green-600">{counts.registered}</div>
-          <div className="text-xs text-gray-500">Registered</div>
+          <div className="text-xs text-gray-500">Registered Via Follow-Up</div>
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
@@ -118,88 +297,221 @@ export default function OutreachPage() {
             className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-xl text-sm"
           />
         </div>
+        {singleScopedVillageId ? (
+          <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+            Assigned village: <span className="font-medium text-gray-900">{accessibleVillages[0]?.name || `Village #${singleScopedVillageId}`}</span>
+          </div>
+        ) : (
+          <select
+            value={villageFilter}
+            onChange={(e) => { setVillageFilter(e.target.value); setPage(1); }}
+            className="border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white"
+          >
+            <option value="">All villages</option>
+            {accessibleVillages.map((village) => (
+              <option key={village.id} value={village.id}>{village.name}</option>
+            ))}
+          </select>
+        )}
         <select
-          value={statusFilter}
+          value={effectiveStatusFilter}
           onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
           className="border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white"
         >
-          {STATUS_OPTIONS.map((opt) => (
+          {availableStatusOptions.map((opt) => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </select>
+        <select
+          value={registeredStatusFilter}
+          onChange={(e) => { setRegisteredStatusFilter(e.target.value); setPage(1); }}
+          className="border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white"
+        >
+          <option value="">All self-reported voter status</option>
+          <option value="yes">Self-reported yes</option>
+          <option value="no">Self-reported no</option>
+          <option value="not_sure">Self-reported not sure</option>
+        </select>
+        <select
+          value={supportNeedFilter}
+          onChange={(e) => { setSupportNeedFilter(e.target.value); setPage(1); }}
+          className="border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white"
+        >
+          <option value="">All support requests</option>
+          <option value="registration">Registration help</option>
+          <option value="absentee">Absentee help</option>
+          <option value="homebound">Homebound help</option>
+          <option value="ride">Ride to polls</option>
+          <option value="volunteer">Volunteer</option>
+          <option value="any">Any help request</option>
+        </select>
       </div>
 
-      {/* Table */}
-      <div className="app-card overflow-x-auto">
-        {isLoading ? (
-          <div className="p-8 text-center text-gray-400">Loading...</div>
+      <div className="app-card p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+            <span className="font-medium text-gray-700">Current queue:</span>
+            <span>{QUEUE_VIEWS.find((view) => view.value === queueView)?.label || 'All Open Follow-Up'}</span>
+            {effectiveVillageFilter && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-gray-600">
+                <MapPinned className="h-3.5 w-3.5" />
+                {accessibleVillages.find((village) => String(village.id) === effectiveVillageFilter)?.name || `Village #${effectiveVillageFilter}`}
+              </span>
+            )}
+          </div>
+          <div className={`text-xs text-gray-400 transition-opacity duration-200 ${showUpdatingState ? 'opacity-100' : 'opacity-0'}`}>
+            {search !== debouncedSearch ? 'Searching...' : 'Updating...'}
+          </div>
+        </div>
+      </div>
+
+      <div className={`space-y-4 transition-opacity duration-200 ${showUpdatingState ? 'opacity-70' : 'opacity-100'}`}>
+        {showInitialLoading ? (
+          <div className="app-card p-8 text-center text-gray-400">Loading...</div>
         ) : supporters.length === 0 ? (
-          <div className="p-8 text-center text-gray-400">No supporters found</div>
+          <div className="app-card p-8 text-center text-gray-400">No supporters found</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-200 text-left text-xs text-gray-500 uppercase tracking-wide">
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3 hidden sm:table-cell">Village</th>
-                <th className="px-4 py-3 hidden md:table-cell">Phone</th>
-                <th className="px-4 py-3 hidden lg:table-cell">Email</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3 hidden md:table-cell">Last Contact</th>
-                <th className="px-4 py-3">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {supporters.map((s) => (
-                <tr key={s.id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="px-4 py-3">
-                    <Link to={`/admin/supporters/${s.id}`} className="text-[#1B3A6B] hover:underline font-medium">
-                      {s.first_name} {s.last_name}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3 text-gray-600 hidden sm:table-cell">{s.village_name}</td>
-                  <td className="px-4 py-3 text-gray-600 hidden md:table-cell">{s.contact_number || '—'}</td>
-                  <td className="px-4 py-3 text-gray-600 hidden lg:table-cell">{s.email || '—'}</td>
-                  <td className="px-4 py-3"><StatusBadge status={s.registration_outreach_status} /></td>
-                  <td className="px-4 py-3 text-gray-500 text-xs hidden md:table-cell">
-                    {s.registration_outreach_date ? formatDateTime(s.registration_outreach_date) : '—'}
-                  </td>
-                  <td className="px-4 py-3">
-                    <select
-                      value={s.registration_outreach_status || ''}
-                      onChange={(e) => {
-                        if (e.target.value) {
-                          updateMutation.mutate({ id: s.id, status: e.target.value });
-                        }
-                      }}
-                      className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs bg-white min-w-[120px]"
-                    >
-                      <option value="">Set status...</option>
-                      <option value="contacted">Contacted</option>
-                      <option value="registered">Registered</option>
-                      <option value="declined">Declined</option>
-                    </select>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          supporters.map((supporter) => {
+            const draft = getDraft(supporter);
+            const statusChanged = draft.status !== (supporter.registration_outreach_status || '');
+            const notesChanged = draft.notes !== (supporter.registration_outreach_notes || '');
+            const isSaving = updateMutation.isPending && updateMutation.variables?.id === supporter.id;
+
+            return (
+              <div key={supporter.id} className="app-card p-5">
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0 flex-1 space-y-4">
+                    <div className="flex flex-wrap items-start gap-2">
+                      <div className="min-w-0 flex-1">
+                        <Link to={`/admin/supporters/${supporter.id}`} className="text-primary hover:underline text-lg font-semibold">
+                          {supporter.first_name} {supporter.last_name}
+                        </Link>
+                        <div className="mt-1 flex flex-wrap items-center gap-3 text-sm text-gray-500">
+                          <span>{supporter.village_name || 'Unknown village'}</span>
+                          {supporter.precinct_number && <span>Precinct {supporter.precinct_number}</span>}
+                          {supporter.contact_number && <span>{supporter.contact_number}</span>}
+                          {supporter.email && <span>{supporter.email}</span>}
+                        </div>
+                      </div>
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${priorityBadgeClass(supporter.follow_up_priority)}`}>
+                        {supporter.follow_up_priority || 'Low'} priority
+                      </span>
+                      <StatusBadge status={supporter.registration_outreach_status} />
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {(supporter.follow_up_reasons || []).map((reason) => (
+                        <span key={`${supporter.id}-${reason}`} className={`rounded-full px-2.5 py-1 text-xs font-medium ${reasonChipClass(reason)}`}>
+                          {reason}
+                        </span>
+                      ))}
+                      {(supporter.follow_up_reasons || []).length === 0 && (
+                        <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">General follow-up</span>
+                      )}
+                    </div>
+
+                    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Voter context</div>
+                        <div className="mt-1 text-sm text-gray-700">{selfReportedLabel(supporter.registered_voter_status)}</div>
+                        <div className={`mt-1 text-sm font-medium ${supporter.registered_voter ? 'text-green-700' : 'text-amber-700'}`}>
+                          {supporter.registered_voter ? 'GEC Found: Yes' : 'GEC Found: No'}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Queue status</div>
+                        <div className="mt-1 text-sm text-gray-700">{supporter.follow_up_open ? 'Open follow-up' : 'Resolved follow-up'}</div>
+                        <div className="mt-1 text-xs text-gray-500">
+                          {supporter.registration_outreach_date ? `Last updated ${formatDateTime(supporter.registration_outreach_date)}` : 'No follow-up update yet'}
+                        </div>
+                      </div>
+                      <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
+                        <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Household / referral</div>
+                        <div className="mt-1 text-sm text-gray-700">
+                          {(supporter.household_member_count || 0) > 0 ? `${supporter.household_member_count} linked supporter${supporter.household_member_count === 1 ? '' : 's'}` : 'Single supporter'}
+                        </div>
+                        <div className="mt-1 text-xs text-gray-500">
+                          {supporter.referred_by_name ? `Referred by ${supporter.referred_by_name}` : 'No referral note'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {(supporter.registered_voter_location_note || supporter.registration_outreach_notes) && (
+                      <div className="space-y-2">
+                        {supporter.registered_voter_location_note && (
+                          <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+                            Votes elsewhere: {supporter.registered_voter_location_note}
+                          </div>
+                        )}
+                        {supporter.registration_outreach_notes && (
+                          <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-amber-700">
+                              <StickyNote className="h-3.5 w-3.5" />
+                              Latest follow-up note
+                            </div>
+                            <div className="mt-1 whitespace-pre-wrap">{supporter.registration_outreach_notes}</div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="w-full lg:w-[340px] shrink-0 rounded-2xl border border-gray-200 bg-white p-4">
+                    <div className="text-sm font-semibold text-gray-900">Update Follow-Up</div>
+                    <div className="mt-3 space-y-3">
+                      <div>
+                        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">Result</label>
+                        <select
+                          value={draft.status}
+                          onChange={(e) => updateDraft(supporter.id, { status: e.target.value })}
+                          className="w-full rounded-xl border border-gray-300 bg-white px-3 py-2 text-sm"
+                        >
+                          <option value="">Set result...</option>
+                          <option value="contacted">Contacted</option>
+                          <option value="registered">Registered via follow-up</option>
+                          <option value="declined">Declined</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-gray-500">Notes</label>
+                        <textarea
+                          value={draft.notes}
+                          onChange={(e) => updateDraft(supporter.id, { notes: e.target.value })}
+                          rows={4}
+                          placeholder="Add registrar / follow-up notes..."
+                          className="w-full rounded-xl border border-gray-300 px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => saveDraft(supporter)}
+                        disabled={(!statusChanged && !notesChanged) || isSaving}
+                        className="w-full rounded-xl bg-primary px-3 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {isSaving ? 'Saving...' : 'Save Follow-Up Update'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
 
-      {/* Pagination */}
       {pagination.pages > 1 && (
         <div className="flex items-center justify-between text-sm text-gray-500">
           <span>Page {pagination.page} of {pagination.pages} ({pagination.total} total)</span>
           <div className="flex gap-2">
             <button
-              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              onClick={() => setPage((currentPage) => Math.max(1, currentPage - 1))}
               disabled={page <= 1}
               className="p-2 border border-gray-300 rounded-lg disabled:opacity-30 hover:bg-gray-50"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
-              onClick={() => setPage((p) => Math.min(pagination.pages, p + 1))}
+              onClick={() => setPage((currentPage) => Math.min(pagination.pages, currentPage + 1))}
               disabled={page >= pagination.pages}
               className="p-2 border border-gray-300 rounded-lg disabled:opacity-30 hover:bg-gray-50"
             >

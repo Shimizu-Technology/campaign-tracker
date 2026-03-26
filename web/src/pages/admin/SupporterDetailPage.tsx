@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom';
 import { AlertTriangle, ChevronLeft, Pencil, Save, UserRound, X } from 'lucide-react';
 import { acceptToQuota, getSupporter, getVillages, updateSupporter, verifySupporter, updateOutreachStatus } from '../../lib/api';
 import { formatDateTime } from '../../lib/datetime';
@@ -32,7 +32,15 @@ interface SupporterDetail {
   precinct_id: number | null;
   precinct_number: string | null;
   self_reported_registered_voter: boolean | null;
+  registered_voter_status: string;
+  registered_voter_location_note: string | null;
   registered_voter: boolean;
+  wants_to_volunteer: boolean;
+  needs_absentee_ballot_help: boolean;
+  needs_homebound_voting_help: boolean;
+  needs_voter_registration_help: boolean;
+  needs_election_day_ride: boolean;
+  referred_by_name: string | null;
   yard_sign: boolean;
   motorcade_available: boolean;
   opt_in_email: boolean;
@@ -67,6 +75,20 @@ interface SupporterDetail {
   referral_code_id?: number | null;
   referral_display_name?: string | null;
   created_at: string;
+  household_group_id?: number | null;
+  household_primary?: boolean;
+  household_member_count?: number;
+  household_members?: Array<{
+    id: number;
+    first_name: string;
+    middle_name?: string | null;
+    last_name: string;
+    print_name: string;
+    village_name?: string | null;
+    registered_voter_status?: string | null;
+    review_status: string;
+    public_review_status: string;
+  }>;
   events_invited_count: number;
   events_attended_count: number;
   reliability_score: number | null;
@@ -108,7 +130,15 @@ const AUDIT_FIELD_LABELS: Record<string, string> = {
   attribution_method: 'Entry method',
   referral_code_id: 'Referrer',
   self_reported_registered_voter: 'Self-reported registered voter',
+  registered_voter_status: 'Self-reported voter status',
+  registered_voter_location_note: 'Votes elsewhere note',
   registered_voter: 'GEC found registered voter',
+  wants_to_volunteer: 'Volunteer request',
+  needs_absentee_ballot_help: 'Absentee ballot help',
+  needs_homebound_voting_help: 'Homebound help',
+  needs_voter_registration_help: 'Registration help',
+  needs_election_day_ride: 'Ride to polls',
+  referred_by_name: 'Referred by',
   yard_sign: 'Yard sign',
   motorcade_available: 'Motorcade available',
   opt_in_email: 'Opt-in email',
@@ -150,6 +180,11 @@ const AUDIT_VALUE_LABELS: Record<string, Record<string, string>> = {
     accepted: 'Accepted',
     pending_public_review: 'Pending public review',
   },
+  registered_voter_status: {
+    yes: 'Yes',
+    no: 'No',
+    not_sure: 'Not sure',
+  },
   review_status: {
     pending: 'Pending supporter review',
     approved: 'Approved',
@@ -184,7 +219,15 @@ const PRIMARY_AUDIT_FIELD_ORDER = [
   'email',
   'street_address',
   'self_reported_registered_voter',
+  'registered_voter_status',
+  'registered_voter_location_note',
   'registered_voter',
+  'wants_to_volunteer',
+  'needs_absentee_ballot_help',
+  'needs_homebound_voting_help',
+  'needs_voter_registration_help',
+  'needs_election_day_ride',
+  'referred_by_name',
   'yard_sign',
   'motorcade_available',
   'opt_in_text',
@@ -370,14 +413,64 @@ function fullName(supporter: Pick<SupporterDetail, 'first_name' | 'middle_name' 
   return [ supporter.first_name, supporter.middle_name, supporter.last_name ].filter(Boolean).join(' ');
 }
 
+function selfReportedRegisteredStatusLabel(status?: string | null, fallback?: boolean | null) {
+  if (status === 'yes') return 'Yes';
+  if (status === 'no') return 'No';
+  if (status === 'not_sure') return 'Not sure';
+  if (fallback === true) return 'Yes';
+  if (fallback === false) return 'No';
+  return 'Not sure';
+}
+
+function supportRequestBadges(supporter: Pick<SupporterDetail, 'needs_voter_registration_help' | 'needs_absentee_ballot_help' | 'needs_homebound_voting_help' | 'needs_election_day_ride' | 'wants_to_volunteer'>) {
+  const badges: string[] = [];
+  if (supporter.needs_voter_registration_help) badges.push('Registration Help');
+  if (supporter.needs_absentee_ballot_help) badges.push('Absentee Help');
+  if (supporter.needs_homebound_voting_help) badges.push('Homebound Help');
+  if (supporter.needs_election_day_ride) badges.push('Ride To Polls');
+  if (supporter.wants_to_volunteer) badges.push('Volunteer');
+  return badges;
+}
+
+function followUpStatusLabel(status?: string | null) {
+  if (status === 'registered') return 'Registered via follow-up';
+  if (status === 'contacted') return 'Contacted';
+  if (status === 'declined') return 'Declined';
+  return 'Not contacted';
+}
+
+function followUpStatusClass(status?: string | null) {
+  if (status === 'registered') return 'bg-green-100 text-green-700';
+  if (status === 'contacted') return 'bg-blue-100 text-blue-700';
+  if (status === 'declined') return 'bg-red-100 text-red-700';
+  return 'bg-gray-100 text-gray-600';
+}
+
 function supportDetailBackLabel(returnTo: string) {
   if (returnTo.includes('/villages/')) return 'Back to Village';
   if (returnTo.includes('/supporters')) return 'Back to Supporters';
   return 'Back';
 }
 
+function detailFlagChips(flags: Array<{ label: string; active: boolean; tone?: 'blue' | 'amber' | 'indigo' | 'green' }>) {
+  const toneClass = {
+    blue: 'bg-blue-100 text-blue-700',
+    amber: 'bg-amber-100 text-amber-800',
+    indigo: 'bg-indigo-100 text-indigo-700',
+    green: 'bg-green-100 text-green-700',
+  } as const;
+
+  return flags
+    .filter((flag) => flag.active)
+    .map((flag) => ({
+      label: flag.label,
+      className: toneClass[flag.tone || 'blue'],
+    }));
+}
+
 export default function SupporterDetailPage() {
   const { id } = useParams();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const supporterId = Number(id);
   const queryClient = useQueryClient();
@@ -412,6 +505,11 @@ export default function SupporterDetailPage() {
   const canEdit = permissions?.can_edit ?? false;
   const canReviewPublic = sessionData?.permissions?.can_review_public ?? false;
   const canMarkVerifiedVoter = supporter ? !isNoGecMatch(supporter) : false;
+  const supporterDetailPath = (targetId: number) => {
+    const basePath = location.pathname.startsWith('/data') ? '/data/supporters' : '/admin/supporters';
+    const nextReturnTo = `${location.pathname}${location.search}`;
+    return `${basePath}/${targetId}?return_to=${encodeURIComponent(nextReturnTo)}`;
+  };
 
   const baseForm = useMemo(() => {
     if (!supporter) return null;
@@ -426,7 +524,15 @@ export default function SupporterDetailPage() {
       village_id: supporter.village_id,
       precinct_id: supporter.precinct_id,
       self_reported_registered_voter: supporter.self_reported_registered_voter,
+      registered_voter_status: supporter.registered_voter_status,
+      registered_voter_location_note: supporter.registered_voter_location_note || '',
       registered_voter: supporter.registered_voter,
+      wants_to_volunteer: supporter.wants_to_volunteer,
+      needs_absentee_ballot_help: supporter.needs_absentee_ballot_help,
+      needs_homebound_voting_help: supporter.needs_homebound_voting_help,
+      needs_voter_registration_help: supporter.needs_voter_registration_help,
+      needs_election_day_ride: supporter.needs_election_day_ride,
+      referred_by_name: supporter.referred_by_name || '',
       yard_sign: supporter.yard_sign,
       motorcade_available: supporter.motorcade_available,
       opt_in_email: supporter.opt_in_email,
@@ -556,7 +662,7 @@ export default function SupporterDetailPage() {
               </p>
               {supporter.duplicate_of_id && (
                 <Link
-                  to={`/admin/supporters/${supporter.duplicate_of_id}`}
+                  to={supporterDetailPath(supporter.duplicate_of_id)}
                   className="text-sm text-primary hover:underline mt-1 inline-block"
                 >
                   View possible match →
@@ -684,57 +790,181 @@ export default function SupporterDetailPage() {
                 <option key={p.id} value={p.id}>Precinct {p.number} ({p.alpha_range})</option>
               ))}
             </select>
+            <select
+              value={String(currentForm.registered_voter_status || 'not_sure')}
+              onChange={(e) => updateDraft({
+                registered_voter_status: e.target.value,
+                self_reported_registered_voter: e.target.value === 'yes' ? true : e.target.value === 'no' ? false : null,
+                registered_voter_location_note: e.target.value === 'yes' ? currentForm.registered_voter_location_note : '',
+              })}
+              className="border border-[var(--border-soft)] rounded-xl px-3 py-2 bg-[var(--surface-raised)] disabled:bg-[var(--surface-bg)] disabled:text-[var(--text-primary)]"
+              disabled={!isEditing}
+            >
+              <option value="yes">Self-reported voter: Yes</option>
+              <option value="no">Self-reported voter: No</option>
+              <option value="not_sure">Self-reported voter: Not sure</option>
+            </select>
+            <input
+              value={String(currentForm.registered_voter_location_note || '')}
+              onChange={(e) => updateDraft({ registered_voter_location_note: e.target.value })}
+              className="border border-[var(--border-soft)] rounded-xl px-3 py-2 md:col-span-2 disabled:bg-[var(--surface-bg)] disabled:text-[var(--text-primary)]"
+              disabled={!isEditing || currentForm.registered_voter_status !== 'yes'}
+              placeholder="Votes elsewhere note"
+            />
+            <input
+              value={String(currentForm.referred_by_name || '')}
+              onChange={(e) => updateDraft({ referred_by_name: e.target.value })}
+              className="border border-[var(--border-soft)] rounded-xl px-3 py-2 disabled:bg-[var(--surface-bg)] disabled:text-[var(--text-primary)]"
+              disabled={!isEditing}
+              placeholder="Referred by"
+            />
           </div>
 
-          <div className="flex flex-wrap gap-4 mt-3 text-sm text-[var(--text-primary)]">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={Boolean(currentForm.self_reported_registered_voter)}
-                onChange={(e) => updateDraft({ self_reported_registered_voter: e.target.checked })}
-                disabled={!isEditing}
-              />
-              Self-reported registered voter
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={Boolean(currentForm.yard_sign)}
-                onChange={(e) => updateDraft({ yard_sign: e.target.checked })}
-                disabled={!isEditing}
-              />
-              Yard sign
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={Boolean(currentForm.motorcade_available)}
-                onChange={(e) => updateDraft({ motorcade_available: e.target.checked })}
-                disabled={!isEditing}
-              />
-              Motorcade
-            </label>
-          </div>
-          <div className="flex flex-wrap gap-4 mt-3 pt-3 border-t border-[var(--border-soft)]">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={Boolean(currentForm.opt_in_text)}
-                onChange={(e) => updateDraft({ opt_in_text: e.target.checked })}
-                disabled={!isEditing}
-              />
-              Text updates
-            </label>
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={Boolean(currentForm.opt_in_email)}
-                onChange={(e) => updateDraft({ opt_in_email: e.target.checked })}
-                disabled={!isEditing}
-              />
-              Email updates
-            </label>
-          </div>
+          {isEditing ? (
+            <>
+              <div className="flex flex-wrap gap-4 mt-3 text-sm text-[var(--text-primary)]">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(currentForm.self_reported_registered_voter)}
+                    onChange={(e) => updateDraft({ self_reported_registered_voter: e.target.checked })}
+                    disabled={!isEditing}
+                  />
+                  Self-reported registered voter
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(currentForm.yard_sign)}
+                    onChange={(e) => updateDraft({ yard_sign: e.target.checked })}
+                    disabled={!isEditing}
+                  />
+                  Yard sign
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(currentForm.motorcade_available)}
+                    onChange={(e) => updateDraft({ motorcade_available: e.target.checked })}
+                    disabled={!isEditing}
+                  />
+                  Motorcade
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(currentForm.needs_voter_registration_help)}
+                    onChange={(e) => updateDraft({ needs_voter_registration_help: e.target.checked })}
+                    disabled={!isEditing}
+                  />
+                  Registration help
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(currentForm.needs_absentee_ballot_help)}
+                    onChange={(e) => updateDraft({ needs_absentee_ballot_help: e.target.checked })}
+                    disabled={!isEditing}
+                  />
+                  Absentee help
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(currentForm.needs_homebound_voting_help)}
+                    onChange={(e) => updateDraft({ needs_homebound_voting_help: e.target.checked })}
+                    disabled={!isEditing}
+                  />
+                  Homebound help
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(currentForm.needs_election_day_ride)}
+                    onChange={(e) => updateDraft({ needs_election_day_ride: e.target.checked })}
+                    disabled={!isEditing}
+                  />
+                  Ride to polls
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(currentForm.wants_to_volunteer)}
+                    onChange={(e) => updateDraft({ wants_to_volunteer: e.target.checked })}
+                    disabled={!isEditing}
+                  />
+                  Volunteer
+                </label>
+              </div>
+              <div className="flex flex-wrap gap-4 mt-3 pt-3 border-t border-[var(--border-soft)]">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(currentForm.opt_in_text)}
+                    onChange={(e) => updateDraft({ opt_in_text: e.target.checked })}
+                    disabled={!isEditing}
+                  />
+                  Text updates
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(currentForm.opt_in_email)}
+                    onChange={(e) => updateDraft({ opt_in_email: e.target.checked })}
+                    disabled={!isEditing}
+                  />
+                  Email updates
+                </label>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {detailFlagChips([
+                  { label: 'Self-reported registered voter', active: Boolean(currentForm.self_reported_registered_voter), tone: 'blue' },
+                  { label: 'Yard sign', active: Boolean(currentForm.yard_sign), tone: 'amber' },
+                  { label: 'Motorcade', active: Boolean(currentForm.motorcade_available), tone: 'indigo' },
+                  { label: 'Registration help', active: Boolean(currentForm.needs_voter_registration_help), tone: 'amber' },
+                  { label: 'Absentee help', active: Boolean(currentForm.needs_absentee_ballot_help), tone: 'amber' },
+                  { label: 'Homebound help', active: Boolean(currentForm.needs_homebound_voting_help), tone: 'amber' },
+                  { label: 'Ride to polls', active: Boolean(currentForm.needs_election_day_ride), tone: 'amber' },
+                  { label: 'Volunteer', active: Boolean(currentForm.wants_to_volunteer), tone: 'green' },
+                ]).map((flag) => (
+                  <span key={flag.label} className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${flag.className}`}>
+                    {flag.label}
+                  </span>
+                ))}
+                {detailFlagChips([
+                  { label: 'Self-reported registered voter', active: Boolean(currentForm.self_reported_registered_voter), tone: 'blue' },
+                  { label: 'Yard sign', active: Boolean(currentForm.yard_sign), tone: 'amber' },
+                  { label: 'Motorcade', active: Boolean(currentForm.motorcade_available), tone: 'indigo' },
+                  { label: 'Registration help', active: Boolean(currentForm.needs_voter_registration_help), tone: 'amber' },
+                  { label: 'Absentee help', active: Boolean(currentForm.needs_absentee_ballot_help), tone: 'amber' },
+                  { label: 'Homebound help', active: Boolean(currentForm.needs_homebound_voting_help), tone: 'amber' },
+                  { label: 'Ride to polls', active: Boolean(currentForm.needs_election_day_ride), tone: 'amber' },
+                  { label: 'Volunteer', active: Boolean(currentForm.wants_to_volunteer), tone: 'green' },
+                ]).length === 0 && (
+                  <span className="text-sm text-[var(--text-secondary)]">No campaign flags selected.</span>
+                )}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2 border-t border-[var(--border-soft)] pt-3">
+                {detailFlagChips([
+                  { label: 'Text updates', active: Boolean(currentForm.opt_in_text), tone: 'blue' },
+                  { label: 'Email updates', active: Boolean(currentForm.opt_in_email), tone: 'blue' },
+                ]).map((flag) => (
+                  <span key={flag.label} className={`inline-block rounded-full px-3 py-1 text-xs font-semibold ${flag.className}`}>
+                    {flag.label}
+                  </span>
+                ))}
+                {detailFlagChips([
+                  { label: 'Text updates', active: Boolean(currentForm.opt_in_text), tone: 'blue' },
+                  { label: 'Email updates', active: Boolean(currentForm.opt_in_email), tone: 'blue' },
+                ]).length === 0 && (
+                  <span className="text-sm text-[var(--text-secondary)]">No campaign updates selected.</span>
+                )}
+              </div>
+            </>
+          )}
 
           {hasAssignmentHistory(supporter) && (
             <div className="mt-4 rounded-xl border border-purple-200 bg-purple-50 px-4 py-3">
@@ -924,16 +1154,36 @@ export default function SupporterDetailPage() {
         </section>
 
         <section className="app-card p-4">
-          <h2 className="font-semibold text-[var(--text-primary)] mb-2">Voter Registration Outreach</h2>
+          <h2 className="font-semibold text-[var(--text-primary)] mb-2">Voter Follow-Up</h2>
           <div className="space-y-3">
+            {supporter.registration_outreach_status === 'registered' && (
+              <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3">
+                <p className="text-sm font-semibold text-green-800">Registered via follow-up</p>
+                <p className="mt-1 text-sm text-green-700">
+                  This supporter was not matched in the current imported GEC list, but staff marked them as registered after campaign follow-up.
+                </p>
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-[var(--text-secondary)]">Self-reported registered voter:</span>
               <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-semibold ${
-                supporter.self_reported_registered_voter ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-700'
+                supporter.registered_voter_status === 'yes' ? 'bg-blue-100 text-blue-700' : supporter.registered_voter_status === 'no' ? 'bg-gray-100 text-gray-700' : 'bg-amber-100 text-amber-800'
               }`}>
-                {supporter.self_reported_registered_voter == null ? 'Unknown' : supporter.self_reported_registered_voter ? 'Yes' : 'No'}
+                {selfReportedRegisteredStatusLabel(supporter.registered_voter_status, supporter.self_reported_registered_voter)}
               </span>
             </div>
+            {supporter.registered_voter_location_note && (
+              <div>
+                <span className="text-sm text-[var(--text-secondary)]">Votes elsewhere note:</span>
+                <p className="text-sm text-[var(--text-primary)] mt-1">{supporter.registered_voter_location_note}</p>
+              </div>
+            )}
+            {supporter.referred_by_name && (
+              <div>
+                <span className="text-sm text-[var(--text-secondary)]">Referred by:</span>
+                <p className="text-sm text-[var(--text-primary)] mt-1">{supporter.referred_by_name}</p>
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-[var(--text-secondary)]">GEC found registered voter:</span>
               <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-semibold ${
@@ -943,7 +1193,26 @@ export default function SupporterDetailPage() {
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-[var(--text-secondary)]">Outreach status:</span>
+              <span className="text-sm text-[var(--text-secondary)]">Follow-up result:</span>
+              <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-semibold ${followUpStatusClass(supporter.registration_outreach_status)}`}>
+                {followUpStatusLabel(supporter.registration_outreach_status)}
+              </span>
+            </div>
+            <div>
+              <span className="text-sm text-[var(--text-secondary)]">Campaign requests:</span>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {supportRequestBadges(supporter).map((badge) => (
+                  <span key={badge} className="inline-block rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800">
+                    {badge}
+                  </span>
+                ))}
+                {supportRequestBadges(supporter).length === 0 && (
+                  <span className="text-sm text-[var(--text-secondary)]">No special requests recorded.</span>
+                )}
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-[var(--text-secondary)]">Update follow-up result:</span>
               {canEdit ? (
                 <select
                   value={supporter.registration_outreach_status || ''}
@@ -965,13 +1234,8 @@ export default function SupporterDetailPage() {
                   <option value="declined">Declined</option>
                 </select>
               ) : (
-                <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-semibold ${
-                  supporter.registration_outreach_status === 'registered' ? 'bg-green-100 text-green-700' :
-                  supporter.registration_outreach_status === 'contacted' ? 'bg-blue-100 text-blue-700' :
-                  supporter.registration_outreach_status === 'declined' ? 'bg-red-100 text-red-700' :
-                  'bg-gray-100 text-gray-600'
-                }`}>
-                  {supporter.registration_outreach_status ? supporter.registration_outreach_status.charAt(0).toUpperCase() + supporter.registration_outreach_status.slice(1) : 'Not contacted'}
+                <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-semibold ${followUpStatusClass(supporter.registration_outreach_status)}`}>
+                  {followUpStatusLabel(supporter.registration_outreach_status)}
                 </span>
               )}
             </div>
@@ -1010,6 +1274,42 @@ export default function SupporterDetailPage() {
             )}
           </div>
         </section>
+
+        {supporter.household_group_id && (
+          <section className="app-card p-4">
+            <h2 className="font-semibold text-[var(--text-primary)] mb-2">Household</h2>
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-block rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
+                  {supporter.household_primary ? 'Primary household contact' : 'Household member'}
+                </span>
+                <span className="text-sm text-[var(--text-secondary)]">
+                  {supporter.household_member_count || 0} linked supporter{(supporter.household_member_count || 0) === 1 ? '' : 's'} in this household group.
+                </span>
+              </div>
+              {supporter.household_members && supporter.household_members.length > 0 ? (
+                <div className="space-y-2">
+                  {supporter.household_members.map((member) => (
+                    <Link
+                      key={member.id}
+                      to={supporterDetailPath(member.id)}
+                      className="block rounded-xl border border-[var(--border-soft)] px-4 py-3 hover:bg-[var(--surface-bg)]"
+                    >
+                      <div className="font-medium text-[var(--text-primary)]">
+                        {[ member.first_name, member.middle_name, member.last_name ].filter(Boolean).join(' ')}
+                      </div>
+                      <div className="mt-1 text-xs text-[var(--text-secondary)]">
+                        {member.village_name || 'Unknown village'} · {selfReportedRegisteredStatusLabel(member.registered_voter_status)}
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-[var(--text-secondary)]">No additional household supporters are linked yet.</p>
+              )}
+            </div>
+          </section>
+        )}
 
         <section className="app-card p-4">
           <h2 className="font-semibold text-[var(--text-primary)] mb-2">Engagement Snapshot</h2>

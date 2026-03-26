@@ -1,6 +1,6 @@
 # Poll Watcher Operations Spec
 
-Last updated: 2026-02-13
+Last updated: 2026-03-08
 
 This document defines what poll watchers do on election day and how that maps to the app workflow.
 It is the pre-implementation reference for Item 7 in `docs/execution-tracker.md`.
@@ -9,9 +9,9 @@ It is the pre-implementation reference for Item 7 in `docs/execution-tracker.md`
 
 ## Purpose
 
-- Give the campaign a fast, repeatable way to track supporter turnout during election day.
+- Give the campaign a fast, repeatable way to track turnout against the full registered voter list during election day.
 - Keep field updates scoped to assigned precincts.
-- Feed war room call lists in near real-time so "not yet voted" supporters can be contacted.
+- Feed war room call lists in near real-time by overlaying campaign supporters on top of full-voter turnout data so "not yet voted" supporters can be contacted.
 
 Important: this is campaign operations data, not official election records.
 
@@ -25,7 +25,7 @@ Poll watchers are election-day operators focused on turnout reporting.
 - Access `Poll Watcher` and `War Room` election-day tools.
 - View only precincts they are assigned to.
 - Submit precinct turnout snapshots and issue flags.
-- Mark supporter-level turnout status for assigned precinct supporters.
+- Mark turnout status against the full assigned precinct voter list.
 - Log contact outcomes for outreach attempts.
 
 ### Not Allowed
@@ -45,9 +45,10 @@ Poll watchers are election-day operators focused on turnout reporting.
 ## 2) During polling (repeat cycle)
 - Capture latest precinct turnout count.
 - Submit a precinct report update (voter count + optional issue notes).
-- Work strike list of known supporters in precinct:
+- Work strike list of registered voters in precinct:
   - mark `voted` when confirmed
   - leave/mark `not_yet_voted` when still pending
+- Use campaign supporter overlay to determine which not-yet-voted people belong in supporter GOTV follow-up.
 - Log outreach outcomes for call/SMS/door attempts:
   - attempted
   - reached
@@ -72,15 +73,15 @@ Poll watchers are election-day operators focused on turnout reporting.
 - `notes` (optional)
 - `reported_by_user_id`
 
-## Supporter turnout event
-- `supporter_id`
+## Voter turnout event
+- `gec_voter_id`
 - `turnout_status` (`not_yet_voted`, `voted`, `unknown`)
 - `updated_at`
 - `updated_by_user_id`
 - `source` (`poll_watcher`, `war_room`, `admin_override`)
 - `note` (optional)
 
-## Contact outcome event
+## Supporter outreach event
 - `supporter_id`
 - `outcome` (`attempted`, `reached`, `wrong_number`, `unavailable`, `refused`)
 - `channel` (`call`, `sms`, `in_person`)
@@ -94,7 +95,7 @@ Poll watchers are election-day operators focused on turnout reporting.
 
 War room should be able to consume watcher updates immediately:
 
-- Queue: supporters with `not_yet_voted`
+- Queue: campaign supporters with `not_yet_voted`, derived by overlaying supporter status on the full turnout-marked voter list
 - Breakdowns: by village, precinct, and priority
 - Counters:
   - remaining
@@ -114,21 +115,24 @@ War room should be able to consume watcher updates immediately:
   - from -> to values
   - source + note metadata (when present)
 - Explicit UI label that turnout markers are campaign-tracked operational records.
+- Explicit distinction between:
+  - full-voter turnout marking
+  - supporter-only outreach follow-up derived from that turnout data
 
 ---
 
 ## Implementation Mapping (Execution Tracker Item 7)
 
 - `7.1` Data model + migration:
-  - Add supporter turnout fields and outreach logging schema.
+  - Add full-voter turnout fields and supporter outreach logging schema.
 - `7.2` Backend API:
-  - Precinct-scoped strike-list fetch + turnout/outreach update endpoints.
+  - Precinct-scoped full-voter strike-list fetch + turnout/outreach update endpoints.
 - `7.3` Audit + compliance:
   - Full change log and campaign-data disclaimers.
 - `7.4` Poll watcher UI:
-  - Mobile-first strike-list actions and rapid status toggles.
+  - Mobile-first full-voter strike-list actions and rapid status toggles, with supporter overlay indicators.
 - `7.5` War room queue integration:
-  - Live not-yet-voted queue and progress counters.
+  - Live not-yet-voted supporter queue and progress counters derived from full-voter turnout state.
 - `7.6` Tests + QA:
   - Role/scope tests and election-day simulation checklist.
 - `7.7` Rollout readiness:
@@ -143,3 +147,4 @@ War room should be able to consume watcher updates immediately:
 - Which outreach outcomes are mandatory vs optional?
 - What is the escalation SLA for precinct issues (immediate, 5 min, 15 min)?
 - Do we need offline queueing for polling sites with weak connectivity in v1?
+- Should poll watchers be allowed to record outreach directly, or should outreach remain a war room action using the derived supporter-not-yet-voted list?

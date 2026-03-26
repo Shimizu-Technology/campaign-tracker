@@ -30,7 +30,11 @@ class ReportGeneratorTest < ActiveSupport::TestCase
       turnout_status: "unknown",
       verification_status: "verified",
       verified_at: Time.current,
-      registered_voter: true
+      registered_voter: true,
+      registered_voter_status: "yes",
+      needs_voter_registration_help: true,
+      registration_outreach_status: "registered",
+      referred_by_name: "Maria Cruz"
     )
 
     # Create a referral supporter (wrong village)
@@ -45,7 +49,10 @@ class ReportGeneratorTest < ActiveSupport::TestCase
       status: "active",
       turnout_status: "unknown",
       verification_status: "flagged",
-      registered_voter: true
+      registered_voter: true,
+      registered_voter_status: "no",
+      needs_absentee_ballot_help: true,
+      registration_outreach_status: "contacted"
     )
 
     # GEC voter data
@@ -91,6 +98,22 @@ class ReportGeneratorTest < ActiveSupport::TestCase
     assert result[:package].is_a?(Axlsx::Package)
   end
 
+  test "support list preview applies Becky filters and exposes Becky columns" do
+    result = ReportGenerator.new(
+      report_type: "support_list",
+      registered_voter_status: "yes",
+      support_need: "registration",
+      outreach_status: "registered"
+    ).preview
+
+    assert_equal 1, result[:total_count]
+    assert_equal "Juan", result[:rows].first[1]
+    assert_includes result[:columns], "Self-Reported Voter Status"
+    assert_includes result[:columns], "Campaign Requests"
+    assert_includes result[:columns], "Follow-Up Result"
+    assert_includes result[:rows].first, "Registered via follow-up"
+  end
+
   test "generates purge list" do
     GecVoter.create!(
       first_name: "Removed",
@@ -132,6 +155,19 @@ class ReportGeneratorTest < ActiveSupport::TestCase
     assert_equal "Ana", result[:rows].first[1]
     assert_equal "Barrigada", result[:rows].first[4]
     assert_equal "Dededo", result[:rows].first[5]
+  end
+
+  test "referral preview applies Becky filters" do
+    result = ReportGenerator.new(
+      report_type: "referral_list",
+      registered_voter_status: "no",
+      support_need: "absentee",
+      outreach_status: "contacted"
+    ).preview
+
+    assert_equal 1, result[:total_count]
+    assert_equal "Ana", result[:rows].first[1]
+    assert_includes result[:rows].first, "Absentee"
   end
 
   test "generates mapping issues list" do

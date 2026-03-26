@@ -29,7 +29,7 @@ import {
 } from 'lucide-react';
 import WorkspacePage from '../../components/WorkspacePage';
 
-type VettingFilter = 'all' | 'verified' | 'flagged' | 'no_match' | 'referral';
+type VettingFilter = 'all' | 'verified' | 'flagged' | 'no_match' | 'referral' | 'registration_help' | 'help_requests';
 type QueueBucket = 'pending' | 'approved' | 'rejected';
 
 interface QueueSupporter {
@@ -55,10 +55,20 @@ interface QueueSupporter {
   verification_reason_detail?: string | null;
   registered_voter?: boolean;
   self_reported_registered_voter?: boolean | null;
+  registered_voter_status?: string | null;
+  registered_voter_location_note?: string | null;
+  wants_to_volunteer?: boolean;
+  needs_absentee_ballot_help?: boolean;
+  needs_homebound_voting_help?: boolean;
+  needs_voter_registration_help?: boolean;
+  needs_election_day_ride?: boolean;
+  referred_by_name?: string | null;
   referred_from_village_id?: number | null;
   referred_from_village_name?: string | null;
   source?: string;
   potential_duplicate?: boolean;
+  household_group_id?: number | null;
+  household_member_count?: number;
   created_at?: string;
   gec_matches?: GecMatch[];
 }
@@ -145,6 +155,25 @@ function canApproveSupporter(supporter: QueueSupporter) {
   return supporter.review_status === 'pending' &&
     supporter.public_review_status !== 'pending' &&
     supporter.potential_duplicate !== true;
+}
+
+function selfReportedStatusLabel(supporter: QueueSupporter) {
+  if (supporter.registered_voter_status === 'yes') return 'Self-reported: Yes';
+  if (supporter.registered_voter_status === 'no') return 'Self-reported: No';
+  if (supporter.registered_voter_status === 'not_sure') return 'Self-reported: Not sure';
+  if (supporter.self_reported_registered_voter === true) return 'Self-reported: Yes';
+  if (supporter.self_reported_registered_voter === false) return 'Self-reported: No';
+  return 'Self-reported: Not sure';
+}
+
+function supportRequestBadges(supporter: QueueSupporter) {
+  const badges: string[] = [];
+  if (supporter.needs_voter_registration_help) badges.push('Registration Help');
+  if (supporter.needs_absentee_ballot_help) badges.push('Absentee Help');
+  if (supporter.needs_homebound_voting_help) badges.push('Homebound Help');
+  if (supporter.needs_election_day_ride) badges.push('Ride To Polls');
+  if (supporter.wants_to_volunteer) badges.push('Volunteer');
+  return badges;
 }
 
 function buildDraft(supporter: QueueSupporter | null): EditDraft {
@@ -603,6 +632,10 @@ export default function TeamVettingPage() {
           label="No GEC Match" count={summary.no_match} />
         <FilterBadge active={filter === 'referral'} onClick={() => { setFilter('referral'); setPage(1); }}
           label="Village Referrals" count={summary.referrals} />
+        <FilterBadge active={filter === 'registration_help'} onClick={() => { setFilter('registration_help'); setPage(1); }}
+          label="Registration Help" count={summary.registration_help} />
+        <FilterBadge active={filter === 'help_requests'} onClick={() => { setFilter('help_requests'); setPage(1); }}
+          label="Any Help Request" count={summary.help_requests} />
       </div>
 
       <div className="flex flex-wrap gap-3">
@@ -797,6 +830,18 @@ export default function TeamVettingPage() {
                         {supporter.dob ? <> &middot; DOB: {new Date(supporter.dob).toLocaleDateString()}</> : null}
                       </div>
 
+                      <div className="mt-1 text-xs text-slate-500">
+                        {selfReportedStatusLabel(supporter)}
+                        {supporter.registered_voter_location_note ? ` · Votes elsewhere: ${supporter.registered_voter_location_note}` : ''}
+                      </div>
+
+                      {(Boolean(supporter.referred_by_name) || Number(supporter.household_member_count || 0) > 0) && (
+                        <div className="mt-1 text-xs text-indigo-700">
+                          {supporter.referred_by_name ? `Referred by: ${supporter.referred_by_name}` : 'Household signup'}
+                          {Number(supporter.household_member_count || 0) > 0 ? ` · Linked supporters: ${supporter.household_member_count}` : ''}
+                        </div>
+                      )}
+
                       {statusDetail && (
                         <div className={`mt-1 text-xs leading-5 ${supporter.submitted_village_referral ? 'text-purple-700' : 'text-gray-500'}`}>
                           {statusDetail}
@@ -825,6 +870,17 @@ export default function TeamVettingPage() {
                           <span className="text-[10px] text-red-500 font-medium">No GEC match found in the current voter list</span>
                         </div>
                       )}
+
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {supportRequestBadges(supporter).map((badge) => (
+                          <span key={`${id}-${badge}`} className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                            {badge}
+                          </span>
+                        ))}
+                        {supportRequestBadges(supporter).length === 0 && (
+                          <span className="text-[10px] text-gray-400">No special follow-up requests</span>
+                        )}
+                      </div>
                     </button>
 
                     <div className="flex shrink-0 items-start gap-1">

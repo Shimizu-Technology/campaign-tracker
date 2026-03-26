@@ -158,4 +158,37 @@ class SupporterTest < ActiveSupport::TestCase
 
     assert_nil supporter.reload.precinct_id
   end
+
+  test "household_members excludes self from preloaded household supporters" do
+    household_group = HouseholdGroup.create!(village: @village_one)
+    primary = Supporter.create!(
+      first_name: "Primary",
+      last_name: "Household",
+      contact_number: "6715551007",
+      village: @village_one,
+      source: "staff_entry",
+      status: "active",
+      verification_status: "unverified",
+      turnout_status: "unknown",
+      household_group: household_group,
+      household_primary: true
+    )
+    member = Supporter.create!(
+      first_name: "Second",
+      last_name: "Household",
+      contact_number: "6715551008",
+      village: @village_one,
+      source: "staff_entry",
+      status: "active",
+      verification_status: "unverified",
+      turnout_status: "unknown",
+      household_group: household_group,
+      household_primary: false
+    )
+
+    loaded_primary = Supporter.includes(household_group: :supporters).find(primary.id)
+
+    assert_kind_of Array, loaded_primary.household_members
+    assert_equal [ member.id ], loaded_primary.household_members.map(&:id)
+  end
 end

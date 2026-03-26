@@ -7,6 +7,7 @@ module Api
     class SupportersController < ApplicationController
       MAX_PER_PAGE = 200
       MAX_EXPORT_ROWS = 10_000
+      MAX_HOUSEHOLD_MEMBERS = 8
       ALLOWED_SORT_FIELDS = %w[created_at print_name last_name first_name village_name precinct_number source registered_voter].freeze
 
       include Authenticatable
@@ -31,58 +32,92 @@ module Api
           end
         end
 
-        supporter = Supporter.new(normalized_public_supporter_params)
+        primary_attributes = normalized_public_supporter_params
+        household_members = normalized_household_member_params
+        if household_members.size > MAX_HOUSEHOLD_MEMBERS
+          return render json: { errors: [ "You can add up to #{MAX_HOUSEHOLD_MEMBERS} household supporters per submission" ] }, status: :unprocessable_entity
+        end
         normalized_leader_code = params[:leader_code].to_s.strip.presence
         referral_code = resolve_referral_code(normalized_leader_code)
-        supporter.source = create_source
-        supporter.attribution_method = create_attribution_method(normalized_leader_code)
-        supporter.intake_status = create_intake_status(supporter.source)
-        supporter.review_status = "pending"
-        supporter.public_review_status = create_public_review_status(supporter.source)
-        supporter.status = "active"
-        supporter.leader_code = normalized_leader_code
-        supporter.referral_code = referral_code if referral_code
-        supporter.entered_by_user_id = current_user.id if staff_entry_mode? && current_user
+        source = create_source
+        attribution_method = create_attribution_method(normalized_leader_code)
+        intake_status = create_intake_status(source)
+        public_review_status = create_public_review_status(source)
+        created_supporters = []
+        duplicate_warning = false
 
-        # Default unchecked booleans to false (checkboxes send nothing when unchecked)
-        supporter.registered_voter = false if supporter.registered_voter.nil?
-        supporter.yard_sign = false if supporter.yard_sign.nil?
-        supporter.motorcade_available = false if supporter.motorcade_available.nil?
+        begin
+          ApplicationRecord.transaction do
+            household_group = build_household_group(primary_attributes, household_members)
 
-        # Check for duplicates
-        dupes = Supporter.potential_duplicates(supporter.print_name, supporter.village_id, first_name: supporter.first_name, last_name: supporter.last_name)
-        duplicate_detected = dupes.exists?
-        if supporter.save
-          log_audit!(supporter, action: "created", changed_data: supporter.saved_changes.except("updated_at"), normalize: true, metadata: supporter_audit_metadata(supporter))
-
-          # Queue welcome SMS so signup response is not blocked by external API latency.
-          if supporter.contact_number.present? && supporter.opt_in_text
-            SendSmsJob.perform_later(
-              to: supporter.contact_number,
-              body: SmsService.welcome_supporter_body(supporter)
+            primary_supporter = build_submitted_supporter(
+              primary_attributes,
+              source: source,
+              attribution_method: attribution_method,
+              intake_status: intake_status,
+              public_review_status: public_review_status,
+              leader_code: normalized_leader_code,
+              referral_code: referral_code,
+              household_group: household_group,
+              household_primary: household_group.present?,
+              entered_by_user_id: current_user&.id
             )
+            duplicate_warning ||= duplicate_detected?(primary_supporter)
+            primary_supporter.save!
+            log_created_supporter!(primary_supporter)
+            created_supporters << primary_supporter
+
+            household_members.each do |member_attributes|
+              household_supporter = build_submitted_supporter(
+                household_member_supporter_attributes(primary_attributes, member_attributes),
+                source: source,
+                attribution_method: attribution_method,
+                intake_status: intake_status,
+                public_review_status: public_review_status,
+                leader_code: normalized_leader_code,
+                referral_code: referral_code,
+                household_group: household_group,
+                household_primary: false,
+                entered_by_user_id: current_user&.id
+              )
+              duplicate_warning ||= duplicate_detected?(household_supporter)
+              household_supporter.save!
+              log_created_supporter!(household_supporter)
+              created_supporters << household_supporter
+            end
           end
-
-          # Queue welcome email if supporter opted in
-          if supporter.email.present? && supporter.opt_in_email
-            SendWelcomeEmailJob.perform_later(supporter_id: supporter.id)
-          end
-
-          # Reload to pick up any changes from after_create callbacks
-          # (e.g., GEC auto-vetting sets verification_status via update_columns)
-          supporter.reload
-
-          # Broadcast to connected clients
-          CampaignBroadcast.new_supporter(supporter)
-
-          render json: {
-            message: "Si Yu'os Ma'åse! Thank you for supporting Josh & Tina!",
-            supporter: supporter_json(supporter),
-            duplicate_warning: duplicate_detected || supporter.potential_duplicate
-          }, status: :created
-        else
-          render json: { errors: supporter.errors.full_messages }, status: :unprocessable_entity
+        rescue ActiveRecord::RecordInvalid => e
+          return render json: { errors: e.record.errors.full_messages }, status: :unprocessable_entity
+        rescue ActiveRecord::StatementInvalid
+          return render json: { errors: [ "Could not save this household signup. Please review the submission and try again." ] }, status: :unprocessable_entity
         end
+
+        supporter = created_supporters.first
+
+        # Queue welcome SMS so signup response is not blocked by external API latency.
+        if supporter.contact_number.present? && supporter.opt_in_text
+          SendSmsJob.perform_later(
+            to: supporter.contact_number,
+            body: SmsService.welcome_supporter_body(supporter)
+          )
+        end
+
+        # Queue welcome email if supporter opted in
+        if supporter.email.present? && supporter.opt_in_email
+          SendWelcomeEmailJob.perform_later(supporter_id: supporter.id)
+        end
+
+        created_supporters.each do |created_supporter|
+          created_supporter.reload
+          CampaignBroadcast.new_supporter(created_supporter)
+        end
+
+        render json: {
+          message: "Si Yu'os Ma'åse! Thank you for supporting Josh & Tina!",
+          supporter: supporter_json(supporter),
+          duplicate_warning: duplicate_warning || created_supporters.any?(&:potential_duplicate),
+          household_supporters_created: [ created_supporters.size - 1, 0 ].max
+        }, status: :created
       end
 
       # PATCH /api/v1/supporters/:id
@@ -229,7 +264,16 @@ module Api
 
       # GET /api/v1/supporters (authenticated)
       def index
-        supporters = scope_supporters(Supporter.includes(:village, :submitted_village, :precinct, :block, :referred_from_village).official_supporters)
+        supporters = scope_supporters(
+          Supporter.includes(
+            :village,
+            :submitted_village,
+            :precinct,
+            :block,
+            :referred_from_village,
+            household_group: :supporters
+          ).official_supporters
+        )
 
         # Filters
         supporters = supporters.where(village_id: params[:village_id]) if params[:village_id].present?
@@ -242,7 +286,10 @@ module Api
         supporters = supporters.where(source: params[:source]) if params[:source].present?
         supporters = supporters.where(review_status: params[:review_status]) if params[:review_status].present?
         supporters = supporters.where(public_review_status: params[:public_review_status]) if params[:public_review_status].present?
+        supporters = supporters.where(registered_voter_status: params[:registered_voter_status]) if params[:registered_voter_status].present?
         supporters = supporters.where(registered_voter: true) if params[:registered_voter] == "true"
+        supporters = apply_support_need_filter(supporters, params[:support_need])
+        supporters = supporters.with_household if params[:has_household] == "true"
         # Pipeline filter: team input, public-origin official supporters, or
         # matched-to-GEC supporters for legacy quota views.
         supporters = supporters.team_input if params[:pipeline] == "team"
@@ -261,13 +308,13 @@ module Api
           if phone_digits.present?
             phone_query = "%#{ActiveRecord::Base.sanitize_sql_like(phone_digits)}%"
             supporters = supporters.where(
-              "LOWER(print_name) LIKE :name_query OR LOWER(first_name) LIKE :name_query OR LOWER(last_name) LIKE :name_query OR regexp_replace(contact_number, '\\D', '', 'g') LIKE :phone_query",
+              "LOWER(supporters.print_name) LIKE :name_query OR LOWER(supporters.first_name) LIKE :name_query OR LOWER(supporters.last_name) LIKE :name_query OR regexp_replace(supporters.contact_number, '\\D', '', 'g') LIKE :phone_query",
               name_query: name_query,
               phone_query: phone_query
             )
           else
             supporters = supporters.where(
-              "LOWER(print_name) LIKE :q OR LOWER(first_name) LIKE :q OR LOWER(last_name) LIKE :q",
+              "LOWER(supporters.print_name) LIKE :q OR LOWER(supporters.first_name) LIKE :q OR LOWER(supporters.last_name) LIKE :q",
               q: name_query
             )
           end
@@ -303,7 +350,17 @@ module Api
 
       # GET /api/v1/supporters/:id
       def show
-        supporter = scope_supporters(Supporter.includes(:village, :submitted_village, :precinct, :block, :referred_from_village, event_rsvps: :event)).find(params[:id])
+        supporter = scope_supporters(
+          Supporter.includes(
+            :village,
+            :submitted_village,
+            :precinct,
+            :block,
+            :referred_from_village,
+            household_group: [ supporters: :village ],
+            event_rsvps: :event
+          )
+        ).find(params[:id])
         audit_logs = supporter.audit_logs.includes(:actor_user).recent.limit(50)
 
         render json: {
@@ -342,7 +399,9 @@ module Api
         end
 
         headers = [ "First Name", "Last Name", "Phone", "Village", "Precinct", "Street Address", "Email", "DOB",
-                    "Registered Voter", "Yard Sign", "Motorcade Available", "Opt-In Email", "Opt-In Text",
+                    "Self-Reported Voter Status", "Votes Elsewhere Note", "Needs Registration Help", "Needs Absentee Help",
+                    "Needs Homebound Help", "Needs Ride", "Wants To Volunteer", "Referred By", "Household Group",
+                    "Yard Sign", "Motorcade Available", "Opt-In Email", "Opt-In Text",
                     "Verification Status", "Turnout Status", "Source", "Date Signed Up" ]
 
         rows = []
@@ -350,7 +409,15 @@ module Api
           rows << [
             s.first_name, s.last_name, s.contact_number, s.village&.name, s.precinct&.number,
             s.street_address, s.email, s.dob&.strftime("%m/%d/%Y"),
-            s.registered_voter ? "Yes" : "No",
+            s.registered_voter_status&.humanize,
+            s.registered_voter_location_note,
+            s.needs_voter_registration_help ? "Yes" : "No",
+            s.needs_absentee_ballot_help ? "Yes" : "No",
+            s.needs_homebound_voting_help ? "Yes" : "No",
+            s.needs_election_day_ride ? "Yes" : "No",
+            s.wants_to_volunteer ? "Yes" : "No",
+            s.referred_by_name,
+            s.household_group_id.present? ? "Yes" : "No",
             s.yard_sign ? "Yes" : "No",
             s.motorcade_available ? "Yes" : "No",
             s.opt_in_email ? "Yes" : "No",
@@ -471,42 +538,58 @@ module Api
 
       # GET /api/v1/supporters/outreach
       def outreach
-        supporters = scope_supporters(Supporter.includes(:village, :submitted_village, :precinct))
-                       .where("registered_voter IS NULL OR registered_voter = ?", false)
+        supporters = scope_supporters(Supporter.includes(:village, :submitted_village, :precinct, household_group: :supporters))
                        .working_supporters
+                       .needs_follow_up
 
-        if params[:outreach_status].present?
-          supporters = supporters.where(registration_outreach_status: params[:outreach_status])
+        supporters = supporters.where(village_id: params[:village_id]) if params[:village_id].present?
+
+        if params[:queue_view].present?
+          supporters = apply_outreach_queue_view(supporters, params[:queue_view])
         end
 
-        if params[:village_id].present?
-          supporters = supporters.where(village_id: params[:village_id])
+        effective_outreach_status = normalized_outreach_status_filter(params[:queue_view], params[:outreach_status])
+        if effective_outreach_status == "not_contacted"
+          supporters = supporters.where(registration_outreach_status: nil)
+        elsif effective_outreach_status.present?
+          supporters = supporters.where(registration_outreach_status: effective_outreach_status)
         end
+
+        supporters = supporters.where(registered_voter_status: params[:registered_voter_status]) if params[:registered_voter_status].present?
+        supporters = apply_support_need_filter(supporters, params[:support_need])
 
         if params[:search].present?
           raw = params[:search].to_s.strip
           sanitized = ActiveRecord::Base.sanitize_sql_like(raw)
           name_query = "%#{sanitized.downcase}%"
           supporters = supporters.where(
-            "LOWER(print_name) LIKE :q OR LOWER(first_name) LIKE :q OR LOWER(last_name) LIKE :q",
+            "LOWER(supporters.print_name) LIKE :q OR LOWER(supporters.first_name) LIKE :q OR LOWER(supporters.last_name) LIKE :q",
             q: name_query
           )
         end
 
-        supporters = supporters.order(created_at: :desc)
+        supporters = supporters.order(Arel.sql(outreach_priority_order_sql))
 
         page = [ (params[:page] || 1).to_i, 1 ].max
         per_page = (params[:per_page] || 50).to_i.clamp(1, MAX_PER_PAGE)
         total = supporters.count
 
         base_scope = scope_supporters(Supporter)
-                       .where("registered_voter IS NULL OR registered_voter = ?", false)
                        .working_supporters
+                       .needs_follow_up
+        base_scope = base_scope.where(village_id: params[:village_id]) if params[:village_id].present?
+        open_scope = open_follow_up_scope(base_scope)
+        registered_follow_up_count = base_scope.where(registration_outreach_status: "registered").count
         counts = {
           total: base_scope.count,
+          open: open_scope.count,
+          registration_priority: registration_priority_scope(open_scope).count,
+          support_requests: open_scope.needs_campaign_help.count,
+          registered_follow_up: registered_follow_up_count,
+          completed: base_scope.where(registration_outreach_status: %w[registered declined]).count,
           not_contacted: base_scope.where(registration_outreach_status: nil).count,
           contacted: base_scope.where(registration_outreach_status: "contacted").count,
-          registered: base_scope.where(registration_outreach_status: "registered").count,
+          registered: registered_follow_up_count,
           declined: base_scope.where(registration_outreach_status: "declined").count
         }
 
@@ -525,17 +608,21 @@ module Api
         allowed_statuses = %w[contacted registered declined]
 
         updates = {}
-        if params[:registration_outreach_status].present?
-          unless allowed_statuses.include?(params[:registration_outreach_status])
-            return render_api_error(
-              message: "Invalid outreach status. Must be: #{allowed_statuses.join(', ')}",
-              status: :unprocessable_entity,
-              code: "invalid_outreach_status"
-            )
+        if params.key?(:registration_outreach_status)
+          if params[:registration_outreach_status].present?
+            unless allowed_statuses.include?(params[:registration_outreach_status])
+              return render_api_error(
+                message: "Invalid outreach status. Must be: #{allowed_statuses.join(', ')}",
+                status: :unprocessable_entity,
+                code: "invalid_outreach_status"
+              )
+            end
+            updates[:registration_outreach_status] = params[:registration_outreach_status]
+            updates[:registration_outreach_date] = Time.current
+          else
+            updates[:registration_outreach_status] = nil
+            updates[:registration_outreach_date] = nil
           end
-          updates[:registration_outreach_status] = params[:registration_outreach_status]
-          updates[:registration_outreach_date] = Time.current
-          updates[:registered_voter] = true if params[:registration_outreach_status] == "registered"
         end
 
         updates[:registration_outreach_notes] = params[:registration_outreach_notes] if params.key?(:registration_outreach_notes)
@@ -563,7 +650,7 @@ module Api
         if params[:search].present?
           sanitized = ActiveRecord::Base.sanitize_sql_like(params[:search].to_s.strip)
           supporters = supporters.where(
-            "LOWER(first_name) LIKE :q OR LOWER(last_name) LIKE :q",
+            "LOWER(supporters.first_name) LIKE :q OR LOWER(supporters.last_name) LIKE :q",
             q: "%#{sanitized.downcase}%"
           )
         end
@@ -580,7 +667,7 @@ module Api
         if params[:search].present?
           sanitized = ActiveRecord::Base.sanitize_sql_like(params[:search].to_s.strip)
           summary_base = summary_base.where(
-            "LOWER(first_name) LIKE :q OR LOWER(last_name) LIKE :q",
+            "LOWER(supporters.first_name) LIKE :q OR LOWER(supporters.last_name) LIKE :q",
             q: "%#{sanitized.downcase}%"
           )
         end
@@ -837,7 +924,9 @@ module Api
           unverified: queue_scope.unverified.where(registered_voter: false).count,
           no_match: queue_scope.unverified.where(registered_voter: false).count,
           unregistered: queue_scope.unverified.where(registered_voter: false).count,
-          referrals: queue_scope.submitted_village_referrals.count
+          referrals: queue_scope.submitted_village_referrals.count,
+          registration_help: queue_scope.where(needs_voter_registration_help: true).count,
+          help_requests: queue_scope.needs_campaign_help.count
         }
 
         render json: {
@@ -871,7 +960,10 @@ module Api
         supporters = supporters.where(source: params[:source]) if params[:source].present?
         supporters = supporters.where(review_status: params[:review_status]) if params[:review_status].present?
         supporters = supporters.where(public_review_status: params[:public_review_status]) if params[:public_review_status].present?
+        supporters = supporters.where(registered_voter_status: params[:registered_voter_status]) if params[:registered_voter_status].present?
         supporters = supporters.where(registered_voter: true) if params[:registered_voter] == "true"
+        supporters = apply_support_need_filter(supporters, params[:support_need])
+        supporters = supporters.with_household if params[:has_household] == "true"
         # Pipeline filter: team input, public-origin official supporters, or
         # matched-to-GEC supporters for legacy quota views.
         supporters = supporters.team_input if params[:pipeline] == "team"
@@ -890,13 +982,13 @@ module Api
           if phone_digits.present?
             phone_query = "%#{ActiveRecord::Base.sanitize_sql_like(phone_digits)}%"
             supporters = supporters.where(
-              "LOWER(print_name) LIKE :name_query OR LOWER(first_name) LIKE :name_query OR LOWER(last_name) LIKE :name_query OR regexp_replace(contact_number, '\\D', '', 'g') LIKE :phone_query",
+              "LOWER(supporters.print_name) LIKE :name_query OR LOWER(supporters.first_name) LIKE :name_query OR LOWER(supporters.last_name) LIKE :name_query OR regexp_replace(supporters.contact_number, '\\D', '', 'g') LIKE :phone_query",
               name_query: name_query,
               phone_query: phone_query
             )
           else
             supporters = supporters.where(
-              "LOWER(print_name) LIKE :q OR LOWER(first_name) LIKE :q OR LOWER(last_name) LIKE :q",
+              "LOWER(supporters.print_name) LIKE :q OR LOWER(supporters.first_name) LIKE :q OR LOWER(supporters.last_name) LIKE :q",
               q: name_query
             )
           end
@@ -908,9 +1000,17 @@ module Api
       def public_supporter_params
         permitted = [
           :first_name, :middle_name, :last_name, :print_name, :contact_number, :dob, :email, :street_address,
-          :village_id, :precinct_id, :registered_voter, :self_reported_registered_voter,
+          :village_id, :precinct_id, :registered_voter, :self_reported_registered_voter, :registered_voter_status,
+          :registered_voter_location_note, :wants_to_volunteer, :needs_absentee_ballot_help,
+          :needs_homebound_voting_help, :needs_voter_registration_help, :needs_election_day_ride, :referred_by_name,
           :yard_sign, :motorcade_available,
-          :opt_in_email, :opt_in_text
+          :opt_in_email, :opt_in_text,
+          household_members: [
+            :first_name, :middle_name, :last_name, :dob,
+            :registered_voter, :self_reported_registered_voter, :registered_voter_status,
+            :registered_voter_location_note, :wants_to_volunteer, :needs_absentee_ballot_help,
+            :needs_homebound_voting_help, :needs_voter_registration_help, :needs_election_day_ride
+          ]
         ]
         permitted << :submitted_village_id if staff_entry_mode?
         params.require(:supporter).permit(*permitted)
@@ -919,22 +1019,51 @@ module Api
       def supporter_update_params
         params.require(:supporter).permit(
           :first_name, :middle_name, :last_name, :print_name, :contact_number, :email, :dob, :street_address,
-          :village_id, :submitted_village_id, :precinct_id, :registered_voter, :self_reported_registered_voter, :yard_sign, :motorcade_available,
+          :village_id, :submitted_village_id, :precinct_id, :registered_voter, :self_reported_registered_voter, :registered_voter_status,
+          :registered_voter_location_note, :wants_to_volunteer, :needs_absentee_ballot_help,
+          :needs_homebound_voting_help, :needs_voter_registration_help, :needs_election_day_ride, :referred_by_name,
+          :yard_sign, :motorcade_available, :household_primary,
           :opt_in_email, :opt_in_text, :status
         )
       end
 
       def normalized_public_supporter_params
-        normalize_self_reported_registered_voter(public_supporter_params.to_h)
+        normalize_registered_voter_fields(public_supporter_params.to_h.except("household_members"))
+      end
+
+      def normalized_household_member_params
+        Array(public_supporter_params.to_h["household_members"]).map { |member| normalize_registered_voter_fields(member) }
+          .reject { |member| member["first_name"].blank? && member["last_name"].blank? }
       end
 
       def normalized_supporter_update_params
-        normalize_self_reported_registered_voter(supporter_update_params.to_h)
+        normalize_registered_voter_fields(supporter_update_params.to_h)
       end
 
-      def normalize_self_reported_registered_voter(attributes)
-        if !attributes.key?("self_reported_registered_voter") && attributes.key?("registered_voter")
+      def normalize_registered_voter_fields(attributes)
+        if attributes.key?("registered_voter_status")
+          attributes["self_reported_registered_voter"] =
+            case attributes["registered_voter_status"]
+            when "yes"
+              true
+            when "no"
+              false
+            else
+              nil
+            end
+        elsif !attributes.key?("self_reported_registered_voter") && attributes.key?("registered_voter")
           attributes["self_reported_registered_voter"] = attributes["registered_voter"]
+          attributes["registered_voter_status"] = attributes["registered_voter"] ? "yes" : "no"
+        elsif attributes.key?("self_reported_registered_voter")
+          attributes["registered_voter_status"] =
+            case attributes["self_reported_registered_voter"]
+            when true
+              "yes"
+            when false
+              "no"
+            else
+              "not_sure"
+            end
         end
 
         attributes
@@ -974,7 +1103,7 @@ module Api
       end
 
       def public_review_scope
-        base = scope_supporters(Supporter.includes(:village, :submitted_village, :precinct)).active
+        base = scope_supporters(Supporter.includes(:village, :submitted_village, :precinct, household_group: :supporters)).active
 
         case public_review_bucket
         when "approved"
@@ -1002,7 +1131,7 @@ module Api
       end
 
       def vetting_queue_base_scope
-        base = scope_supporters(Supporter.includes(:village, :submitted_village, :precinct, :entered_by))
+        base = scope_supporters(Supporter.includes(:village, :submitted_village, :precinct, :entered_by, household_group: :supporters))
           .where(public_review_status: %w[approved not_applicable])
 
         if params[:district_id].present?
@@ -1045,6 +1174,10 @@ module Api
           queue_scope.unverified.where(registered_voter: false)
         when "referral"
           queue_scope.submitted_village_referrals
+        when "registration_help"
+          queue_scope.where(needs_voter_registration_help: true)
+        when "help_requests"
+          queue_scope.needs_campaign_help
         else
           queue_scope
         end
@@ -1058,7 +1191,7 @@ module Api
           sanitized = ActiveRecord::Base.sanitize_sql_like(token)
           pattern = "%#{sanitized}%"
           relation.where(
-            "LOWER(first_name) LIKE :pattern OR LOWER(middle_name) LIKE :pattern OR LOWER(last_name) LIKE :pattern OR LOWER(print_name) LIKE :pattern OR LOWER(contact_number) LIKE :pattern",
+            "LOWER(supporters.first_name) LIKE :pattern OR LOWER(supporters.middle_name) LIKE :pattern OR LOWER(supporters.last_name) LIKE :pattern OR LOWER(supporters.print_name) LIKE :pattern OR LOWER(supporters.contact_number) LIKE :pattern",
             pattern: pattern
           )
         end
@@ -1086,7 +1219,15 @@ module Api
           precinct_number: supporter.precinct&.number,
           block_id: supporter.block_id,
           self_reported_registered_voter: supporter.self_reported_registered_voter,
+          registered_voter_status: supporter.registered_voter_status,
+          registered_voter_location_note: supporter.registered_voter_location_note,
           registered_voter: supporter.registered_voter,
+          wants_to_volunteer: supporter.wants_to_volunteer,
+          needs_absentee_ballot_help: supporter.needs_absentee_ballot_help,
+          needs_homebound_voting_help: supporter.needs_homebound_voting_help,
+          needs_voter_registration_help: supporter.needs_voter_registration_help,
+          needs_election_day_ride: supporter.needs_election_day_ride,
+          referred_by_name: supporter.referred_by_name,
           yard_sign: supporter.yard_sign,
           motorcade_available: supporter.motorcade_available,
           opt_in_email: supporter.opt_in_email,
@@ -1119,6 +1260,9 @@ module Api
           potential_duplicate: supporter.potential_duplicate,
           duplicate_of_id: supporter.duplicate_of_id,
           duplicate_notes: supporter.duplicate_notes,
+          household_group_id: supporter.household_group_id,
+          household_primary: supporter.household_primary,
+          household_member_count: household_member_count(supporter),
           registration_outreach_status: supporter.registration_outreach_status,
           registration_outreach_notes: supporter.registration_outreach_notes,
           registration_outreach_date: supporter.registration_outreach_date&.iso8601,
@@ -1138,7 +1282,21 @@ module Api
           village_id: supporter.village_id,
           village_name: supporter.village&.name,
           precinct_number: supporter.precinct&.number,
+          registered_voter_status: supporter.registered_voter_status,
+          registered_voter_location_note: supporter.registered_voter_location_note,
           registered_voter: supporter.registered_voter,
+          wants_to_volunteer: supporter.wants_to_volunteer,
+          needs_absentee_ballot_help: supporter.needs_absentee_ballot_help,
+          needs_homebound_voting_help: supporter.needs_homebound_voting_help,
+          needs_voter_registration_help: supporter.needs_voter_registration_help,
+          needs_election_day_ride: supporter.needs_election_day_ride,
+          referred_by_name: supporter.referred_by_name,
+          household_group_id: supporter.household_group_id,
+          household_member_count: household_member_count(supporter),
+          follow_up_priority: outreach_priority_label(supporter),
+          follow_up_reasons: outreach_reasons(supporter),
+          needs_registration_follow_up: needs_registration_follow_up?(supporter),
+          follow_up_open: follow_up_open?(supporter),
           registration_outreach_status: supporter.registration_outreach_status,
           registration_outreach_notes: supporter.registration_outreach_notes,
           registration_outreach_date: supporter.registration_outreach_date&.iso8601,
@@ -1152,6 +1310,19 @@ module Api
 
         supporter_json(supporter, reason_payload: reason_payload).merge(
           block_name: supporter.block&.name,
+          household_members: supporter.household_members.map do |member|
+            {
+              id: member.id,
+              first_name: member.first_name,
+              middle_name: member.middle_name,
+              last_name: member.last_name,
+              print_name: member.print_name,
+              village_name: member.village&.name,
+              registered_voter_status: member.registered_voter_status,
+              review_status: member.review_status,
+              public_review_status: member.public_review_status
+            }
+          end,
           events_invited_count: supporter.event_rsvps.size,
           events_attended_count: supporter.event_rsvps.count(&:attended),
           event_history: supporter.event_rsvps.sort_by(&:created_at).reverse.first(20).map do |rsvp|
@@ -1193,6 +1364,236 @@ module Api
 
       def supporter_edit_allowed?
         current_user&.admin? || current_user&.data_team? || current_user&.coordinator?
+      end
+
+      def build_household_group(primary_attributes, household_members)
+        return nil if household_members.empty?
+
+        HouseholdGroup.create!(
+          village_id: primary_attributes["village_id"],
+          shared_contact_number: primary_attributes["contact_number"].presence,
+          shared_email: primary_attributes["email"].presence,
+          street_address: primary_attributes["street_address"].presence
+        )
+      end
+
+      def build_submitted_supporter(attributes, source:, attribution_method:, intake_status:, public_review_status:, leader_code:, referral_code:, household_group:, household_primary:, entered_by_user_id:)
+        supporter = Supporter.new(attributes)
+        supporter.source = source
+        supporter.attribution_method = attribution_method
+        supporter.intake_status = intake_status
+        supporter.review_status = "pending"
+        supporter.public_review_status = public_review_status
+        supporter.status = "active"
+        supporter.leader_code = leader_code
+        supporter.referral_code = referral_code if referral_code
+        supporter.household_group = household_group if household_group
+        supporter.household_primary = household_group.present? && household_primary
+        supporter.entered_by_user_id = entered_by_user_id if staff_entry_mode? && entered_by_user_id.present?
+        supporter.registered_voter = false if supporter.registered_voter.nil?
+        supporter.yard_sign = false if supporter.yard_sign.nil?
+        supporter.motorcade_available = false if supporter.motorcade_available.nil?
+        supporter.wants_to_volunteer = false if supporter.wants_to_volunteer.nil?
+        supporter.needs_absentee_ballot_help = false if supporter.needs_absentee_ballot_help.nil?
+        supporter.needs_homebound_voting_help = false if supporter.needs_homebound_voting_help.nil?
+        supporter.needs_voter_registration_help = false if supporter.needs_voter_registration_help.nil?
+        supporter.needs_election_day_ride = false if supporter.needs_election_day_ride.nil?
+        supporter
+      end
+
+      def household_member_supporter_attributes(primary_attributes, member_attributes)
+        {
+          "first_name" => member_attributes["first_name"],
+          "middle_name" => member_attributes["middle_name"],
+          "last_name" => member_attributes["last_name"],
+          "dob" => member_attributes["dob"],
+          "contact_number" => primary_attributes["contact_number"],
+          "email" => primary_attributes["email"],
+          "street_address" => primary_attributes["street_address"],
+          "village_id" => primary_attributes["village_id"],
+          "submitted_village_id" => primary_attributes["submitted_village_id"],
+          "registered_voter_status" => member_attributes["registered_voter_status"],
+          "registered_voter_location_note" => member_attributes["registered_voter_location_note"],
+          "self_reported_registered_voter" => member_attributes["self_reported_registered_voter"],
+          "wants_to_volunteer" => member_attributes["wants_to_volunteer"],
+          "needs_absentee_ballot_help" => member_attributes["needs_absentee_ballot_help"],
+          "needs_homebound_voting_help" => member_attributes["needs_homebound_voting_help"],
+          "needs_voter_registration_help" => member_attributes["needs_voter_registration_help"],
+          "needs_election_day_ride" => member_attributes["needs_election_day_ride"],
+          "referred_by_name" => primary_attributes["referred_by_name"],
+          "yard_sign" => false,
+          "motorcade_available" => false,
+          "opt_in_email" => false,
+          "opt_in_text" => false
+        }
+      end
+
+      def duplicate_detected?(supporter)
+        Supporter.potential_duplicates(
+          supporter.print_name,
+          supporter.village_id,
+          first_name: supporter.first_name,
+          last_name: supporter.last_name
+        ).exists?
+      end
+
+      def log_created_supporter!(supporter)
+        log_audit!(
+          supporter,
+          action: "created",
+          changed_data: supporter.saved_changes.except("updated_at"),
+          normalize: true,
+          metadata: supporter_audit_metadata(supporter)
+        )
+      end
+
+      def apply_support_need_filter(scope, filter)
+        case filter
+        when "registration"
+          scope.where(needs_voter_registration_help: true)
+        when "absentee"
+          scope.where(needs_absentee_ballot_help: true)
+        when "homebound"
+          scope.where(needs_homebound_voting_help: true)
+        when "ride"
+          scope.where(needs_election_day_ride: true)
+        when "volunteer"
+          scope.where(wants_to_volunteer: true)
+        when "any"
+          scope.needs_campaign_help
+        else
+          scope
+        end
+      end
+
+      def apply_outreach_queue_view(scope, queue_view)
+        case queue_view
+        when "open"
+          open_follow_up_scope(scope)
+        when "registration_priority"
+          registration_priority_scope(open_follow_up_scope(scope))
+        when "support_requests"
+          open_follow_up_scope(scope).needs_campaign_help
+        when "registered_follow_up"
+          scope.where(registration_outreach_status: "registered")
+        when "completed"
+          scope.where(registration_outreach_status: %w[registered declined])
+        else
+          scope
+        end
+      end
+
+      def normalized_outreach_status_filter(queue_view, outreach_status)
+        normalized_status = outreach_status.to_s.presence
+        return nil unless normalized_status.present?
+
+        allowed_outreach_status_filters(queue_view).include?(normalized_status) ? normalized_status : nil
+      end
+
+      def allowed_outreach_status_filters(queue_view)
+        case queue_view
+        when "registered_follow_up"
+          %w[registered]
+        when "completed"
+          %w[registered declined]
+        when "open", "registration_priority", "support_requests"
+          %w[not_contacted contacted]
+        else
+          %w[not_contacted contacted registered declined]
+        end
+      end
+
+      def open_follow_up_scope(scope)
+        scope.where(registration_outreach_status: [ nil, "contacted" ])
+      end
+
+      def registration_priority_scope(scope)
+        scope.where(needs_voter_registration_help: true)
+             .or(scope.where(registered_voter: false))
+             .or(scope.where(registered_voter_status: %w[no not_sure]))
+      end
+
+      def outreach_priority_order_sql
+        <<~SQL.squish
+          CASE
+            WHEN supporters.registration_outreach_status = 'registered' THEN 0
+            WHEN supporters.registration_outreach_status = 'declined' THEN 1
+            WHEN supporters.registration_outreach_status = 'contacted' AND supporters.needs_voter_registration_help = TRUE THEN 7
+            WHEN supporters.registration_outreach_status IS NULL AND supporters.needs_voter_registration_help = TRUE THEN 10
+            WHEN supporters.registration_outreach_status IS NULL AND supporters.registered_voter = FALSE THEN 9
+            WHEN supporters.registration_outreach_status IS NULL AND supporters.registered_voter_status = 'no' THEN 8
+            WHEN supporters.registration_outreach_status IS NULL AND supporters.registered_voter_status = 'not_sure' THEN 6
+            WHEN supporters.registration_outreach_status IS NULL AND (
+              supporters.needs_absentee_ballot_help = TRUE OR
+              supporters.needs_homebound_voting_help = TRUE OR
+              supporters.needs_election_day_ride = TRUE
+            ) THEN 5
+            WHEN supporters.registration_outreach_status IS NULL AND supporters.wants_to_volunteer = TRUE THEN 4
+            WHEN supporters.registration_outreach_status = 'contacted' THEN 3
+            ELSE 2
+          END DESC,
+          COALESCE(supporters.registration_outreach_date, supporters.created_at) ASC,
+          supporters.created_at ASC
+        SQL
+      end
+
+      def outreach_priority_label(supporter)
+        return "Resolved" if %w[registered declined].include?(supporter.registration_outreach_status)
+        return "Registration Priority" if needs_registration_follow_up?(supporter)
+        return "Campaign Help" if support_request_reasons(supporter).present? || supporter.registration_outreach_status == "contacted"
+
+        "General Follow-Up"
+      end
+
+      def outreach_reasons(supporter)
+        reasons = []
+        reasons.concat(registration_follow_up_reasons(supporter))
+        reasons.concat(support_request_reasons(supporter))
+        reasons << "Registered via follow-up" if supporter.registration_outreach_status == "registered"
+        reasons << "Declined follow-up" if supporter.registration_outreach_status == "declined"
+        reasons.uniq
+      end
+
+      def registration_follow_up_reasons(supporter)
+        reasons = []
+        reasons << "Needs registration help" if supporter.needs_voter_registration_help
+        reasons << "No GEC match" unless supporter.registered_voter
+        reasons << "Self-reported not registered" if supporter.registered_voter_status == "no"
+        reasons << "Self-reported not sure" if supporter.registered_voter_status == "not_sure"
+        reasons
+      end
+
+      def support_request_reasons(supporter)
+        reasons = []
+        reasons << "Absentee help" if supporter.needs_absentee_ballot_help
+        reasons << "Homebound help" if supporter.needs_homebound_voting_help
+        reasons << "Ride to polls" if supporter.needs_election_day_ride
+        reasons << "Volunteer interest" if supporter.wants_to_volunteer
+        reasons
+      end
+
+      def needs_registration_follow_up?(supporter)
+        supporter.needs_voter_registration_help || !supporter.registered_voter || supporter.registered_voter_status.in?(%w[no not_sure])
+      end
+
+      def follow_up_open?(supporter)
+        supporter.registration_outreach_status.blank? || supporter.registration_outreach_status == "contacted"
+      end
+
+      def household_member_count(supporter)
+        return 0 unless supporter.household_group_id.present?
+
+        group = supporter.household_group
+        return 0 unless group.present?
+
+        linked_supporter_count =
+          if supporter.association(:household_group).loaded? && group.association(:supporters).loaded?
+            group.supporters.size
+          else
+            group.supporters.count
+          end
+
+        [ linked_supporter_count - 1, 0 ].max
       end
 
       def verification_update_attributes(supporter, new_status, match_payload: nil)
@@ -1269,7 +1670,7 @@ module Api
       end
 
       def duplicate_merge_audit_fields
-        %w[email registered_voter self_reported_registered_voter motorcade_available yard_sign opt_in_email opt_in_text]
+        %w[email registered_voter self_reported_registered_voter registered_voter_status motorcade_available yard_sign opt_in_email opt_in_text]
       end
 
       def apply_index_sort(scope)

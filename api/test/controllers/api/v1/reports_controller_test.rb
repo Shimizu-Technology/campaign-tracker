@@ -59,7 +59,10 @@ class Api::V1::ReportsControllerTest < ActionDispatch::IntegrationTest
       quota_period: @period,
       verification_status: "verified",
       verified_at: Time.current,
-      registered_voter: true
+      registered_voter: true,
+      registered_voter_status: "yes",
+      needs_voter_registration_help: true,
+      registration_outreach_status: "registered"
     )
     Supporter.create!(
       first_name: "Official",
@@ -74,7 +77,8 @@ class Api::V1::ReportsControllerTest < ActionDispatch::IntegrationTest
       public_review_status: "not_applicable",
       quota_period: @period,
       verification_status: "flagged",
-      registered_voter: true
+      registered_voter: true,
+      registered_voter_status: "not_sure"
     )
     Supporter.create!(
       first_name: "Referral",
@@ -89,7 +93,10 @@ class Api::V1::ReportsControllerTest < ActionDispatch::IntegrationTest
       review_status: "approved",
       public_review_status: "not_applicable",
       verification_status: "flagged",
-      registered_voter: true
+      registered_voter: true,
+      registered_voter_status: "no",
+      needs_absentee_ballot_help: true,
+      registration_outreach_status: "contacted"
     )
     GecVoter.create!(
       first_name: "Moved",
@@ -147,6 +154,23 @@ class Api::V1::ReportsControllerTest < ActionDispatch::IntegrationTest
     assert json["columns"].length > 0
     assert json["rows"].length > 0
     assert_equal 3, json["total_count"]
+  end
+
+  test "preview returns Becky-filtered support list rows" do
+    get "/api/v1/reports/support_list/preview",
+      params: {
+        registered_voter_status: "yes",
+        support_need: "registration",
+        outreach_status: "registered"
+      },
+      headers: auth_headers(@admin)
+
+    assert_response :success
+    json = JSON.parse(response.body)
+    assert_equal 1, json["total_count"]
+    assert_equal "Test", json["rows"].first[1]
+    assert_includes json["columns"], "Follow-Up Result"
+    assert_equal "registered", json.dig("filters", "outreach_status")
   end
 
   test "data team can access reports" do

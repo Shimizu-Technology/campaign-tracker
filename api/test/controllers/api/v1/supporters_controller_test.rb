@@ -205,6 +205,31 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal single_precinct.id, payload.dig("supporter", "precinct_id")
   end
 
+  test "create rejects more than the household submission limit" do
+    post "/api/v1/supporters",
+      params: {
+        supporter: {
+          first_name: "Primary",
+          last_name: "Too Many",
+          print_name: "Primary Too Many",
+          contact_number: "6715557010",
+          village_id: @village.id,
+          registered_voter: false,
+          household_members: 9.times.map do |index|
+            {
+              first_name: "Member#{index + 1}",
+              last_name: "Too Many",
+              registered_voter_status: "not_sure"
+            }
+          end
+        }
+      }
+
+    assert_response :unprocessable_entity
+    payload = JSON.parse(response.body)
+    assert_includes payload["errors"], "You can add up to 8 household supporters per submission"
+  end
+
   test "authenticated user can assign supporter precinct" do
     target_precinct = Precinct.create!(number: "SP-2", village: @village, registered_voters: 100)
     supporter = Supporter.create!(
@@ -293,6 +318,326 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "qr_self_signup", payload.dig("supporter", "attribution_method")
   end
 
+  test "public create persists Becky intake fields" do
+    post "/api/v1/supporters",
+      params: {
+        supporter: {
+          first_name: "Becky",
+          last_name: "Supporter",
+          print_name: "Supporter, Becky",
+          contact_number: "6715558015",
+          village_id: @village.id,
+          registered_voter_status: "not_sure",
+          needs_voter_registration_help: true,
+          needs_absentee_ballot_help: true,
+          needs_election_day_ride: true,
+          wants_to_volunteer: true,
+          referred_by_name: "Neighbor Nora"
+        }
+      }
+
+    assert_response :created
+    payload = JSON.parse(response.body)
+    supporter = Supporter.find(payload.dig("supporter", "id"))
+
+    assert_equal "not_sure", payload.dig("supporter", "registered_voter_status")
+    assert_nil payload.dig("supporter", "self_reported_registered_voter")
+    assert_equal true, payload.dig("supporter", "needs_voter_registration_help")
+    assert_equal true, payload.dig("supporter", "needs_absentee_ballot_help")
+    assert_equal true, payload.dig("supporter", "needs_election_day_ride")
+    assert_equal true, payload.dig("supporter", "wants_to_volunteer")
+    assert_equal "Neighbor Nora", payload.dig("supporter", "referred_by_name")
+    assert_equal "not_sure", supporter.registered_voter_status
+    assert_equal true, supporter.needs_voter_registration_help
+    assert_equal true, supporter.needs_absentee_ballot_help
+    assert_equal true, supporter.needs_election_day_ride
+    assert_equal true, supporter.wants_to_volunteer
+    assert_equal "Neighbor Nora", supporter.referred_by_name
+  end
+
+  test "public create can create linked household supporters" do
+    post "/api/v1/supporters",
+      params: {
+        supporter: {
+          first_name: "Primary",
+          last_name: "Household",
+          print_name: "Household, Primary",
+          contact_number: "6715558016",
+          email: "primary@example.com",
+          street_address: "123 Marine Corps Dr",
+          village_id: @village.id,
+          registered_voter_status: "yes",
+          household_members: [
+            {
+              first_name: "Second",
+              last_name: "Household",
+              registered_voter_status: "no",
+              needs_voter_registration_help: true
+            }
+          ]
+        }
+      }
+
+    assert_response :created
+    payload = JSON.parse(response.body)
+    primary = Supporter.find(payload.dig("supporter", "id"))
+    household_members = Supporter.where(household_group_id: primary.household_group_id).order(:id)
+
+    assert_equal 1, payload["household_supporters_created"]
+    assert primary.household_group_id.present?
+    assert_equal 2, household_members.count
+    assert_equal [ true, false ], household_members.map(&:household_primary)
+    assert_equal [ "yes", "no" ], household_members.map(&:registered_voter_status)
+    assert_equal [ "6715558016", "6715558016" ], household_members.map(&:contact_number)
+    assert_equal [ "primary@example.com", "primary@example.com" ], household_members.map(&:email)
+    assert_equal true, household_members.last.needs_voter_registration_help
+  end
+
+  test "public create returns validation-style error when household group creation hits a db constraint failure" do
+    controller_class = Api::V1::SupportersController
+    original_build_household_group = controller_class.instance_method(:build_household_group)
+
+    controller_class.define_method(:build_household_group) do |_primary_attributes, _household_members|
+      raise ActiveRecord::StatementInvalid, "constraint failure"
+    end
+
+    post "/api/v1/supporters",
+      params: {
+        supporter: {
+          first_name: "Primary",
+          last_name: "Constraint",
+          print_name: "Constraint, Primary",
+          contact_number: "6715558018",
+          village_id: @village.id,
+          registered_voter_status: "yes",
+          household_members: [
+            {
+              first_name: "Second",
+              last_name: "Constraint",
+              registered_voter_status: "no"
+            }
+          ]
+        }
+      }
+
+    assert_response :unprocessable_entity
+    payload = JSON.parse(response.body)
+    assert_includes payload["errors"], "Could not save this household signup. Please review the submission and try again."
+  ensure
+    controller_class.define_method(:build_household_group, original_build_household_group)
+  end
+
+  test "outreach status registered does not mark supporter as GEC found" do
+    supporter = Supporter.create!(
+      first_name: "Outreach",
+      last_name: "Registered",
+      print_name: "Registered, Outreach",
+      contact_number: "6715558017",
+      village: @village,
+      source: "staff_entry",
+      review_status: "approved",
+      public_review_status: "not_applicable",
+      status: "active",
+      registered_voter: false,
+      registered_voter_status: "no"
+    )
+
+    patch "/api/v1/supporters/#{supporter.id}/outreach_status",
+      params: { registration_outreach_status: "registered" },
+      headers: auth_headers(@user)
+
+    assert_response :success
+    supporter.reload
+    assert_equal "registered", supporter.registration_outreach_status
+    assert_equal false, supporter.registered_voter
+  end
+
+  test "outreach status can be reset back to not contacted" do
+    supporter = Supporter.create!(
+      first_name: "Outreach",
+      last_name: "Reset",
+      print_name: "Reset, Outreach",
+      contact_number: "67155580171",
+      village: @village,
+      source: "staff_entry",
+      review_status: "approved",
+      public_review_status: "not_applicable",
+      status: "active",
+      registered_voter: false,
+      registered_voter_status: "no",
+      registration_outreach_status: "contacted",
+      registration_outreach_date: Time.current,
+      registration_outreach_notes: "Left voicemail"
+    )
+
+    patch "/api/v1/supporters/#{supporter.id}/outreach_status",
+      params: { registration_outreach_status: nil },
+      headers: auth_headers(@user)
+
+    assert_response :success
+    supporter.reload
+    assert_nil supporter.registration_outreach_status
+    assert_nil supporter.registration_outreach_date
+    assert_equal "Left voicemail", supporter.registration_outreach_notes
+  end
+
+  test "partial supporter update preserves Becky voter status fields when none are submitted" do
+    supporter = Supporter.create!(
+      first_name: "Preserve",
+      last_name: "VoterStatus",
+      print_name: "VoterStatus, Preserve",
+      contact_number: "6715558022",
+      village: @village,
+      source: "staff_entry",
+      review_status: "approved",
+      public_review_status: "not_applicable",
+      status: "active",
+      registered_voter: true,
+      registered_voter_status: "yes",
+      self_reported_registered_voter: true
+    )
+
+    patch "/api/v1/supporters/#{supporter.id}",
+      params: { supporter: { first_name: "Updated" } },
+      headers: auth_headers(@user)
+
+    assert_response :success
+    supporter.reload
+    assert_equal "Updated", supporter.first_name
+    assert_equal "yes", supporter.registered_voter_status
+    assert_equal true, supporter.self_reported_registered_voter
+  end
+
+  test "outreach returns Becky queue metadata and prioritizes registration follow-up" do
+    high_priority = Supporter.create!(
+      first_name: "Queue",
+      last_name: "HighPriority",
+      print_name: "HighPriority, Queue",
+      contact_number: "6715558018",
+      village: @village,
+      source: "staff_entry",
+      review_status: "approved",
+      public_review_status: "not_applicable",
+      status: "active",
+      registered_voter: false,
+      registered_voter_status: "no",
+      needs_voter_registration_help: true
+    )
+    contacted = Supporter.create!(
+      first_name: "Queue",
+      last_name: "Contacted",
+      print_name: "Contacted, Queue",
+      contact_number: "6715558019",
+      village: @village,
+      source: "staff_entry",
+      review_status: "approved",
+      public_review_status: "not_applicable",
+      status: "active",
+      registered_voter: true,
+      registered_voter_status: "yes",
+      wants_to_volunteer: true,
+      registration_outreach_status: "contacted",
+      registration_outreach_notes: "Left voicemail"
+    )
+
+    get "/api/v1/supporters/outreach",
+      params: { search: "Queue" },
+      headers: auth_headers(@user)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    returned_ids = payload.fetch("supporters").map { |supporter| supporter["id"] }
+
+    assert_equal [ high_priority.id, contacted.id ], returned_ids.first(2)
+    assert_equal "Registration Priority", payload["supporters"].first["follow_up_priority"]
+    assert_includes payload["supporters"].first["follow_up_reasons"], "Needs registration help"
+    assert_equal true, payload["supporters"].first["follow_up_open"]
+    assert_equal true, payload["counts"]["registration_priority"] >= 1
+    assert_equal true, payload["counts"]["open"] >= 2
+  end
+
+  test "outreach queue_view filters to registered follow-up records" do
+    Supporter.create!(
+      first_name: "Queue",
+      last_name: "RegisteredOnly",
+      print_name: "RegisteredOnly, Queue",
+      contact_number: "6715558020",
+      village: @village,
+      source: "staff_entry",
+      review_status: "approved",
+      public_review_status: "not_applicable",
+      status: "active",
+      registered_voter: false,
+      registered_voter_status: "no",
+      registration_outreach_status: "registered"
+    )
+    Supporter.create!(
+      first_name: "Queue",
+      last_name: "StillOpen",
+      print_name: "StillOpen, Queue",
+      contact_number: "6715558021",
+      village: @village,
+      source: "staff_entry",
+      review_status: "approved",
+      public_review_status: "not_applicable",
+      status: "active",
+      registered_voter: false,
+      registered_voter_status: "no"
+    )
+
+    get "/api/v1/supporters/outreach",
+      params: { search: "Queue", queue_view: "registered_follow_up" },
+      headers: auth_headers(@user)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal 1, payload["supporters"].length
+    assert_equal "RegisteredOnly", payload["supporters"].first["last_name"]
+    assert_equal "Resolved", payload["supporters"].first["follow_up_priority"]
+    assert_includes payload["supporters"].first["follow_up_reasons"], "Registered via follow-up"
+  end
+
+  test "outreach ignores incompatible status filters for the selected queue view" do
+    open_supporter = Supporter.create!(
+      first_name: "Queue",
+      last_name: "OpenOnly",
+      print_name: "OpenOnly, Queue",
+      contact_number: "6715558023",
+      village: @village,
+      source: "staff_entry",
+      review_status: "approved",
+      public_review_status: "not_applicable",
+      status: "active",
+      registered_voter: false,
+      registered_voter_status: "no"
+    )
+    Supporter.create!(
+      first_name: "Queue",
+      last_name: "ResolvedOnly",
+      print_name: "ResolvedOnly, Queue",
+      contact_number: "6715558024",
+      village: @village,
+      source: "staff_entry",
+      review_status: "approved",
+      public_review_status: "not_applicable",
+      status: "active",
+      registered_voter: false,
+      registered_voter_status: "no",
+      registration_outreach_status: "registered"
+    )
+
+    get "/api/v1/supporters/outreach",
+      params: { search: "Queue", queue_view: "open", outreach_status: "registered" },
+      headers: auth_headers(@user)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    returned_last_names = payload.fetch("supporters").map { |supporter| supporter["last_name"] }
+
+    assert_includes returned_last_names, open_supporter.last_name
+    assert_not_includes returned_last_names, "ResolvedOnly"
+  end
+
   test "public create ignores crafted submitted village id" do
     other_village = Village.create!(name: "Other Submission Village")
 
@@ -342,6 +687,49 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "pending", payload.dig("supporter", "review_status")
     assert_equal true, payload.dig("supporter", "self_reported_registered_voter")
     assert_equal staff_user.id, Supporter.find(payload.dig("supporter", "id")).entered_by_user_id
+  end
+
+  test "create with staff entry mode persists Becky intake fields" do
+    staff_user = User.create!(
+      clerk_id: "clerk-staff-becky",
+      email: "staff-becky@example.com",
+      name: "Staff Becky User",
+      role: "block_leader",
+      assigned_village_id: @village.id
+    )
+
+    post "/api/v1/supporters?entry_mode=staff",
+      params: {
+        supporter: {
+          first_name: "Staff",
+          last_name: "Becky",
+          print_name: "Becky, Staff",
+          contact_number: "6715558002",
+          village_id: @village.id,
+          registered_voter_status: "yes",
+          registered_voter_location_note: "Barrigada precinct",
+          referred_by_name: "Neighbor Nora",
+          wants_to_volunteer: true,
+          needs_absentee_ballot_help: true,
+          needs_homebound_voting_help: false,
+          needs_voter_registration_help: true,
+          needs_election_day_ride: true
+        }
+      },
+      headers: auth_headers(staff_user)
+
+    assert_response :created
+    payload = JSON.parse(response.body)
+    supporter = Supporter.find(payload.dig("supporter", "id"))
+
+    assert_equal "yes", supporter.registered_voter_status
+    assert_equal true, supporter.self_reported_registered_voter
+    assert_equal "Barrigada precinct", supporter.registered_voter_location_note
+    assert_equal "Neighbor Nora", supporter.referred_by_name
+    assert_equal true, supporter.wants_to_volunteer
+    assert_equal true, supporter.needs_absentee_ballot_help
+    assert_equal true, supporter.needs_voter_registration_help
+    assert_equal true, supporter.needs_election_day_ride
   end
 
   test "accepting public signup preserves origin and marks supporter accepted" do
@@ -739,6 +1127,39 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal true, payload.dig("permissions", "can_edit")
     assert_equal "district_coordinator", payload.dig("audit_logs", 0, "actor_role")
     assert_equal "Supporter updated", payload.dig("audit_logs", 0, "action_label")
+  end
+
+  test "show returns household member count excluding the current supporter" do
+    household_group = HouseholdGroup.create!(village: @village)
+    primary = Supporter.create!(
+      first_name: "Primary",
+      last_name: "Counted",
+      print_name: "Counted, Primary",
+      contact_number: "6715559445",
+      village: @village,
+      source: "staff_entry",
+      status: "active",
+      household_group: household_group,
+      household_primary: true
+    )
+    member = Supporter.create!(
+      first_name: "Second",
+      last_name: "Counted",
+      print_name: "Counted, Second",
+      contact_number: "6715559446",
+      village: @village,
+      source: "staff_entry",
+      status: "active",
+      household_group: household_group,
+      household_primary: false
+    )
+
+    get "/api/v1/supporters/#{primary.id}", headers: auth_headers(@user)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    assert_equal 1, payload.dig("supporter", "household_member_count")
+    assert_equal [ member.id ], payload.dig("supporter", "household_members").map { |item| item["id"] }
   end
 
   test "show derives flagged reason detail for legacy supporter without persisted reason" do

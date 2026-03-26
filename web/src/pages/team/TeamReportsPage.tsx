@@ -35,12 +35,34 @@ const reportDescriptions: Record<string, string> = {
   quota_summary: 'Per-village quota progress for the current period with approved counts, GEC matches, pending public signups, and overall status.',
 };
 
+const SUPPORTER_REPORT_TYPES = new Set(['support_list', 'referral_list']);
+
 export default function TeamReportsPage() {
   const [selectedReport, setSelectedReport] = useState<string>('support_list');
   const [selectedDistrict, setSelectedDistrict] = useState('');
   const [selectedVillage, setSelectedVillage] = useState('');
   const [selectedPrecinct, setSelectedPrecinct] = useState('');
+  const [registeredStatusFilter, setRegisteredStatusFilter] = useState('');
+  const [supportNeedFilter, setSupportNeedFilter] = useState('');
+  const [outreachStatusFilter, setOutreachStatusFilter] = useState('');
   const [downloadingReport, setDownloadingReport] = useState<string | null>(null);
+  const supportsBeckyFilters = SUPPORTER_REPORT_TYPES.has(selectedReport);
+
+  const buildReportParams = (reportType: string, includePreviewLimit = false) => {
+    const params: Record<string, string | number> = {};
+    if (selectedDistrict) params.district_id = selectedDistrict;
+    if (selectedVillage) params.village_id = selectedVillage;
+    if (selectedPrecinct) params.precinct_id = selectedPrecinct;
+
+    if (SUPPORTER_REPORT_TYPES.has(reportType)) {
+      if (registeredStatusFilter) params.registered_voter_status = registeredStatusFilter;
+      if (supportNeedFilter) params.support_need = supportNeedFilter;
+      if (outreachStatusFilter) params.outreach_status = outreachStatusFilter;
+    }
+
+    if (includePreviewLimit) params.limit = 100;
+    return params;
+  };
 
   const { data: reportsList } = useQuery({ queryKey: ['reports-list'], queryFn: getReportsList });
   const { data: villages } = useQuery({ queryKey: ['villages'], queryFn: getVillages });
@@ -50,29 +72,23 @@ export default function TeamReportsPage() {
     queryFn: () => getPrecincts(selectedVillage ? { village_id: selectedVillage } : undefined),
   });
   const { data: preview, isLoading: previewLoading } = useQuery({
-    queryKey: ['report-preview', selectedReport, selectedDistrict, selectedVillage, selectedPrecinct],
-    queryFn: () => getReportPreview(selectedReport, {
-      district_id: selectedDistrict || undefined,
-      village_id: selectedVillage || undefined,
-      precinct_id: selectedPrecinct || undefined,
-      limit: 100,
-    }),
+    queryKey: ['report-preview', selectedReport, selectedDistrict, selectedVillage, selectedPrecinct, registeredStatusFilter, supportNeedFilter, outreachStatusFilter],
+    queryFn: () => getReportPreview(selectedReport, buildReportParams(selectedReport, true)),
     enabled: Boolean(selectedReport),
   });
 
   const handleDownload = async (reportType: string) => {
     setDownloadingReport(reportType);
     try {
-      await downloadReport(reportType, {
-        district_id: selectedDistrict || undefined,
-        village_id: selectedVillage || undefined,
-        precinct_id: selectedPrecinct || undefined,
-      });
+      await downloadReport(reportType, buildReportParams(reportType));
       captureAnalyticsEvent('report_downloaded', {
         report_type: reportType,
         district_id: selectedDistrict ? Number(selectedDistrict) : undefined,
         village_id: selectedVillage ? Number(selectedVillage) : undefined,
         precinct_id: selectedPrecinct ? Number(selectedPrecinct) : undefined,
+        registered_voter_status: SUPPORTER_REPORT_TYPES.has(reportType) ? registeredStatusFilter || undefined : undefined,
+        support_need: SUPPORTER_REPORT_TYPES.has(reportType) ? supportNeedFilter || undefined : undefined,
+        outreach_status: SUPPORTER_REPORT_TYPES.has(reportType) ? outreachStatusFilter || undefined : undefined,
       });
     } catch (err) {
       console.error('Download failed:', err);
@@ -152,6 +168,48 @@ export default function TeamReportsPage() {
           ))}
         </select>
       </div>
+      {supportsBeckyFilters && (
+        <div className="space-y-2">
+          <div className="grid md:grid-cols-3 gap-3">
+            <select
+              value={registeredStatusFilter}
+              onChange={e => setRegisteredStatusFilter(e.target.value)}
+              className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All self-reported voter status</option>
+              <option value="yes">Self-reported yes</option>
+              <option value="no">Self-reported no</option>
+              <option value="not_sure">Self-reported not sure</option>
+            </select>
+            <select
+              value={supportNeedFilter}
+              onChange={e => setSupportNeedFilter(e.target.value)}
+              className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All support requests</option>
+              <option value="registration">Registration help</option>
+              <option value="absentee">Absentee help</option>
+              <option value="homebound">Homebound help</option>
+              <option value="ride">Ride to polls</option>
+              <option value="volunteer">Volunteer</option>
+              <option value="any">Any help request</option>
+            </select>
+            <select
+              value={outreachStatusFilter}
+              onChange={e => setOutreachStatusFilter(e.target.value)}
+              className="px-3 py-2 text-sm border border-gray-200 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">All follow-up results</option>
+              <option value="contacted">Contacted</option>
+              <option value="registered">Registered via follow-up</option>
+              <option value="declined">Declined</option>
+            </select>
+          </div>
+          <p className="text-xs text-gray-500">
+            Becky filters apply to supporter-based reports like Support List and Referral List. GEC-only reports continue to use geography filters only.
+          </p>
+        </div>
+      )}
 
       {/* Report cards */}
       <div className="space-y-3">

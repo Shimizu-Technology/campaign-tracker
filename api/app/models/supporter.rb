@@ -3,6 +3,7 @@ class Supporter < ApplicationRecord
   INTAKE_STATUSES = %w[accepted pending_public_review].freeze
   REVIEW_STATUSES = %w[pending approved rejected].freeze
   PUBLIC_REVIEW_STATUSES = %w[not_applicable pending approved rejected].freeze
+  REGISTERED_VOTER_STATUSES = %w[yes no not_sure].freeze
   TURNOUT_STATUSES = %w[unknown not_yet_voted voted].freeze
   TURNOUT_SOURCES = %w[poll_watcher war_room admin_override].freeze
   VERIFICATION_STATUSES = %w[unverified verified flagged].freeze
@@ -24,6 +25,7 @@ class Supporter < ApplicationRecord
   belongs_to :quota_period, optional: true
   belongs_to :precinct, optional: true
   belongs_to :block, optional: true
+  belongs_to :household_group, optional: true
   belongs_to :referral_code, optional: true
   belongs_to :entered_by, class_name: "User", foreign_key: :entered_by_user_id, optional: true
   belongs_to :turnout_updated_by_user, class_name: "User", optional: true
@@ -45,6 +47,7 @@ class Supporter < ApplicationRecord
   # Keep print_name in sync as "Last, First" for display and backward compatibility
   before_validation :sync_print_name
   before_validation :sync_review_workflow_fields
+  before_validation :sync_registered_voter_status
   before_validation :sync_submitted_village
   before_validation :sync_precinct_assignment
   before_save :set_normalized_phone
@@ -63,6 +66,7 @@ class Supporter < ApplicationRecord
   validates :intake_status, inclusion: { in: INTAKE_STATUSES }
   validates :review_status, inclusion: { in: REVIEW_STATUSES }
   validates :public_review_status, inclusion: { in: PUBLIC_REVIEW_STATUSES }
+  validates :registered_voter_status, inclusion: { in: REGISTERED_VOTER_STATUSES }
   validates :turnout_status, inclusion: { in: TURNOUT_STATUSES }
   validates :turnout_source, inclusion: { in: TURNOUT_SOURCES }, allow_blank: true
   validates :verification_status, inclusion: { in: VERIFICATION_STATUSES }
@@ -101,8 +105,23 @@ class Supporter < ApplicationRecord
     where.not(submitted_village_id: nil)
       .where("supporters.submitted_village_id <> supporters.village_id")
   }
+  scope :with_household, -> { where.not(household_group_id: nil) }
   scope :motorcade_available, -> { where(motorcade_available: true) }
   scope :yard_sign, -> { where(yard_sign: true) }
+  scope :registered_voter_status_is, ->(status) { where(registered_voter_status: status) }
+  scope :needs_campaign_help, -> {
+    where(
+      wants_to_volunteer: true
+    ).or(where(needs_absentee_ballot_help: true))
+      .or(where(needs_homebound_voting_help: true))
+      .or(where(needs_voter_registration_help: true))
+      .or(where(needs_election_day_ride: true))
+  }
+  scope :needs_follow_up, -> {
+    where(registered_voter_status: %w[no not_sure])
+      .or(where(registered_voter: false))
+      .or(needs_campaign_help)
+  }
   scope :potential_duplicates_only, -> { duplicate_review_candidates.where(potential_duplicate: true) }
   scope :today, -> { where("supporters.created_at >= ?", Time.current.beginning_of_day) }
   scope :this_week, -> { where("supporters.created_at >= ?", Time.current.beginning_of_week) }
@@ -148,6 +167,13 @@ class Supporter < ApplicationRecord
     submitted_village_id.present? && village_id.present? && submitted_village_id != village_id
   end
 
+  def household_members
+    return [] unless household_group_id.present?
+    return [] unless household_group.present?
+
+    household_group.supporters.to_a.reject { |member| member.id == id }
+  end
+
   private
 
   def phone_optional_entry?
@@ -188,6 +214,41 @@ class Supporter < ApplicationRecord
     else
       self.public_review_status = "not_applicable"
       self.review_status = review_status.presence || "approved"
+    end
+  end
+
+  def sync_registered_voter_status
+    if will_save_change_to_self_reported_registered_voter?
+      self.registered_voter_status =
+        case self_reported_registered_voter
+        when true
+          "yes"
+        when false
+          "no"
+        else
+          "not_sure"
+        end
+    else
+      self.registered_voter_status =
+        if registered_voter_status.present?
+          registered_voter_status
+        elsif self_reported_registered_voter == true
+          "yes"
+        elsif self_reported_registered_voter == false
+          "no"
+        else
+          "not_sure"
+        end
+
+      self.self_reported_registered_voter =
+        case registered_voter_status
+        when "yes"
+          true
+        when "no"
+          false
+        else
+          nil
+        end
     end
   end
 

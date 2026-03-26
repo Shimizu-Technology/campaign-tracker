@@ -34,6 +34,24 @@ function summaryCardClass(active: boolean, tone: 'blue' | 'green' | 'red') {
   return `${active ? activeMap[tone] : idleMap[tone]} rounded-lg px-4 py-3 border text-left transition-colors`;
 }
 
+function selfReportedStatusLabel(supporter: Record<string, unknown>) {
+  const status = supporter.registered_voter_status as string | undefined;
+  if (status === 'yes') return 'Yes';
+  if (status === 'no') return 'No';
+  if (status === 'not_sure') return 'Not sure';
+  return supporter.self_reported_registered_voter ? 'Yes' : 'No';
+}
+
+function supporterRequestBadges(supporter: Record<string, unknown>) {
+  const badges: string[] = [];
+  if (supporter.needs_voter_registration_help) badges.push('Registration');
+  if (supporter.needs_absentee_ballot_help) badges.push('Absentee');
+  if (supporter.needs_homebound_voting_help) badges.push('Homebound');
+  if (supporter.needs_election_day_ride) badges.push('Ride');
+  if (supporter.wants_to_volunteer) badges.push('Volunteer');
+  return badges;
+}
+
 export default function TeamPublicReviewPage() {
   const queryClient = useQueryClient();
   const location = useLocation();
@@ -208,8 +226,8 @@ export default function TeamPublicReviewPage() {
           <p className="text-sm text-gray-400 mt-1">{emptyStateDetail}</p>
         </div>
       ) : (
-        <div className={`bg-white rounded-xl border border-gray-200 overflow-hidden transition-opacity duration-200 ${showUpdatingState ? 'opacity-70' : 'opacity-100'}`}>
-          <table className="w-full text-sm">
+        <div className={`bg-white rounded-xl border border-gray-200 overflow-x-auto transition-opacity duration-200 ${showUpdatingState ? 'opacity-70' : 'opacity-100'}`}>
+          <table className="min-w-[1040px] w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
                 <th className="text-left py-3 px-4 text-xs font-semibold text-gray-400 uppercase">Name</th>
@@ -219,6 +237,7 @@ export default function TeamPublicReviewPage() {
                 <th className="text-left py-3 px-4 text-xs font-semibold text-gray-400 uppercase">Date</th>
                 <th className="text-left py-3 px-4 text-xs font-semibold text-gray-400 uppercase">Self-Reported</th>
                 <th className="text-left py-3 px-4 text-xs font-semibold text-gray-400 uppercase">GEC Found</th>
+                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-400 uppercase">Requests</th>
                 <th className="text-right py-3 px-4 text-xs font-semibold text-gray-400 uppercase">{isPendingBucket ? 'Review' : 'Status'}</th>
               </tr>
             </thead>
@@ -229,6 +248,18 @@ export default function TeamPublicReviewPage() {
                     <Link to={`/data/supporters/${s.id}?return_to=${encodeURIComponent(currentQueuePath())}`} className="font-medium text-gray-900 hover:text-blue-600">
                       {[s.first_name as string, s.middle_name as string | undefined, s.last_name as string].filter(Boolean).join(' ')}
                     </Link>
+                    <div className="mt-1 space-y-1">
+                      {(s.registered_voter_location_note as string | undefined) && (
+                        <div className="text-xs text-slate-500">
+                          Votes elsewhere: {s.registered_voter_location_note as string}
+                        </div>
+                      )}
+                      {Number(s.household_member_count || 0) > 0 && (
+                        <div className="text-xs text-indigo-600">
+                          Household signup ({s.household_member_count as number} linked supporter{Number(s.household_member_count || 0) === 1 ? '' : 's'})
+                        </div>
+                      )}
+                    </div>
                   </td>
                   <td className="py-3 px-4 text-gray-600">{s.village_name as string}</td>
                   <td className="py-3 px-4 text-gray-600">{s.contact_number as string || '-'}</td>
@@ -239,11 +270,9 @@ export default function TeamPublicReviewPage() {
                   </td>
                   <td className="py-3 px-4 text-gray-400 text-xs">{formatDateTime(s.created_at as string)}</td>
                   <td className="py-3 px-4">
-                    {s.self_reported_registered_voter ? (
-                      <CheckCircle className="w-4 h-4 text-blue-500" />
-                    ) : (
-                      <span className="text-xs text-gray-500">No</span>
-                    )}
+                    <span className="text-xs font-medium text-slate-600">
+                      {selfReportedStatusLabel(s)}
+                    </span>
                   </td>
                   <td className="py-3 px-4">
                     {s.registered_voter ? (
@@ -251,6 +280,18 @@ export default function TeamPublicReviewPage() {
                     ) : (
                       <span className="text-xs text-red-500">No</span>
                     )}
+                  </td>
+                  <td className="py-3 px-4">
+                    <div className="flex flex-wrap gap-1">
+                      {supporterRequestBadges(s).map((badge) => (
+                        <span key={`${s.id as number}-${badge}`} className="rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                          {badge}
+                        </span>
+                      ))}
+                      {supporterRequestBadges(s).length === 0 && (
+                        <span className="text-xs text-gray-400">None</span>
+                      )}
+                    </div>
                   </td>
                   <td className="py-3 px-4 text-right">
                     {isPendingBucket ? (
