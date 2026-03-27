@@ -58,6 +58,7 @@ interface SupporterItem {
   household_group_id?: number | null;
   household_member_count?: number;
   registration_outreach_status?: string | null;
+  support_follow_up_status?: string | null;
   status: string;
   created_at: string;
 }
@@ -205,17 +206,31 @@ function supportRequestBadges(supporter: Pick<SupporterItem, 'needs_voter_regist
   return badges;
 }
 
-function followUpResultLabel(supporter: Pick<SupporterItem, 'registration_outreach_status'>) {
+function registrationFollowUpResultLabel(supporter: Pick<SupporterItem, 'registration_outreach_status'>) {
   if (supporter.registration_outreach_status === 'registered') return 'Registered via follow-up';
   if (supporter.registration_outreach_status === 'contacted') return 'Contacted';
   if (supporter.registration_outreach_status === 'declined') return 'Declined';
   return null;
 }
 
-function followUpResultClass(supporter: Pick<SupporterItem, 'registration_outreach_status'>) {
+function registrationFollowUpResultClass(supporter: Pick<SupporterItem, 'registration_outreach_status'>) {
   if (supporter.registration_outreach_status === 'registered') return 'bg-green-100 text-green-700';
   if (supporter.registration_outreach_status === 'contacted') return 'bg-blue-100 text-blue-700';
   if (supporter.registration_outreach_status === 'declined') return 'bg-red-100 text-red-700';
+  return 'bg-gray-100 text-gray-700';
+}
+
+function supportFollowUpResultLabel(supporter: Pick<SupporterItem, 'support_follow_up_status'>) {
+  if (supporter.support_follow_up_status === 'completed') return 'Support completed';
+  if (supporter.support_follow_up_status === 'in_progress') return 'Support in progress';
+  if (supporter.support_follow_up_status === 'declined') return 'Support declined';
+  return null;
+}
+
+function supportFollowUpResultClass(supporter: Pick<SupporterItem, 'support_follow_up_status'>) {
+  if (supporter.support_follow_up_status === 'completed') return 'bg-green-100 text-green-700';
+  if (supporter.support_follow_up_status === 'in_progress') return 'bg-blue-100 text-blue-700';
+  if (supporter.support_follow_up_status === 'declined') return 'bg-red-100 text-red-700';
   return 'bg-gray-100 text-gray-700';
 }
 
@@ -738,13 +753,16 @@ export default function SupportersPage() {
                   {s.motorcade_available && (
                     <span className="app-chip bg-cyan-100 text-cyan-700">Motorcade</span>
                   )}
-                  {followUpResultLabel(s) && (
-                    <span className={`app-chip ${followUpResultClass(s)}`}>{followUpResultLabel(s)}</span>
+                  {registrationFollowUpResultLabel(s) && (
+                    <span className={`app-chip ${registrationFollowUpResultClass(s)}`}>{registrationFollowUpResultLabel(s)}</span>
+                  )}
+                  {supportFollowUpResultLabel(s) && (
+                    <span className={`app-chip ${supportFollowUpResultClass(s)}`}>{supportFollowUpResultLabel(s)}</span>
                   )}
                   {supportRequestBadges(s).map((badge) => (
                     <span key={`${s.id}-${badge}`} className="app-chip bg-yellow-100 text-yellow-800">{badge}</span>
                   ))}
-                  {!s.yard_sign && !s.motorcade_available && !followUpResultLabel(s) && supportRequestBadges(s).length === 0 && (
+                  {!s.yard_sign && !s.motorcade_available && !registrationFollowUpResultLabel(s) && !supportFollowUpResultLabel(s) && supportRequestBadges(s).length === 0 && (
                     <span className="text-xs text-[var(--text-muted)]">No extra flags</span>
                   )}
                 </div>
@@ -832,13 +850,16 @@ export default function SupportersPage() {
                       {s.motorcade_available && (
                         <span className="app-chip bg-cyan-100 text-cyan-700">Motorcade</span>
                       )}
-                      {followUpResultLabel(s) && (
-                        <span className={`app-chip ${followUpResultClass(s)}`}>{followUpResultLabel(s)}</span>
+                      {registrationFollowUpResultLabel(s) && (
+                        <span className={`app-chip ${registrationFollowUpResultClass(s)}`}>{registrationFollowUpResultLabel(s)}</span>
+                      )}
+                      {supportFollowUpResultLabel(s) && (
+                        <span className={`app-chip ${supportFollowUpResultClass(s)}`}>{supportFollowUpResultLabel(s)}</span>
                       )}
                       {supportRequestBadges(s).map((badge) => (
                         <span key={`${s.id}-${badge}`} className="app-chip bg-yellow-100 text-yellow-800">{badge}</span>
                       ))}
-                      {!s.yard_sign && !s.motorcade_available && !followUpResultLabel(s) && supportRequestBadges(s).length === 0 && (
+                      {!s.yard_sign && !s.motorcade_available && !registrationFollowUpResultLabel(s) && !supportFollowUpResultLabel(s) && supportRequestBadges(s).length === 0 && (
                         <span className="text-xs text-[var(--text-muted)]">—</span>
                       )}
                     </div>
@@ -853,6 +874,9 @@ export default function SupportersPage() {
                       )}
                       {s.registration_outreach_status === 'registered' && (
                         <div className="text-xs text-green-700">Follow-up says registered</div>
+                      )}
+                      {s.support_follow_up_status === 'completed' && (
+                        <div className="text-xs text-blue-700">Support help completed</div>
                       )}
                     </div>
                   </td>

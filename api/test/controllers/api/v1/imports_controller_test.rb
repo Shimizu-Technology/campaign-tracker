@@ -3,11 +3,25 @@ require "test_helper"
 class Api::V1::ImportsControllerTest < ActionDispatch::IntegrationTest
   setup do
     @village = Village.create!(name: "Import Audit Village")
+    @other_village = Village.create!(name: "Import Other Village")
     @user = User.create!(
       clerk_id: "clerk-import-audit-user",
       email: "import-audit@example.com",
       name: "Import Auditor",
       role: "campaign_admin"
+    )
+    @chief = User.create!(
+      clerk_id: "clerk-import-chief-user",
+      email: "import-chief@example.com",
+      name: "Import Chief",
+      role: "village_chief",
+      assigned_village_id: @village.id
+    )
+    @poll_watcher = User.create!(
+      clerk_id: "clerk-import-poll-watcher",
+      email: "import-poll-watcher@example.com",
+      name: "Import Poll Watcher",
+      role: "poll_watcher"
     )
   end
 
@@ -85,5 +99,65 @@ class Api::V1::ImportsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "not_applicable", supporter.public_review_status
     assert_includes Supporter.pending_supporter_review, supporter
     refute_includes Supporter.official_supporters, supporter
+  end
+
+  test "village chief can import supporters within assigned village scope" do
+    imported_name = "ScopedImport#{SecureRandom.hex(2)}"
+
+    post "/api/v1/imports/confirm",
+      params: {
+        import_key: "c" * 32,
+        village_id: @village.id,
+        rows: [
+          {
+            "_row" => 1,
+            "first_name" => imported_name,
+            "last_name" => "Chief",
+            "contact_number" => nil,
+            "registered_voter" => true
+          }
+        ]
+      },
+      headers: auth_headers(@chief)
+
+    assert_response :success
+    supporter = Supporter.find_by!(first_name: imported_name, last_name: "Chief")
+    assert_equal @village.id, supporter.village_id
+  end
+
+  test "village chief cannot import supporters outside assigned village scope" do
+    post "/api/v1/imports/confirm",
+      params: {
+        import_key: "d" * 32,
+        village_id: @other_village.id,
+        rows: [
+          {
+            "_row" => 1,
+            "first_name" => "OutOfScope",
+            "last_name" => "Chief",
+            "contact_number" => nil,
+            "registered_voter" => true
+          }
+        ]
+      },
+      headers: auth_headers(@chief)
+
+    assert_response :forbidden
+    payload = JSON.parse(response.body)
+    assert_equal "village_scope_denied", payload["code"]
+  end
+
+  test "poll watcher cannot access supporter imports" do
+    post "/api/v1/imports/confirm",
+      params: {
+        import_key: "e" * 32,
+        village_id: @village.id,
+        rows: []
+      },
+      headers: auth_headers(@poll_watcher)
+
+    assert_response :forbidden
+    payload = JSON.parse(response.body)
+    assert_equal "supporter_import_access_required", payload["code"]
   end
 end

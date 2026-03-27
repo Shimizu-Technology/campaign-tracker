@@ -125,6 +125,26 @@ module Authenticatable
     )
   end
 
+  def require_reports_access!
+    return if can_access_reports?
+
+    render_api_error(
+      message: "Reports access required",
+      status: :forbidden,
+      code: "reports_access_required"
+    )
+  end
+
+  def require_supporter_import_access!
+    return if can_import_supporters?
+
+    render_api_error(
+      message: "Supporter import access required",
+      status: :forbidden,
+      code: "supporter_import_access_required"
+    )
+  end
+
   def require_coordinator_or_above!
     unless current_user&.admin? || current_user&.data_team? || current_user&.coordinator?
       render_api_error(
@@ -290,7 +310,11 @@ module Authenticatable
   end
 
   def can_access_reports?
-    can_access_data_team?
+    current_user&.admin? || current_user&.data_team? || current_user&.coordinator?
+  end
+
+  def can_import_supporters?
+    can_create_staff_supporters?
   end
 
   def can_upload_gec?

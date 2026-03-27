@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_24_103000) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_26_100000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -767,6 +767,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_24_103000) do
     t.string "status"
     t.string "street_address"
     t.bigint "submitted_village_id"
+    t.datetime "support_follow_up_date"
+    t.text "support_follow_up_notes"
+    t.string "support_follow_up_status"
     t.text "turnout_note"
     t.string "turnout_source"
     t.string "turnout_status", default: "not_yet_voted", null: false
@@ -816,6 +819,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_24_103000) do
     t.index ["status", "village_id"], name: "index_supporters_on_status_and_village_id"
     t.index ["status"], name: "index_supporters_on_status"
     t.index ["submitted_village_id"], name: "index_supporters_on_submitted_village_id"
+    t.index ["support_follow_up_status"], name: "index_supporters_on_support_follow_up_status"
     t.index ["turnout_status"], name: "index_supporters_on_turnout_status"
     t.index ["turnout_updated_by_user_id"], name: "index_supporters_on_turnout_updated_by_user_id"
     t.index ["verification_reason"], name: "index_supporters_on_verification_reason"

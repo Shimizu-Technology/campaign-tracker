@@ -68,6 +68,9 @@ interface SupporterDetail {
   registration_outreach_status: string | null;
   registration_outreach_notes: string | null;
   registration_outreach_date: string | null;
+  support_follow_up_status: string | null;
+  support_follow_up_notes: string | null;
+  support_follow_up_date: string | null;
   source: string;
   attribution_method?: string | null;
   status: string;
@@ -139,6 +142,10 @@ const AUDIT_FIELD_LABELS: Record<string, string> = {
   needs_voter_registration_help: 'Registration help',
   needs_election_day_ride: 'Ride to polls',
   referred_by_name: 'Referred by',
+  registration_outreach_status: 'Registration follow-up result',
+  registration_outreach_notes: 'Registration follow-up notes',
+  support_follow_up_status: 'Support follow-up progress',
+  support_follow_up_notes: 'Support follow-up notes',
   yard_sign: 'Yard sign',
   motorcade_available: 'Motorcade available',
   opt_in_email: 'Opt-in email',
@@ -432,16 +439,34 @@ function supportRequestBadges(supporter: Pick<SupporterDetail, 'needs_voter_regi
   return badges;
 }
 
-function followUpStatusLabel(status?: string | null) {
+function hasSupportServiceFollowUp(supporter: Pick<SupporterDetail, 'needs_absentee_ballot_help' | 'needs_homebound_voting_help' | 'needs_election_day_ride' | 'wants_to_volunteer'>) {
+  return supporter.needs_absentee_ballot_help || supporter.needs_homebound_voting_help || supporter.needs_election_day_ride || supporter.wants_to_volunteer;
+}
+
+function registrationFollowUpStatusLabel(status?: string | null) {
   if (status === 'registered') return 'Registered via follow-up';
   if (status === 'contacted') return 'Contacted';
   if (status === 'declined') return 'Declined';
   return 'Not contacted';
 }
 
-function followUpStatusClass(status?: string | null) {
+function registrationFollowUpStatusClass(status?: string | null) {
   if (status === 'registered') return 'bg-green-100 text-green-700';
   if (status === 'contacted') return 'bg-blue-100 text-blue-700';
+  if (status === 'declined') return 'bg-red-100 text-red-700';
+  return 'bg-gray-100 text-gray-600';
+}
+
+function supportFollowUpStatusLabel(status?: string | null) {
+  if (status === 'in_progress') return 'In progress';
+  if (status === 'completed') return 'Completed';
+  if (status === 'declined') return 'Declined';
+  return 'Not started';
+}
+
+function supportFollowUpStatusClass(status?: string | null) {
+  if (status === 'completed') return 'bg-green-100 text-green-700';
+  if (status === 'in_progress') return 'bg-blue-100 text-blue-700';
   if (status === 'declined') return 'bg-red-100 text-red-700';
   return 'bg-gray-100 text-gray-600';
 }
@@ -1154,7 +1179,7 @@ export default function SupporterDetailPage() {
         </section>
 
         <section className="app-card p-4">
-          <h2 className="font-semibold text-[var(--text-primary)] mb-2">Voter Follow-Up</h2>
+          <h2 className="font-semibold text-[var(--text-primary)] mb-2">Follow-Up Workflow</h2>
           <div className="space-y-3">
             {supporter.registration_outreach_status === 'registered' && (
               <div className="rounded-xl border border-green-200 bg-green-50 px-4 py-3">
@@ -1193,9 +1218,9 @@ export default function SupporterDetailPage() {
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-[var(--text-secondary)]">Follow-up result:</span>
-              <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-semibold ${followUpStatusClass(supporter.registration_outreach_status)}`}>
-                {followUpStatusLabel(supporter.registration_outreach_status)}
+              <span className="text-sm text-[var(--text-secondary)]">Registration follow-up:</span>
+              <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-semibold ${registrationFollowUpStatusClass(supporter.registration_outreach_status)}`}>
+                {registrationFollowUpStatusLabel(supporter.registration_outreach_status)}
               </span>
             </div>
             <div>
@@ -1211,37 +1236,43 @@ export default function SupporterDetailPage() {
                 )}
               </div>
             </div>
+            {hasSupportServiceFollowUp(supporter) && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm text-[var(--text-secondary)]">Support follow-up:</span>
+                <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-semibold ${supportFollowUpStatusClass(supporter.support_follow_up_status)}`}>
+                  {supportFollowUpStatusLabel(supporter.support_follow_up_status)}
+                </span>
+              </div>
+            )}
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-[var(--text-secondary)]">Update follow-up result:</span>
+              <span className="text-sm text-[var(--text-secondary)]">Update registration follow-up:</span>
               {canEdit ? (
                 <select
                   value={supporter.registration_outreach_status || ''}
                   onChange={async (e) => {
-                    if (e.target.value) {
-                      try {
-                        await updateOutreachStatus(supporter.id, { registration_outreach_status: e.target.value });
-                        refetch();
-                      } catch {
-                        alert('Failed to update outreach status.');
-                      }
+                    try {
+                      await updateOutreachStatus(supporter.id, { registration_outreach_status: e.target.value || null });
+                      refetch();
+                    } catch {
+                      alert('Failed to update registration follow-up status.');
                     }
                   }}
                   className="border border-[var(--border-soft)] rounded-xl px-3 py-2 text-sm bg-[var(--surface-raised)]"
                 >
                   <option value="">Not contacted</option>
                   <option value="contacted">Contacted</option>
-                  <option value="registered">Registered</option>
+                  <option value="registered">Registered via follow-up</option>
                   <option value="declined">Declined</option>
                 </select>
               ) : (
-                <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-semibold ${followUpStatusClass(supporter.registration_outreach_status)}`}>
-                  {followUpStatusLabel(supporter.registration_outreach_status)}
+                <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-semibold ${registrationFollowUpStatusClass(supporter.registration_outreach_status)}`}>
+                  {registrationFollowUpStatusLabel(supporter.registration_outreach_status)}
                 </span>
               )}
             </div>
             {canEdit && (
               <div>
-                <label className="text-sm text-[var(--text-secondary)] block mb-1">Outreach notes</label>
+                <label className="text-sm text-[var(--text-secondary)] block mb-1">Registration follow-up notes</label>
                 <textarea
                   defaultValue={supporter.registration_outreach_notes || ''}
                   onBlur={async (e) => {
@@ -1251,26 +1282,89 @@ export default function SupporterDetailPage() {
                         await updateOutreachStatus(supporter.id, { registration_outreach_notes: newNotes });
                         refetch();
                       } catch {
-                        alert('Failed to save outreach notes.');
+                        alert('Failed to save registration follow-up notes.');
                       }
                     }
                   }}
                   rows={2}
                   className="w-full border border-[var(--border-soft)] rounded-xl px-3 py-2 text-sm"
-                  placeholder="Notes about outreach attempts..."
+                  placeholder="Notes about registration outreach..."
                 />
               </div>
             )}
             {!canEdit && supporter.registration_outreach_notes && (
               <div>
-                <span className="text-sm text-[var(--text-secondary)]">Notes:</span>
+                <span className="text-sm text-[var(--text-secondary)]">Registration notes:</span>
                 <p className="text-sm text-[var(--text-primary)] mt-1">{supporter.registration_outreach_notes}</p>
               </div>
             )}
             {supporter.registration_outreach_date && (
               <p className="text-xs text-[var(--text-muted)]">
-                Last outreach: {formatDateTime(supporter.registration_outreach_date)}
+                Last registration outreach: {formatDateTime(supporter.registration_outreach_date)}
               </p>
+            )}
+            {hasSupportServiceFollowUp(supporter) && (
+              <>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-sm text-[var(--text-secondary)]">Update support follow-up:</span>
+                  {canEdit ? (
+                    <select
+                      value={supporter.support_follow_up_status || ''}
+                      onChange={async (e) => {
+                        try {
+                          await updateOutreachStatus(supporter.id, { support_follow_up_status: e.target.value || null });
+                          refetch();
+                        } catch {
+                          alert('Failed to update support follow-up progress.');
+                        }
+                      }}
+                      className="border border-[var(--border-soft)] rounded-xl px-3 py-2 text-sm bg-[var(--surface-raised)]"
+                    >
+                      <option value="">Not started</option>
+                      <option value="in_progress">In progress</option>
+                      <option value="completed">Completed</option>
+                      <option value="declined">Declined</option>
+                    </select>
+                  ) : (
+                    <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-semibold ${supportFollowUpStatusClass(supporter.support_follow_up_status)}`}>
+                      {supportFollowUpStatusLabel(supporter.support_follow_up_status)}
+                    </span>
+                  )}
+                </div>
+                {canEdit && (
+                  <div>
+                    <label className="text-sm text-[var(--text-secondary)] block mb-1">Support follow-up notes</label>
+                    <textarea
+                      defaultValue={supporter.support_follow_up_notes || ''}
+                      onBlur={async (e) => {
+                        const newNotes = e.target.value;
+                        if (newNotes !== (supporter.support_follow_up_notes || '')) {
+                          try {
+                            await updateOutreachStatus(supporter.id, { support_follow_up_notes: newNotes });
+                            refetch();
+                          } catch {
+                            alert('Failed to save support follow-up notes.');
+                          }
+                        }
+                      }}
+                      rows={2}
+                      className="w-full border border-[var(--border-soft)] rounded-xl px-3 py-2 text-sm"
+                      placeholder="Notes about volunteer / absentee / ride follow-up..."
+                    />
+                  </div>
+                )}
+                {!canEdit && supporter.support_follow_up_notes && (
+                  <div>
+                    <span className="text-sm text-[var(--text-secondary)]">Support notes:</span>
+                    <p className="text-sm text-[var(--text-primary)] mt-1">{supporter.support_follow_up_notes}</p>
+                  </div>
+                )}
+                {supporter.support_follow_up_date && (
+                  <p className="text-xs text-[var(--text-muted)]">
+                    Last support follow-up: {formatDateTime(supporter.support_follow_up_date)}
+                  </p>
+                )}
+              </>
             )}
           </div>
         </section>

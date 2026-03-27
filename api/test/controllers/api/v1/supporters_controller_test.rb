@@ -481,6 +481,34 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Left voicemail", supporter.registration_outreach_notes
   end
 
+  test "support follow-up status can be updated independently" do
+    supporter = Supporter.create!(
+      first_name: "Support",
+      last_name: "Workflow",
+      print_name: "Workflow, Support",
+      contact_number: "67155580172",
+      village: @village,
+      source: "staff_entry",
+      review_status: "approved",
+      public_review_status: "not_applicable",
+      status: "active",
+      registered_voter: true,
+      registered_voter_status: "yes",
+      needs_absentee_ballot_help: true
+    )
+
+    patch "/api/v1/supporters/#{supporter.id}/outreach_status",
+      params: { support_follow_up_status: "completed", support_follow_up_notes: "Ride arranged" },
+      headers: auth_headers(@user)
+
+    assert_response :success
+    supporter.reload
+    assert_equal "completed", supporter.support_follow_up_status
+    assert_equal "Ride arranged", supporter.support_follow_up_notes
+    assert_not_nil supporter.support_follow_up_date
+    assert_nil supporter.registration_outreach_status
+  end
+
   test "partial supporter update preserves Becky voter status fields when none are submitted" do
     supporter = Supporter.create!(
       first_name: "Preserve",
@@ -597,11 +625,11 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_includes payload["supporters"].first["follow_up_reasons"], "Registered via follow-up"
   end
 
-  test "outreach ignores incompatible status filters for the selected queue view" do
-    open_supporter = Supporter.create!(
+  test "outreach keeps support requests open after registration follow-up is resolved" do
+    mixed_supporter = Supporter.create!(
       first_name: "Queue",
-      last_name: "OpenOnly",
-      print_name: "OpenOnly, Queue",
+      last_name: "MixedOpen",
+      print_name: "MixedOpen, Queue",
       contact_number: "6715558023",
       village: @village,
       source: "staff_entry",
@@ -609,33 +637,33 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
       public_review_status: "not_applicable",
       status: "active",
       registered_voter: false,
-      registered_voter_status: "no"
-    )
-    Supporter.create!(
-      first_name: "Queue",
-      last_name: "ResolvedOnly",
-      print_name: "ResolvedOnly, Queue",
-      contact_number: "6715558024",
-      village: @village,
-      source: "staff_entry",
-      review_status: "approved",
-      public_review_status: "not_applicable",
-      status: "active",
-      registered_voter: false,
       registered_voter_status: "no",
+      needs_absentee_ballot_help: true,
       registration_outreach_status: "registered"
     )
 
     get "/api/v1/supporters/outreach",
-      params: { search: "Queue", queue_view: "open", outreach_status: "registered" },
+      params: { search: "Queue", queue_view: "open" },
       headers: auth_headers(@user)
 
     assert_response :success
     payload = JSON.parse(response.body)
-    returned_last_names = payload.fetch("supporters").map { |supporter| supporter["last_name"] }
+    mixed_row = payload.fetch("supporters").find { |supporter| supporter["id"] == mixed_supporter.id }
 
-    assert_includes returned_last_names, open_supporter.last_name
-    assert_not_includes returned_last_names, "ResolvedOnly"
+    assert_not_nil mixed_row
+    assert_equal true, mixed_row["support_follow_up_open"]
+    assert_equal false, mixed_row["registration_follow_up_open"]
+    assert_equal "Support Help", mixed_row["follow_up_priority"]
+
+    get "/api/v1/supporters/outreach",
+      params: { search: "Queue", queue_view: "completed" },
+      headers: auth_headers(@user)
+
+    assert_response :success
+    completed_payload = JSON.parse(response.body)
+    completed_ids = completed_payload.fetch("supporters").map { |supporter| supporter["id"] }
+
+    assert_not_includes completed_ids, mixed_supporter.id
   end
 
   test "public create ignores crafted submitted village id" do

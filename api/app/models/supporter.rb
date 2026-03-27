@@ -4,6 +4,7 @@ class Supporter < ApplicationRecord
   REVIEW_STATUSES = %w[pending approved rejected].freeze
   PUBLIC_REVIEW_STATUSES = %w[not_applicable pending approved rejected].freeze
   REGISTERED_VOTER_STATUSES = %w[yes no not_sure].freeze
+  SUPPORT_FOLLOW_UP_STATUSES = %w[in_progress completed declined].freeze
   TURNOUT_STATUSES = %w[unknown not_yet_voted voted].freeze
   TURNOUT_SOURCES = %w[poll_watcher war_room admin_override].freeze
   VERIFICATION_STATUSES = %w[unverified verified flagged].freeze
@@ -67,6 +68,7 @@ class Supporter < ApplicationRecord
   validates :review_status, inclusion: { in: REVIEW_STATUSES }
   validates :public_review_status, inclusion: { in: PUBLIC_REVIEW_STATUSES }
   validates :registered_voter_status, inclusion: { in: REGISTERED_VOTER_STATUSES }
+  validates :support_follow_up_status, inclusion: { in: SUPPORT_FOLLOW_UP_STATUSES }, allow_nil: true
   validates :turnout_status, inclusion: { in: TURNOUT_STATUSES }
   validates :turnout_source, inclusion: { in: TURNOUT_SOURCES }, allow_blank: true
   validates :verification_status, inclusion: { in: VERIFICATION_STATUSES }
@@ -109,6 +111,9 @@ class Supporter < ApplicationRecord
   scope :motorcade_available, -> { where(motorcade_available: true) }
   scope :yard_sign, -> { where(yard_sign: true) }
   scope :registered_voter_status_is, ->(status) { where(registered_voter_status: status) }
+  # Legacy broad campaign-help scope retained for existing list/report usage.
+  # This still includes voter registration help; new support-track follow-up
+  # code should prefer `needs_support_services` to exclude registration work.
   scope :needs_campaign_help, -> {
     where(
       wants_to_volunteer: true
@@ -117,10 +122,19 @@ class Supporter < ApplicationRecord
       .or(where(needs_voter_registration_help: true))
       .or(where(needs_election_day_ride: true))
   }
+  # Support-track follow-up only: excludes registration-help requests so the
+  # registration and support queues remain independent.
+  scope :needs_support_services, -> {
+    where(wants_to_volunteer: true)
+      .or(where(needs_absentee_ballot_help: true))
+      .or(where(needs_homebound_voting_help: true))
+      .or(where(needs_election_day_ride: true))
+  }
   scope :needs_follow_up, -> {
     where(registered_voter_status: %w[no not_sure])
       .or(where(registered_voter: false))
-      .or(needs_campaign_help)
+      .or(where(needs_voter_registration_help: true))
+      .or(needs_support_services)
   }
   scope :potential_duplicates_only, -> { duplicate_review_candidates.where(potential_duplicate: true) }
   scope :today, -> { where("supporters.created_at >= ?", Time.current.beginning_of_day) }

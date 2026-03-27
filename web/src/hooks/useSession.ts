@@ -43,6 +43,7 @@ export interface SessionResponse {
     can_edit_supporters: boolean;
     can_view_supporters: boolean;
     can_create_staff_supporters: boolean;
+    can_import_supporters: boolean;
     can_access_events: boolean;
     can_access_qr: boolean;
     can_access_leaderboard: boolean;

@@ -79,6 +79,7 @@ function PermissionRoute({
     | 'can_edit_supporters'
     | 'can_view_supporters'
     | 'can_create_staff_supporters'
+    | 'can_import_supporters'
     | 'can_access_events'
     | 'can_access_qr'
     | 'can_access_leaderboard'
@@ -180,7 +181,26 @@ export default function App() {
               </AdminRoute>
             }
           />
-          <Route path="/admin/import" element={<Navigate to="/data/import" replace />} />
+          <Route
+            path="/admin/import"
+            element={
+              <AdminRoute>
+                <PermissionRoute permission="can_import_supporters">
+                  <ImportPage />
+                </PermissionRoute>
+              </AdminRoute>
+            }
+          />
+          <Route
+            path="/admin/reports"
+            element={
+              <AdminRoute>
+                <PermissionRoute permission="can_access_reports">
+                  <TeamReportsPage />
+                </PermissionRoute>
+              </AdminRoute>
+            }
+          />
           <Route
             path="/admin/duplicates"
             element={
@@ -376,12 +396,30 @@ export default function App() {
             }
           />
           <Route path="/data/vetting" element={<TeamLayout><TeamVettingPage /></TeamLayout>} />
-          <Route path="/data/reports" element={<TeamLayout><TeamReportsPage /></TeamLayout>} />
+          <Route
+            path="/data/reports"
+            element={
+              <TeamLayout>
+                <PermissionRoute permission="can_access_reports">
+                  <TeamReportsPage />
+                </PermissionRoute>
+              </TeamLayout>
+            }
+          />
           <Route path="/data/public-review" element={<TeamLayout><TeamPublicReviewPage /></TeamLayout>} />
           <Route path="/data/gec" element={<TeamLayout><TeamGecPage /></TeamLayout>} />
           <Route path="/data/scan" element={<TeamLayout><ScanFormPage /></TeamLayout>} />
           <Route path="/data/entry" element={<TeamLayout><StaffEntryPage /></TeamLayout>} />
-          <Route path="/data/import" element={<TeamLayout><ImportPage /></TeamLayout>} />
+          <Route
+            path="/data/import"
+            element={
+              <TeamLayout>
+                <PermissionRoute permission="can_import_supporters">
+                  <ImportPage />
+                </PermissionRoute>
+              </TeamLayout>
+            }
+          />
           <Route path="/data/duplicates" element={<TeamLayout><DuplicatesPage /></TeamLayout>} />
           <Route path="/data/audit-logs" element={<TeamLayout><AuditLogsPage /></TeamLayout>} />
           <Route

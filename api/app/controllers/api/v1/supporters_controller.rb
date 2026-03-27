@@ -548,11 +548,18 @@ module Api
           supporters = apply_outreach_queue_view(supporters, params[:queue_view])
         end
 
-        effective_outreach_status = normalized_outreach_status_filter(params[:queue_view], params[:outreach_status])
-        if effective_outreach_status == "not_contacted"
+        registration_status_filter = params[:registration_outreach_status].presence || params[:outreach_status].presence
+        if registration_status_filter == "not_contacted"
           supporters = supporters.where(registration_outreach_status: nil)
-        elsif effective_outreach_status.present?
-          supporters = supporters.where(registration_outreach_status: effective_outreach_status)
+        elsif registration_status_filter.present?
+          supporters = supporters.where(registration_outreach_status: registration_status_filter)
+        end
+
+        support_status_filter = params[:support_follow_up_status].presence
+        if support_status_filter == "not_started"
+          supporters = supporters.where(support_follow_up_status: nil)
+        elsif support_status_filter.present?
+          supporters = supporters.where(support_follow_up_status: support_status_filter)
         end
 
         supporters = supporters.where(registered_voter_status: params[:registered_voter_status]) if params[:registered_voter_status].present?
@@ -579,18 +586,15 @@ module Api
                        .needs_follow_up
         base_scope = base_scope.where(village_id: params[:village_id]) if params[:village_id].present?
         open_scope = open_follow_up_scope(base_scope)
+        completed_scope = completed_follow_up_scope(base_scope)
         registered_follow_up_count = base_scope.where(registration_outreach_status: "registered").count
         counts = {
           total: base_scope.count,
           open: open_scope.count,
-          registration_priority: registration_priority_scope(open_scope).count,
-          support_requests: open_scope.needs_campaign_help.count,
+          registration_priority: open_registration_follow_up_scope(base_scope).count,
+          support_requests: open_support_follow_up_scope(base_scope).count,
           registered_follow_up: registered_follow_up_count,
-          completed: base_scope.where(registration_outreach_status: %w[registered declined]).count,
-          not_contacted: base_scope.where(registration_outreach_status: nil).count,
-          contacted: base_scope.where(registration_outreach_status: "contacted").count,
-          registered: registered_follow_up_count,
-          declined: base_scope.where(registration_outreach_status: "declined").count
+          completed: completed_scope.count
         }
 
         supporters = supporters.offset((page - 1) * per_page).limit(per_page)
@@ -605,14 +609,15 @@ module Api
       # PATCH /api/v1/supporters/:id/outreach_status
       def outreach_status
         supporter = scope_supporters(Supporter).find(params[:id])
-        allowed_statuses = %w[contacted registered declined]
+        allowed_registration_statuses = %w[contacted registered declined]
+        allowed_support_statuses = %w[in_progress completed declined]
 
         updates = {}
         if params.key?(:registration_outreach_status)
           if params[:registration_outreach_status].present?
-            unless allowed_statuses.include?(params[:registration_outreach_status])
+            unless allowed_registration_statuses.include?(params[:registration_outreach_status])
               return render_api_error(
-                message: "Invalid outreach status. Must be: #{allowed_statuses.join(', ')}",
+                message: "Invalid registration follow-up status. Must be: #{allowed_registration_statuses.join(', ')}",
                 status: :unprocessable_entity,
                 code: "invalid_outreach_status"
               )
@@ -625,7 +630,25 @@ module Api
           end
         end
 
+        if params.key?(:support_follow_up_status)
+          if params[:support_follow_up_status].present?
+            unless allowed_support_statuses.include?(params[:support_follow_up_status])
+              return render_api_error(
+                message: "Invalid support follow-up status. Must be: #{allowed_support_statuses.join(', ')}",
+                status: :unprocessable_entity,
+                code: "invalid_support_follow_up_status"
+              )
+            end
+            updates[:support_follow_up_status] = params[:support_follow_up_status]
+            updates[:support_follow_up_date] = Time.current
+          else
+            updates[:support_follow_up_status] = nil
+            updates[:support_follow_up_date] = nil
+          end
+        end
+
         updates[:registration_outreach_notes] = params[:registration_outreach_notes] if params.key?(:registration_outreach_notes)
+        updates[:support_follow_up_notes] = params[:support_follow_up_notes] if params.key?(:support_follow_up_notes)
 
         if supporter.update(updates)
           changes = supporter.saved_changes.except("updated_at")
@@ -1266,6 +1289,9 @@ module Api
           registration_outreach_status: supporter.registration_outreach_status,
           registration_outreach_notes: supporter.registration_outreach_notes,
           registration_outreach_date: supporter.registration_outreach_date&.iso8601,
+          support_follow_up_status: supporter.support_follow_up_status,
+          support_follow_up_notes: supporter.support_follow_up_notes,
+          support_follow_up_date: supporter.support_follow_up_date&.iso8601,
           created_at: supporter.created_at&.iso8601
         }
       end
@@ -1296,10 +1322,16 @@ module Api
           follow_up_priority: outreach_priority_label(supporter),
           follow_up_reasons: outreach_reasons(supporter),
           needs_registration_follow_up: needs_registration_follow_up?(supporter),
+          needs_support_follow_up: needs_support_follow_up?(supporter),
+          registration_follow_up_open: registration_follow_up_open?(supporter),
+          support_follow_up_open: support_follow_up_open?(supporter),
           follow_up_open: follow_up_open?(supporter),
           registration_outreach_status: supporter.registration_outreach_status,
           registration_outreach_notes: supporter.registration_outreach_notes,
           registration_outreach_date: supporter.registration_outreach_date&.iso8601,
+          support_follow_up_status: supporter.support_follow_up_status,
+          support_follow_up_notes: supporter.support_follow_up_notes,
+          support_follow_up_date: supporter.support_follow_up_date&.iso8601,
           status: supporter.status,
           created_at: supporter.created_at&.iso8601
         }
@@ -1471,40 +1503,32 @@ module Api
         when "open"
           open_follow_up_scope(scope)
         when "registration_priority"
-          registration_priority_scope(open_follow_up_scope(scope))
+          open_registration_follow_up_scope(scope)
         when "support_requests"
-          open_follow_up_scope(scope).needs_campaign_help
+          open_support_follow_up_scope(scope)
         when "registered_follow_up"
           scope.where(registration_outreach_status: "registered")
         when "completed"
-          scope.where(registration_outreach_status: %w[registered declined])
+          completed_follow_up_scope(scope)
         else
           scope
         end
       end
 
-      def normalized_outreach_status_filter(queue_view, outreach_status)
-        normalized_status = outreach_status.to_s.presence
-        return nil unless normalized_status.present?
-
-        allowed_outreach_status_filters(queue_view).include?(normalized_status) ? normalized_status : nil
-      end
-
-      def allowed_outreach_status_filters(queue_view)
-        case queue_view
-        when "registered_follow_up"
-          %w[registered]
-        when "completed"
-          %w[registered declined]
-        when "open", "registration_priority", "support_requests"
-          %w[not_contacted contacted]
-        else
-          %w[not_contacted contacted registered declined]
-        end
-      end
-
       def open_follow_up_scope(scope)
-        scope.where(registration_outreach_status: [ nil, "contacted" ])
+        open_registration_follow_up_scope(scope).or(open_support_follow_up_scope(scope))
+      end
+
+      def open_registration_follow_up_scope(scope)
+        registration_priority_scope(scope).where(registration_outreach_status: [ nil, "contacted" ])
+      end
+
+      def open_support_follow_up_scope(scope)
+        support_follow_up_scope(scope).where(support_follow_up_status: [ nil, "in_progress" ])
+      end
+
+      def completed_follow_up_scope(scope)
+        scope.where.not(id: open_follow_up_scope(scope).select(:id))
       end
 
       def registration_priority_scope(scope)
@@ -1513,36 +1537,39 @@ module Api
              .or(scope.where(registered_voter_status: %w[no not_sure]))
       end
 
+      def support_follow_up_scope(scope)
+        scope.needs_support_services
+      end
+
       def outreach_priority_order_sql
         <<~SQL.squish
           CASE
-            WHEN supporters.registration_outreach_status = 'registered' THEN 0
-            WHEN supporters.registration_outreach_status = 'declined' THEN 1
-            WHEN supporters.registration_outreach_status = 'contacted' AND supporters.needs_voter_registration_help = TRUE THEN 7
-            WHEN supporters.registration_outreach_status IS NULL AND supporters.needs_voter_registration_help = TRUE THEN 10
-            WHEN supporters.registration_outreach_status IS NULL AND supporters.registered_voter = FALSE THEN 9
-            WHEN supporters.registration_outreach_status IS NULL AND supporters.registered_voter_status = 'no' THEN 8
-            WHEN supporters.registration_outreach_status IS NULL AND supporters.registered_voter_status = 'not_sure' THEN 6
-            WHEN supporters.registration_outreach_status IS NULL AND (
+            WHEN supporters.registration_outreach_status IS NULL AND supporters.needs_voter_registration_help = TRUE THEN 12
+            WHEN supporters.registration_outreach_status IS NULL AND supporters.registered_voter = FALSE THEN 11
+            WHEN supporters.registration_outreach_status IS NULL AND supporters.registered_voter_status = 'no' THEN 10
+            WHEN supporters.registration_outreach_status IS NULL AND supporters.registered_voter_status = 'not_sure' THEN 9
+            WHEN supporters.support_follow_up_status IS NULL AND (
               supporters.needs_absentee_ballot_help = TRUE OR
               supporters.needs_homebound_voting_help = TRUE OR
               supporters.needs_election_day_ride = TRUE
-            ) THEN 5
-            WHEN supporters.registration_outreach_status IS NULL AND supporters.wants_to_volunteer = TRUE THEN 4
-            WHEN supporters.registration_outreach_status = 'contacted' THEN 3
-            ELSE 2
+            ) THEN 8
+            WHEN supporters.support_follow_up_status IS NULL AND supporters.wants_to_volunteer = TRUE THEN 7
+            WHEN supporters.registration_outreach_status = 'contacted' THEN 6
+            WHEN supporters.support_follow_up_status = 'in_progress' THEN 5
+            WHEN supporters.registration_outreach_status = 'registered' THEN 2
+            WHEN supporters.support_follow_up_status = 'completed' THEN 2
+            WHEN supporters.registration_outreach_status = 'declined' OR supporters.support_follow_up_status = 'declined' THEN 1
+            ELSE 0
           END DESC,
-          COALESCE(supporters.registration_outreach_date, supporters.created_at) ASC,
+          COALESCE(supporters.registration_outreach_date, supporters.support_follow_up_date, supporters.created_at) ASC,
           supporters.created_at ASC
         SQL
       end
 
       def outreach_priority_label(supporter)
-        return "Resolved" if %w[registered declined].include?(supporter.registration_outreach_status)
-        return "Registration Priority" if needs_registration_follow_up?(supporter)
-        return "Campaign Help" if support_request_reasons(supporter).present? || supporter.registration_outreach_status == "contacted"
-
-        "General Follow-Up"
+        return "Resolved" unless follow_up_open?(supporter)
+        return "Registration Priority" if registration_follow_up_open?(supporter)
+        "Support Help"
       end
 
       def outreach_reasons(supporter)
@@ -1550,7 +1577,9 @@ module Api
         reasons.concat(registration_follow_up_reasons(supporter))
         reasons.concat(support_request_reasons(supporter))
         reasons << "Registered via follow-up" if supporter.registration_outreach_status == "registered"
-        reasons << "Declined follow-up" if supporter.registration_outreach_status == "declined"
+        reasons << "Registration follow-up declined" if supporter.registration_outreach_status == "declined"
+        reasons << "Support help completed" if supporter.support_follow_up_status == "completed"
+        reasons << "Support help declined" if supporter.support_follow_up_status == "declined"
         reasons.uniq
       end
 
@@ -1576,8 +1605,20 @@ module Api
         supporter.needs_voter_registration_help || !supporter.registered_voter || supporter.registered_voter_status.in?(%w[no not_sure])
       end
 
+      def needs_support_follow_up?(supporter)
+        support_request_reasons(supporter).present?
+      end
+
+      def registration_follow_up_open?(supporter)
+        needs_registration_follow_up?(supporter) && supporter.registration_outreach_status.in?([ nil, "contacted" ])
+      end
+
+      def support_follow_up_open?(supporter)
+        needs_support_follow_up?(supporter) && supporter.support_follow_up_status.in?([ nil, "in_progress" ])
+      end
+
       def follow_up_open?(supporter)
-        supporter.registration_outreach_status.blank? || supporter.registration_outreach_status == "contacted"
+        registration_follow_up_open?(supporter) || support_follow_up_open?(supporter)
       end
 
       def household_member_count(supporter)

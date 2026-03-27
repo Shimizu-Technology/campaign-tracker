@@ -22,6 +22,8 @@ class ReportGenerator
     preview_limit: 100,
     registered_voter_status: nil,
     support_need: nil,
+    registration_outreach_status: nil,
+    support_follow_up_status: nil,
     outreach_status: nil
   )
     @report_type = report_type
@@ -32,7 +34,8 @@ class ReportGenerator
     @preview_limit = preview_limit
     @registered_voter_status = registered_voter_status
     @support_need = support_need
-    @outreach_status = outreach_status
+    @registration_outreach_status = registration_outreach_status.presence || outreach_status
+    @support_follow_up_status = support_follow_up_status
   end
 
   def generate
@@ -91,7 +94,8 @@ class ReportGenerator
 
   def apply_supporter_report_filters(scope)
     scope = scope.where(registered_voter_status: @registered_voter_status) if @registered_voter_status.present?
-    scope = scope.where(registration_outreach_status: @outreach_status) if @outreach_status.present?
+    scope = scope.where(registration_outreach_status: @registration_outreach_status) if @registration_outreach_status.present?
+    scope = scope.where(support_follow_up_status: @support_follow_up_status) if @support_follow_up_status.present?
     apply_support_need_filter(scope)
   end
 
@@ -124,7 +128,7 @@ class ReportGenerator
     requests.join(", ").presence
   end
 
-  def follow_up_result_label(status)
+  def registration_follow_up_result_label(status)
     case status
     when "registered"
       "Registered via follow-up"
@@ -137,12 +141,26 @@ class ReportGenerator
     end
   end
 
+  def support_follow_up_result_label(status)
+    case status
+    when "in_progress"
+      "In progress"
+    when "completed"
+      "Completed"
+    when "declined"
+      "Declined"
+    else
+      nil
+    end
+  end
+
   def supporter_report_headers(base_headers)
     base_headers + [
       "Self-Reported Voter Status",
       "Votes Elsewhere Note",
       "Campaign Requests",
-      "Follow-Up Result",
+      "Registration Follow-Up Result",
+      "Support Follow-Up Result",
       "Referred By",
       "Household Signup"
     ]
@@ -153,7 +171,8 @@ class ReportGenerator
       supporter.registered_voter_status&.humanize,
       supporter.registered_voter_location_note,
       support_request_summary(supporter),
-      follow_up_result_label(supporter.registration_outreach_status),
+      registration_follow_up_result_label(supporter.registration_outreach_status),
+      support_follow_up_result_label(supporter.support_follow_up_status),
       supporter.referred_by_name,
       supporter.household_group_id.present? ? "Yes" : nil
     ]

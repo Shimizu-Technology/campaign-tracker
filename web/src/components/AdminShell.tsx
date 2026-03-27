@@ -21,6 +21,8 @@ import {
   Copy,
   TrendingUp,
   ScrollText,
+  Upload,
+  FileSpreadsheet,
   Menu,
   X,
   Home,
@@ -70,6 +72,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
       items: [
         ...(permissions?.can_create_staff_supporters ? [ { to: '/admin/scan', label: 'Scan Form', icon: Camera } ] : []),
         ...(permissions?.can_create_staff_supporters ? [ { to: '/admin/supporters/new', label: 'New Entry', icon: ClipboardPlus } ] : []),
+        ...(permissions?.can_import_supporters ? [ { to: '/admin/import', label: 'Excel Import', icon: Upload } ] : []),
       ],
     },
     {
@@ -84,6 +87,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     {
       label: 'Review',
       items: [
+        ...(permissions?.can_access_reports ? [ { to: '/admin/reports', label: 'Reports', icon: FileSpreadsheet } ] : []),
         ...(permissions?.can_access_duplicates ? [ { to: '/admin/duplicates', label: 'Duplicates', icon: Copy } ] : []),
         ...(permissions?.can_access_leaderboard ? [ { to: '/admin/leaderboard', label: 'Leaderboard', icon: Trophy } ] : []),
         ...(permissions?.can_access_audit_logs ? [ { to: '/admin/audit-logs', label: 'Activity Log', icon: ScrollText } ] : []),

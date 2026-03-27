@@ -108,6 +108,7 @@ type PermissionKey =
   | 'can_edit_supporters'
   | 'can_view_supporters'
   | 'can_create_staff_supporters'
+  | 'can_import_supporters'
   | 'can_access_events'
   | 'can_access_qr'
   | 'can_access_leaderboard'
@@ -130,6 +131,7 @@ const PERMISSION_KEYS: PermissionKey[] = [
   'can_edit_supporters',
   'can_view_supporters',
   'can_create_staff_supporters',
+  'can_import_supporters',
   'can_access_events',
   'can_access_qr',
   'can_access_leaderboard',
@@ -153,6 +155,7 @@ const PERMISSION_LABELS: Record<PermissionKey, string> = {
   can_edit_supporters: 'Edit supporters',
   can_view_supporters: 'View supporters',
   can_create_staff_supporters: 'Create staff supporters',
+  can_import_supporters: 'Excel import supporters',
   can_access_events: 'Events',
   can_access_qr: 'QR tools',
   can_access_leaderboard: 'Leaderboard',
@@ -174,6 +177,7 @@ const ROLE_PERMISSION_MAP: Record<string, PermissionKey[]> = {
     'can_view_supporters',
     'can_edit_supporters',
     'can_create_staff_supporters',
+    'can_import_supporters',
     'can_access_duplicates',
     'can_access_audit_logs',
     'can_access_data_team',
@@ -189,6 +193,8 @@ const ROLE_PERMISSION_MAP: Record<string, PermissionKey[]> = {
     'can_edit_supporters',
     'can_view_supporters',
     'can_create_staff_supporters',
+    'can_import_supporters',
+    'can_access_reports',
     'can_access_events',
     'can_access_qr',
     'can_access_leaderboard',
@@ -198,6 +204,7 @@ const ROLE_PERMISSION_MAP: Record<string, PermissionKey[]> = {
   village_chief: [
     'can_view_supporters',
     'can_create_staff_supporters',
+    'can_import_supporters',
     'can_access_events',
     'can_access_qr',
     'can_access_leaderboard',
@@ -206,6 +213,7 @@ const ROLE_PERMISSION_MAP: Record<string, PermissionKey[]> = {
   block_leader: [
     'can_view_supporters',
     'can_create_staff_supporters',
+    'can_import_supporters',
     'can_access_events',
     'can_access_qr',
     'can_access_leaderboard',
