@@ -12,6 +12,7 @@ interface SettingsData {
   facebook_url: string | null;
   tiktok_url: string | null;
   twitter_url: string | null;
+  signup_share_prompt: string | null;
   thank_you_share_prompt: string | null;
   primary_election_date: string | null;
   general_election_date: string | null;
@@ -29,6 +30,7 @@ export default function SmsSettingsPage() {
   } | null>(null);
   const [socialSaved, setSocialSaved] = useState(false);
   const [thankYouSettings, setThankYouSettings] = useState<{
+    signup_share_prompt: string;
     thank_you_share_prompt: string;
     primary_election_date: string;
     general_election_date: string;
@@ -88,12 +90,14 @@ export default function SmsSettingsPage() {
   });
 
   const displayThankYouSettings = {
+    signup_share_prompt: thankYouSettings?.signup_share_prompt ?? settings?.signup_share_prompt ?? '',
     thank_you_share_prompt: thankYouSettings?.thank_you_share_prompt ?? settings?.thank_you_share_prompt ?? '',
     primary_election_date: thankYouSettings?.primary_election_date ?? settings?.primary_election_date ?? '',
     general_election_date: thankYouSettings?.general_election_date ?? settings?.general_election_date ?? '',
   };
 
   const hasThankYouChanges = thankYouSettings !== null && settings && (
+    thankYouSettings.signup_share_prompt !== (settings.signup_share_prompt ?? '') ||
     thankYouSettings.thank_you_share_prompt !== (settings.thank_you_share_prompt ?? '') ||
     thankYouSettings.primary_election_date !== (settings.primary_election_date ?? '') ||
     thankYouSettings.general_election_date !== (settings.general_election_date ?? '')
@@ -132,7 +136,7 @@ export default function SmsSettingsPage() {
       <div>
         <h1 className="text-lg font-bold text-gray-900">SMS, Social &amp; Public Settings</h1>
         <p className="text-sm text-(--text-secondary) mt-1">
-          Manage the welcome text template plus the public social links and thank-you page reminders shown across the site.
+          Manage the welcome text template plus the public social links and signup or thank-you reminders shown across the site.
         </p>
       </div>
 
@@ -287,14 +291,29 @@ export default function SmsSettingsPage() {
         <div className="app-card p-6 space-y-4">
           <div className="flex items-center gap-2">
             <Globe className="w-5 h-5 text-primary" />
-            <h2 className="text-lg font-semibold text-(--text-primary)">Thank-You Page Reminder</h2>
+            <h2 className="text-lg font-semibold text-(--text-primary)">Public Reminder Settings</h2>
           </div>
           <p className="text-sm text-(--text-secondary)">
-            Add a share prompt and election dates for the public thank-you page. Leave any field blank to hide it.
+            Control the compact signup teaser, the fuller thank-you page share prompt, and the election dates shown across the public flow.
           </p>
 
           <div>
-            <label className="block text-sm font-medium text-(--text-secondary) mb-1">Share prompt</label>
+            <label className="block text-sm font-medium text-(--text-secondary) mb-1">Signup page teaser</label>
+            <textarea
+              value={displayThankYouSettings.signup_share_prompt}
+              onChange={(e) => setThankYouSettings((prev) => ({
+                ...displayThankYouSettings,
+                ...prev,
+                signup_share_prompt: e.target.value,
+              }))}
+              rows={2}
+              className="w-full border border-(--border-soft) rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+              placeholder="Example: Know other Josh & Tina supporters? Finish your signup, then share this form with them too."
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-(--text-secondary) mb-1">Thank-you page share prompt</label>
             <textarea
               value={displayThankYouSettings.thank_you_share_prompt}
               onChange={(e) => setThankYouSettings((prev) => ({

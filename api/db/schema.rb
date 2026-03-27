@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_27_113000) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_27_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -67,6 +67,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_27_113000) do
     t.date "primary_election_date"
     t.string "secondary_color"
     t.boolean "show_pace", default: false, null: false
+    t.text "signup_share_prompt"
     t.date "started_at"
     t.string "status"
     t.text "thank_you_share_prompt"

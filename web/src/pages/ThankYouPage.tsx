@@ -2,23 +2,9 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, Heart, Home, Share2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getCampaignInfo } from '../lib/api';
+import { formatElectionDate } from '../lib/datetime';
 import PublicWordmark from '../components/PublicWordmark';
 import { FacebookIcon, InstagramIcon } from '../components/PublicSocialIcons';
-
-const electionDateFormatter = new Intl.DateTimeFormat('en-US', {
-  month: 'long',
-  day: 'numeric',
-  year: 'numeric',
-});
-
-function formatElectionDate(value?: string | null) {
-  if (!value) return null;
-
-  const parsed = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return null;
-
-  return electionDateFormatter.format(parsed);
-}
 
 export default function ThankYouPage() {
   const { data: campaignInfo } = useQuery({
