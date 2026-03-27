@@ -18,8 +18,7 @@ class BackfillThankYouReminderDefaults < ActiveRecord::Migration[8.1]
   end
 
   def down
-    Campaign.where(thank_you_share_prompt: DEFAULT_SHARE_PROMPT).update_all(thank_you_share_prompt: nil)
-    Campaign.where(primary_election_date: PRIMARY_ELECTION_DATE).update_all(primary_election_date: nil)
-    Campaign.where(general_election_date: GENERAL_ELECTION_DATE).update_all(general_election_date: nil)
+    # This backfill only seeds defaults. Leave existing data untouched on rollback
+    # so an isolated migration rollback cannot clear values someone later edited.
   end
 end

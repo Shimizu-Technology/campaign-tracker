@@ -15,7 +15,6 @@ interface Village {
 
 interface CampaignInfo {
   signup_share_prompt?: string | null;
-  thank_you_share_prompt?: string | null;
   primary_election_date?: string | null;
   general_election_date?: string | null;
 }
