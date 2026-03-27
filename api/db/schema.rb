@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_26_100000) do
+ActiveRecord::Schema[8.1].define(version: 2026_03_27_113000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -58,15 +58,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_26_100000) do
     t.string "election_type"
     t.integer "election_year"
     t.string "facebook_url"
+    t.date "general_election_date"
     t.string "instagram_url"
     t.string "logo_url"
     t.string "name"
     t.string "party"
     t.string "primary_color"
+    t.date "primary_election_date"
     t.string "secondary_color"
     t.boolean "show_pace", default: false, null: false
     t.date "started_at"
     t.string "status"
+    t.text "thank_you_share_prompt"
     t.string "tiktok_url"
     t.string "twitter_url"
     t.datetime "updated_at", null: false

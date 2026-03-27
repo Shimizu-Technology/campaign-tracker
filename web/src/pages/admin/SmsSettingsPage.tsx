@@ -12,6 +12,9 @@ interface SettingsData {
   facebook_url: string | null;
   tiktok_url: string | null;
   twitter_url: string | null;
+  thank_you_share_prompt: string | null;
+  primary_election_date: string | null;
+  general_election_date: string | null;
 }
 
 export default function SmsSettingsPage() {
@@ -25,6 +28,12 @@ export default function SmsSettingsPage() {
     twitter_url: string;
   } | null>(null);
   const [socialSaved, setSocialSaved] = useState(false);
+  const [thankYouSettings, setThankYouSettings] = useState<{
+    thank_you_share_prompt: string;
+    primary_election_date: string;
+    general_election_date: string;
+  } | null>(null);
+  const [thankYouSaved, setThankYouSaved] = useState(false);
 
   const { data: settings, isLoading } = useQuery<SettingsData>({
     queryKey: ['settings'],
@@ -78,6 +87,28 @@ export default function SmsSettingsPage() {
     },
   });
 
+  const displayThankYouSettings = {
+    thank_you_share_prompt: thankYouSettings?.thank_you_share_prompt ?? settings?.thank_you_share_prompt ?? '',
+    primary_election_date: thankYouSettings?.primary_election_date ?? settings?.primary_election_date ?? '',
+    general_election_date: thankYouSettings?.general_election_date ?? settings?.general_election_date ?? '',
+  };
+
+  const hasThankYouChanges = thankYouSettings !== null && settings && (
+    thankYouSettings.thank_you_share_prompt !== (settings.thank_you_share_prompt ?? '') ||
+    thankYouSettings.primary_election_date !== (settings.primary_election_date ?? '') ||
+    thankYouSettings.general_election_date !== (settings.general_election_date ?? '')
+  );
+
+  const saveThankYouMutation = useMutation({
+    mutationFn: (data: typeof displayThankYouSettings) => updateSettings(data),
+    onSuccess: (data: SettingsData) => {
+      queryClient.setQueryData(['settings'], data);
+      setThankYouSettings(null);
+      setThankYouSaved(true);
+      setTimeout(() => setThankYouSaved(false), 3000);
+    },
+  });
+
   const charCount = displayTemplate.length;
   const smsSegments = charCount <= 160 ? 1 : Math.ceil(charCount / 153);
   const hasChanges = template !== null && settings && template !== settings.welcome_sms_template;
@@ -99,9 +130,9 @@ export default function SmsSettingsPage() {
   return (
     <WorkspacePage width="full" className="space-y-6">
       <div>
-        <h1 className="text-lg font-bold text-gray-900">SMS &amp; Social Settings</h1>
+        <h1 className="text-lg font-bold text-gray-900">SMS, Social &amp; Public Settings</h1>
         <p className="text-sm text-(--text-secondary) mt-1">
-          Manage the welcome text template and the public campaign social links shown across the site.
+          Manage the welcome text template plus the public social links and thank-you page reminders shown across the site.
         </p>
       </div>
 
@@ -249,6 +280,80 @@ export default function SmsSettingsPage() {
           {saveSocialMutation.isError && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600 text-sm">
               {(saveSocialMutation.error as Error)?.message || 'Failed to save. Please try again.'}
+            </div>
+          )}
+        </div>
+
+        <div className="app-card p-6 space-y-4">
+          <div className="flex items-center gap-2">
+            <Globe className="w-5 h-5 text-primary" />
+            <h2 className="text-lg font-semibold text-(--text-primary)">Thank-You Page Reminder</h2>
+          </div>
+          <p className="text-sm text-(--text-secondary)">
+            Add a share prompt and election dates for the public thank-you page. Leave any field blank to hide it.
+          </p>
+
+          <div>
+            <label className="block text-sm font-medium text-(--text-secondary) mb-1">Share prompt</label>
+            <textarea
+              value={displayThankYouSettings.thank_you_share_prompt}
+              onChange={(e) => setThankYouSettings((prev) => ({
+                ...displayThankYouSettings,
+                ...prev,
+                thank_you_share_prompt: e.target.value,
+              }))}
+              rows={3}
+              className="w-full border border-(--border-soft) rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-primary focus:border-transparent resize-none"
+              placeholder="Example: Share this supporter signup link with family and friends who want to support Josh & Tina."
+            />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium text-(--text-secondary) mb-1">Primary election date</label>
+              <input
+                type="date"
+                value={displayThankYouSettings.primary_election_date}
+                onChange={(e) => setThankYouSettings((prev) => ({
+                  ...displayThankYouSettings,
+                  ...prev,
+                  primary_election_date: e.target.value,
+                }))}
+                className="w-full border border-(--border-soft) rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-(--text-secondary) mb-1">General election date</label>
+              <input
+                type="date"
+                value={displayThankYouSettings.general_election_date}
+                onChange={(e) => setThankYouSettings((prev) => ({
+                  ...displayThankYouSettings,
+                  ...prev,
+                  general_election_date: e.target.value,
+                }))}
+                className="w-full border border-(--border-soft) rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 pt-2">
+            <button
+              onClick={() => saveThankYouMutation.mutate(displayThankYouSettings)}
+              disabled={saveThankYouMutation.isPending || !hasThankYouChanges}
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary text-white rounded-lg hover:bg-[#15305a] disabled:opacity-50 text-sm font-medium"
+            >
+              <Save className="w-4 h-4" />
+              {saveThankYouMutation.isPending ? 'Saving...' : 'Save Reminder'}
+            </button>
+            {thankYouSaved && (
+              <span className="text-sm text-green-600 font-medium">Saved!</span>
+            )}
+          </div>
+
+          {saveThankYouMutation.isError && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-red-600 text-sm">
+              {(saveThankYouMutation.error as Error)?.message || 'Failed to save. Please try again.'}
             </div>
           )}
         </div>
