@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { getVillages, createSupporter } from '../lib/api';
+import { getVillages, createSupporter, getCampaignInfo } from '../lib/api';
 import { captureAnalyticsEvent } from '../lib/analytics';
+import { formatElectionDate } from '../lib/datetime';
 import { DEFAULT_GUAM_PHONE_PREFIX } from '../lib/phone';
 import { ArrowLeft, Loader2, Megaphone, Plus, ShieldCheck, Trash2, Users } from 'lucide-react';
 import PublicWordmark from '../components/PublicWordmark';
@@ -10,6 +11,12 @@ import PublicWordmark from '../components/PublicWordmark';
 interface Village {
   id: number;
   name: string;
+}
+
+interface CampaignInfo {
+  signup_share_prompt?: string | null;
+  primary_election_date?: string | null;
+  general_election_date?: string | null;
 }
 
 type RegisteredVoterStatus = 'yes' | 'no' | 'not_sure';
@@ -119,6 +126,18 @@ export default function SignupPage() {
     queryFn: getVillages,
   });
   const villages: Village[] = villageData?.villages || [];
+
+  const { data: campaignInfo } = useQuery<CampaignInfo>({
+    queryKey: ['campaignInfo'],
+    queryFn: getCampaignInfo,
+    staleTime: 300_000,
+  });
+
+  const primaryElectionDate = formatElectionDate(campaignInfo?.primary_election_date);
+  const generalElectionDate = formatElectionDate(campaignInfo?.general_election_date);
+  const showPreSubmitReminder = Boolean(
+    campaignInfo?.signup_share_prompt || primaryElectionDate || generalElectionDate
+  );
 
   const signup = useMutation({
     mutationFn: (data: Record<string, unknown>) => createSupporter(data, leaderCode),
@@ -676,6 +695,38 @@ export default function SignupPage() {
                   By checking the above, you agree to receive campaign communications from Josh &amp; Tina 2026. You can opt out at any time.
                 </p>
               </div>
+
+              {showPreSubmitReminder && (
+                <div className="rounded-[24px] border border-[#d7e5ff] bg-[#f5f9ff] px-4 py-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-primary">
+                    Before you submit
+                  </p>
+
+                  {campaignInfo?.signup_share_prompt && (
+                    <p className="mt-2 text-sm leading-6 text-slate-700">
+                      {campaignInfo.signup_share_prompt}
+                    </p>
+                  )}
+
+                  {(primaryElectionDate || generalElectionDate) && (
+                    <div className="mt-3 space-y-2 rounded-[18px] bg-white/80 px-4 py-3">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                        Important election dates
+                      </p>
+                      {primaryElectionDate && (
+                        <p className="text-sm font-medium text-slate-800">
+                          Primary Election: <span className="font-semibold">{primaryElectionDate}</span>
+                        </p>
+                      )}
+                      {generalElectionDate && (
+                        <p className="text-sm font-medium text-slate-800">
+                          General Election: <span className="font-semibold">{generalElectionDate}</span>
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {signup.isError && (
                 <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-red-700">

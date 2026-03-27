@@ -43,6 +43,11 @@ module Api
           updates[field] = params[field].presence if params.key?(field)
         end
 
+        updates[:signup_share_prompt] = params[:signup_share_prompt].presence if params.key?(:signup_share_prompt)
+        updates[:thank_you_share_prompt] = params[:thank_you_share_prompt].presence if params.key?(:thank_you_share_prompt)
+        updates[:primary_election_date] = params[:primary_election_date].presence if params.key?(:primary_election_date)
+        updates[:general_election_date] = params[:general_election_date].presence if params.key?(:general_election_date)
+
         if updates.any?
           campaign.update!(updates)
           log_audit!(campaign, action: "settings_updated", changed_data: campaign.saved_changes.except("updated_at"), normalize: true)
@@ -62,7 +67,11 @@ module Api
           instagram_url: campaign.instagram_url,
           facebook_url: campaign.facebook_url,
           tiktok_url: campaign.tiktok_url,
-          twitter_url: campaign.twitter_url
+          twitter_url: campaign.twitter_url,
+          signup_share_prompt: campaign.signup_share_prompt,
+          thank_you_share_prompt: campaign.thank_you_share_prompt,
+          primary_election_date: campaign.primary_election_date&.iso8601,
+          general_election_date: campaign.general_election_date&.iso8601
         }
       end
 

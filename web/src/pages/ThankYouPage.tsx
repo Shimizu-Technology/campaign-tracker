@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { ArrowLeft, Heart, Home, Share2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getCampaignInfo } from '../lib/api';
+import { formatElectionDate } from '../lib/datetime';
 import PublicWordmark from '../components/PublicWordmark';
 import { FacebookIcon, InstagramIcon } from '../components/PublicSocialIcons';
 
@@ -11,6 +12,12 @@ export default function ThankYouPage() {
     queryFn: getCampaignInfo,
     staleTime: 300_000,
   });
+
+  const primaryElectionDate = formatElectionDate(campaignInfo?.primary_election_date);
+  const generalElectionDate = formatElectionDate(campaignInfo?.general_election_date);
+  const showReminderCard = Boolean(
+    campaignInfo?.thank_you_share_prompt || primaryElectionDate || generalElectionDate
+  );
 
   return (
     <div className="min-h-screen bg-[#f6f8fc] text-slate-900">
@@ -114,6 +121,38 @@ export default function ThankYouPage() {
                 volunteer opportunities, and event information.
               </p>
             </div>
+
+            {showReminderCard && (
+              <div className="rounded-[28px] border border-[#d7e5ff] bg-[#f5f9ff] p-5 shadow-sm">
+                <p className="text-xs font-semibold uppercase tracking-[0.22em] text-primary">
+                  Keep the momentum going
+                </p>
+
+                {campaignInfo?.thank_you_share_prompt && (
+                  <p className="mt-3 text-sm leading-7 text-slate-700">
+                    {campaignInfo.thank_you_share_prompt}
+                  </p>
+                )}
+
+                {(primaryElectionDate || generalElectionDate) && (
+                  <div className="mt-4 space-y-2 rounded-[20px] bg-white/80 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
+                      Election reminders
+                    </p>
+                    {primaryElectionDate && (
+                      <p className="text-sm font-medium text-slate-800">
+                        Primary Election: <span className="font-semibold">{primaryElectionDate}</span>
+                      </p>
+                    )}
+                    {generalElectionDate && (
+                      <p className="text-sm font-medium text-slate-800">
+                        General Election: <span className="font-semibold">{generalElectionDate}</span>
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </section>
       </main>
