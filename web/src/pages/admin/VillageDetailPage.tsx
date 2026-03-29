@@ -55,7 +55,7 @@ export default function VillageDetailPage() {
   const unverified = v.unverified_count ?? 0;
   const priorDeficit = v.prior_deficit ?? 0;
   const effectiveTarget = v.effective_target ?? v.quota_target;
-  const pct = v.quota_target > 0 ? ((verified / v.quota_target) * 100).toFixed(1) : '0';
+  const pct = effectiveTarget > 0 ? ((verified / effectiveTarget) * 100).toFixed(1) : '0';
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
@@ -72,7 +72,7 @@ export default function VillageDetailPage() {
         <div className="app-card p-6 mb-6">
           <div className="flex justify-between items-center mb-2">
             <div className="flex items-center gap-2">
-              <span className="text-lg font-semibold">{verified} / {v.quota_target} verified supporters</span>
+              <span className="text-lg font-semibold">{verified} / {effectiveTarget} verified supporters</span>
               {unverified > 0 && (
                 <Link
                   to={`/admin/vetting?village_id=${id}`}

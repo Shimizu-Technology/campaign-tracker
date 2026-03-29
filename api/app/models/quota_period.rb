@@ -31,6 +31,7 @@ class QuotaPeriod < ApplicationRecord
   # deficit = how many short each village was. Positive number means they missed quota.
   def prior_period_deficits
     prior_periods = campaign_cycle.quota_periods
+      .includes(:village_quotas)
       .where(status: "submitted")
       .where("due_date < ?", due_date)
 
