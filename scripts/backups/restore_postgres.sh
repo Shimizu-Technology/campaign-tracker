@@ -37,6 +37,47 @@ log() {
   printf '%s\n' "$*"
 }
 
+set_pg_env_from_url() {
+  local database_url="$1"
+  local parsed
+
+  parsed="$(DATABASE_URL="$database_url" python3 <<'PY'
+import os
+from urllib.parse import parse_qs, unquote, urlparse
+
+url = os.environ["DATABASE_URL"]
+parsed = urlparse(url)
+
+if parsed.scheme not in ("postgres", "postgresql"):
+    raise SystemExit(f"Unsupported database URL scheme: {parsed.scheme or 'missing'}")
+
+if not parsed.path or parsed.path == "/":
+    raise SystemExit("Database URL must include a database name")
+
+values = {
+    "PGHOST": unquote(parsed.hostname or ""),
+    "PGPORT": str(parsed.port or ""),
+    "PGDATABASE": unquote(parsed.path.lstrip("/")),
+    "PGUSER": unquote(parsed.username or ""),
+    "PGPASSWORD": unquote(parsed.password or ""),
+    "PGSSLMODE": "",
+}
+
+query = parse_qs(parsed.query, keep_blank_values=True)
+if "sslmode" in query and query["sslmode"]:
+    values["PGSSLMODE"] = query["sslmode"][-1]
+
+for key, value in values.items():
+    print(f"{key}\t{value}")
+PY
+)"
+
+  while IFS=$'\t' read -r key value; do
+    [[ -n "$key" ]] || continue
+    export "$key=$value"
+  done <<< "$parsed"
+}
+
 TARGET_URL="${TARGET_DATABASE_URL:-}"
 DRY_RUN="false"
 FORCE="false"
@@ -61,7 +102,7 @@ while [[ $# -gt 0 ]]; do
       usage
       exit 0
       ;;
-    -*)
+    -* )
       echo "Error: unknown option: $1" >&2
       usage >&2
       exit 1
@@ -80,7 +121,6 @@ done
 
 [[ -n "$BACKUP_FILE" ]] || { echo "Error: BACKUP_FILE is required" >&2; usage >&2; exit 1; }
 [[ -n "$TARGET_URL" ]] || { echo "Error: TARGET_DATABASE_URL must be set or provided with --target-url" >&2; exit 1; }
-[[ -f "$BACKUP_FILE" ]] || { echo "Error: backup file not found: $BACKUP_FILE" >&2; exit 1; }
 
 case "$BACKUP_FILE" in
   *.sql|*.sql.gz) ;;
@@ -96,6 +136,7 @@ if [[ "$DRY_RUN" != "true" && "$FORCE" != "true" ]]; then
 fi
 
 if [[ "$DRY_RUN" != "true" ]]; then
+  [[ -f "$BACKUP_FILE" ]] || { echo "Error: backup file not found: $BACKUP_FILE" >&2; exit 1; }
   require_command psql
   case "$BACKUP_FILE" in
     *.sql.gz)
@@ -103,18 +144,21 @@ if [[ "$DRY_RUN" != "true" ]]; then
       ;;
   esac
 fi
+require_command python3
+
+set_pg_env_from_url "$TARGET_URL"
 
 log "Restoring PostgreSQL backup"
 log "Backup file: ${BACKUP_FILE}"
 
 if [[ "$DRY_RUN" == "true" ]]; then
-  log "[dry-run] Target database URL is set"
+  log "[dry-run] PostgreSQL connection variables prepared from TARGET_DATABASE_URL"
   case "$BACKUP_FILE" in
     *.sql.gz)
-      log "[dry-run] gzip -dc \"${BACKUP_FILE}\" | psql \"TARGET_DATABASE_URL\""
+      log "[dry-run] gzip -dc \"${BACKUP_FILE}\" | psql"
       ;;
     *.sql)
-      log "[dry-run] psql \"TARGET_DATABASE_URL\" < \"${BACKUP_FILE}\""
+      log "[dry-run] psql < \"${BACKUP_FILE}\""
       ;;
   esac
   exit 0
@@ -122,10 +166,10 @@ fi
 
 case "$BACKUP_FILE" in
   *.sql.gz)
-    gzip -dc "$BACKUP_FILE" | psql "$TARGET_URL"
+    gzip -dc "$BACKUP_FILE" | psql
     ;;
   *.sql)
-    psql "$TARGET_URL" < "$BACKUP_FILE"
+    psql < "$BACKUP_FILE"
     ;;
 esac
 
