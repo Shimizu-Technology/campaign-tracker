@@ -1,6 +1,6 @@
 # Democratic Party Deployment Readiness
 
-Last updated: 2026-04-21
+Last updated: 2026-04-20
 
 ## Bottom line
 
