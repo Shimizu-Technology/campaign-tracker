@@ -70,4 +70,5 @@ Or pass the target explicitly:
 - Connection URLs are parsed into PostgreSQL `PG*` environment variables so the full URL is not passed to `pg_dump` or `psql` as a positional argument.
 - Backups are written to a temporary file first, then moved into place after success.
 - Backups use `pg_dump --clean --if-exists --no-owner --no-privileges` so restores are more portable across Neon/Postgres environments.
+- Restores run `psql --set ON_ERROR_STOP=1 --single-transaction` for fail-fast, all-or-nothing execution.
 - Always verify the target database before running a restore with `--force`.

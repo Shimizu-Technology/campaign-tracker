@@ -151,14 +151,16 @@ set_pg_env_from_url "$TARGET_URL"
 log "Restoring PostgreSQL backup"
 log "Backup file: ${BACKUP_FILE}"
 
+PSQL_RESTORE_ARGS=(--set ON_ERROR_STOP=1 --single-transaction)
+
 if [[ "$DRY_RUN" == "true" ]]; then
   log "[dry-run] PostgreSQL connection variables prepared from TARGET_DATABASE_URL"
   case "$BACKUP_FILE" in
     *.sql.gz)
-      log "[dry-run] gzip -dc \"${BACKUP_FILE}\" | psql"
+      log "[dry-run] gzip -dc \"${BACKUP_FILE}\" | psql ${PSQL_RESTORE_ARGS[*]}"
       ;;
     *.sql)
-      log "[dry-run] psql < \"${BACKUP_FILE}\""
+      log "[dry-run] psql ${PSQL_RESTORE_ARGS[*]} < \"${BACKUP_FILE}\""
       ;;
   esac
   exit 0
@@ -166,10 +168,10 @@ fi
 
 case "$BACKUP_FILE" in
   *.sql.gz)
-    gzip -dc "$BACKUP_FILE" | psql
+    gzip -dc "$BACKUP_FILE" | psql "${PSQL_RESTORE_ARGS[@]}"
     ;;
   *.sql)
-    psql < "$BACKUP_FILE"
+    psql "${PSQL_RESTORE_ARGS[@]}" < "$BACKUP_FILE"
     ;;
 esac
 
