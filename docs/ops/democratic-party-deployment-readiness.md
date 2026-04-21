@@ -1,45 +1,104 @@
 # Democratic Party Deployment Readiness
 
-Last updated: 2026-04-20
+Last updated: 2026-04-22
 
 ## Bottom line
 
-The Democratic Party deployment is **not production-ready** unless it has its **own separate data lane**.
+The Democratic Party deployment is **not production-ready** unless it has its **own separate production data lane**.
 
-If a separate Democratic Party database has not yet been provisioned, then production readiness has **not** been met.
+That means all of the following must be true:
+- a separate Neon production database exists for Democratic Party data
+- the Democratic Party backup path is documented
+- the Democratic Party restore owner is named
+- the Democratic Party restore path has been tested
 
-## Must exist before production sign-off
+If those items are missing, readiness is **not** met.
 
-- [ ] **Separate Neon production database** for Democratic Party data
-- [ ] **Documented backup path** for that database
-- [ ] **Documented retention window** for backups / restore points
-- [ ] **Named restore owner** who can execute recovery without guesswork
-- [ ] **Secrets stored in approved secret storage**
-- [ ] **Separate production environment variables** for Democratic Party services
-- [ ] **Confirmed Render deployment** wired to the Democratic Party database
-- [ ] **Confirmed Netlify deployment** wired to the correct Democratic Party environment
-- [ ] **Restore drill completed** against the Democratic Party lane
-- [ ] **Sign-off on data separation**: no shared production database with Josh & Tina
+## Non-negotiable separation rule
 
-## Non-negotiable rule
+> Democratic Party cannot be called production-ready if it shares the Josh & Tina production database or backup chain.
 
-> Democratic Party cannot be called production-ready if it shares the Josh & Tina production database.
+Separate frontend or backend deploys are not enough by themselves.
+The **database lane** and the **backup lane** must also be separate.
 
-Separate frontend or backend deploys are not enough by themselves. The database and backup path must also be separate.
+## What this repo confirms vs. does not confirm
 
-## Current implication
+Confirmed from this repo:
+- Campaign Tracker is documented around the **Josh & Tina** campaign context.
+- Production architecture is documented as **Render + Netlify + Neon**.
 
-This repo documents Campaign Tracker around the **Josh & Tina** campaign and the **Render + Netlify + Neon** stack, but it does **not** confirm that a separate Democratic Party production database already exists.
+Not confirmed from this repo:
+- that a separate Democratic Party production database already exists
+- that Democratic Party Neon hosted backups are already enabled
+- that a Democratic Party fallback `pg_dump` backup job already exists
+- that Democratic Party restore ownership is already assigned
+- that a Democratic Party restore drill has already passed
 
-Until that is provisioned and tested, Democratic Party should be treated as:
-- a future/separate deployment lane requirement
-- not yet ready for production data
-- blocked on backup and restore ownership
+Because those items are not confirmed here, Democratic Party should currently be treated as **not yet ready for production data**.
 
-## Approval needed
+## Required backup posture for Democratic Party
 
-Leon needs to approve only these items:
-- [ ] Democratic Party gets a separate production database
-- [ ] Democratic Party gets its own backup / restore path
-- [ ] Named owner for restore execution
-- [ ] No production launch before restore drill passes
+### Preferred path
+
+The preferred path is:
+
+> **Use Neon-managed hosted backups for the separate Democratic Party production database, with a named restore owner.**
+
+Required outcome:
+- Democratic Party has its **own Neon production database**
+- Neon-managed backup / restore capability is confirmed for that database
+- actual retention on the selected plan is recorded
+- one person is named as restore owner
+
+### Fallback path
+
+If the preferred path is unavailable or insufficient, the fallback path is:
+
+> **Run scheduled `pg_dump` backups from Render and store them in encrypted off-host object storage.**
+
+Required outcome:
+- the logical backup job is scheduled
+- dumps are retained in encrypted storage away from the live database host
+- retention is recorded
+- one person is named to monitor job success and backup freshness
+
+## Readiness checklist
+
+### Separate lane
+- [ ] Separate Neon production database exists for Democratic Party data
+- [ ] Democratic Party does **not** share the Josh & Tina production database
+- [ ] Democratic Party uses separate production secrets
+- [ ] Democratic Party Render deployment is wired to the Democratic Party database
+- [ ] Democratic Party Netlify deployment is wired to the correct Democratic Party environment
+
+### Backup posture
+- [ ] Preferred path confirmed: Neon-managed hosted backup / restore is enabled for Democratic Party
+- [ ] Actual retention window is recorded
+- [ ] Restore owner is named
+- [ ] Secrets owner is named
+- [ ] If needed, fallback path is in place: Render-scheduled `pg_dump` to encrypted off-host object storage
+- [ ] Backup monitoring / freshness owner is named
+
+### Restore proof
+- [ ] Restore drill completed against the Democratic Party lane
+- [ ] Restore happened into a **new non-production database copy**
+- [ ] Restored data was validated before any production cutover decision
+- [ ] Date, operator, timing, and result were recorded
+
+## Launch gate
+
+Democratic Party is blocked from production launch until all of the following are true:
+- the production database is separate from Josh & Tina
+- the backup path is separate from Josh & Tina
+- restore ownership is explicit
+- a restore drill has passed
+
+## Leon approval questions
+
+Leon only needs to answer these yes/no questions:
+
+1. Yes / No: Democratic Party must have its **own separate production database**.
+2. Yes / No: Democratic Party must use **Neon-managed hosted backups** as the preferred backup path.
+3. Yes / No: If needed, Democratic Party may use **Render-scheduled `pg_dump` backups to encrypted off-host object storage** as the fallback path.
+4. Yes / No: Democratic Party may not launch until a **named restore owner** is assigned.
+5. Yes / No: Democratic Party may not launch until a **restore drill passes**.
