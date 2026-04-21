@@ -14,8 +14,11 @@ It creates a dedicated Render cron service that runs `./scripts/backups/backup_p
 ## Step-by-step
 1. Merge **PR #116** so `scripts/backups/backup_postgres.sh` exists on the target branch.
 2. Review `render.backups.yaml` and confirm service name, branch, schedule, and bucket/prefix placeholders.
+   - The example intentionally uses `branch: staging` for this PR. Before any production promotion, make a deliberate branch decision so the cron job does **not** accidentally keep running from staging when it should run from `main`.
 3. Create or choose the object-storage destination for backups.
 4. In Render, create a **Cron Job** using the values from `render.backups.yaml`.
+   - The example starts on the **starter** plan because it is the cheapest explicit option for initial setup.
+   - If manual test runs or scheduled runs start timing out, or if the production dump size grows enough that the job no longer finishes comfortably, upgrade the cron service to **standard** before relying on it for backups.
 5. Add secrets manually in the Render dashboard:
    - `DATABASE_URL`
    - `AWS_ACCESS_KEY_ID`
@@ -56,9 +59,15 @@ It should get:
 - Production credentials/secrets entry
 - Whether the Democratic Party deployment is provisioned now or later
 - Any cost-bearing infra changes in Render, Neon, or storage
+- Whether backup reliability now requires moving the cron service from **starter** to **standard**
 
 ## Merge order
 1. **PR #116** — backup and restore scripts
 2. **This PR** — Render cron blueprint + env example + setup doc
 
 If both PRs are merged close together, make sure the target branch contains PR #116 before the first Render cron run.
+
+## Plan sizing note
+- Start with **starter** only if the current production dump finishes cleanly during the first manual run with comfortable headroom.
+- Move to **standard** if the dump is large, the job is close to Render's starter execution limits, or you want more safety margin before treating the backup job as production-ready.
+- Re-test immediately after any plan change so the expected runtime is documented.

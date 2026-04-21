@@ -9,8 +9,8 @@ services:
   - type: cron
     name: campaign-tracker-db-backup
     runtime: native
-    plan: starter
-    branch: staging
+    plan: starter # Lowest-cost starting point; upgrade to standard if dumps start timing out or the database size grows beyond starter runtime comfort.
+    branch: staging # IMPORTANT: change this before any production promotion if the cron job should run from main instead of staging.
     schedule: "0 16 * * *" # Daily at 2:00 AM Guam / 16:00 UTC
     autoDeploy: false
     startCommand: ./scripts/backups/backup_postgres.sh
