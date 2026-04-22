@@ -1,0 +1,29 @@
+# Render cron blueprint example for Campaign Tracker PostgreSQL dump verification.
+#
+# Dependency note:
+# - The backup/restore scripts referenced below are added in PR #116:
+#   ./scripts/backups/backup_postgres.sh
+#   ./scripts/backups/restore_postgres.sh
+# - Merge PR #116 before this blueprint is applied in Render,
+#   or merge both PRs together and deploy after both are on staging/main.
+#
+# Important safety note:
+# - PR #116 currently creates a local .sql.gz dump only.
+# - Render cron jobs use ephemeral filesystem space, so this blueprint by itself is NOT
+#   a complete production backup solution until an off-host upload/retention step exists.
+services:
+  - type: cron
+    name: campaign-tracker-db-backup
+    runtime: native
+    plan: starter # Lowest-cost starting point; upgrade to standard if dumps start timing out or the database size grows beyond starter runtime comfort.
+    branch: staging # IMPORTANT: change this before any production promotion if the cron job should run from main instead of staging.
+    schedule: "0 16 * * *" # Daily at 2:00 AM Guam / 16:00 UTC
+    autoDeploy: false
+    startCommand: ./scripts/backups/backup_postgres.sh
+    envVars:
+      - key: DATABASE_URL
+        sync: false # Set from the Neon connection string in the Render UI.
+      - key: BACKUP_OUTPUT_DIR
+        value: /tmp/campaign-tracker-backups
+      - key: BACKUP_PREFIX
+        value: campaign-tracker-production
