@@ -1,6 +1,6 @@
 # Campaign Data Safety Pack
 
-Last updated: 2026-04-22
+Last updated: 2026-04-23
 
 ## Purpose
 
@@ -104,6 +104,21 @@ For **Democratic Party specifically**:
 - the lane is separate from Josh & Tina at the backup level
 - the lane is not called ready until both are true
 
+## Minimum handoff packet
+
+Before this leaves Leon's hands, the operator packet should contain the following plain-language outputs:
+- production database name and hosting vendor for each lane
+- production Render service name for each lane
+- production Netlify site name for each lane
+- backup method in use: Neon-managed or scheduled `pg_dump`
+- actual retention window
+- restore owner name and contact path
+- secrets owner name and contact path
+- date of the last successful restore drill
+- location of the restore notes or runbook
+
+If any item is unknown, label it **not yet confirmed**. Do not leave operators to infer ownership or infrastructure names from memory.
+
 ## Restore ownership
 
 Minimum ownership that must be explicit:
@@ -116,6 +131,13 @@ If one person holds multiple roles, document that plainly.
 ## Execution checklist
 
 This is the operator checklist. It is intentionally specific.
+
+Recommended order of operations:
+1. Confirm the live lane and owners
+2. Confirm the preferred backup path and retention
+3. Add the fallback path only if the preferred path is insufficient
+4. Run the restore drill
+5. Record the final handoff packet before sign-off
 
 ### A. Josh & Tina — do now
 

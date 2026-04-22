@@ -1,6 +1,6 @@
 # Democratic Party Deployment Readiness
 
-Last updated: 2026-04-22
+Last updated: 2026-04-23
 
 ## Bottom line
 
@@ -92,6 +92,20 @@ Democratic Party is blocked from production launch until all of the following ar
 - the backup path is separate from Josh & Tina
 - restore ownership is explicit
 - a restore drill has passed
+
+## Sign-off artifact required
+
+Before anyone says this lane is ready, there should be a one-page sign-off note or ticket comment that states:
+- Democratic Party database name
+- Democratic Party Render service name
+- Democratic Party Netlify site name
+- backup method in use
+- actual retention window
+- restore owner
+- secrets owner
+- last restore drill date and result
+
+If one of those items is missing, the lane is not ready for client handoff or launch language.
 
 ## Leon approval questions
 
