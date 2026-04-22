@@ -37,6 +37,15 @@ log() {
   printf '%s\n' "$*"
 }
 
+describe_pg_target() {
+  local host="${PGHOST:-localhost}"
+  local port="${PGPORT:-5432}"
+  local database="${PGDATABASE:-unknown}"
+  local user="${PGUSER:-unknown}"
+
+  printf '%s@%s:%s/%s' "$user" "$host" "$port" "$database"
+}
+
 run_cmd() {
   if [[ "$DRY_RUN" == "true" ]]; then
     printf '[dry-run]'
@@ -156,6 +165,7 @@ trap cleanup_failed_backup EXIT
 set_pg_env_from_url "$DATABASE_URL"
 
 log "Backing up PostgreSQL database"
+log "Source: $(describe_pg_target)"
 log "Output file: ${BACKUP_PATH}"
 
 run_cmd mkdir -p "$OUTPUT_DIR"

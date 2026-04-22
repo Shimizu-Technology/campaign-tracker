@@ -68,7 +68,9 @@ Or pass the target explicitly:
 
 - Scripts are plain Bash with `set -euo pipefail`.
 - Connection URLs are parsed into PostgreSQL `PG*` environment variables so the full URL is not passed to `pg_dump` or `psql` as a positional argument.
+- Scripts print a non-secret connection summary (`user@host:port/database`) before backup or restore to make operator targeting clearer.
 - Backups are written to a temporary file first, then moved into place after success.
 - Backups use `pg_dump --clean --if-exists --no-owner --no-privileges` so restores are more portable across Neon/Postgres environments.
 - Restores run `psql --set ON_ERROR_STOP=1 --single-transaction` for fail-fast, all-or-nothing execution.
+- `restore_postgres.sh --dry-run` still validates that the referenced backup file exists.
 - Always verify the target database before running a restore with `--force`.

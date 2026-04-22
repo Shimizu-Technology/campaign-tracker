@@ -37,6 +37,15 @@ log() {
   printf '%s\n' "$*"
 }
 
+describe_pg_target() {
+  local host="${PGHOST:-localhost}"
+  local port="${PGPORT:-5432}"
+  local database="${PGDATABASE:-unknown}"
+  local user="${PGUSER:-unknown}"
+
+  printf '%s@%s:%s/%s' "$user" "$host" "$port" "$database"
+}
+
 set_pg_env_from_url() {
   local database_url="$1"
   local parsed
@@ -135,8 +144,9 @@ if [[ "$DRY_RUN" != "true" && "$FORCE" != "true" ]]; then
   exit 1
 fi
 
+[[ -f "$BACKUP_FILE" ]] || { echo "Error: backup file not found: $BACKUP_FILE" >&2; exit 1; }
+
 if [[ "$DRY_RUN" != "true" ]]; then
-  [[ -f "$BACKUP_FILE" ]] || { echo "Error: backup file not found: $BACKUP_FILE" >&2; exit 1; }
   require_command psql
   case "$BACKUP_FILE" in
     *.sql.gz)
@@ -149,6 +159,7 @@ require_command python3
 set_pg_env_from_url "$TARGET_URL"
 
 log "Restoring PostgreSQL backup"
+log "Target: $(describe_pg_target)"
 log "Backup file: ${BACKUP_FILE}"
 
 PSQL_RESTORE_ARGS=(--set ON_ERROR_STOP=1 --single-transaction)
