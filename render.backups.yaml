@@ -1,10 +1,16 @@
-# Render backup cron blueprint example for Campaign Tracker.
+# Render cron blueprint example for Campaign Tracker PostgreSQL dump verification.
 #
 # Dependency note:
-# - The backup script referenced below is added in PR #116:
+# - The backup/restore scripts referenced below are added in PR #116:
 #   ./scripts/backups/backup_postgres.sh
+#   ./scripts/backups/restore_postgres.sh
 # - Merge PR #116 before this blueprint is applied in Render,
 #   or merge both PRs together and deploy after both are on staging/main.
+#
+# Important safety note:
+# - PR #116 currently creates a local .sql.gz dump only.
+# - Render cron jobs use ephemeral filesystem space, so this blueprint by itself is NOT
+#   a complete production backup solution until an off-host upload/retention step exists.
 services:
   - type: cron
     name: campaign-tracker-db-backup
@@ -16,22 +22,8 @@ services:
     startCommand: ./scripts/backups/backup_postgres.sh
     envVars:
       - key: DATABASE_URL
-        sync: false # Set from Neon connection string in Render UI
-      - key: BACKUP_STORAGE_PROVIDER
-        value: s3
-      - key: BACKUP_BUCKET
-        value: your-backup-bucket-name
+        sync: false # Set from the Neon connection string in the Render UI.
+      - key: BACKUP_OUTPUT_DIR
+        value: /tmp/campaign-tracker-backups
       - key: BACKUP_PREFIX
-        value: campaign-tracker/production
-      - key: AWS_REGION
-        value: us-west-2
-      - key: AWS_ACCESS_KEY_ID
-        sync: false
-      - key: AWS_SECRET_ACCESS_KEY
-        sync: false
-      - key: BACKUP_RETENTION_DAYS
-        value: "14"
-      - key: BACKUP_FILENAME_PREFIX
-        value: campaign-tracker
-      - key: BACKUP_ALERT_WEBHOOK_URL
-        sync: false # Optional: Slack/Discord/other webhook for failure alerts
+        value: campaign-tracker-production
