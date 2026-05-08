@@ -70,7 +70,9 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
       filename: "old.csv",
       status: "completed",
       import_type: "full_list",
-      active_election_day: true
+      active_election_day: true,
+      activated_for_election_at: Time.zone.parse("2026-04-01 08:30:00"),
+      activated_for_election_by_user: @admin
     )
     new_import = GecImport.create!(
       gec_list_date: Date.new(2026, 2, 25),
@@ -86,6 +88,8 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     assert_equal new_import.id, json.dig("import", "id")
     assert_equal true, json.dig("import", "active_election_day")
     assert_equal false, old_import.reload.active_election_day
+    assert_equal Time.zone.parse("2026-04-01 08:30:00"), old_import.activated_for_election_at
+    assert_equal @admin.id, old_import.activated_for_election_by_user_id
     assert_equal true, new_import.reload.active_election_day
     assert_equal @admin.id, new_import.activated_for_election_by_user_id
   end

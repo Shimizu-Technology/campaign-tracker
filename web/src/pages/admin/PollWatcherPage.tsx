@@ -119,7 +119,8 @@ function turnoutStatusLabel(status: StrikeListVoter['turnout_status']) {
 function turnoutSourceLabel(source?: string | null) {
   if (!source) return null;
   if (source === 'poll_watcher') return 'Marked by poll watcher';
-  if (source === 'admin') return 'Marked by admin';
+  if (source === 'data_team') return 'Marked by data team';
+  if (source === 'admin_override') return 'Marked by admin';
   return source.replace(/_/g, ' ');
 }
 

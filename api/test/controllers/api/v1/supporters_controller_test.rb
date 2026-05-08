@@ -178,6 +178,36 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal false, flagged_payload["current_gec_match"]
   end
 
+  test "index keeps verified but unlinked supporters out of current GEC match bucket" do
+    verified_unlinked = Supporter.create!(
+      first_name: "Verified",
+      last_name: "Unlinked",
+      print_name: "Verified Unlinked",
+      contact_number: "6715559666",
+      village: @village,
+      source: "staff_entry",
+      status: "active",
+      verification_status: "verified",
+      registered_voter: true
+    )
+    verified_unlinked.update_columns(
+      gec_voter_id: nil,
+      verification_status: "verified",
+      registered_voter: true
+    )
+
+    get "/api/v1/supporters",
+      params: { search: "6715559666" },
+      headers: auth_headers(@user)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    supporter_payload = payload.fetch("supporters").find { |item| item["id"] == verified_unlinked.id }
+
+    assert_equal true, supporter_payload["registered_voter"]
+    assert_equal false, supporter_payload["current_gec_match"]
+  end
+
   test "index batches legacy flagged reason lookups per page" do
     supporters = 2.times.map do |i|
       Supporter.create!(

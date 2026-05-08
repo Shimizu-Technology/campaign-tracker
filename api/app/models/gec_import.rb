@@ -27,7 +27,7 @@ class GecImport < ApplicationRecord
     raise ActiveRecord::RecordInvalid, self unless status == "completed"
 
     transaction do
-      self.class.where.not(id: id).update_all(active_election_day: false, activated_for_election_at: nil, activated_for_election_by_user_id: nil)
+      self.class.where.not(id: id).update_all(active_election_day: false)
       update!(
         active_election_day: true,
         activated_for_election_at: Time.current,

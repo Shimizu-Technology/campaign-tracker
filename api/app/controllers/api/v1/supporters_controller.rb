@@ -1222,7 +1222,7 @@ module Api
 
       def supporter_json(supporter, reason_payload: nil)
         reason_payload ||= SupporterVerificationReasonService.new(supporter).payload || {}
-        current_gec_match = supporter.gec_voter_id.present? || supporter.verification_status == "verified"
+        current_gec_match = supporter.gec_voter_id.present?
 
         {
           id: supporter.id,
@@ -1303,7 +1303,7 @@ module Api
       end
 
       def outreach_json(supporter)
-        current_gec_match = supporter.gec_voter_id.present? || supporter.verification_status == "verified"
+        current_gec_match = supporter.gec_voter_id.present?
 
         {
           id: supporter.id,
