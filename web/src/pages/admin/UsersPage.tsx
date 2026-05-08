@@ -5,6 +5,7 @@ import { ChevronDown, ChevronRight, Mail, Pencil, Plus, Save, Search, Trash2, Us
 import { createUser, deleteUser, getDistricts, getUsers, getVillages, resendUserInvite, updateUser } from '../../lib/api';
 import { useSession } from '../../hooks/useSession';
 import WorkspacePage from '../../components/WorkspacePage';
+import { formatRoleLabel } from '../../lib/roles';
 
 interface VillageOption {
   id: number;
@@ -219,13 +220,12 @@ const ROLE_PERMISSION_MAP: Record<string, PermissionKey[]> = {
     'can_access_leaderboard',
   ],
   poll_watcher: [
-    'can_access_war_room',
     'can_access_poll_watcher',
   ],
 };
 
 function roleLabel(role: string) {
-  return role.replaceAll('_', ' ');
+  return formatRoleLabel(role);
 }
 
 /** Which area assignment field does this role need? */

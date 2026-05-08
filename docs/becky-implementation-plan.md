@@ -1,7 +1,7 @@
 # Becky Implementation Plan
 
-**Status:** Phase 1 mostly implemented; Phase 2 and 3 remain  
-**Date:** 2026-03-08  
+**Status:** Core Becky intake + follow-up work largely implemented; election-day full-voter workflow in rollout hardening
+**Date:** 2026-04-20
 **Owner:** Campaign Tracker team
 
 ## Purpose
@@ -204,7 +204,7 @@ It should be documented now and implemented intentionally later, not folded slop
 
 ## Current Implementation Status
 
-### Completed in Phase 1
+### What is now shipped
 
 - public signup intake expansion:
   - 3-state self-reported voter status
@@ -220,17 +220,57 @@ It should be documented now and implemented intentionally later, not folded slop
   - supporter review queue
   - supporter detail
   - supporters list
-  - voter help follow-up
+  - dedicated follow-up queue
   - supporter-based report preview and export support
 - follow-up distinction improvements:
   - clear separation between `GEC Found` and `Registered via follow-up`
   - reporting/filter visibility for Becky supporter workflows
+  - split registration follow-up vs support-help follow-up statuses and filters
+  - outreach queue prioritization for unresolved registration/support work
+- staff entry parity:
+  - Becky intake fields available in manual staff entry
+  - intake/reporting parity across public signup, admin review, detail, and exports
+- role/access improvements related to Becky operational work:
+  - scoped supporter imports for supporter-entry roles
+  - reports access for coordinators with constrained report scope
 
-### Remaining work
+### Important reality check
 
-- final Phase 1 hardening / cleanup
-- Phase 2 dedicated operational follow-up workflow
-- Phase 3 poll watcher + war room full-voter-list workflow
+The app now satisfies most of Becky’s everyday intake and follow-up needs.
+
+The election-day poll watcher clarification from Becky is now partially implemented on the current branch:
+
+- poll watcher tools now use full-GEC-voter turnout marking first
+- a completed GEC import can be activated as the election-day voter list
+- explicit poll watcher precinct assignments can narrow live election-day scope
+- supporter GOTV is derived as an overlay on top of that full voter turnout list
+- unmatched supporters are separated into an exception bucket for manual matching or operations follow-up
+- remaining work is rollout hardening: realistic precinct QA, operations language, operator training, and rehearsal sign-off
+
+The full-voter-list workflow should not be considered complete until that rollout evidence is captured.
+
+### Remaining Becky work
+
+#### Still meaningful
+
+- Phase 2B ownership and follow-up history:
+  - optional assignment / owner model for registrar or operations follow-up
+  - clearer structured history for operational follow-up work
+- Phase 2C operational rollups:
+  - rollups for support-request types
+  - rollups for follow-up outcomes
+  - unresolved queue reporting by village / precinct where useful
+- Phase 3 election-day workflow:
+  - realistic QA for the full GEC voter-list poll watcher workflow
+  - validation of supporter overlay results derived from full-voter turnout state
+  - validation of war room queue counts driven from that overlay
+  - election-day hardening and rehearsal
+
+#### Nice-to-have / cleanup
+
+- final QA sweep across Becky surfaces
+- decide whether Becky-specific rollups should surface in quota summaries
+- confirm whether committee leads need direct scoped access or only exported / shared handoff reports
 
 ## Recommended Implementation Order
 
@@ -263,31 +303,21 @@ Implement:
 
 ### Phase 1 hardening
 
-Finish first:
+Mostly complete. Remaining items are QA / polish, not major feature gaps:
 
 - full QA sweep across signup, review, detail, follow-up, and reporting surfaces
-- close any remaining Becky field-visibility inconsistencies
-- confirm naming consistency for:
-  - `Self-reported voter status`
-  - `GEC Found`
-  - `Registered via follow-up`
 - decide whether Becky rollups belong in `Quota Summary` now or later
 
 ### Phase 2A: Dedicated follow-up queue
 
-Build next:
+Implemented.
 
-- a clearer staff follow-up queue focused on actionability
-- stronger prioritization for people who:
-  - need registration help
-  - need absentee/homebound/ride help
-  - are unresolved
-  - were registered via follow-up
-- better row/card visibility for:
-  - help requests
-  - GEC match status
-  - latest follow-up result
-  - latest notes
+Delivered outcomes:
+
+- clearer staff follow-up queue focused on actionability
+- separation between registration follow-up and support-help follow-up
+- stronger prioritization for unresolved Becky follow-up work
+- improved row/card visibility for help requests and latest follow-up state
 
 ### Phase 2B: Ownership and follow-up history
 
@@ -312,23 +342,26 @@ Build after 2B:
 
 ### Phase 3A: Poll watcher voter-list foundation
 
-Build after follow-up workflow is stable:
+Implemented on the current election-day branch:
 
 - poll watcher access to the full GEC turnout list for assigned scope
 - turnout marking against full voter list
 - clear separation between full voter turnout and supporter overlay
+- active election-day GEC import selection
+- explicit poll watcher precinct assignments with assigned-village fallback
 
 ### Phase 3B: War room overlay workflow
 
-Build after 3A:
+Implemented on the current election-day branch:
 
 - overlay campaign supporters on top of turnout data
 - derive supporters who still need GOTV calls
 - war room targeting and live queue visibility
+- unmatched-supporter exception visibility for supporters without a clean GEC voter link
 
 ### Phase 3C: Election-day hardening
 
-Build last:
+Remaining rollout work:
 
 - role/scope hardening for poll watchers and war room staff
 - stress testing
@@ -343,10 +376,9 @@ Do **not** try to land all remaining Becky work as one giant PR.
 
 Instead:
 
-1. finish Phase 1 hardening and Phase 2A together if the changes stay tightly related
-2. open a PR for that operational follow-up tranche
-3. then continue with Phase 2B and 2C
-4. treat Phase 3 poll watcher / war room work as a separate PR stream
+1. treat `Phase 2B` ownership/history as the next Becky PR if campaign ops still wants in-app handoff ownership
+2. follow with `Phase 2C` operational rollups/reporting if those rollups are needed before election-day
+3. treat `Phase 3` full-voter poll watcher / war room overlay work as a separate election-day PR stream
 
 ### Why
 
@@ -359,10 +391,9 @@ Instead:
 
 The best next move is:
 
-- document the sequence
-- finish any last Phase 1 hardening items immediately
-- then go straight into `Phase 2A`
-- create a PR once `Phase 1 hardening + Phase 2A` are stable and testable
+- keep this document aligned with shipped reality
+- decide whether `Phase 2B` is still needed before election-day
+- if not, skip straight to planning `Phase 3A` full-voter poll watcher foundation
 
 ## Data Model Direction
 
@@ -412,13 +443,15 @@ If the team is unsure during implementation, default to:
 
 ## Summary
 
-The Becky implementation should be:
+The Becky work is now mostly complete for:
 
-- a public-intake expansion
-- a structured household-intake feature
-- a staff-visibility and follow-up-enablement feature
+- public intake expansion
+- structured household intake
+- staff visibility
+- operational follow-up queues, filters, and exports
 
-The poll watcher clarification is documented here so it is not forgotten:
+The main Becky requirement still needing rollout proof is the election-day clarification:
 
-- turnout work is based on the full GEC voter list
-- campaign GOTV action is based on overlaying supporter status on top of that full turnout data
+- turnout work is now based on the full GEC voter list in the current branch
+- campaign GOTV action is now derived by overlaying supporter status on top of that full turnout data
+- realistic precinct QA, operator training, and rehearsal sign-off still need to be captured

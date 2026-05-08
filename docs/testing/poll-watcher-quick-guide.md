@@ -9,8 +9,7 @@ Use this as a fast operator guide for poll watchers in the field.
 ## What You Are Responsible For
 
 - Report precinct turnout updates throughout the day.
-- Keep supporter strike list current (`Voted` vs `Not Yet Voted`).
-- Log contact outcomes (`Call Attempted`, `Reached`) for outreach tracking.
+- Keep the precinct voter list current (`Voted` vs `Not Yet Voted`).
 - Escalate issues quickly when polling-site problems occur.
 
 Important: This app tracks campaign operations, not official election records.
@@ -32,12 +31,10 @@ Important: This app tracks campaign operations, not official election records.
 1. Select your precinct.
 2. Submit current `voter_count` report.
 3. In strike list:
-   - mark supporters `Voted` when confirmed
-   - leave/mark supporters `Not Yet Voted` when pending
-4. Log outreach result:
-   - `Call Attempted` when tried but no confirmed reach
-   - `Reached` when supporter confirmed reached
-5. Add notes when useful (line issues, special context, blockers).
+   - mark voters `Voted` when confirmed
+   - leave/mark voters `Not Yet Voted` when pending
+4. Add notes when useful (line issues, special context, blockers).
+5. Let War Room handle supporter calls and contact-result logging.
 
 ---
 
@@ -61,6 +58,6 @@ Important: This app tracks campaign operations, not official election records.
 ## Common Mistakes To Avoid
 
 - Reporting on a precinct outside your assignment.
-- Forgetting to update strike-list statuses after confirmed outreach.
+- Forgetting to update turnout statuses after confirmed polling-site information.
 - Logging outcomes without useful notes when context is needed.
 - Waiting too long to escalate precinct issues.

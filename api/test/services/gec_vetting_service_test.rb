@@ -4,12 +4,16 @@ class GecVettingServiceTest < ActiveSupport::TestCase
   setup do
     @village = Village.find_or_create_by!(name: "Barrigada")
     @other_village = Village.find_or_create_by!(name: "Dededo")
+    @precinct = Precinct.find_or_create_by!(village: @village, number: "1")
+    @alternate_precinct = Precinct.find_or_create_by!(village: @village, number: "2")
 
     # Create GEC voter records
     @gec_voter = GecVoter.create!(
       first_name: "Juan",
       last_name: "Cruz",
       dob: Date.new(1985, 3, 15),
+      precinct: @precinct,
+      precinct_number: @precinct.number,
       village_name: "Barrigada",
       voter_registration_number: "VR12345",
       gec_list_date: Date.new(2026, 2, 25),
@@ -36,6 +40,17 @@ class GecVettingServiceTest < ActiveSupport::TestCase
     assert_equal "verified", supporter.verification_status
     assert supporter.registered_voter
     assert_equal "matched_current_gec", supporter.verification_reason
+    assert_equal @precinct.id, supporter.precinct_id
+  end
+
+  test "auto-verification realigns supporter precinct to matched gec voter" do
+    supporter = create_supporter(first_name: "Juan", last_name: "Cruz", dob: Date.new(1985, 3, 15), village: @village)
+    supporter.update_columns(precinct_id: @alternate_precinct.id)
+
+    result = GecVettingService.new(supporter).call
+
+    assert_equal :auto_verified, result.status
+    assert_equal @precinct.id, supporter.reload.precinct_id
   end
 
   test "flags different village as referral" do

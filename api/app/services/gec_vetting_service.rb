@@ -131,10 +131,17 @@ class GecVettingService
 
   def apply_auto_verified!(gec_voter)
     updates = {
+      gec_voter_id: gec_voter.id,
+      precinct_id: gec_voter.precinct_id,
       verification_status: "verified",
       registered_voter: true,
       referred_from_village_id: nil,
       verification_reason: "matched_current_gec",
+      turnout_status: gec_voter.turnout_status,
+      turnout_note: gec_voter.turnout_note,
+      turnout_source: gec_voter.turnout_source,
+      turnout_updated_at: gec_voter.turnout_updated_at,
+      turnout_updated_by_user_id: gec_voter.turnout_updated_by_user_id,
       verification_reason_metadata: verification_reason_metadata(
         gec_voter: gec_voter,
         confidence: "exact",
@@ -148,6 +155,7 @@ class GecVettingService
 
   def apply_flagged!(gec_voter, reason:, confidence:, match_type:, match_count:)
     apply_updates!(
+      gec_voter_id: nil,
       verification_status: "flagged",
       registered_voter: true,
       referred_from_village_id: nil,
@@ -165,6 +173,7 @@ class GecVettingService
   def apply_referral!(gec_voter)
     referred_village = Village.find_by("LOWER(name) = ?", gec_voter.village_name.downcase.strip)
     apply_updates!(
+      gec_voter_id: nil,
       verification_status: "flagged",
       registered_voter: true,
       referred_from_village_id: referred_village&.id,
@@ -180,6 +189,7 @@ class GecVettingService
 
   def apply_unregistered!
     apply_updates!(
+      gec_voter_id: nil,
       verification_status: "unverified",
       registered_voter: false,
       referred_from_village_id: nil,

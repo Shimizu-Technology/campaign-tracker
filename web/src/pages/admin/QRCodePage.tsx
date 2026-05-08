@@ -3,6 +3,7 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { QrCode, Copy, Check, Download } from 'lucide-react';
 import { getQrCodeAssignees, generateQrCode, getVillages } from '../../lib/api';
 import WorkspacePage from '../../components/WorkspacePage';
+import { formatRoleLabel } from '../../lib/roles';
 
 interface QRResult {
   code: string;
@@ -171,9 +172,9 @@ export default function QRCodePage() {
                 >
                   <option value="">Select a user...</option>
                   {assignees.map((user) => (
-                    <option key={user.id} value={user.id}>
-                      {(user.name || user.email)} - {user.role.replaceAll('_', ' ')}
-                    </option>
+                  <option key={user.id} value={user.id}>
+                      {(user.name || user.email)} - {formatRoleLabel(user.role)}
+                  </option>
                   ))}
                 </select>
                 <p className="text-xs text-[var(--text-secondary)] mt-1">

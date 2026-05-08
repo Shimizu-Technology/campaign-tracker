@@ -5,8 +5,8 @@ class Supporter < ApplicationRecord
   PUBLIC_REVIEW_STATUSES = %w[not_applicable pending approved rejected].freeze
   REGISTERED_VOTER_STATUSES = %w[yes no not_sure].freeze
   SUPPORT_FOLLOW_UP_STATUSES = %w[in_progress completed declined].freeze
-  TURNOUT_STATUSES = %w[unknown not_yet_voted voted].freeze
-  TURNOUT_SOURCES = %w[poll_watcher war_room admin_override].freeze
+  TURNOUT_STATUSES = %w[unknown not_yet_voted voted observed_elsewhere].freeze
+  TURNOUT_SOURCES = %w[poll_watcher war_room data_team admin_override].freeze
   VERIFICATION_STATUSES = %w[unverified verified flagged].freeze
   VERIFICATION_REASONS = %w[
     matched_current_gec
@@ -25,6 +25,7 @@ class Supporter < ApplicationRecord
   belongs_to :referred_from_village, class_name: "Village", optional: true
   belongs_to :quota_period, optional: true
   belongs_to :precinct, optional: true
+  belongs_to :gec_voter, optional: true
   belongs_to :block, optional: true
   belongs_to :household_group, optional: true
   belongs_to :referral_code, optional: true

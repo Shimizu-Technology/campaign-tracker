@@ -5,6 +5,7 @@ import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { Search, ClipboardPlus, Download, ArrowUpDown, ChevronLeft } from 'lucide-react';
 import { motion, useReducedMotion } from 'framer-motion';
 import { formatDateTime } from '../../lib/datetime';
+import { gecMatchClass, gecMatchLabel } from '../../lib/gecMatch';
 import { useSession } from '../../hooks/useSession';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import WorkspacePage from '../../components/WorkspacePage';
@@ -33,6 +34,7 @@ interface SupporterItem {
   registered_voter_status?: string | null;
   registered_voter_location_note?: string | null;
   registered_voter: boolean;
+  current_gec_match?: boolean;
   wants_to_volunteer?: boolean;
   needs_absentee_ballot_help?: boolean;
   needs_homebound_voting_help?: boolean;
@@ -767,7 +769,7 @@ export default function SupportersPage() {
                   )}
                 </div>
                 <div className="flex justify-between">
-                  <span className={s.registered_voter ? 'text-green-600 font-medium' : 'text-[var(--text-muted)]'}>{s.registered_voter ? 'GEC found' : 'No GEC match'}</span>
+                  <span className={gecMatchClass(s)}>{gecMatchLabel(s)}</span>
                   <span>{formatDateTime(s.created_at)}</span>
                 </div>
               </div>
@@ -803,7 +805,7 @@ export default function SupportersPage() {
                 <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">Flags</th>
                 <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">
                   <button type="button" onClick={() => handleSort('registered_voter')} className="inline-flex items-center gap-1 hover:text-[var(--text-primary)]">
-                    GEC Found <ArrowUpDown className="w-3.5 h-3.5" /> {sortLabel('registered_voter')}
+                    GEC Match <ArrowUpDown className="w-3.5 h-3.5" /> {sortLabel('registered_voter')}
                   </button>
                 </th>
                 <th className="text-left px-4 py-3 font-medium text-[var(--text-secondary)]">
@@ -867,11 +869,7 @@ export default function SupportersPage() {
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <div className="space-y-1">
-                      {s.registered_voter ? (
-                        <span className="text-green-600 font-medium">Yes</span>
-                      ) : (
-                        <span className="text-[var(--text-muted)]">No</span>
-                      )}
+                      <span className={gecMatchClass(s)}>{gecMatchLabel(s)}</span>
                       {s.registration_outreach_status === 'registered' && (
                         <div className="text-xs text-green-700">Follow-up says registered</div>
                       )}

@@ -1,6 +1,6 @@
 # Election-Day Operator Readiness Checklist
 
-Last updated: 2026-02-13
+Last updated: 2026-04-20
 
 Goal: confirm campaign staff, role assignments, and field workflows are ready before live election-day usage.
 
@@ -22,12 +22,14 @@ Pass if each required role has an active, login-verified user.
 
 ## 2) Assignment Scope Validation
 
+- Confirm the completed GEC import intended for election day is activated.
 - For each `poll_watcher`, verify assigned village/precinct scope is correct.
+- For live rehearsal, prefer explicit precinct assignments over village fallback and document any accounts still using fallback scope.
 - For each `district_coordinator`, verify assigned district is correct.
 - Spot-check at least two users by opening election-day pages and validating visible precincts/villages.
 - Confirm out-of-scope access is denied (route + API).
 
-Pass if visible data matches intended assignments and unauthorized scope is blocked.
+Pass if the active GEC list and visible precinct data match intended assignments and unauthorized scope is blocked.
 
 ---
 
@@ -36,8 +38,9 @@ Pass if visible data matches intended assignments and unauthorized scope is bloc
 - Run the simulation in:
   - `docs/testing/election-day-strike-list-simulation-checklist.md`
 - Ensure at least one full cycle:
-  - poll watcher updates turnout/contact outcomes
-  - war room queue and counters update
+  - poll watcher updates full-voter turnout
+  - war room logs linked supporter contact outcomes where applicable
+  - war room matched supporter queue and unmatched-supporter bucket update
   - audit records generated
 
 Pass if dry run completes without blocking defects.

@@ -118,6 +118,12 @@ module Api
             status: :unprocessable_entity,
             code: "user_has_dependencies"
           )
+        rescue ActiveRecord::InvalidForeignKey => e
+          return render_api_error(
+            message: foreign_key_dependency_message(e),
+            status: :unprocessable_entity,
+            code: "user_has_dependencies"
+          )
         end
         render json: { message: "User removed" }, status: :ok
       end
@@ -163,6 +169,14 @@ module Api
 
       def placeholder_clerk_id(email)
         "pending-#{Digest::SHA256.hexdigest(email).first(24)}"
+      end
+
+      def foreign_key_dependency_message(error)
+        table_name = error.message.scan(/table "([^"]+)"/).flatten.last
+        base_message = "Cannot remove this user because they still have associated records."
+        return base_message if table_name.blank?
+
+        "#{base_message} Clear or reassign their #{table_name.humanize.downcase} first."
       end
 
       def user_json(user)

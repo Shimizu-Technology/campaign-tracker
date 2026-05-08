@@ -138,6 +138,9 @@ Purpose: single operational checklist for what is done, what is in progress, and
   - War room shows actionable "not yet voted" call lists by village/precinct.
   - Updates are role-gated, auditable, and visible in near real-time.
   - Manual verification checklist passes for one full election-day simulation flow.
+- Scope boundary note:
+  - This shipped item is the supporter-level turnout flow only.
+  - It does **not** satisfy Becky’s later clarification that poll watchers must work from the full GEC voter list first and derive supporter follow-up as an overlay on top of that full voter universe.
 - Implementation task breakdown:
   - **7.0 Poll watcher operations spec**
     - Status: `done` (2026-02-13)
@@ -204,7 +207,7 @@ Purpose: single operational checklist for what is done, what is in progress, and
   - Added strike-list API endpoints under poll watcher controller:
     - `GET /api/v1/poll_watcher/strike_list?precinct_id=:id` (optional: `turnout_status`, `search`)
     - `PATCH /api/v1/poll_watcher/strike_list/:supporter_id/turnout`
-    - `POST /api/v1/poll_watcher/strike_list/:supporter_id/contact_attempts`
+    - `POST /api/v1/war_room/supporters/:supporter_id/contact_attempts`
   - Scope enforcement:
     - All strike-list operations require precinct access through role-based precinct scope.
     - Unauthorized precinct access returns `403` (`precinct_not_authorized`).
@@ -236,7 +239,7 @@ Purpose: single operational checklist for what is done, what is in progress, and
   - Updated `Poll Watcher` page with integrated strike-list field workflow:
     - precinct-level supporter strike-list panel under report form
     - turnout-state quick actions (`Not Yet Voted`, `Voted`) per supporter
-    - one-tap contact outcomes (`Call Attempted`, `Reached`) per supporter
+    - War Room-side one-tap contact outcomes (`Call Attempted`, `Reached`) per supporter
     - per-supporter optional note input applied to turnout/contact updates
   - Added strike-list controls optimized for field use:
     - mobile-friendly card rows with 44px+ action targets
@@ -246,7 +249,7 @@ Purpose: single operational checklist for what is done, what is in progress, and
   - Added web API client bindings for new strike-list endpoints:
     - `getPollWatcherStrikeList`
     - `updateStrikeListTurnout`
-    - `createStrikeListContactAttempt`
+    - `createWarRoomContactAttempt`
   - Files:
     - `web/src/pages/admin/PollWatcherPage.tsx`
     - `web/src/lib/api.ts`
@@ -257,7 +260,7 @@ Purpose: single operational checklist for what is done, what is in progress, and
   1. Login as `poll_watcher`, open `/admin/poll-watcher`, and select an assigned precinct.
   2. Confirm strike-list panel loads supporter cards for that precinct only.
   3. Use turnout buttons to toggle one supporter `Not Yet Voted -> Voted`; verify status badge updates.
-  4. Log `Call Attempted` on a supporter and verify "last contact" summary appears/updates.
+  4. From War Room, log `Call Attempted` on a supporter and verify "last contact" summary appears/updates.
   5. Enter a note for a supporter before action and verify action still succeeds.
   6. Use strike-list search and turnout-status filter; verify list updates correctly.
   7. Confirm compliance note is visible in strike-list panel.
@@ -335,6 +338,35 @@ Purpose: single operational checklist for what is done, what is in progress, and
 - Item 7 handoff note:
   - Engineering implementation for `7.0` - `7.7` is complete.
   - Remaining action is delegated operations sign-off evidence capture (simulation + readiness + GO/NO-GO entry).
+
+### 7B) Full-Voter Poll Watcher Overlay Workflow (Becky Clarification)
+- Status: `in progress`
+- Goal: move from supporter-only election-day strike lists to full GEC-voter turnout tracking with supporter overlay.
+- Current branch implementation:
+  - Full assigned GEC voter lists now power the poll watcher strike list.
+  - A completed `gec_import` can be explicitly activated as the election-day voter list; when none is active, the app falls back to the latest active GEC list date.
+  - Poll watcher scope now supports explicit precinct assignments, with assigned-village scope retained as the fallback for existing accounts.
+  - Turnout updates are recorded on `gec_voters` and synced to linked supporters for legacy surfaces.
+  - Supporter overlay metadata is returned for matched voters.
+  - War room pending-supporter counts and detailed supporter queues are derived from linked supporters whose GEC voter turnout status is `not_yet_voted`.
+  - Unmatched supporters are surfaced separately so operators know which records are excluded from the full-voter-derived queue.
+- Remaining before marking done:
+  - Clean rollout QA against realistic precinct data.
+  - Confirm operations language and training materials with campaign leads.
+  - Capture manual rehearsal evidence and GO/NO-GO sign-off.
+- Scope:
+  - Show the full assigned GEC voter list to poll watchers for turnout marking.
+  - Record turnout against the voter universe, not just campaign supporters.
+  - Overlay campaign supporter status on top of that turnout list.
+  - Drive war room "who still needs a call?" queues from supporters who have not yet voted inside that full-voter turnout state.
+- Acceptance criteria:
+  - Poll watcher can mark turnout for any assigned GEC voter, regardless of supporter status.
+  - Operators can identify the active election-day GEC list used for strike lists and war room derivation.
+  - Poll watcher access can be constrained to explicit precinct assignments when assignments are loaded.
+  - UI clearly distinguishes full-voter turnout tracking from supporter-only GOTV follow-up.
+  - War room derives supporter call lists from the intersection of supporter status and `not_yet_voted` full-voter turnout.
+  - Unmatched supporters are visible as a separate exception bucket, not silently mixed into or omitted from the derived queue.
+  - Role/scope, audit, and manual rehearsal all pass for this full-voter workflow.
 
 ### 8) List UX Standardization (Search, Filters, Sorting)
 - Status: `done`

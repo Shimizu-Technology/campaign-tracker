@@ -2,16 +2,22 @@
 
 class GecVoter < ApplicationRecord
   STATUSES = %w[active removed].freeze
+  TURNOUT_STATUSES = %w[unknown not_yet_voted voted observed_elsewhere].freeze
+  TURNOUT_SOURCES = %w[poll_watcher data_team admin_override].freeze
 
   belongs_to :village, optional: true
   belongs_to :precinct, optional: true
   belongs_to :removal_detected_by_import, class_name: "GecImport", optional: true
+  belongs_to :turnout_updated_by_user, class_name: "User", optional: true
+  has_many :supporters, dependent: :nullify
 
   validates :first_name, presence: true
   validates :last_name, presence: true
   validates :village_name, presence: true
   validates :gec_list_date, presence: true
   validates :status, inclusion: { in: STATUSES }
+  validates :turnout_status, inclusion: { in: TURNOUT_STATUSES }
+  validates :turnout_source, inclusion: { in: TURNOUT_SOURCES }, allow_blank: true
 
   before_validation :normalize_precinct_number
   before_validation :resolve_village
@@ -23,6 +29,18 @@ class GecVoter < ApplicationRecord
   scope :for_list_date, ->(date) { where(gec_list_date: date) }
   scope :with_ambiguous_dob, -> { where(dob_ambiguous: true) }
   scope :recently_removed, -> { removed.where("removed_at > ?", 60.days.ago) }
+  scope :not_yet_voted, -> { where(turnout_status: "not_yet_voted") }
+  scope :observed_elsewhere, -> { where(turnout_status: "observed_elsewhere") }
+
+  def self.election_day_list_date
+    GecImport.active_election_day_import&.gec_list_date || active.maximum(:gec_list_date)
+  end
+
+  def self.election_day_active
+    list_date = election_day_list_date
+    scope = active
+    list_date.present? ? scope.for_list_date(list_date) : scope
+  end
 
   # Find potential matches for a supporter against the GEC voter list.
   # Returns array of hashes: { gec_voter:, confidence:, match_type:, match_count: }

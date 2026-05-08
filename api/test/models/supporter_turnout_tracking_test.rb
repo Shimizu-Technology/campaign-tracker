@@ -29,6 +29,18 @@ class SupporterTurnoutTrackingTest < ActiveSupport::TestCase
     assert_includes @supporter.errors[:turnout_status], "is not included in the list"
   end
 
+  test "supporter accepts observed elsewhere turnout status" do
+    @supporter.turnout_status = "observed_elsewhere"
+
+    assert @supporter.valid?
+  end
+
+  test "supporter accepts data team turnout source" do
+    @supporter.turnout_source = "data_team"
+
+    assert @supporter.valid?
+  end
+
   test "supporter contact attempt validates required fields" do
     attempt = SupporterContactAttempt.new(
       supporter: @supporter,

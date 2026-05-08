@@ -5,6 +5,8 @@ class User < ApplicationRecord
   has_many :entered_supporters, class_name: "Supporter", foreign_key: :entered_by_user_id, dependent: :nullify
   has_many :turnout_updated_supporters, class_name: "Supporter", foreign_key: :turnout_updated_by_user_id, dependent: :nullify
   has_many :supporter_contact_attempts, foreign_key: :recorded_by_user_id, dependent: :restrict_with_exception
+  has_many :poll_watcher_precinct_assignments, dependent: :destroy
+  has_many :assigned_poll_watcher_precincts, through: :poll_watcher_precinct_assignments, source: :precinct
   has_many :assigned_referral_codes, class_name: "ReferralCode", foreign_key: :assigned_user_id, dependent: :nullify
   has_many :created_referral_codes, class_name: "ReferralCode", foreign_key: :created_by_user_id, dependent: :nullify
 

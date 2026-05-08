@@ -4,6 +4,7 @@ import { UserButton } from '@clerk/clerk-react';
 import { useSession } from '../hooks/useSession';
 import { useCampaignUpdates } from '../hooks/useCampaignUpdates';
 import { useRealtimeToast } from '../hooks/useRealtimeToast';
+import { formatRoleLabel } from '../lib/roles';
 import {
   LayoutDashboard,
   Users,
@@ -200,7 +201,7 @@ export default function TeamShell({ children }: { children: React.ReactNode }) {
             {sessionData?.user?.name || sessionData?.user?.email || 'Loading...'}
           </div>
           <div className="truncate text-[11px] capitalize text-slate-400">
-            {sessionData?.user?.role?.replace(/_/g, ' ') || ''}
+            {formatRoleLabel(sessionData?.user?.role)}
           </div>
         </div>
       </div>

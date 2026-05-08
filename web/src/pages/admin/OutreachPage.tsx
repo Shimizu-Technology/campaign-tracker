@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { AlertCircle, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, Clock3, MapPinned, Search, StickyNote, Users } from 'lucide-react';
 import { getOutreachSupporters, getVillages, updateOutreachStatus } from '../../lib/api';
 import { formatDateTime } from '../../lib/datetime';
+import { gecMatchClass, gecMatchLabel } from '../../lib/gecMatch';
 import WorkspacePage from '../../components/WorkspacePage';
 import { useSession } from '../../hooks/useSession';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
@@ -24,6 +25,7 @@ interface OutreachSupporter {
   contact_number: string;
   email: string | null;
   registered_voter?: boolean;
+  current_gec_match?: boolean;
   registered_voter_status?: string | null;
   registered_voter_location_note?: string | null;
   wants_to_volunteer?: boolean;
@@ -497,8 +499,8 @@ export default function OutreachPage() {
                       <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">
                         <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400">Voter context</div>
                         <div className="mt-1 text-sm text-gray-700">{selfReportedLabel(supporter.registered_voter_status)}</div>
-                        <div className={`mt-1 text-sm font-medium ${supporter.registered_voter ? 'text-green-700' : 'text-amber-700'}`}>
-                          {supporter.registered_voter ? 'GEC Found: Yes' : 'GEC Found: No'}
+                        <div className={`mt-1 text-sm ${gecMatchClass(supporter)}`}>
+                          GEC Match: {gecMatchLabel(supporter)}
                         </div>
                       </div>
                       <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2">

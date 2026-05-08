@@ -167,4 +167,29 @@ class Api::V1::UsersControllerTest < ActionDispatch::IntegrationTest
     payload = JSON.parse(response.body)
     assert_equal "user_role_assignment_forbidden", payload["code"]
   end
+
+  test "admin gets friendly dependency error when deleting user with foreign key records" do
+    dependency_user = User.create!(
+      clerk_id: "clerk-dependent-user",
+      email: "dependent@example.com",
+      name: "Dependent User",
+      role: "block_leader"
+    )
+
+    GecImport.create!(
+      gec_list_date: Date.current,
+      filename: "dependency-import.csv",
+      status: "completed",
+      import_type: "full_list",
+      uploaded_by_user: dependency_user
+    )
+
+    delete "/api/v1/users/#{dependency_user.id}", headers: auth_headers(@admin)
+
+    assert_response :unprocessable_entity
+    payload = JSON.parse(response.body)
+    assert_equal "user_has_dependencies", payload["code"]
+    assert_includes payload["error"], "gec imports"
+    assert User.exists?(dependency_user.id)
+  end
 end
