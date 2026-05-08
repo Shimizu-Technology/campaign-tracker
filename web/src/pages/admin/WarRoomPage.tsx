@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { getWarRoom } from '../../lib/api';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { createWarRoomContactAttempt, getWarRoom } from '../../lib/api';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  Radio, Users, TrendingUp, MapPin, Phone,
+  Radio, Users, TrendingUp, MapPin, Phone, PhoneCall, UserCheck,
   AlertTriangle, Clock, Activity, Eye, CheckCircle, X, Search
 } from 'lucide-react';
 import { useCampaignUpdates } from '../../hooks/useCampaignUpdates';
@@ -23,6 +23,7 @@ interface WarRoomVillage {
   supporter_count: number;
   motorcade_count: number;
   not_yet_voted_count: number;
+  observed_elsewhere_count?: number;
   outreach_attempted_count: number;
   outreach_reached_count: number;
 }
@@ -55,8 +56,11 @@ interface WarRoomStats {
   total_supporters: number;
   last_hour_reports: number;
   total_not_yet_voted: number;
+  total_observed_elsewhere: number;
   total_outreach_attempted: number;
   total_outreach_reached: number;
+  total_unmatched_supporters: number;
+  election_day_voters: number;
 }
 
 interface NotYetVotedQueueItem {
@@ -68,11 +72,41 @@ interface NotYetVotedQueueItem {
   outreach_reached_count: number;
 }
 
+interface SupporterQueueItem {
+  id: number;
+  print_name: string;
+  contact_number?: string | null;
+  village_name?: string | null;
+  precinct_number?: string | null;
+  gec_village_name?: string | null;
+  turnout_status?: string | null;
+  turnout_note?: string | null;
+  turnout_updated_at?: string | null;
+  turnout_updated_by_user_name?: string | null;
+  latest_contact_attempt?: {
+    outcome: string;
+    channel: string;
+    recorded_at: string;
+  } | null;
+}
+
+interface ElectionDayInfo {
+  list_date?: string | null;
+  active_import_id?: number | null;
+  active_import_filename?: string | null;
+  active_import_set_at?: string | null;
+  active_import_explicit?: boolean;
+}
+
 interface WarRoomData {
+  election_day?: ElectionDayInfo;
   villages: WarRoomVillage[];
   stats: WarRoomStats;
   call_priorities: CallPriority[];
   not_yet_voted_queue: NotYetVotedQueueItem[];
+  not_yet_voted_supporters?: SupporterQueueItem[];
+  observed_elsewhere_supporters?: SupporterQueueItem[];
+  unmatched_supporters?: SupporterQueueItem[];
   activity: ActivityItem[];
 }
 
@@ -112,6 +146,7 @@ function reportTypeIcon(type: string) {
     case 'line_length': return 'LINES';
     case 'issue': return 'ISSUE';
     case 'closing': return 'CLOSING';
+    case 'not_on_list': return 'NOT ON LIST';
     default: return 'REPORT';
   }
 }
@@ -134,6 +169,7 @@ function voterLabel(count: number) {
 }
 
 export default function WarRoomPage() {
+  const queryClient = useQueryClient();
   const { toasts, handleEvent, dismiss } = useRealtimeToast();
   useCampaignUpdates(handleEvent);
   const { data: sessionData } = useSession();
@@ -142,11 +178,22 @@ export default function WarRoomPage() {
   const [statusFilter, setStatusFilter] = useState(searchParams.get('status') || '');
   const [sortBy, setSortBy] = useState<WarRoomVillageSortField>((searchParams.get('sort_by') as WarRoomVillageSortField) || 'turnout_pct');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>((searchParams.get('sort_dir') as 'asc' | 'desc') || 'desc');
+  const [contactNotice, setContactNotice] = useState('');
 
   const { data, isLoading, isError } = useQuery<WarRoomData>({
     queryKey: ['war_room'],
     queryFn: getWarRoom,
     refetchInterval: 30_000, // Fallback poll every 30s (WebSocket handles instant updates)
+  });
+
+  const contactAttemptMutation = useMutation({
+    mutationFn: ({ supporterId, outcome }: { supporterId: number; outcome: 'attempted' | 'reached' }) =>
+      createWarRoomContactAttempt(supporterId, { outcome, channel: 'call' }),
+    onSuccess: (response: { message?: string }) => {
+      setContactNotice(response?.message || 'Contact attempt logged');
+      queryClient.invalidateQueries({ queryKey: ['war_room'] });
+      setTimeout(() => setContactNotice(''), 3000);
+    },
   });
 
   const villages = useMemo(() => data?.villages || [], [data?.villages]);
@@ -205,6 +252,9 @@ export default function WarRoomPage() {
   }
 
   const { stats, call_priorities, activity, not_yet_voted_queue } = data;
+  const notYetVotedSupporters = data.not_yet_voted_supporters || [];
+  const observedElsewhereSupporters = data.observed_elsewhere_supporters || [];
+  const unmatchedSupporters = data.unmatched_supporters || [];
 
   return (
     <WorkspacePage width="full" className="space-y-6">
@@ -238,7 +288,10 @@ export default function WarRoomPage() {
           <Radio className="w-5 h-5 text-red-500 animate-pulse" />
           <div>
             <h1 className="text-lg font-bold text-gray-900 tracking-tight">WAR ROOM</h1>
-            <p className="text-xs text-gray-400">Election Day Command Center</p>
+            <p className="text-xs text-gray-400">
+              Election Day Command Center
+              {data.election_day?.list_date ? ` · GEC list ${data.election_day.list_date}` : ''}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-4 text-sm">
@@ -283,7 +336,7 @@ export default function WarRoomPage() {
             <div className="text-3xl font-bold text-purple-600">
               {stats.total_supporters.toLocaleString()}
             </div>
-            <div className="text-xs text-gray-400">total in database</div>
+            <div className="text-xs text-gray-400">{stats.election_day_voters.toLocaleString()} election-day voters</div>
           </div>
           <div className="app-card p-4">
             <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
@@ -295,7 +348,7 @@ export default function WarRoomPage() {
             <div className="text-xs text-gray-400">reports received</div>
           </div>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-6">
           <div className="app-card p-4">
             <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
               <Users className="w-3.5 h-3.5" /> NOT YET VOTED
@@ -303,7 +356,16 @@ export default function WarRoomPage() {
             <div className="text-2xl font-bold text-amber-600">
               {stats.total_not_yet_voted.toLocaleString()}
             </div>
-            <div className="text-xs text-gray-400">remaining outreach queue</div>
+            <div className="text-xs text-gray-400">matched supporter queue</div>
+          </div>
+          <div className="app-card p-4">
+            <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
+              <AlertTriangle className="w-3.5 h-3.5" /> OBSERVED ELSEWHERE
+            </div>
+            <div className="text-2xl font-bold text-amber-700">
+              {stats.total_observed_elsewhere.toLocaleString()}
+            </div>
+            <div className="text-xs text-gray-400">turnout exceptions to reconcile</div>
           </div>
           <div className="app-card p-4">
             <div className="flex items-center gap-2 text-gray-500 text-xs mb-1">
@@ -324,6 +386,11 @@ export default function WarRoomPage() {
             <div className="text-xs text-gray-400">supporters reached</div>
           </div>
         </div>
+        {stats.total_unmatched_supporters > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-6 text-sm text-amber-800">
+            {stats.total_unmatched_supporters.toLocaleString()} approved supporters are not linked to the active election-day GEC list yet. Review the unmatched queue before live use.
+          </div>
+        )}
 
         <div className="grid md:grid-cols-3 gap-4">
           {/* Village Map - 2 cols */}
@@ -407,7 +474,7 @@ export default function WarRoomPage() {
                   </div>
                   <div className="flex justify-between text-xs text-gray-500 mt-1">
                     <span>{v.voters_reported.toLocaleString()} voted</span>
-                    <span>{supporterLabel(v.supporter_count)}</span>
+                    <span>{supporterLabel(v.supporter_count)} · {v.observed_elsewhere_count || 0} elsewhere</span>
                   </div>
                 </div>
               ))}
@@ -461,6 +528,128 @@ export default function WarRoomPage() {
               )}
             </div>
 
+            <div>
+              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <Users className="w-4 h-4 text-amber-500" /> Supporters To Call
+              </h2>
+              {contactNotice && (
+                <p className="text-xs text-green-600 bg-green-50 border border-green-200 rounded-lg px-2.5 py-2 mb-3">
+                  {contactNotice}
+                </p>
+              )}
+              {notYetVotedSupporters.length > 0 ? (
+                <div className="space-y-2 max-h-80 overflow-y-auto">
+                  {notYetVotedSupporters.slice(0, 12).map((supporter) => (
+                    <div key={supporter.id} className="bg-white border border-gray-200 rounded-xl p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-medium text-sm">{supporter.print_name}</p>
+                          <p className="text-xs text-gray-400">
+                            {supporter.village_name || 'Unknown village'} · Precinct {supporter.precinct_number || 'unassigned'}
+                          </p>
+                          {supporter.contact_number && (
+                            <p className="text-xs text-primary mt-1">{supporter.contact_number}</p>
+                          )}
+                        </div>
+                        <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2 py-1">
+                          pending
+                        </span>
+                      </div>
+                      {supporter.latest_contact_attempt && (
+                        <p className="text-xs text-gray-500 mt-2">
+                          Last contact: {supporter.latest_contact_attempt.outcome} via {supporter.latest_contact_attempt.channel}
+                        </p>
+                      )}
+                      <div className="mt-3 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => contactAttemptMutation.mutate({ supporterId: supporter.id, outcome: 'attempted' })}
+                          className="min-h-[40px] rounded-xl border border-gray-300 text-xs font-semibold text-gray-700 flex items-center justify-center gap-1 disabled:opacity-40"
+                          disabled={contactAttemptMutation.isPending}
+                        >
+                          <PhoneCall className="w-3.5 h-3.5" /> Call Attempted
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => contactAttemptMutation.mutate({ supporterId: supporter.id, outcome: 'reached' })}
+                          className="min-h-[40px] rounded-xl border border-gray-300 text-xs font-semibold text-gray-700 flex items-center justify-center gap-1 disabled:opacity-40"
+                          disabled={contactAttemptMutation.isPending}
+                        >
+                          <UserCheck className="w-3.5 h-3.5" /> Reached
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-white border border-gray-200 rounded-xl p-4 text-center text-sm text-gray-400">
+                  No matched supporters currently need calls.
+                </div>
+              )}
+            </div>
+
+            <div>
+              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600" /> Observed Elsewhere / Reconcile
+              </h2>
+              {observedElsewhereSupporters.length > 0 ? (
+                <div className="space-y-2 max-h-72 overflow-y-auto">
+                  {observedElsewhereSupporters.map((supporter) => (
+                    <div key={supporter.id} className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div>
+                          <p className="font-medium text-sm">{supporter.print_name}</p>
+                          <p className="text-xs text-gray-500">
+                            Registered in {supporter.gec_village_name || supporter.village_name || 'Unknown village'} · Precinct {supporter.precinct_number || 'unknown'}
+                          </p>
+                          {supporter.contact_number && <p className="text-xs text-primary mt-1">{supporter.contact_number}</p>}
+                        </div>
+                        <span className="text-xs text-amber-800 bg-white border border-amber-200 rounded-full px-2 py-1">
+                          observed elsewhere
+                        </span>
+                      </div>
+                      {supporter.turnout_note && (
+                        <p className="text-xs text-amber-900 mt-2">{supporter.turnout_note}</p>
+                      )}
+                      {(supporter.turnout_updated_at || supporter.turnout_updated_by_user_name) && (
+                        <p className="text-[11px] text-gray-500 mt-1">
+                          {supporter.turnout_updated_by_user_name ? `Marked by ${supporter.turnout_updated_by_user_name}` : 'Updated'}
+                          {supporter.turnout_updated_at ? ` · ${new Date(supporter.turnout_updated_at).toLocaleString()}` : ''}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-white border border-gray-200 rounded-xl p-4 text-center text-sm text-gray-400">
+                  No out-of-precinct turnout exceptions in this scope.
+                </div>
+              )}
+            </div>
+
+            <div>
+              <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-yellow-500" /> Unmatched Supporters
+              </h2>
+              {unmatchedSupporters.length > 0 ? (
+                <div className="space-y-2 max-h-64 overflow-y-auto">
+                  {unmatchedSupporters.slice(0, 8).map((supporter) => (
+                    <div key={supporter.id} className="bg-yellow-50 border border-yellow-200 rounded-xl p-3">
+                      <p className="font-medium text-sm">{supporter.print_name}</p>
+                      <p className="text-xs text-gray-500">
+                        {supporter.village_name || 'Unknown village'} · Precinct {supporter.precinct_number || 'unassigned'}
+                      </p>
+                      {supporter.contact_number && <p className="text-xs text-primary mt-1">{supporter.contact_number}</p>}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="bg-white border border-gray-200 rounded-xl p-4 text-center text-sm text-gray-400">
+                  No unmatched approved supporters in this scope.
+                </div>
+              )}
+            </div>
+
             {/* Call Bank Priorities */}
             <div>
               <h2 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3 flex items-center gap-2">
@@ -507,7 +696,9 @@ export default function WarRoomPage() {
                         <span className="text-xs text-gray-400">{timeAgo(a.reported_at)}</span>
                       </div>
                       <div className="text-xs text-gray-400">
-                        {a.village_name} · {voterLabel(a.voter_count)}
+                        {a.report_type === 'not_on_list'
+                          ? `${a.village_name} · Name heard but not found on election-day list`
+                          : `${a.village_name} · ${voterLabel(a.voter_count)}`}
                       </div>
                       {a.notes && (
                         <div className="text-xs text-yellow-600 mt-1 flex items-center gap-1">

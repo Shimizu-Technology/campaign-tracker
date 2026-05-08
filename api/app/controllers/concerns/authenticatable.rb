@@ -290,7 +290,7 @@ module Authenticatable
   end
 
   def can_access_war_room?
-    current_user&.admin? || current_user&.coordinator? || current_user&.chief? || current_user&.poll_watcher?
+    current_user&.admin? || current_user&.coordinator? || current_user&.chief?
   end
 
   def can_access_poll_watcher?

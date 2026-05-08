@@ -1,6 +1,6 @@
 # Election-Day Strike List Simulation Checklist
 
-Last updated: 2026-02-13
+Last updated: 2026-04-20
 
 Goal: run one full simulation from poll watcher updates to war-room queue response.
 
@@ -10,11 +10,12 @@ Goal: run one full simulation from poll watcher updates to war-room queue respon
 
 - API and web apps running locally or in staging.
 - Synthetic data seeded (recommended: 10k or 30k supporters).
+- A completed GEC import is activated as the election-day voter list.
 - At least one user account for each role:
   - `poll_watcher`
   - `campaign_admin` (or `district_coordinator`)
   - `block_leader` (negative access check)
-- Poll watcher has assigned village/precinct scope configured.
+- Poll watcher has explicit precinct assignments configured for the rehearsal, or assigned-village fallback is intentionally documented.
 
 ---
 
@@ -24,10 +25,11 @@ Goal: run one full simulation from poll watcher updates to war-room queue respon
 2. Select an assigned precinct.
 3. Submit a turnout report with `voter_count` and optional note.
 4. In strike-list panel:
-   - mark one supporter as `Not Yet Voted`
-   - mark one supporter as `Voted`
-5. Log one contact attempt as `Call Attempted` and one as `Reached`.
-6. Confirm success messages appear and supporter cards reflect status changes.
+   - confirm full GEC voters appear, including at least one voter with no supporter overlay
+   - mark one matched supporter/voter as `Not Yet Voted`
+   - mark one matched supporter/voter as `Voted`
+   - mark one non-supporter voter as `Voted`
+5. Confirm success messages appear and voter cards reflect turnout and overlay changes.
 
 Pass if updates save without errors and UI states update correctly.
 
@@ -35,7 +37,7 @@ Pass if updates save without errors and UI states update correctly.
 
 ## Phase 2: Scope and Permission Guards
 
-1. While still `poll_watcher`, verify only assigned precinct supporters are visible.
+1. While still `poll_watcher`, verify only assigned precinct voters are visible.
 2. Sign in as different-scope watcher/chief/coordinator and confirm out-of-scope precinct requests are blocked.
 3. Sign in as `block_leader` and open `/admin/poll-watcher` and `/admin/war-room`.
 4. Confirm restricted actions/routes are blocked as expected.
@@ -51,12 +53,15 @@ Pass if unauthorized scope/actions consistently return denied behavior.
    - `Not Yet Voted` total
    - `Attempted` total
    - `Reached` total
-3. Confirm `Not Yet Voted Queue` panel includes expected villages and pending counts.
-4. Confirm village cards display:
+3. Log one contact attempt as `Call Attempted` and one as `Reached` from the `Supporters To Call` panel.
+4. Confirm `Not Yet Voted Queue` panel includes expected villages and pending counts.
+5. Confirm `Supporters To Call` includes matched supporters whose linked GEC voters are still `not_yet_voted`.
+6. Confirm `Unmatched Supporters` shows approved active supporters with no linked GEC voter and does not mix them into the matched queue.
+7. Confirm village cards display:
    - `not_yet_voted_count`
    - `outreach_attempted_count`
    - `outreach_reached_count`
-5. Refresh once and confirm values remain consistent.
+8. Refresh once and confirm values remain consistent.
 
 Pass if war-room queue metrics reflect strike-list operations.
 

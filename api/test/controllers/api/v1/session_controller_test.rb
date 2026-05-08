@@ -93,7 +93,7 @@ class Api::V1::SessionControllerTest < ActionDispatch::IntegrationTest
     assert_equal false, payload.dig("permissions", "can_import_supporters")
     assert_equal false, payload.dig("permissions", "can_manage_data_configuration")
     assert_equal true, payload.dig("permissions", "can_access_poll_watcher")
-    assert_equal true, payload.dig("permissions", "can_access_war_room")
+    assert_equal false, payload.dig("permissions", "can_access_war_room")
     assert_equal false, payload.dig("permissions", "can_access_audit_logs")
   end
 

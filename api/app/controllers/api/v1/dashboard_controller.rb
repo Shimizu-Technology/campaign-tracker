@@ -147,6 +147,7 @@ module Api
         global_total_registered_voters = all_villages.sum { |v| v.registered_voters.to_i }
         global_total_villages = official_village_scope.count
         global_total_precincts = all_villages.sum { |v| v.precinct_count.to_i }
+        global_observed_elsewhere = Supporter.working_supporters.where(turnout_status: "observed_elsewhere").count
         global_target_dates = if campaign
           Quota.where(campaign_id: campaign.id).group(:village_id).maximum(:target_date)
         else
@@ -176,6 +177,7 @@ module Api
             total_registered_voters: global_total_registered_voters,
             total_villages: global_total_villages,
             total_precincts: global_total_precincts,
+            observed_elsewhere_count: global_observed_elsewhere,
             today_signups: global_today_verified,
             today_total_signups: global_today_total,
             week_signups: global_week_verified,

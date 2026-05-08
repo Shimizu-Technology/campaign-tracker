@@ -64,6 +64,47 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "data_ops_access_required", json["code"]
   end
 
+  test "activates a completed import as the election-day GEC list" do
+    old_import = GecImport.create!(
+      gec_list_date: Date.new(2026, 1, 25),
+      filename: "old.csv",
+      status: "completed",
+      import_type: "full_list",
+      active_election_day: true
+    )
+    new_import = GecImport.create!(
+      gec_list_date: Date.new(2026, 2, 25),
+      filename: "new.csv",
+      status: "completed",
+      import_type: "full_list"
+    )
+
+    post "/api/v1/gec_voters/imports/#{new_import.id}/activate_election_day", headers: auth_headers(@admin)
+
+    assert_response :success
+    json = JSON.parse(response.body)
+    assert_equal new_import.id, json.dig("import", "id")
+    assert_equal true, json.dig("import", "active_election_day")
+    assert_equal false, old_import.reload.active_election_day
+    assert_equal true, new_import.reload.active_election_day
+    assert_equal @admin.id, new_import.activated_for_election_by_user_id
+  end
+
+  test "does not activate an incomplete import as election-day list" do
+    pending_import = GecImport.create!(
+      gec_list_date: Date.new(2026, 2, 25),
+      filename: "pending.csv",
+      status: "pending",
+      import_type: "full_list"
+    )
+
+    post "/api/v1/gec_voters/imports/#{pending_import.id}/activate_election_day", headers: auth_headers(@admin)
+
+    assert_response :unprocessable_entity
+    json = JSON.parse(response.body)
+    assert_equal "import_not_completed", json["code"]
+  end
+
   test "index filters by village" do
     get "/api/v1/gec_voters", params: { village: "Barrigada" }, headers: auth_headers(@admin)
 

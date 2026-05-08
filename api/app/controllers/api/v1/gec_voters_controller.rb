@@ -14,7 +14,7 @@ module Api
       # GET /api/v1/gec_voters
       # List GEC voters with optional filters
       def index
-        scope = GecVoter.active
+        scope = ActiveModel::Type::Boolean.new.cast(params[:election_day_only]) ? GecVoter.election_day_active : GecVoter.active
 
         if params[:q].present?
           scope = apply_loose_search(scope, params[:q])
@@ -48,6 +48,7 @@ module Api
       # GET /api/v1/gec_voters/stats
       # Overview stats about the current GEC voter list
       def stats
+        election_day_import = GecImport.active_election_day_import
         latest_date = GecVoter.active.maximum(:gec_list_date)
         latest_import = GecImport.completed.latest.first
 
@@ -64,6 +65,8 @@ module Api
           removed_voters: GecVoter.removed.count,
           transferred_voters: GecVoter.transferred.count,
           latest_list_date: latest_date,
+          election_day_list_date: GecVoter.election_day_list_date,
+          active_election_day_import: election_day_import && import_json(election_day_import),
           latest_import: latest_import&.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :transferred_records, :re_vetted_count, :ambiguous_dob_count, :import_type, :status, :created_at ]),
           villages: village_counts.map { |name, count| { name: name, count: count } },
           official_village_count: official_village_count,
@@ -506,6 +509,37 @@ module Api
         render json: { imports: rows }
       end
 
+      # POST /api/v1/gec_voters/imports/:id/activate_election_day
+      def activate_election_day_import
+        gec_import = GecImport.includes(:uploaded_by_user).find_by(id: params[:id])
+        unless gec_import
+          return render_api_error(message: "Import not found", status: :not_found, code: "not_found")
+        end
+
+        unless gec_import.status == "completed"
+          return render_api_error(
+            message: "Only completed GEC imports can be activated for election day",
+            status: :unprocessable_entity,
+            code: "import_not_completed"
+          )
+        end
+
+        gec_import.activate_for_election!(actor_user: current_user)
+        log_audit!(
+          gec_import,
+          action: "gec_election_day_import_activated",
+          changed_data: {
+            active_election_day: [ false, true ],
+            gec_list_date: [ nil, gec_import.gec_list_date ]
+          }
+        )
+
+        render json: {
+          message: "Election-day GEC list activated",
+          import: import_json(gec_import.reload)
+        }
+      end
+
       # GET /api/v1/gec_voters/imports/:id/view_data
       # Preview the parsed import artifact for an existing import.
       def view_import_data
@@ -942,8 +976,9 @@ module Api
       end
 
       def import_json(imp, skipped_counts_by_import: nil)
-        json = imp.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :transferred_records, :re_vetted_count, :ambiguous_dob_count, :import_type, :status, :created_at, :metadata ])
+        json = imp.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :transferred_records, :re_vetted_count, :ambiguous_dob_count, :import_type, :status, :created_at, :metadata, :active_election_day, :activated_for_election_at ])
         json["uploaded_by_email"] = imp.uploaded_by_user&.email
+        json["activated_for_election_by_email"] = imp.activated_for_election_by_user&.email
         json["has_import_artifact"] = imp.import_artifact_available?
         json["has_original_file"] = imp.raw_source_available?
         json["has_downloadable_file"] = imp.downloadable_file_available?

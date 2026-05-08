@@ -5,6 +5,7 @@ class GecImport < ApplicationRecord
   IMPORT_TYPES = %w[full_list changes_only].freeze
 
   belongs_to :uploaded_by_user, class_name: "User", optional: true
+  belongs_to :activated_for_election_by_user, class_name: "User", optional: true
   has_one :upload_payload, class_name: "GecImportUpload", dependent: :destroy
   has_many :change_records, class_name: "GecImportChange", dependent: :destroy
   has_many :skipped_rows, class_name: "GecImportSkippedRow", dependent: :destroy
@@ -16,6 +17,24 @@ class GecImport < ApplicationRecord
 
   scope :latest, -> { order(created_at: :desc, id: :desc) }
   scope :completed, -> { where(status: "completed") }
+  scope :active_election_day, -> { completed.where(active_election_day: true) }
+
+  def self.active_election_day_import
+    active_election_day.latest.first
+  end
+
+  def activate_for_election!(actor_user:)
+    raise ActiveRecord::RecordInvalid, self unless status == "completed"
+
+    transaction do
+      self.class.where.not(id: id).update_all(active_election_day: false, activated_for_election_at: nil, activated_for_election_by_user_id: nil)
+      update!(
+        active_election_day: true,
+        activated_for_election_at: Time.current,
+        activated_for_election_by_user: actor_user
+      )
+    end
+  end
 
   def raw_source_available?
     raw_file_s3_key.present?

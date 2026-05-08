@@ -116,6 +116,68 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_match(/2 possible GEC matches/, supporter_payload["verification_reason_detail"])
   end
 
+  test "index exposes current GEC match separately from registered voter status" do
+    matched_voter = GecVoter.create!(
+      first_name: "Matched",
+      last_name: "Supporter",
+      village_name: @village.name,
+      gec_list_date: Date.new(2026, 2, 25),
+      imported_at: Time.current,
+      status: "active"
+    )
+
+    matched_supporter = Supporter.create!(
+      first_name: "Matched",
+      last_name: "Supporter",
+      print_name: "Matched Supporter",
+      contact_number: "6715559444",
+      village: @village,
+      source: "staff_entry",
+      status: "active",
+      verification_status: "verified",
+      registered_voter: true,
+      gec_voter: matched_voter
+    )
+    matched_supporter.update_columns(
+      gec_voter_id: matched_voter.id,
+      verification_status: "verified",
+      registered_voter: true
+    )
+
+    flagged_supporter = Supporter.create!(
+      first_name: "Flagged",
+      last_name: "Supporter",
+      print_name: "Flagged Supporter",
+      contact_number: "6715559555",
+      village: @village,
+      source: "staff_entry",
+      status: "active",
+      verification_status: "flagged",
+      registered_voter: true,
+      verification_reason: "village_mismatch",
+      verification_reason_metadata: { "gec_village_name" => "Other Village" }
+    )
+    flagged_supporter.update_columns(
+      verification_status: "flagged",
+      registered_voter: true,
+      verification_reason: "village_mismatch"
+    )
+
+    get "/api/v1/supporters",
+      params: { search: "Supporter" },
+      headers: auth_headers(@user)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    matched_payload = payload.fetch("supporters").find { |item| item["id"] == matched_supporter.id }
+    flagged_payload = payload.fetch("supporters").find { |item| item["id"] == flagged_supporter.id }
+
+    assert_equal true, matched_payload["registered_voter"]
+    assert_equal true, matched_payload["current_gec_match"]
+    assert_equal true, flagged_payload["registered_voter"]
+    assert_equal false, flagged_payload["current_gec_match"]
+  end
+
   test "index batches legacy flagged reason lookups per page" do
     supporters = 2.times.map do |i|
       Supporter.create!(
@@ -1136,7 +1198,12 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
       contact_number: "6715559000",
       village: @village,
       source: "staff_entry",
-      status: "active"
+      status: "active",
+      turnout_status: "observed_elsewhere",
+      turnout_note: "Observed at Precinct 15C (Barrigada).",
+      turnout_updated_at: Time.current,
+      turnout_updated_by_user: @poll_watcher,
+      turnout_source: "poll_watcher"
     )
     AuditLog.create!(
       auditable: supporter,
@@ -1155,6 +1222,8 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal true, payload.dig("permissions", "can_edit")
     assert_equal "district_coordinator", payload.dig("audit_logs", 0, "actor_role")
     assert_equal "Supporter updated", payload.dig("audit_logs", 0, "action_label")
+    assert_equal @poll_watcher.name, payload.dig("supporter", "turnout_updated_by_user_name")
+    assert_equal "observed_elsewhere", payload.dig("supporter", "turnout_status")
   end
 
   test "show returns household member count excluding the current supporter" do

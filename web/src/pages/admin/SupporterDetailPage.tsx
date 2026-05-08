@@ -4,6 +4,7 @@ import { Link, useLocation, useParams, useSearchParams } from 'react-router-dom'
 import { AlertTriangle, ChevronLeft, Pencil, Save, UserRound, X } from 'lucide-react';
 import { acceptToQuota, getSupporter, getVillages, updateSupporter, verifySupporter, updateOutreachStatus } from '../../lib/api';
 import { formatDateTime } from '../../lib/datetime';
+import { gecMatchClass, gecMatchLabel } from '../../lib/gecMatch';
 import { assignPrecinctIdByLastName } from '../../lib/precinctAssignment';
 import { useSession } from '../../hooks/useSession';
 import WorkspacePage from '../../components/WorkspacePage';
@@ -35,6 +36,13 @@ interface SupporterDetail {
   registered_voter_status: string;
   registered_voter_location_note: string | null;
   registered_voter: boolean;
+  current_gec_match?: boolean;
+  turnout_status?: 'unknown' | 'not_yet_voted' | 'voted' | 'observed_elsewhere' | null;
+  turnout_source?: string | null;
+  turnout_note?: string | null;
+  turnout_updated_at?: string | null;
+  turnout_updated_by_user_id?: number | null;
+  turnout_updated_by_user_name?: string | null;
   wants_to_volunteer: boolean;
   needs_absentee_ballot_help: boolean;
   needs_homebound_voting_help: boolean;
@@ -469,6 +477,27 @@ function supportFollowUpStatusClass(status?: string | null) {
   if (status === 'in_progress') return 'bg-blue-100 text-blue-700';
   if (status === 'declined') return 'bg-red-100 text-red-700';
   return 'bg-gray-100 text-gray-600';
+}
+
+function turnoutStatusLabel(status?: SupporterDetail['turnout_status']) {
+  if (status === 'voted') return 'Voted';
+  if (status === 'observed_elsewhere') return 'Observed elsewhere';
+  if (status === 'not_yet_voted') return 'Not yet voted';
+  return 'Not set';
+}
+
+function turnoutStatusClass(status?: SupporterDetail['turnout_status']) {
+  if (status === 'voted') return 'bg-green-100 text-green-700';
+  if (status === 'observed_elsewhere') return 'bg-amber-100 text-amber-800';
+  if (status === 'not_yet_voted') return 'bg-yellow-100 text-yellow-800';
+  return 'bg-gray-100 text-gray-600';
+}
+
+function turnoutSourceLabel(source?: string | null) {
+  if (!source) return null;
+  if (source === 'poll_watcher') return 'Poll watcher';
+  if (source === 'admin') return 'Admin';
+  return source.replaceAll('_', ' ');
 }
 
 function supportDetailBackLabel(returnTo: string) {
@@ -1210,18 +1239,49 @@ export default function SupporterDetailPage() {
               </div>
             )}
             <div className="flex flex-wrap items-center gap-2">
-              <span className="text-sm text-[var(--text-secondary)]">GEC found registered voter:</span>
+              <span className="text-sm text-[var(--text-secondary)]">Current GEC match:</span>
               <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-semibold ${
-                supporter.registered_voter ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-800'
+                supporter.current_gec_match ? 'bg-green-100 text-green-700' : supporter.registered_voter ? 'bg-amber-100 text-amber-800' : 'bg-gray-100 text-gray-700'
               }`}>
-                {supporter.registered_voter ? 'Yes' : 'No'}
+                {gecMatchLabel(supporter)}
               </span>
+              {!supporter.current_gec_match && supporter.registered_voter && (
+                <span className={`text-sm ${gecMatchClass(supporter)}`}>Review still needed before this supporter is treated as linked to the election-day voter list.</span>
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-[var(--text-secondary)]">Registration follow-up:</span>
               <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-semibold ${registrationFollowUpStatusClass(supporter.registration_outreach_status)}`}>
                 {registrationFollowUpStatusLabel(supporter.registration_outreach_status)}
               </span>
+            </div>
+            <div>
+              <span className="text-sm text-[var(--text-secondary)]">Election-day turnout:</span>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className={`inline-block px-3 py-1.5 rounded-full text-sm font-semibold ${turnoutStatusClass(supporter.turnout_status)}`}>
+                  {turnoutStatusLabel(supporter.turnout_status)}
+                </span>
+                {supporter.turnout_source && (
+                  <span className="text-sm text-[var(--text-secondary)]">
+                    Source: {turnoutSourceLabel(supporter.turnout_source)}
+                  </span>
+                )}
+                {supporter.turnout_updated_at && (
+                  <span className="text-sm text-[var(--text-secondary)]">
+                    Updated {formatDateTime(supporter.turnout_updated_at)}
+                  </span>
+                )}
+                {supporter.turnout_updated_by_user_name && (
+                  <span className="text-sm text-[var(--text-secondary)]">
+                    Marked by {supporter.turnout_updated_by_user_name}
+                  </span>
+                )}
+              </div>
+              {supporter.turnout_note && (
+                <p className={`mt-2 text-sm ${supporter.turnout_status === 'observed_elsewhere' ? 'text-amber-800' : 'text-[var(--text-primary)]'}`}>
+                  {supporter.turnout_note}
+                </p>
+              )}
             </div>
             <div>
               <span className="text-sm text-[var(--text-secondary)]">Campaign requests:</span>

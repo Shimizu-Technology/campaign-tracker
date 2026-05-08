@@ -15,6 +15,7 @@ import {
   previewGecImportSkippedRowResolution,
   resolveGecImportSkippedRow,
   dismissGecImportSkippedRow,
+  activateGecElectionDayImport,
 } from '../../lib/api';
 import {
   Database,
@@ -184,6 +185,9 @@ interface ImportRecord {
     enqueued_at?: string;
     [key: string]: unknown;
   };
+  active_election_day?: boolean;
+  activated_for_election_at?: string | null;
+  activated_for_election_by_email?: string | null;
 }
 
 function createUploadRequestId() {
@@ -733,6 +737,22 @@ export default function TeamGecPage() {
     onError: (err: Error) => setErrorMessage(`Bulk vetting failed: ${err.message}`),
   });
 
+  const activateElectionDayMutation = useMutation({
+    mutationFn: (importId: number) => activateGecElectionDayImport(importId),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['gec-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['gec-imports'] });
+      setErrorMessage(null);
+      const activatedImport = data?.import as ImportRecord | undefined;
+      setSuccessMessage(
+        activatedImport
+          ? `Election-day GEC list set to import #${activatedImport.id} from ${formatCampaignDate(activatedImport.gec_list_date)}.`
+          : 'Election-day GEC list updated.'
+      );
+    },
+    onError: (err: Error) => setErrorMessage(`Could not set election-day list: ${err.message}`),
+  });
+
   const openViewer = (imp: ImportRecord) => {
     const initialTab: ViewerTab = imp.has_import_artifact
       ? 'parsed'
@@ -787,7 +807,7 @@ export default function TeamGecPage() {
           <div className="animate-pulse h-20 bg-gray-100 rounded-lg" />
         ) : stats?.total_voters ? (
           <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-x-6 gap-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-8 gap-x-6 gap-y-4">
             <div className="min-w-0">
               <div className="text-2xl font-bold text-gray-900 whitespace-nowrap">{(stats.total_voters || 0).toLocaleString()}</div>
               <div className="text-xs text-gray-400">Active Voters</div>
@@ -801,6 +821,12 @@ export default function TeamGecPage() {
             <div className="min-w-0">
               <div className="text-2xl font-bold text-gray-900 whitespace-nowrap">{formatCampaignDate(stats.latest_list_date)}</div>
               <div className="text-xs text-gray-400">List Date</div>
+            </div>
+            <div className="min-w-0">
+              <div className={`text-2xl font-bold whitespace-nowrap ${stats.active_election_day_import ? 'text-green-700' : 'text-amber-600'}`}>
+                {stats.active_election_day_import ? formatCampaignDate(stats.election_day_list_date) : 'Fallback'}
+              </div>
+              <div className="text-xs text-gray-400">Election-Day List</div>
             </div>
             <div className="min-w-0">
               <div className={`text-2xl font-bold whitespace-nowrap ${stats.removed_voters > 0 ? 'text-red-600' : 'text-gray-900'}`}>
@@ -830,6 +856,19 @@ export default function TeamGecPage() {
 
           {/* Last import change summary */}
           <ChangeSummary summary={stats.last_change_summary} />
+          {stats.active_election_day_import ? (
+            <div className="mt-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800">
+              Election-day voter list is explicitly set to import #{stats.active_election_day_import.id}
+              {stats.active_election_day_import.activated_for_election_at
+                ? `, activated ${formatCampaignDateTime(stats.active_election_day_import.activated_for_election_at)}`
+                : ''}
+              .
+            </div>
+          ) : (
+            <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              No completed import is explicitly set for election day. Poll watcher and war room tools are using the latest active GEC list date until an import is activated.
+            </div>
+          )}
           <div className="mt-2 text-xs text-gray-500">
             `Current Removed GEC Voters` and `Unassigned GEC Voters` show the current live totals. `Last Import Changes` below shows what changed during the latest import only.
           </div>
@@ -1218,6 +1257,8 @@ export default function TeamGecPage() {
                             rowErrorDetails={rowErrorDetails}
                             errorMsg={errorMsg}
                             onOpenViewer={openViewer}
+                            onActivateElectionDay={(importId) => activateElectionDayMutation.mutate(importId)}
+                            activatingElectionDay={activateElectionDayMutation.isPending}
                           />
                         </td>
                       </tr>
@@ -1288,7 +1329,18 @@ export default function TeamGecPage() {
   );
 }
 
-function ImportDetailPanel({ imp, matchedUnchanged, skipped, unassigned, errors, rowErrorDetails, errorMsg, onOpenViewer }: {
+function ImportDetailPanel({
+  imp,
+  matchedUnchanged,
+  skipped,
+  unassigned,
+  errors,
+  rowErrorDetails,
+  errorMsg,
+  onOpenViewer,
+  onActivateElectionDay,
+  activatingElectionDay,
+}: {
   imp: ImportRecord;
   matchedUnchanged: number;
   skipped: number;
@@ -1297,6 +1349,8 @@ function ImportDetailPanel({ imp, matchedUnchanged, skipped, unassigned, errors,
   rowErrorDetails?: ImportRecord['metadata']['row_error_details'];
   errorMsg?: string;
   onOpenViewer: (imp: ImportRecord) => void;
+  onActivateElectionDay: (importId: number) => void;
+  activatingElectionDay: boolean;
 }) {
   return (
     <div className="px-6 py-4 bg-gray-50 border-t border-gray-100">
@@ -1341,6 +1395,12 @@ function ImportDetailPanel({ imp, matchedUnchanged, skipped, unassigned, errors,
         <div className="space-y-1.5">
           <div className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Additional</div>
           <div className="text-xs text-amber-700">Ambiguous DOBs: <strong>{imp.ambiguous_dob_count || 0}</strong></div>
+          {imp.active_election_day && (
+            <div className="text-xs text-green-700">
+              Active election-day list
+              {imp.activated_for_election_at ? ` since ${formatCampaignDateTime(imp.activated_for_election_at)}` : ''}
+            </div>
+          )}
           {skipped > 0 && <div className="text-xs text-gray-600">Skipped rows: <strong>{skipped}</strong></div>}
           {(imp.pending_skipped_rows_count || 0) > 0 && <div className="text-xs text-amber-700">Pending skipped-row review: <strong>{imp.pending_skipped_rows_count}</strong></div>}
           {imp.metadata?.review_required && <div className="text-xs text-amber-700">Review required: this import has unresolved rows that need staff attention.</div>}
@@ -1357,6 +1417,26 @@ function ImportDetailPanel({ imp, matchedUnchanged, skipped, unassigned, errors,
               >
                 <FileSearch className="w-3.5 h-3.5" />
                 {skipped > 0 ? 'Open Import & Review Skipped Rows' : 'Open Import'}
+              </button>
+            </div>
+          )}
+          {imp.status === 'completed' && (
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onActivateElectionDay(imp.id);
+                }}
+                disabled={Boolean(imp.active_election_day) || activatingElectionDay}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border rounded-lg transition-colors ${
+                  imp.active_election_day
+                    ? 'text-green-700 bg-green-50 border-green-200'
+                    : 'text-gray-700 bg-white border-gray-200 hover:bg-gray-50 disabled:opacity-60'
+                }`}
+              >
+                {activatingElectionDay ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Calendar className="w-3.5 h-3.5" />}
+                {imp.active_election_day ? 'Election-Day List' : 'Use For Election Day'}
               </button>
             </div>
           )}

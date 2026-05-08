@@ -118,6 +118,8 @@ export const sendEventEmail = (eventId: number, data: { subject: string; body: s
 
 // War Room
 export const getWarRoom = () => api.get('/war_room').then(r => r.data);
+export const createWarRoomContactAttempt = (supporterId: number, data: JsonRecord) =>
+  api.post(`/war_room/supporters/${supporterId}/contact_attempts`, { contact_attempt: data }).then(r => r.data);
 
 // Poll Watcher
 export const getPollWatcher = () => api.get('/poll_watcher').then(r => r.data);
@@ -125,10 +127,8 @@ export const submitPollReport = (data: JsonRecord) => api.post('/poll_watcher/re
 export const getPrecinctHistory = (id: number) => api.get(`/poll_watcher/precinct/${id}/history`).then(r => r.data);
 export const getPollWatcherStrikeList = (params: QueryParams) =>
   api.get('/poll_watcher/strike_list', { params }).then(r => r.data);
-export const updateStrikeListTurnout = (supporterId: number, data: JsonRecord) =>
-  api.patch(`/poll_watcher/strike_list/${supporterId}/turnout`, { turnout: data }).then(r => r.data);
-export const createStrikeListContactAttempt = (supporterId: number, data: JsonRecord) =>
-  api.post(`/poll_watcher/strike_list/${supporterId}/contact_attempts`, { contact_attempt: data }).then(r => r.data);
+export const updateStrikeListTurnout = (voterId: number, data: JsonRecord) =>
+  api.patch(`/poll_watcher/strike_list/${voterId}/turnout`, { turnout: data }).then(r => r.data);
 
 // Form Scanner (OCR)
 export const scanForm = (image: string) =>
@@ -273,6 +273,8 @@ export const previewGecList = (file: File, sheetName?: string, previewRequestId?
 export const getGecPdfPreviewStatus = (previewRequestId: string) =>
   api.get('/gec_voters/preview_status', { params: { preview_request_id: previewRequestId } }).then(r => r.data);
 export const bulkVetSupporters = (params?: QueryParams) => api.post('/gec_voters/bulk_vet', params).then(r => r.data);
+export const activateGecElectionDayImport = (importId: number) =>
+  api.post(`/gec_voters/imports/${importId}/activate_election_day`).then(r => r.data);
 export const downloadGecImportFile = (importId: number) =>
   api.get<{ download_url: string; filename: string }>(`/gec_voters/imports/${importId}/download`).then(r => {
     const { download_url, filename } = r.data;

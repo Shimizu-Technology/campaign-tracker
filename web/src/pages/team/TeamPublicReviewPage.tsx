@@ -4,6 +4,7 @@ import { getPublicReview, getVillages, acceptToQuota, rejectPublicReview } from 
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { captureAnalyticsEvent } from '../../lib/analytics';
 import { formatDateTime } from '../../lib/datetime';
+import { gecMatchLabel, gecMatchState } from '../../lib/gecMatch';
 import {
   UserCheck,
   UserPlus,
@@ -50,6 +51,17 @@ function supporterRequestBadges(supporter: Record<string, unknown>) {
   if (supporter.needs_election_day_ride) badges.push('Ride');
   if (supporter.wants_to_volunteer) badges.push('Volunteer');
   return badges;
+}
+
+function gecFoundDisplay(supporter: Record<string, unknown>) {
+  const state = gecMatchState({
+    current_gec_match: supporter.current_gec_match as boolean | undefined,
+    registered_voter: supporter.registered_voter as boolean | undefined,
+  });
+
+  if (state === 'matched') return <CheckCircle className="w-4 h-4 text-green-500" />;
+  if (state === 'possible') return <span className="text-xs font-medium text-amber-700">{gecMatchLabel(supporter as { current_gec_match?: boolean; registered_voter?: boolean })}</span>;
+  return <span className="text-xs text-red-500">No match</span>;
 }
 
 export default function TeamPublicReviewPage() {
@@ -236,7 +248,7 @@ export default function TeamPublicReviewPage() {
                 <th className="text-left py-3 px-4 text-xs font-semibold text-gray-400 uppercase">Origin</th>
                 <th className="text-left py-3 px-4 text-xs font-semibold text-gray-400 uppercase">Date</th>
                 <th className="text-left py-3 px-4 text-xs font-semibold text-gray-400 uppercase">Self-Reported</th>
-                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-400 uppercase">GEC Found</th>
+                <th className="text-left py-3 px-4 text-xs font-semibold text-gray-400 uppercase">GEC Match</th>
                 <th className="text-left py-3 px-4 text-xs font-semibold text-gray-400 uppercase">Requests</th>
                 <th className="text-right py-3 px-4 text-xs font-semibold text-gray-400 uppercase">{isPendingBucket ? 'Review' : 'Status'}</th>
               </tr>
@@ -275,11 +287,7 @@ export default function TeamPublicReviewPage() {
                     </span>
                   </td>
                   <td className="py-3 px-4">
-                    {s.registered_voter ? (
-                      <CheckCircle className="w-4 h-4 text-green-500" />
-                    ) : (
-                      <span className="text-xs text-red-500">No</span>
-                    )}
+                    {gecFoundDisplay(s)}
                   </td>
                   <td className="py-3 px-4">
                     <div className="flex flex-wrap gap-1">

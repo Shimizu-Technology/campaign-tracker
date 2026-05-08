@@ -37,6 +37,7 @@ interface DashboardSummary {
   total_supporters: number;
   total_registered_voters: number;
   total_villages: number;
+  observed_elsewhere_count?: number;
 }
 
 interface DashboardPayload {
@@ -203,6 +204,13 @@ export default function DashboardPage() {
           detail="Official supporters matched to the voter list"
         />
       </div>
+
+      {Number(summary.observed_elsewhere_count ?? 0) > 0 && (permissions?.can_access_war_room || permissions?.can_access_poll_watcher) && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          {Number(summary.observed_elsewhere_count).toLocaleString()} supporter turnout exception{Number(summary.observed_elsewhere_count) === 1 ? '' : 's'} are marked observed elsewhere.
+          Review War Room or supporter detail before treating them as clean in-precinct turnout.
+        </div>
+      )}
 
       {period && (
         <div className={`rounded-xl border p-5 ${period.overdue ? 'bg-red-50 border-red-200' : period.due_soon ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-200'}`}>

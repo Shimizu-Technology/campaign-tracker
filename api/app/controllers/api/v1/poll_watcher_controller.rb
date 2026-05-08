@@ -51,6 +51,7 @@ module Api
         total_registered = accessible_precincts.sum { |p| p.registered_voters || 0 }
 
         render json: {
+          election_day: election_day_payload,
           villages: villages,
           stats: {
             total_precincts: total_precincts,
@@ -114,6 +115,7 @@ module Api
 
         render json: {
           compliance_note: campaign_operations_compliance_note,
+          election_day: election_day_payload,
           precinct: {
             id: precinct.id,
             number: precinct.number,
@@ -137,33 +139,31 @@ module Api
         precinct = resolve_accessible_precinct_from_params
         return unless precinct
 
-        supporters = supporters_scope_for_precinct(precinct.id)
-        supporters = supporters.where(turnout_status: params[:turnout_status]) if params[:turnout_status].present?
+        voters = gec_voters_scope_for_precinct(precinct.id)
+        voters = voters.where(turnout_status: params[:turnout_status]) if params[:turnout_status].present?
 
-        if params[:search].present?
-          query = "%#{params[:search].to_s.downcase.strip}%"
-          supporters = supporters.where(
-            "LOWER(print_name) LIKE :q OR LOWER(first_name) LIKE :q OR LOWER(last_name) LIKE :q OR regexp_replace(contact_number, '\\D', '', 'g') LIKE :q",
-            q: query
-          )
-        end
+        voters = apply_strike_list_search(voters, params[:search]) if params[:search].present?
+        external_matches = external_strike_list_matches(precinct, params[:search], params[:turnout_status])
 
         page = [ params[:page].to_i, 1 ].max
         per_page = params[:per_page].to_i
         per_page = 25 if per_page <= 0
         per_page = [ per_page, 100 ].min
-        total = supporters.count
-        supporters = supporters.offset((page - 1) * per_page).limit(per_page)
+        total = voters.count
+        voters = voters.offset((page - 1) * per_page).limit(per_page).to_a
+        overlays = supporter_overlays_for_voter_ids(voters.map(&:id) + external_matches.map(&:id))
 
         render json: {
           compliance_note: campaign_operations_compliance_note,
+          election_day: election_day_payload,
           precinct: {
             id: precinct.id,
             number: precinct.number,
             village_id: precinct.village_id,
             village_name: precinct.village.name
           },
-          supporters: supporters.map { |supporter| strike_list_supporter_payload(supporter) },
+          voters: voters.map { |voter| strike_list_voter_payload(voter, overlays[voter.id] || []) },
+          external_matches: external_matches.map { |voter| strike_list_voter_payload(voter, overlays[voter.id] || [], observation_precinct: precinct) },
           pagination: {
             page: page,
             per_page: per_page,
@@ -173,65 +173,41 @@ module Api
         }
       end
 
-      # PATCH /api/v1/poll_watcher/strike_list/:supporter_id/turnout
+      # PATCH /api/v1/poll_watcher/strike_list/:voter_id/turnout
       def update_turnout
-        supporter = find_accessible_supporter!(params[:supporter_id], turnout_update_params[:precinct_id])
-        return unless supporter
+        precinct = resolve_accessible_precinct_for_turnout!
+        return unless precinct
 
-        original_turnout_status = supporter.turnout_status
-        supporter.assign_attributes(
-          turnout_status: turnout_update_params[:turnout_status],
-          turnout_note: turnout_update_params[:note],
-          turnout_updated_at: Time.current,
-          turnout_updated_by_user: current_user,
-          turnout_source: turnout_source_for_current_user
+        voter = find_accessible_gec_voter!(
+          params[:voter_id],
+          precinct,
+          turnout_update_params[:turnout_status]
         )
+        return unless voter
 
-        if supporter.save
-          changed_data = supporter.saved_changes.slice("turnout_status", "turnout_note", "turnout_updated_at", "turnout_updated_by_user_id", "turnout_source")
-          log_turnout_audit!(supporter, precinct_id: supporter.precinct_id, changed_data: changed_data)
+        original_turnout_status = voter.turnout_status
+        result = GecVoterTurnoutService.new(
+          gec_voter: voter,
+          actor_user: current_user,
+          turnout_status: turnout_update_params[:turnout_status],
+          note: turnout_update_params[:note],
+          source: turnout_source_for_current_user,
+          observation_precinct: precinct
+        )
+          .call
+
+        if result.success?
+          overlays = supporter_overlays_for_voter_ids([ voter.id ])
           render json: {
-            message: "Supporter turnout status updated",
+            message: "Voter turnout status updated",
             compliance_note: campaign_operations_compliance_note,
-            supporter: strike_list_supporter_payload(supporter),
+            voter: strike_list_voter_payload(voter.reload, overlays[voter.id] || [], observation_precinct: precinct),
             changed: {
-              turnout_status: [ original_turnout_status, supporter.turnout_status ]
+              turnout_status: [ original_turnout_status, voter.turnout_status ]
             }
           }
         else
-          render json: { errors: supporter.errors.full_messages }, status: :unprocessable_entity
-        end
-      end
-
-      # POST /api/v1/poll_watcher/strike_list/:supporter_id/contact_attempts
-      def create_contact_attempt
-        supporter = find_accessible_supporter!(params[:supporter_id], contact_attempt_params[:precinct_id])
-        return unless supporter
-
-        attempt = supporter.supporter_contact_attempts.new(
-          outcome: contact_attempt_params[:outcome],
-          channel: contact_attempt_params[:channel],
-          note: contact_attempt_params[:note],
-          recorded_at: Time.current,
-          recorded_by_user: current_user
-        )
-
-        if attempt.save
-          log_contact_attempt_audit!(attempt, supporter: supporter, precinct_id: supporter.precinct_id)
-          render json: {
-            message: "Contact attempt logged",
-            compliance_note: campaign_operations_compliance_note,
-            contact_attempt: {
-              id: attempt.id,
-              supporter_id: supporter.id,
-              outcome: attempt.outcome,
-              channel: attempt.channel,
-              note: attempt.note,
-              recorded_at: attempt.recorded_at.iso8601
-            }
-          }, status: :created
-        else
-          render json: { errors: attempt.errors.full_messages }, status: :unprocessable_entity
+          render json: { errors: result.errors }, status: :unprocessable_entity
         end
       end
 
@@ -245,8 +221,28 @@ module Api
         params.require(:turnout).permit(:precinct_id, :turnout_status, :note)
       end
 
-      def contact_attempt_params
-        params.require(:contact_attempt).permit(:precinct_id, :outcome, :channel, :note)
+      def resolve_accessible_precinct_for_turnout!
+        precinct_id = turnout_update_params[:precinct_id]
+        unless precinct_id.present?
+          render_api_error(
+            message: "precinct_id is required",
+            status: :unprocessable_entity,
+            code: "precinct_id_required"
+          )
+          return nil
+        end
+
+        precinct = precinct_scope_for_current_user.includes(:village).find_by(id: precinct_id)
+        if precinct.nil?
+          render_api_error(
+            message: "Not authorized for this precinct",
+            status: :forbidden,
+            code: "precinct_not_authorized"
+          )
+          return nil
+        end
+
+        precinct
       end
 
       def resolve_accessible_precinct_from_params
@@ -273,35 +269,69 @@ module Api
         precinct
       end
 
-      def supporters_scope_for_precinct(precinct_id)
-        Supporter
-          .includes(:village, :precinct, :supporter_contact_attempts)
-          .where(precinct_id: precinct_id, status: "active")
-          .order(:print_name)
+      def apply_strike_list_search(scope, raw_search)
+        terms = raw_search.to_s.downcase.strip.split(/\s+/).map(&:presence).compact.uniq.first(8)
+        return scope if terms.empty?
+
+        terms.reduce(scope) do |filtered_scope, term|
+          query = "%#{ActiveRecord::Base.sanitize_sql_like(term)}%"
+          filtered_scope.where(
+            <<~SQL.squish,
+              LOWER(COALESCE(first_name, '')) LIKE :q
+              OR LOWER(COALESCE(middle_name, '')) LIKE :q
+              OR LOWER(COALESCE(last_name, '')) LIKE :q
+              OR LOWER(COALESCE(address, '')) LIKE :q
+              OR LOWER(COALESCE(voter_registration_number, '')) LIKE :q
+              OR LOWER(TRIM(CONCAT_WS(' ', COALESCE(first_name, ''), COALESCE(middle_name, ''), COALESCE(last_name, '')))) LIKE :q
+              OR LOWER(TRIM(CONCAT_WS(' ', COALESCE(last_name, ''), COALESCE(first_name, ''), COALESCE(middle_name, '')))) LIKE :q
+              OR LOWER(TRIM(CONCAT(COALESCE(last_name, ''), ', ', COALESCE(first_name, ''), CASE WHEN COALESCE(middle_name, '') = '' THEN '' ELSE ' ' || COALESCE(middle_name, '') END))) LIKE :q
+            SQL
+            q: query
+          )
+        end
       end
 
-      def find_accessible_supporter!(supporter_id, precinct_id)
-        precinct = precinct_scope_for_current_user.find_by(id: precinct_id)
-        if precinct.nil?
-          render_api_error(
-            message: "Not authorized for this precinct",
-            status: :forbidden,
-            code: "precinct_not_authorized"
-          )
-          return nil
+      def gec_voters_scope_for_precinct(precinct_id)
+        GecVoter
+          .election_day_active
+          .where(precinct_id: precinct_id)
+          .order(:last_name, :first_name, :id)
+      end
+
+      def external_strike_list_matches(precinct, raw_search, turnout_status)
+        return [] if raw_search.to_s.strip.blank?
+
+        matches = GecVoter
+          .election_day_active
+          .where.not(precinct_id: precinct.id)
+        matches = matches.where(turnout_status: turnout_status) if turnout_status.present?
+        matches = apply_strike_list_search(matches, raw_search)
+        matches
+          .includes(:precinct, :village)
+          .order(:last_name, :first_name, :id)
+          .limit(10)
+          .to_a
+      end
+
+      def find_accessible_gec_voter!(voter_id, precinct, requested_turnout_status)
+        voter = GecVoter.election_day_active.find_by(id: voter_id)
+        if voter.nil?
+          return render_voter_not_found!(requested_turnout_status)
         end
 
-        supporter = supporters_scope_for_precinct(precinct.id).find_by(id: supporter_id)
-        if supporter.nil?
-          render_api_error(
-            message: "Supporter not found in this precinct",
-            status: :not_found,
-            code: "supporter_not_found"
-          )
-          return nil
-        end
+        return voter if voter.precinct_id == precinct.id
+        return voter if requested_turnout_status == "observed_elsewhere" || voter.turnout_status == "observed_elsewhere"
 
-        supporter
+        render_voter_not_found!(requested_turnout_status)
+      end
+
+      def render_voter_not_found!(requested_turnout_status)
+        render_api_error(
+          message: requested_turnout_status == "observed_elsewhere" ? "Voter not found in election-day voter list" : "Voter not found in this precinct",
+          status: :not_found,
+          code: "voter_not_found"
+        )
+        nil
       end
 
       def turnout_source_for_current_user
@@ -315,71 +345,41 @@ module Api
         "Campaign operations tracking only; not official election records."
       end
 
-      def log_turnout_audit!(supporter, precinct_id:, changed_data:)
-        return if changed_data.blank?
+      def supporter_overlays_for_voter_ids(voter_ids)
+        return {} if voter_ids.blank?
 
-        AuditLog.create!(
-          auditable: supporter,
-          actor_user: current_user,
-          action: "turnout_updated",
-          changed_data: normalized_changed_data(changed_data),
-          metadata: {
-            resource: "supporter_turnout",
-            precinct_id: precinct_id,
-            turnout_source: supporter.turnout_source,
-            compliance_context: "campaign_operations_not_official_record"
-          }
-        )
+        Supporter
+          .working_supporters
+          .where(gec_voter_id: voter_ids)
+          .order(:print_name)
+          .group_by(&:gec_voter_id)
       end
 
-      def log_contact_attempt_audit!(attempt, supporter:, precinct_id:)
-        AuditLog.create!(
-          auditable: attempt,
-          actor_user: current_user,
-          action: "created",
-          changed_data: normalized_changed_data(
-            outcome: [ nil, attempt.outcome ],
-            channel: [ nil, attempt.channel ],
-            note: [ nil, attempt.note ],
-            recorded_at: [ nil, attempt.recorded_at ],
-            supporter_id: [ nil, supporter.id ]
-          ),
-          metadata: {
-            resource: "supporter_contact_attempt",
-            precinct_id: precinct_id,
-            compliance_context: "campaign_operations_not_official_record"
-          }
-        )
-      end
+      def strike_list_voter_payload(voter, linked_supporters, observation_precinct: nil)
+        out_of_precinct = observation_precinct.present? && voter.precinct_id != observation_precinct.id
 
-      def normalized_changed_data(changed_data)
-        changed_data.each_with_object({}) do |(field, value), output|
-          if value.is_a?(Array) && value.length == 2
-            output[field] = { from: value[0], to: value[1] }
-          else
-            output[field] = { from: nil, to: value }
-          end
-        end
-      end
-
-      def strike_list_supporter_payload(supporter)
-        latest_attempt = supporter.supporter_contact_attempts.max_by(&:recorded_at)
         {
-          id: supporter.id,
-          first_name: supporter.first_name,
-          last_name: supporter.last_name,
-          print_name: supporter.print_name,
-          contact_number: supporter.contact_number,
-          precinct_id: supporter.precinct_id,
-          turnout_status: supporter.turnout_status,
-          turnout_source: supporter.turnout_source,
-          turnout_note: supporter.turnout_note,
-          turnout_updated_at: supporter.turnout_updated_at&.iso8601,
-          latest_contact_attempt: latest_attempt && {
-            outcome: latest_attempt.outcome,
-            channel: latest_attempt.channel,
-            recorded_at: latest_attempt.recorded_at.iso8601
-          }
+          id: voter.id,
+          first_name: voter.first_name,
+          middle_name: voter.middle_name,
+          last_name: voter.last_name,
+          print_name: NameParser.combine(
+            first_name: voter.first_name,
+            middle_name: voter.middle_name,
+            last_name: voter.last_name,
+            format: :last_comma_first
+          ),
+          voter_registration_number: voter.voter_registration_number,
+          address: voter.address,
+          precinct_id: voter.precinct_id,
+          precinct_number: voter.precinct_number || voter.precinct&.number,
+          village_name: voter.village_name || voter.village&.name,
+          out_of_precinct: out_of_precinct,
+          turnout_status: voter.turnout_status,
+          turnout_source: voter.turnout_source,
+          turnout_note: voter.turnout_note,
+          turnout_updated_at: voter.turnout_updated_at&.iso8601,
+          supporter_overlay: linked_supporters.present? ? { supporter_count: linked_supporters.size } : nil
         }
       end
 
@@ -390,11 +390,31 @@ module Api
           scope
         elsif current_user.coordinator?
           current_user.assigned_district_id.present? ? scope.joins(:village).where(villages: { district_id: current_user.assigned_district_id }) : scope
-        elsif current_user.chief? || current_user.poll_watcher?
+        elsif current_user.poll_watcher?
+          assigned_precinct_ids = current_user.poll_watcher_precinct_assignments.select(:precinct_id)
+          if current_user.poll_watcher_precinct_assignments.exists?
+            scope.where(id: assigned_precinct_ids)
+          elsif current_user.assigned_village_id.present?
+            scope.where(village_id: current_user.assigned_village_id)
+          else
+            scope.none
+          end
+        elsif current_user.chief?
           current_user.assigned_village_id.present? ? scope.where(village_id: current_user.assigned_village_id) : scope.none
         else
           scope.none
         end
+      end
+
+      def election_day_payload
+        active_import = GecImport.active_election_day_import
+        {
+          list_date: GecVoter.election_day_list_date&.iso8601,
+          active_import_id: active_import&.id,
+          active_import_filename: active_import&.filename,
+          active_import_set_at: active_import&.activated_for_election_at&.iso8601,
+          active_import_explicit: active_import.present?
+        }
       end
     end
   end

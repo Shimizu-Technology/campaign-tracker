@@ -1222,6 +1222,7 @@ module Api
 
       def supporter_json(supporter, reason_payload: nil)
         reason_payload ||= SupporterVerificationReasonService.new(supporter).payload || {}
+        current_gec_match = supporter.gec_voter_id.present? || supporter.verification_status == "verified"
 
         {
           id: supporter.id,
@@ -1245,6 +1246,7 @@ module Api
           registered_voter_status: supporter.registered_voter_status,
           registered_voter_location_note: supporter.registered_voter_location_note,
           registered_voter: supporter.registered_voter,
+          current_gec_match: current_gec_match,
           wants_to_volunteer: supporter.wants_to_volunteer,
           needs_absentee_ballot_help: supporter.needs_absentee_ballot_help,
           needs_homebound_voting_help: supporter.needs_homebound_voting_help,
@@ -1292,11 +1294,17 @@ module Api
           support_follow_up_status: supporter.support_follow_up_status,
           support_follow_up_notes: supporter.support_follow_up_notes,
           support_follow_up_date: supporter.support_follow_up_date&.iso8601,
+          turnout_status: supporter.turnout_status,
+          turnout_source: supporter.turnout_source,
+          turnout_note: supporter.turnout_note,
+          turnout_updated_at: supporter.turnout_updated_at&.iso8601,
           created_at: supporter.created_at&.iso8601
         }
       end
 
       def outreach_json(supporter)
+        current_gec_match = supporter.gec_voter_id.present? || supporter.verification_status == "verified"
+
         {
           id: supporter.id,
           first_name: supporter.first_name,
@@ -1311,6 +1319,7 @@ module Api
           registered_voter_status: supporter.registered_voter_status,
           registered_voter_location_note: supporter.registered_voter_location_note,
           registered_voter: supporter.registered_voter,
+          current_gec_match: current_gec_match,
           wants_to_volunteer: supporter.wants_to_volunteer,
           needs_absentee_ballot_help: supporter.needs_absentee_ballot_help,
           needs_homebound_voting_help: supporter.needs_homebound_voting_help,
@@ -1332,6 +1341,10 @@ module Api
           support_follow_up_status: supporter.support_follow_up_status,
           support_follow_up_notes: supporter.support_follow_up_notes,
           support_follow_up_date: supporter.support_follow_up_date&.iso8601,
+          turnout_status: supporter.turnout_status,
+          turnout_source: supporter.turnout_source,
+          turnout_note: supporter.turnout_note,
+          turnout_updated_at: supporter.turnout_updated_at&.iso8601,
           status: supporter.status,
           created_at: supporter.created_at&.iso8601
         }
@@ -1341,6 +1354,8 @@ module Api
         reason_payload = SupporterVerificationReasonService.new(supporter, allow_match_lookup: true).payload || {}
 
         supporter_json(supporter, reason_payload: reason_payload).merge(
+          turnout_updated_by_user_id: supporter.turnout_updated_by_user_id,
+          turnout_updated_by_user_name: supporter.turnout_updated_by_user&.name,
           block_name: supporter.block&.name,
           household_members: supporter.household_members.map do |member|
             {
@@ -1641,12 +1656,20 @@ module Api
         attrs = { verification_status: new_status }
         if new_status == "verified"
           best_match = (match_payload || verification_match_payload(supporter))[:best_match]
+          gec_voter = best_match&.dig(:gec_voter)
           attrs.merge!(
+            gec_voter_id: gec_voter&.id,
+            precinct_id: gec_voter&.precinct_id || supporter.precinct_id,
             verified_by_user_id: current_user.id,
             verified_at: Time.current,
             verification_reason: "manual_staff_verified",
+            turnout_status: gec_voter&.turnout_status || supporter.turnout_status,
+            turnout_note: gec_voter&.turnout_note,
+            turnout_source: gec_voter&.turnout_source,
+            turnout_updated_at: gec_voter&.turnout_updated_at,
+            turnout_updated_by_user_id: gec_voter&.turnout_updated_by_user_id,
             verification_reason_metadata: {
-              "gec_village_name" => best_match&.dig(:gec_voter)&.village_name,
+              "gec_village_name" => gec_voter&.village_name,
               "confidence" => best_match&.dig(:confidence)&.to_s,
               "match_type" => best_match&.dig(:match_type)&.to_s,
               "match_count" => best_match&.dig(:match_count)
@@ -1655,6 +1678,7 @@ module Api
           )
         elsif new_status == "flagged"
           attrs.merge!(
+            gec_voter_id: nil,
             verified_by_user_id: nil,
             verified_at: nil,
             verification_reason: "manual_staff_flag",
@@ -1663,6 +1687,7 @@ module Api
           )
         else
           attrs.merge!(
+            gec_voter_id: nil,
             verified_by_user_id: nil,
             verified_at: nil,
             verification_reason: nil,
@@ -1724,6 +1749,11 @@ module Api
           scope.left_joins(:village).reorder(Arel.sql("villages.name #{sort_dir_sql}"), created_at: :desc)
         when "precinct_number"
           scope.left_joins(:precinct).reorder(Arel.sql("precincts.number #{sort_dir_sql}"), created_at: :desc)
+        when "registered_voter"
+          scope.reorder(
+            Arel.sql("(CASE WHEN supporters.gec_voter_id IS NOT NULL OR supporters.verification_status = 'verified' THEN 2 WHEN supporters.registered_voter THEN 1 ELSE 0 END) #{sort_dir_sql}"),
+            created_at: :desc
+          )
         else
           scope.reorder(sort_by => sort_dir)
         end
