@@ -98,11 +98,17 @@ class AddFullVoterTurnoutFoundation < ActiveRecord::Migration[8.1]
     MigrationSupporter.where(id: latest_supporter_ids).find_each do |supporter|
       MigrationGecVoter.where(id: supporter.gec_voter_id).update_all(
         turnout_status: supporter.turnout_status,
-        turnout_source: supporter.turnout_source,
+        turnout_source: normalized_gec_turnout_source(supporter.turnout_source),
         turnout_note: supporter.turnout_note,
         turnout_updated_at: supporter.turnout_updated_at,
         turnout_updated_by_user_id: supporter.turnout_updated_by_user_id
       )
     end
+  end
+
+  def normalized_gec_turnout_source(source)
+    return nil unless %w[poll_watcher data_team admin_override].include?(source)
+
+    source
   end
 end
