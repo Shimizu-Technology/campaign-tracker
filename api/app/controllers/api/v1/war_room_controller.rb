@@ -39,23 +39,18 @@ module Api
 
         supporter_counts_by_village = supporter_scope.group(:village_id).count
         motorcade_counts_by_village = supporter_scope.where(motorcade_available: true).group(:village_id).count
-        not_yet_voted_counts_by_village = GecVoter
-          .election_day_active
-          .where(precinct_id: accessible_precinct_ids)
-          .not_yet_voted
-          .joins(:supporters)
-          .merge(linked_supporter_scope)
-          .group("supporters.village_id")
+        not_yet_voted_counts_by_village = linked_supporter_scope
+          .joins(:gec_voter)
+          .merge(GecVoter.election_day_active.where(precinct_id: accessible_precinct_ids).not_yet_voted)
+          .group(:village_id)
           .distinct
-          .count("supporters.id")
-        observed_elsewhere_counts_by_village = GecVoter
-          .election_day_active
-          .observed_elsewhere
-          .joins(:supporters)
-          .merge(linked_supporter_scope)
-          .group("supporters.village_id")
+          .count(:id)
+        observed_elsewhere_counts_by_village = linked_supporter_scope
+          .joins(:gec_voter)
+          .merge(GecVoter.election_day_active.observed_elsewhere)
+          .group(:village_id)
           .distinct
-          .count("supporters.id")
+          .count(:id)
         outreach_attempted_counts_by_village = SupporterContactAttempt
           .joins(:supporter)
           .merge(linked_supporter_scope)
