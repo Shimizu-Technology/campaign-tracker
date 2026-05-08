@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_03_27_120000) do
+ActiveRecord::Schema[8.1].define(version: 2026_04_26_000300) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -35,6 +35,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_27_120000) do
     t.datetime "updated_at", null: false
     t.bigint "village_id", null: false
     t.index ["village_id"], name: "index_blocks_on_village_id"
+  end
+
+  create_table "cable_token_nonces", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.datetime "expires_at", null: false
+    t.string "nonce", null: false
+    t.datetime "updated_at", null: false
+    t.datetime "used_at"
+    t.bigint "user_id", null: false
+    t.index ["expires_at"], name: "index_cable_token_nonces_on_expires_at"
+    t.index ["nonce"], name: "index_cable_token_nonces_on_nonce", unique: true
+    t.index ["user_id"], name: "index_cable_token_nonces_on_user_id"
   end
 
   create_table "campaign_cycles", force: :cascade do |t|
@@ -78,81 +90,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_27_120000) do
     t.index ["status"], name: "index_campaigns_on_status"
   end
 
-  create_table "companies", force: :cascade do |t|
-    t.boolean "active", default: true
-    t.string "address_line1"
-    t.string "address_line2"
-    t.string "city"
-    t.datetime "created_at", null: false
-    t.string "ein"
-    t.string "email"
-    t.string "name", null: false
-    t.string "pay_frequency", default: "biweekly"
-    t.string "phone"
-    t.string "state"
-    t.datetime "updated_at", null: false
-    t.string "zip"
-    t.index ["ein"], name: "index_companies_on_ein", unique: true
-    t.index ["name"], name: "index_companies_on_name"
-  end
-
-  create_table "company_ytd_totals", force: :cascade do |t|
-    t.integer "active_employees", default: 0
-    t.bigint "company_id", null: false
-    t.datetime "created_at", null: false
-    t.decimal "employer_medicare", precision: 16, scale: 2, default: "0.0"
-    t.decimal "employer_social_security", precision: 16, scale: 2, default: "0.0"
-    t.decimal "gross_pay", precision: 16, scale: 2, default: "0.0"
-    t.decimal "medicare_tax", precision: 16, scale: 2, default: "0.0"
-    t.decimal "net_pay", precision: 16, scale: 2, default: "0.0"
-    t.decimal "social_security_tax", precision: 16, scale: 2, default: "0.0"
-    t.integer "total_employees", default: 0
-    t.datetime "updated_at", null: false
-    t.decimal "withholding_tax", precision: 16, scale: 2, default: "0.0"
-    t.integer "year", null: false
-    t.index ["company_id", "year"], name: "index_company_ytd_totals_on_company_id_and_year", unique: true
-    t.index ["company_id"], name: "index_company_ytd_totals_on_company_id"
-  end
-
-  create_table "deduction_types", force: :cascade do |t|
-    t.boolean "active", default: true
-    t.string "category", null: false
-    t.bigint "company_id", null: false
-    t.datetime "created_at", null: false
-    t.decimal "default_amount", precision: 10, scale: 2
-    t.boolean "is_percentage", default: false
-    t.string "name", null: false
-    t.datetime "updated_at", null: false
-    t.index ["category"], name: "index_deduction_types_on_category"
-    t.index ["company_id", "name"], name: "index_deduction_types_on_company_id_and_name", unique: true
-    t.index ["company_id"], name: "index_deduction_types_on_company_id"
-  end
-
-  create_table "department_ytd_totals", force: :cascade do |t|
-    t.datetime "created_at", null: false
-    t.bigint "department_id", null: false
-    t.decimal "gross_pay", precision: 16, scale: 2, default: "0.0"
-    t.decimal "medicare_tax", precision: 16, scale: 2, default: "0.0"
-    t.decimal "net_pay", precision: 16, scale: 2, default: "0.0"
-    t.decimal "social_security_tax", precision: 16, scale: 2, default: "0.0"
-    t.integer "total_employees", default: 0
-    t.datetime "updated_at", null: false
-    t.decimal "withholding_tax", precision: 16, scale: 2, default: "0.0"
-    t.integer "year", null: false
-    t.index ["department_id", "year"], name: "index_department_ytd_totals_on_department_id_and_year", unique: true
-    t.index ["department_id"], name: "index_department_ytd_totals_on_department_id"
-  end
-
-  create_table "departments", force: :cascade do |t|
-    t.boolean "active", default: true
-    t.bigint "company_id", null: false
-    t.datetime "created_at", null: false
-    t.string "name", null: false
-    t.datetime "updated_at", null: false
-    t.index ["company_id", "name"], name: "index_departments_on_company_id_and_name", unique: true
-    t.index ["company_id"], name: "index_departments_on_company_id"
-  end
-
   create_table "districts", force: :cascade do |t|
     t.bigint "campaign_id", null: false
     t.integer "coordinator_id"
@@ -162,77 +99,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_27_120000) do
     t.integer "number"
     t.datetime "updated_at", null: false
     t.index ["campaign_id"], name: "index_districts_on_campaign_id"
-  end
-
-  create_table "employee_deductions", force: :cascade do |t|
-    t.boolean "active", default: true
-    t.decimal "amount", precision: 10, scale: 2, null: false
-    t.datetime "created_at", null: false
-    t.bigint "deduction_type_id", null: false
-    t.bigint "employee_id", null: false
-    t.boolean "is_percentage", default: false
-    t.datetime "updated_at", null: false
-    t.index ["deduction_type_id"], name: "index_employee_deductions_on_deduction_type_id"
-    t.index ["employee_id", "deduction_type_id"], name: "idx_employee_deductions_unique", unique: true
-    t.index ["employee_id"], name: "index_employee_deductions_on_employee_id"
-  end
-
-  create_table "employee_ytd_totals", force: :cascade do |t|
-    t.decimal "bonus", precision: 14, scale: 2, default: "0.0"
-    t.datetime "created_at", null: false
-    t.bigint "employee_id", null: false
-    t.decimal "gross_pay", precision: 14, scale: 2, default: "0.0"
-    t.decimal "insurance", precision: 14, scale: 2, default: "0.0"
-    t.decimal "loans", precision: 14, scale: 2, default: "0.0"
-    t.decimal "medicare_tax", precision: 14, scale: 2, default: "0.0"
-    t.decimal "net_pay", precision: 14, scale: 2, default: "0.0"
-    t.decimal "overtime_pay", precision: 14, scale: 2, default: "0.0"
-    t.decimal "retirement", precision: 14, scale: 2, default: "0.0"
-    t.decimal "roth_retirement", precision: 14, scale: 2, default: "0.0"
-    t.decimal "social_security_tax", precision: 14, scale: 2, default: "0.0"
-    t.decimal "tips", precision: 14, scale: 2, default: "0.0"
-    t.datetime "updated_at", null: false
-    t.decimal "withholding_tax", precision: 14, scale: 2, default: "0.0"
-    t.integer "year", null: false
-    t.index ["employee_id", "year"], name: "index_employee_ytd_totals_on_employee_id_and_year", unique: true
-    t.index ["employee_id"], name: "index_employee_ytd_totals_on_employee_id"
-  end
-
-  create_table "employees", force: :cascade do |t|
-    t.decimal "additional_withholding", precision: 10, scale: 2, default: "0.0"
-    t.string "address_line1"
-    t.string "address_line2"
-    t.integer "allowances", default: 0
-    t.string "bank_account_number_encrypted"
-    t.string "bank_routing_number_encrypted"
-    t.string "city"
-    t.bigint "company_id", null: false
-    t.datetime "created_at", null: false
-    t.date "date_of_birth"
-    t.bigint "department_id"
-    t.string "email"
-    t.string "employment_type", default: "hourly", null: false
-    t.string "filing_status", default: "single"
-    t.string "first_name", null: false
-    t.date "hire_date"
-    t.string "last_name", null: false
-    t.string "middle_name"
-    t.string "pay_frequency", default: "biweekly"
-    t.decimal "pay_rate", precision: 10, scale: 2, null: false
-    t.string "phone"
-    t.decimal "retirement_rate", precision: 5, scale: 4, default: "0.0"
-    t.decimal "roth_retirement_rate", precision: 5, scale: 4, default: "0.0"
-    t.string "ssn_encrypted"
-    t.string "state"
-    t.string "status", default: "active"
-    t.date "termination_date"
-    t.datetime "updated_at", null: false
-    t.string "zip"
-    t.index ["company_id", "last_name", "first_name"], name: "index_employees_on_company_id_and_last_name_and_first_name"
-    t.index ["company_id"], name: "index_employees_on_company_id"
-    t.index ["department_id"], name: "index_employees_on_department_id"
-    t.index ["employment_type"], name: "index_employees_on_employment_type"
-    t.index ["status"], name: "index_employees_on_status"
   end
 
   create_table "event_rsvps", force: :cascade do |t|
@@ -331,6 +197,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_27_120000) do
   end
 
   create_table "gec_imports", force: :cascade do |t|
+    t.datetime "activated_for_election_at"
+    t.bigint "activated_for_election_by_user_id"
+    t.boolean "active_election_day", default: false, null: false
     t.integer "ambiguous_dob_count", default: 0, null: false
     t.datetime "created_at", null: false
     t.string "filename", null: false
@@ -352,6 +221,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_27_120000) do
     t.datetime "updated_at", null: false
     t.integer "updated_records", default: 0, null: false
     t.bigint "uploaded_by_user_id"
+    t.index ["active_election_day"], name: "index_gec_imports_on_active_election_day", unique: true, where: "active_election_day"
     t.index ["gec_list_date"], name: "index_gec_imports_on_gec_list_date"
     t.index ["uploaded_by_user_id"], name: "index_gec_imports_on_uploaded_by_user_id"
   end
@@ -391,6 +261,11 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_27_120000) do
     t.bigint "removal_detected_by_import_id"
     t.datetime "removed_at"
     t.string "status", default: "active", null: false
+    t.text "turnout_note"
+    t.string "turnout_source"
+    t.string "turnout_status", default: "not_yet_voted", null: false
+    t.datetime "turnout_updated_at"
+    t.bigint "turnout_updated_by_user_id"
     t.datetime "updated_at", null: false
     t.bigint "village_id"
     t.string "village_name", null: false
@@ -404,6 +279,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_27_120000) do
     t.index ["precinct_id"], name: "index_gec_voters_on_precinct_id"
     t.index ["removed_at"], name: "index_gec_voters_on_removed_at", where: "(removed_at IS NOT NULL)"
     t.index ["status"], name: "index_gec_voters_on_status"
+    t.index ["turnout_status"], name: "index_gec_voters_on_turnout_status"
     t.index ["village_id", "last_name"], name: "index_gec_voters_on_village_and_last_name"
     t.index ["village_id", "precinct_number"], name: "index_gec_voters_on_village_id_and_precinct_number"
     t.index ["village_id"], name: "index_gec_voters_on_village_id"
@@ -422,66 +298,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_27_120000) do
     t.index ["village_id"], name: "index_household_groups_on_village_id"
   end
 
-  create_table "pay_periods", force: :cascade do |t|
-    t.bigint "approved_by_id"
-    t.datetime "committed_at"
-    t.bigint "company_id", null: false
-    t.datetime "created_at", null: false
-    t.bigint "created_by_id"
-    t.date "end_date", null: false
-    t.text "notes"
-    t.date "pay_date", null: false
-    t.date "start_date", null: false
-    t.string "status", default: "draft"
-    t.datetime "updated_at", null: false
-    t.index ["company_id", "end_date"], name: "index_pay_periods_on_company_id_and_end_date"
-    t.index ["company_id", "start_date"], name: "index_pay_periods_on_company_id_and_start_date"
-    t.index ["company_id", "status"], name: "index_pay_periods_on_company_id_and_status"
-    t.index ["company_id"], name: "index_pay_periods_on_company_id"
-    t.index ["status"], name: "index_pay_periods_on_status"
-  end
-
-  create_table "payroll_items", force: :cascade do |t|
-    t.decimal "additional_withholding", precision: 10, scale: 2, default: "0.0"
-    t.decimal "bonus", precision: 10, scale: 2, default: "0.0"
-    t.string "check_number"
-    t.datetime "check_printed_at"
-    t.datetime "created_at", null: false
-    t.jsonb "custom_columns_data", default: {}
-    t.bigint "employee_id", null: false
-    t.string "employment_type", null: false
-    t.decimal "gross_pay", precision: 12, scale: 2, default: "0.0"
-    t.decimal "holiday_hours", precision: 8, scale: 2, default: "0.0"
-    t.decimal "hours_worked", precision: 8, scale: 2, default: "0.0"
-    t.decimal "insurance_payment", precision: 10, scale: 2, default: "0.0"
-    t.decimal "loan_payment", precision: 10, scale: 2, default: "0.0"
-    t.decimal "medicare_tax", precision: 10, scale: 2, default: "0.0"
-    t.decimal "net_pay", precision: 12, scale: 2, default: "0.0"
-    t.decimal "overtime_hours", precision: 8, scale: 2, default: "0.0"
-    t.bigint "pay_period_id", null: false
-    t.decimal "pay_rate", precision: 10, scale: 2, null: false
-    t.decimal "pto_hours", precision: 8, scale: 2, default: "0.0"
-    t.decimal "reported_tips", precision: 10, scale: 2, default: "0.0"
-    t.decimal "retirement_payment", precision: 10, scale: 2, default: "0.0"
-    t.decimal "roth_retirement_payment", precision: 10, scale: 2, default: "0.0"
-    t.decimal "social_security_tax", precision: 10, scale: 2, default: "0.0"
-    t.decimal "total_additions", precision: 12, scale: 2, default: "0.0"
-    t.decimal "total_deductions", precision: 12, scale: 2, default: "0.0"
-    t.datetime "updated_at", null: false
-    t.decimal "withholding_tax", precision: 10, scale: 2, default: "0.0"
-    t.decimal "ytd_gross", precision: 14, scale: 2, default: "0.0"
-    t.decimal "ytd_medicare_tax", precision: 14, scale: 2, default: "0.0"
-    t.decimal "ytd_net", precision: 14, scale: 2, default: "0.0"
-    t.decimal "ytd_retirement", precision: 14, scale: 2, default: "0.0"
-    t.decimal "ytd_roth_retirement", precision: 14, scale: 2, default: "0.0"
-    t.decimal "ytd_social_security_tax", precision: 14, scale: 2, default: "0.0"
-    t.decimal "ytd_withholding_tax", precision: 14, scale: 2, default: "0.0"
-    t.index ["check_number"], name: "index_payroll_items_on_check_number"
-    t.index ["employee_id"], name: "index_payroll_items_on_employee_id"
-    t.index ["pay_period_id", "employee_id"], name: "index_payroll_items_on_pay_period_id_and_employee_id", unique: true
-    t.index ["pay_period_id"], name: "index_payroll_items_on_pay_period_id"
-  end
-
   create_table "poll_reports", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.text "notes"
@@ -495,6 +311,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_27_120000) do
     t.index ["precinct_id"], name: "index_poll_reports_on_precinct_id"
     t.index ["reported_at"], name: "index_poll_reports_on_reported_at"
     t.index ["user_id"], name: "index_poll_reports_on_user_id"
+  end
+
+  create_table "poll_watcher_precinct_assignments", force: :cascade do |t|
+    t.datetime "assigned_at", null: false
+    t.bigint "assigned_by_user_id"
+    t.datetime "created_at", null: false
+    t.bigint "precinct_id", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["assigned_by_user_id"], name: "index_poll_watcher_precinct_assignments_on_assigned_by_user_id"
+    t.index ["precinct_id"], name: "index_poll_watcher_precinct_assignments_on_precinct_id"
+    t.index ["user_id", "precinct_id"], name: "index_poll_watcher_assignments_on_user_and_precinct", unique: true
+    t.index ["user_id"], name: "index_poll_watcher_precinct_assignments_on_user_id"
   end
 
   create_table "precincts", force: :cascade do |t|
@@ -733,6 +562,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_27_120000) do
     t.string "email"
     t.integer "entered_by_user_id"
     t.string "first_name"
+    t.bigint "gec_voter_id"
     t.bigint "household_group_id"
     t.boolean "household_primary", default: false, null: false
     t.string "intake_status", default: "accepted", null: false
@@ -797,6 +627,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_27_120000) do
     t.index ["created_at"], name: "index_supporters_on_created_at"
     t.index ["duplicate_of_id"], name: "index_supporters_on_duplicate_of_id"
     t.index ["entered_by_user_id"], name: "index_supporters_on_entered_by_user_id"
+    t.index ["gec_voter_id"], name: "index_supporters_on_gec_voter_id"
     t.index ["household_group_id"], name: "index_supporters_on_household_group_id"
     t.index ["intake_status"], name: "index_supporters_on_intake_status"
     t.index ["last_name", "first_name"], name: "index_supporters_on_last_name_and_first_name"
@@ -833,32 +664,21 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_27_120000) do
     t.index ["village_id"], name: "index_supporters_on_village_id"
   end
 
-  create_table "tax_tables", force: :cascade do |t|
-    t.decimal "additional_medicare_rate", precision: 6, scale: 5, default: "0.009"
-    t.decimal "additional_medicare_threshold", precision: 12, scale: 2, default: "200000.0"
-    t.decimal "allowance_amount", precision: 10, scale: 2
-    t.jsonb "bracket_data", default: [], null: false
-    t.datetime "created_at", null: false
-    t.string "filing_status", null: false
-    t.decimal "medicare_rate", precision: 6, scale: 5, default: "0.0145", null: false
-    t.string "pay_frequency", null: false
-    t.decimal "ss_rate", precision: 6, scale: 5, default: "0.062", null: false
-    t.decimal "ss_wage_base", precision: 12, scale: 2, null: false
-    t.integer "tax_year", null: false
-    t.datetime "updated_at", null: false
-    t.index ["tax_year", "filing_status", "pay_frequency"], name: "idx_tax_tables_year_status_frequency", unique: true
-  end
-
   create_table "users", force: :cascade do |t|
     t.integer "assigned_block_id"
     t.integer "assigned_district_id"
     t.integer "assigned_village_id"
-    t.string "clerk_id"
+    t.string "avatar_url"
+    t.string "clerk_id", null: false
     t.datetime "created_at", null: false
-    t.string "email"
+    t.string "email", null: false
+    t.string "first_name"
+    t.string "github_username"
+    t.string "last_name"
+    t.datetime "last_sign_in_at"
     t.string "name"
     t.string "phone"
-    t.string "role"
+    t.string "role", default: "block_leader", null: false
     t.datetime "updated_at", null: false
     t.index ["clerk_id"], name: "index_users_on_clerk_id", unique: true
     t.index ["email"], name: "index_users_on_email", unique: true
@@ -890,16 +710,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_27_120000) do
 
   add_foreign_key "audit_logs", "users", column: "actor_user_id"
   add_foreign_key "blocks", "villages"
-  add_foreign_key "company_ytd_totals", "companies"
-  add_foreign_key "deduction_types", "companies"
-  add_foreign_key "department_ytd_totals", "departments"
-  add_foreign_key "departments", "companies"
+  add_foreign_key "cable_token_nonces", "users"
   add_foreign_key "districts", "campaigns"
-  add_foreign_key "employee_deductions", "deduction_types"
-  add_foreign_key "employee_deductions", "employees"
-  add_foreign_key "employee_ytd_totals", "employees"
-  add_foreign_key "employees", "companies"
-  add_foreign_key "employees", "departments"
   add_foreign_key "event_rsvps", "events"
   add_foreign_key "event_rsvps", "supporters"
   add_foreign_key "events", "campaigns"
@@ -909,16 +721,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_27_120000) do
   add_foreign_key "gec_import_skipped_rows", "gec_voters", column: "resolved_gec_voter_id"
   add_foreign_key "gec_import_skipped_rows", "users", column: "resolved_by_user_id"
   add_foreign_key "gec_import_uploads", "gec_imports"
+  add_foreign_key "gec_imports", "users", column: "activated_for_election_by_user_id"
   add_foreign_key "gec_imports", "users", column: "uploaded_by_user_id"
   add_foreign_key "gec_pdf_previews", "users", column: "uploaded_by_user_id"
   add_foreign_key "gec_voters", "precincts"
+  add_foreign_key "gec_voters", "users", column: "turnout_updated_by_user_id"
   add_foreign_key "gec_voters", "villages"
   add_foreign_key "household_groups", "villages"
-  add_foreign_key "pay_periods", "companies"
-  add_foreign_key "payroll_items", "employees"
-  add_foreign_key "payroll_items", "pay_periods"
   add_foreign_key "poll_reports", "precincts"
   add_foreign_key "poll_reports", "users"
+  add_foreign_key "poll_watcher_precinct_assignments", "precincts"
+  add_foreign_key "poll_watcher_precinct_assignments", "users"
+  add_foreign_key "poll_watcher_precinct_assignments", "users", column: "assigned_by_user_id"
   add_foreign_key "precincts", "villages"
   add_foreign_key "quota_periods", "campaign_cycles"
   add_foreign_key "quotas", "campaigns"
@@ -937,6 +751,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_03_27_120000) do
   add_foreign_key "supporter_contact_attempts", "supporters"
   add_foreign_key "supporter_contact_attempts", "users", column: "recorded_by_user_id"
   add_foreign_key "supporters", "blocks"
+  add_foreign_key "supporters", "gec_voters"
   add_foreign_key "supporters", "household_groups"
   add_foreign_key "supporters", "precincts"
   add_foreign_key "supporters", "quota_periods"

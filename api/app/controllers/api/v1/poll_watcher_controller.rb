@@ -320,7 +320,8 @@ module Api
         end
 
         return voter if voter.precinct_id == precinct.id
-        return voter if requested_turnout_status == "observed_elsewhere" || voter.turnout_status == "observed_elsewhere"
+        return voter if requested_turnout_status == "observed_elsewhere"
+        return voter if voter.turnout_status == "observed_elsewhere" && can_reconcile_cross_precinct_turnout?
 
         render_voter_not_found!(requested_turnout_status)
       end
@@ -339,6 +340,10 @@ module Api
         return "data_team" if current_user.data_team?
 
         "admin_override"
+      end
+
+      def can_reconcile_cross_precinct_turnout?
+        current_user.admin? || current_user.coordinator?
       end
 
       def campaign_operations_compliance_note

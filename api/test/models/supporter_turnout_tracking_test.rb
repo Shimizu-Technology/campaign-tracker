@@ -35,6 +35,12 @@ class SupporterTurnoutTrackingTest < ActiveSupport::TestCase
     assert @supporter.valid?
   end
 
+  test "supporter accepts data team turnout source" do
+    @supporter.turnout_source = "data_team"
+
+    assert @supporter.valid?
+  end
+
   test "supporter contact attempt validates required fields" do
     attempt = SupporterContactAttempt.new(
       supporter: @supporter,

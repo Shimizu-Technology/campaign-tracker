@@ -242,6 +242,27 @@ class Api::V1::WarRoomControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, village_a["outreach_reached_count"]
   end
 
+  test "not on list incident does not replace latest turnout report for precinct stats" do
+    PollReport.create!(
+      precinct: @precinct_a,
+      voter_count: 0,
+      report_type: "not_on_list",
+      notes: "Supporter name heard but not on list",
+      reported_at: Time.current + 5.minutes
+    )
+
+    get "/api/v1/war_room", headers: auth_headers(@admin)
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+
+    village_a = payload["villages"].find { |v| v["name"] == "Village A" }
+    assert_equal 100, village_a["voters_reported"]
+    assert_equal 28.6, village_a["turnout_pct"]
+    assert_equal 2, village_a["not_yet_voted_count"]
+    assert_equal 1, village_a["observed_elsewhere_count"]
+  end
+
   test "war room can log contact attempt for supporter in scope" do
     post "/api/v1/war_room/supporters/#{@supporter_a1.id}/contact_attempts",
       params: {

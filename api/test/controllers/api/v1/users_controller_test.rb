@@ -176,29 +176,20 @@ class Api::V1::UsersControllerTest < ActionDispatch::IntegrationTest
       role: "block_leader"
     )
 
-    curriculum_id = ActiveRecord::Base.connection.exec_query(<<~SQL).first["id"]
-      INSERT INTO curricula (name, created_at, updated_at)
-      VALUES ('Dependency Curriculum', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      RETURNING id
-    SQL
-
-    cohort_id = ActiveRecord::Base.connection.exec_query(<<~SQL).first["id"]
-      INSERT INTO cohorts (curriculum_id, name, start_date, created_at, updated_at)
-      VALUES (#{curriculum_id}, 'Dependency Cohort', CURRENT_DATE, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      RETURNING id
-    SQL
-
-    ActiveRecord::Base.connection.execute(<<~SQL)
-      INSERT INTO enrollments (user_id, cohort_id, created_at, updated_at)
-      VALUES (#{dependency_user.id}, #{cohort_id}, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    SQL
+    GecImport.create!(
+      gec_list_date: Date.current,
+      filename: "dependency-import.csv",
+      status: "completed",
+      import_type: "full_list",
+      uploaded_by_user: dependency_user
+    )
 
     delete "/api/v1/users/#{dependency_user.id}", headers: auth_headers(@admin)
 
     assert_response :unprocessable_entity
     payload = JSON.parse(response.body)
     assert_equal "user_has_dependencies", payload["code"]
-    assert_includes payload["error"], "enrollments"
+    assert_includes payload["error"], "gec imports"
     assert User.exists?(dependency_user.id)
   end
 end

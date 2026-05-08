@@ -377,7 +377,7 @@ class Api::V1::PollWatcherControllerTest < ActionDispatch::IntegrationTest
     assert_equal @precinct_two.id, @supporter_unassigned.precinct_id
   end
 
-  test "poll watcher can clear observed elsewhere exception for out-of-precinct voter" do
+  test "poll watcher cannot clear observed elsewhere exception for out-of-precinct voter" do
     @unassigned_voter.update!(
       turnout_status: "observed_elsewhere",
       turnout_note: "Observed at Precinct 1 (Village One)."
@@ -397,12 +397,34 @@ class Api::V1::PollWatcherControllerTest < ActionDispatch::IntegrationTest
       },
       headers: auth_headers(@watcher)
 
+    assert_response :not_found
+    payload = JSON.parse(response.body)
+    assert_equal "voter_not_found", payload["code"]
+    assert_equal "observed_elsewhere", @unassigned_voter.reload.turnout_status
+    assert_equal "observed_elsewhere", @supporter_unassigned.reload.turnout_status
+  end
+
+  test "coordinator can clear observed elsewhere exception for out-of-precinct voter within district" do
+    @same_village_unassigned_voter.update!(
+      turnout_status: "observed_elsewhere",
+      turnout_note: "Observed at Precinct 1 (Village One)."
+    )
+
+    patch "/api/v1/poll_watcher/strike_list/#{@same_village_unassigned_voter.id}/turnout",
+      params: {
+        turnout: {
+          precinct_id: @precinct_one.id,
+          turnout_status: "unknown",
+          note: ""
+        }
+      },
+      headers: auth_headers(@coordinator)
+
     assert_response :success
     payload = JSON.parse(response.body)
     assert_equal "unknown", payload.dig("voter", "turnout_status")
     assert_equal true, payload.dig("voter", "out_of_precinct")
-    assert_equal "unknown", @unassigned_voter.reload.turnout_status
-    assert_equal "unknown", @supporter_unassigned.reload.turnout_status
+    assert_equal "unknown", @same_village_unassigned_voter.reload.turnout_status
   end
 
   test "poll watcher cannot update turnout for voter outside assigned precinct" do

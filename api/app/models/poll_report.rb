@@ -14,7 +14,8 @@ class PollReport < ApplicationRecord
 
   # Get the latest report for each precinct
   def self.latest_per_precinct
-    select("DISTINCT ON (precinct_id) *")
+    where.not(report_type: "not_on_list")
+      .select("DISTINCT ON (precinct_id) *")
       .order(:precinct_id, reported_at: :desc)
   end
 end

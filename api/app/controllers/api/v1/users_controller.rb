@@ -172,7 +172,7 @@ module Api
       end
 
       def foreign_key_dependency_message(error)
-        table_name = error.message[/table "([^"]+)"/, 1]
+        table_name = error.message.scan(/table "([^"]+)"/).flatten.last
         base_message = "Cannot remove this user because they still have associated records."
         return base_message if table_name.blank?
 

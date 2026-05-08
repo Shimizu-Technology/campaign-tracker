@@ -94,7 +94,7 @@ class AddFullVoterTurnoutFoundation < ActiveRecord::Migration[8.1]
       .where.not(gec_voter_id: nil)
       .select(Arel.sql("DISTINCT ON (gec_voter_id) id"))
       .order(Arel.sql("gec_voter_id ASC, COALESCE(turnout_updated_at, updated_at) DESC, id DESC"))
-    
+
     MigrationSupporter.where(id: latest_supporter_ids).find_each do |supporter|
       MigrationGecVoter.where(id: supporter.gec_voter_id).update_all(
         turnout_status: supporter.turnout_status,
