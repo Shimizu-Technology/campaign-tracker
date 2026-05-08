@@ -44,6 +44,12 @@ class Api::V1::PollWatcherControllerTest < ActionDispatch::IntegrationTest
       role: "district_coordinator",
       assigned_district_id: district_one.id
     )
+    @data_team = User.create!(
+      clerk_id: "clerk-data-team",
+      email: "data-team@example.com",
+      name: "Data Team",
+      role: "data_team"
+    )
     @block_leader = User.create!(
       clerk_id: "clerk-block-leader",
       email: "leader@example.com",
@@ -233,6 +239,16 @@ class Api::V1::PollWatcherControllerTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
     payload = JSON.parse(response.body)
     assert_equal "precinct_not_authorized", payload["code"]
+  end
+
+  test "data team cannot access poll watcher strike list endpoint" do
+    get "/api/v1/poll_watcher/strike_list",
+      params: { precinct_id: @precinct_one.id },
+      headers: auth_headers(@data_team)
+
+    assert_response :forbidden
+    payload = JSON.parse(response.body)
+    assert_equal "poll_watcher_access_required", payload["code"]
   end
 
   test "poll watcher can view strike list for assigned precinct" do
