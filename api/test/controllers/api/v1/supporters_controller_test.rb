@@ -209,22 +209,21 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "index registered voter sort avoids gec voter column when schema is stale" do
-    original_column_names = Supporter.method(:column_names)
-    Supporter.define_singleton_method(:column_names) { original_column_names.call - [ "gec_voter_id" ] }
     sql_statements = []
     subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
       sql_statements << payload[:sql] unless payload[:name] == "SCHEMA"
     end
 
-    get "/api/v1/supporters",
-      params: { sort_by: "registered_voter", sort_dir: "desc", per_page: 5 },
-      headers: auth_headers(@user)
+    with_stale_supporter_column_names do
+      get "/api/v1/supporters",
+        params: { sort_by: "registered_voter", sort_dir: "desc", per_page: 5 },
+        headers: auth_headers(@user)
+    end
 
     assert_response :success
     assert_empty sql_statements.grep(/gec_voter_id/i)
   ensure
     ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
-    Supporter.define_singleton_method(:column_names, original_column_names)
   end
 
   test "index batches legacy flagged reason lookups per page" do
@@ -2051,6 +2050,39 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, service_calls
   end
 
+  test "vetting queue serializes when gec voter column is absent" do
+    supporter = Supporter.create!(
+      first_name: "Queue",
+      last_name: "SchemaGap",
+      print_name: "Queue SchemaGap",
+      contact_number: "6715559015",
+      village: @village,
+      source: "staff_entry",
+      review_status: "pending",
+      public_review_status: "not_applicable",
+      status: "active",
+      verification_status: "verified",
+      registered_voter: true
+    )
+    supporter.update_columns(
+      verification_status: "verified",
+      registered_voter: true,
+      verification_reason: "manual_staff_verified",
+      verification_reason_metadata: {}
+    )
+
+    with_stale_supporter_column_names do
+      get "/api/v1/supporters/vetting_queue",
+        params: { search: "SchemaGap" },
+        headers: auth_headers(@data_team)
+    end
+
+    assert_response :success
+    payload = JSON.parse(response.body)
+    supporter_payload = payload.fetch("supporters").find { |item| item["id"] == supporter.id }
+    assert_equal false, supporter_payload["current_gec_match"]
+  end
+
   test "vetting queue supports approved bucket" do
     approved = Supporter.create!(
       first_name: "Approved",
@@ -2251,5 +2283,15 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, payload.dig("results", "auto_verified")
     assert_equal "verified", matching_supporter.reload.verification_status
     assert_equal "flagged", other_supporter.reload.verification_status
+  end
+
+  private
+
+  def with_stale_supporter_column_names
+    original_column_names = Supporter.method(:column_names)
+    Supporter.define_singleton_method(:column_names) { original_column_names.call - [ "gec_voter_id" ] }
+    yield
+  ensure
+    Supporter.define_singleton_method(:column_names, original_column_names) if original_column_names
   end
 end

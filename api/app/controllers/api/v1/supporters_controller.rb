@@ -1637,6 +1637,7 @@ module Api
       end
 
       def supporter_gec_voter_id(supporter)
+        return nil unless Supporter.column_names.include?("gec_voter_id")
         return nil unless supporter.attributes.key?("gec_voter_id")
 
         supporter.read_attribute(:gec_voter_id)
