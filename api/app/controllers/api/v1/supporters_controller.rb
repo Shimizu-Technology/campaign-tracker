@@ -1222,7 +1222,7 @@ module Api
 
       def supporter_json(supporter, reason_payload: nil)
         reason_payload ||= SupporterVerificationReasonService.new(supporter).payload || {}
-        current_gec_match = supporter.gec_voter_id.present?
+        current_gec_match = supporter_gec_voter_id(supporter).present?
 
         {
           id: supporter.id,
@@ -1303,7 +1303,7 @@ module Api
       end
 
       def outreach_json(supporter)
-        current_gec_match = supporter.gec_voter_id.present?
+        current_gec_match = supporter_gec_voter_id(supporter).present?
 
         {
           id: supporter.id,
@@ -1636,6 +1636,15 @@ module Api
         registration_follow_up_open?(supporter) || support_follow_up_open?(supporter)
       end
 
+      def supporter_gec_voter_id(supporter)
+        return nil unless Supporter.column_names.include?("gec_voter_id")
+        return nil unless supporter.attributes.key?("gec_voter_id")
+
+        supporter.read_attribute(:gec_voter_id)
+      rescue ActiveModel::MissingAttributeError, NoMethodError
+        nil
+      end
+
       def household_member_count(supporter)
         return 0 unless supporter.household_group_id.present?
 
@@ -1750,12 +1759,21 @@ module Api
         when "precinct_number"
           scope.left_joins(:precinct).reorder(Arel.sql("precincts.number #{sort_dir_sql}"), created_at: :desc)
         when "registered_voter"
-          scope.reorder(
-            Arel.sql("(CASE WHEN supporters.gec_voter_id IS NOT NULL OR supporters.verification_status = 'verified' THEN 2 WHEN supporters.registered_voter THEN 1 ELSE 0 END) #{sort_dir_sql}"),
-            created_at: :desc
-          )
+          scope.reorder(registered_voter_sort_expression(sort_dir_sql), created_at: :desc)
         else
           scope.reorder(sort_by => sort_dir)
+        end
+      end
+
+      def registered_voter_sort_expression(sort_dir_sql)
+        if Supporter.column_names.include?("gec_voter_id")
+          return Arel.sql("(CASE WHEN supporters.gec_voter_id IS NOT NULL OR supporters.verification_status = 'verified' THEN 2 WHEN supporters.registered_voter THEN 1 ELSE 0 END) ASC") if sort_dir_sql == "ASC"
+
+          Arel.sql("(CASE WHEN supporters.gec_voter_id IS NOT NULL OR supporters.verification_status = 'verified' THEN 2 WHEN supporters.registered_voter THEN 1 ELSE 0 END) DESC")
+        elsif sort_dir_sql == "ASC"
+          Arel.sql("(CASE WHEN supporters.verification_status = 'verified' THEN 2 WHEN supporters.registered_voter THEN 1 ELSE 0 END) ASC")
+        else
+          Arel.sql("(CASE WHEN supporters.verification_status = 'verified' THEN 2 WHEN supporters.registered_voter THEN 1 ELSE 0 END) DESC")
         end
       end
     end
