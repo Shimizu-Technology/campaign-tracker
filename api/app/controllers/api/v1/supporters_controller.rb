@@ -1765,14 +1765,15 @@ module Api
       end
 
       def registered_voter_sort_expression(sort_dir_sql)
-        match_expression =
-          if Supporter.column_names.include?("gec_voter_id")
-            "supporters.gec_voter_id IS NOT NULL OR supporters.verification_status = 'verified'"
-          else
-            "supporters.verification_status = 'verified'"
-          end
+        if Supporter.column_names.include?("gec_voter_id")
+          return Arel.sql("(CASE WHEN supporters.gec_voter_id IS NOT NULL OR supporters.verification_status = 'verified' THEN 2 WHEN supporters.registered_voter THEN 1 ELSE 0 END) ASC") if sort_dir_sql == "ASC"
 
-        Arel.sql("(CASE WHEN #{match_expression} THEN 2 WHEN supporters.registered_voter THEN 1 ELSE 0 END) #{sort_dir_sql}")
+          Arel.sql("(CASE WHEN supporters.gec_voter_id IS NOT NULL OR supporters.verification_status = 'verified' THEN 2 WHEN supporters.registered_voter THEN 1 ELSE 0 END) DESC")
+        elsif sort_dir_sql == "ASC"
+          Arel.sql("(CASE WHEN supporters.verification_status = 'verified' THEN 2 WHEN supporters.registered_voter THEN 1 ELSE 0 END) ASC")
+        else
+          Arel.sql("(CASE WHEN supporters.verification_status = 'verified' THEN 2 WHEN supporters.registered_voter THEN 1 ELSE 0 END) DESC")
+        end
       end
     end
   end
