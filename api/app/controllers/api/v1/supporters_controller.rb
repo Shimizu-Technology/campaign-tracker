@@ -1222,7 +1222,7 @@ module Api
 
       def supporter_json(supporter, reason_payload: nil)
         reason_payload ||= SupporterVerificationReasonService.new(supporter).payload || {}
-        current_gec_match = supporter.gec_voter_id.present?
+        current_gec_match = supporter_gec_voter_id(supporter).present?
 
         {
           id: supporter.id,
@@ -1303,7 +1303,7 @@ module Api
       end
 
       def outreach_json(supporter)
-        current_gec_match = supporter.gec_voter_id.present?
+        current_gec_match = supporter_gec_voter_id(supporter).present?
 
         {
           id: supporter.id,
@@ -1634,6 +1634,15 @@ module Api
 
       def follow_up_open?(supporter)
         registration_follow_up_open?(supporter) || support_follow_up_open?(supporter)
+      end
+
+      def supporter_gec_voter_id(supporter)
+        return nil unless supporter.respond_to?(:attributes)
+        return nil unless supporter.attributes.key?("gec_voter_id")
+
+        supporter.read_attribute(:gec_voter_id)
+      rescue ActiveModel::MissingAttributeError, NoMethodError
+        nil
       end
 
       def household_member_count(supporter)
