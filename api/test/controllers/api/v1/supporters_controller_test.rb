@@ -208,6 +208,25 @@ class Api::V1::SupportersControllerTest < ActionDispatch::IntegrationTest
     assert_equal false, supporter_payload["current_gec_match"]
   end
 
+  test "index registered voter sort avoids gec voter column when schema is stale" do
+    original_column_names = Supporter.method(:column_names)
+    Supporter.define_singleton_method(:column_names) { original_column_names.call - [ "gec_voter_id" ] }
+    sql_statements = []
+    subscriber = ActiveSupport::Notifications.subscribe("sql.active_record") do |_name, _started, _finished, _id, payload|
+      sql_statements << payload[:sql] unless payload[:name] == "SCHEMA"
+    end
+
+    get "/api/v1/supporters",
+      params: { sort_by: "registered_voter", sort_dir: "desc", per_page: 5 },
+      headers: auth_headers(@user)
+
+    assert_response :success
+    assert_empty sql_statements.grep(/gec_voter_id/i)
+  ensure
+    ActiveSupport::Notifications.unsubscribe(subscriber) if subscriber
+    Supporter.define_singleton_method(:column_names, original_column_names)
+  end
+
   test "index batches legacy flagged reason lookups per page" do
     supporters = 2.times.map do |i|
       Supporter.create!(

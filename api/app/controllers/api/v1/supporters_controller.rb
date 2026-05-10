@@ -1637,7 +1637,6 @@ module Api
       end
 
       def supporter_gec_voter_id(supporter)
-        return nil unless supporter.respond_to?(:attributes)
         return nil unless supporter.attributes.key?("gec_voter_id")
 
         supporter.read_attribute(:gec_voter_id)
@@ -1759,13 +1758,21 @@ module Api
         when "precinct_number"
           scope.left_joins(:precinct).reorder(Arel.sql("precincts.number #{sort_dir_sql}"), created_at: :desc)
         when "registered_voter"
-          scope.reorder(
-            Arel.sql("(CASE WHEN supporters.gec_voter_id IS NOT NULL OR supporters.verification_status = 'verified' THEN 2 WHEN supporters.registered_voter THEN 1 ELSE 0 END) #{sort_dir_sql}"),
-            created_at: :desc
-          )
+          scope.reorder(registered_voter_sort_expression(sort_dir_sql), created_at: :desc)
         else
           scope.reorder(sort_by => sort_dir)
         end
+      end
+
+      def registered_voter_sort_expression(sort_dir_sql)
+        match_expression =
+          if Supporter.column_names.include?("gec_voter_id")
+            "supporters.gec_voter_id IS NOT NULL OR supporters.verification_status = 'verified'"
+          else
+            "supporters.verification_status = 'verified'"
+          end
+
+        Arel.sql("(CASE WHEN #{match_expression} THEN 2 WHEN supporters.registered_voter THEN 1 ELSE 0 END) #{sort_dir_sql}")
       end
     end
   end
