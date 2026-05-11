@@ -138,7 +138,7 @@ export default function TeamShell({ children }: { children: React.ReactNode }) {
       <Link
         key={item.to}
         to={item.to}
-        onClick={() => setSidebarOpen(false)}
+        onClick={() => { hideRailTooltip(); setSidebarOpen(false); }}
         onMouseEnter={(event) => collapsed && showRailTooltip(item.label, event.currentTarget)}
         onMouseLeave={hideRailTooltip}
         onFocus={(event) => collapsed && showRailTooltip(item.label, event.currentTarget)}
@@ -167,7 +167,7 @@ export default function TeamShell({ children }: { children: React.ReactNode }) {
   const utilityLink = (to: string, label: string, Icon: React.ComponentType<{ className?: string }>, collapsed = false) => (
     <Link
       to={to}
-      onClick={() => setSidebarOpen(false)}
+      onClick={() => { hideRailTooltip(); setSidebarOpen(false); }}
       onMouseEnter={(event) => collapsed && showRailTooltip(label, event.currentTarget)}
       onMouseLeave={hideRailTooltip}
       onFocus={(event) => collapsed && showRailTooltip(label, event.currentTarget)}
@@ -187,7 +187,7 @@ export default function TeamShell({ children }: { children: React.ReactNode }) {
     <nav className="flex flex-col h-full">
       {/* Brand */}
       <div className={collapsed ? 'px-3 pt-3 pb-2' : 'px-3 pt-4 pb-3'}>
-        <Link to="/data" className="block" onClick={() => setSidebarOpen(false)} title={collapsed ? 'Data Ops Workspace' : undefined}>
+        <Link to="/data" className="block" onClick={() => { hideRailTooltip(); setSidebarOpen(false); }} title={collapsed ? 'Data Ops Workspace' : undefined}>
           <WorkspaceBrandPanel
             compact
             rail={collapsed}
@@ -198,7 +198,7 @@ export default function TeamShell({ children }: { children: React.ReactNode }) {
         </Link>
         <button
           type="button"
-          onClick={() => setDesktopCollapsed((value) => !value)}
+          onClick={() => { hideRailTooltip(); setDesktopCollapsed((value) => !value); }}
           onMouseEnter={(event) => collapsed && showRailTooltip('Expand sidebar', event.currentTarget)}
           onMouseLeave={hideRailTooltip}
           onFocus={(event) => collapsed && showRailTooltip('Expand sidebar', event.currentTarget)}
@@ -268,7 +268,7 @@ export default function TeamShell({ children }: { children: React.ReactNode }) {
       {sidebarOpen && (
         <div
           className="fixed inset-0 bg-black/30 backdrop-blur-sm z-40 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
+          onClick={() => { hideRailTooltip(); setSidebarOpen(false); }}
         />
       )}
 
@@ -292,7 +292,7 @@ export default function TeamShell({ children }: { children: React.ReactNode }) {
         }`}
       >
         <button
-          onClick={() => setSidebarOpen(false)}
+          onClick={() => { hideRailTooltip(); setSidebarOpen(false); }}
           className="absolute top-5 right-4 rounded-lg p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
         >
           <X className="w-5 h-5" />
