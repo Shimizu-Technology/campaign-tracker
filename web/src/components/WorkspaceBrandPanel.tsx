@@ -5,6 +5,7 @@ type WorkspaceBrandPanelProps = {
   workspaceDescription: string;
   badge?: string;
   compact?: boolean;
+  rail?: boolean;
   centered?: boolean;
   className?: string;
 };
@@ -14,10 +15,29 @@ export default function WorkspaceBrandPanel({
   workspaceDescription,
   badge = "Internal campaign workspace",
   compact = false,
+  rail = false,
   centered = false,
   className = "",
 }: WorkspaceBrandPanelProps) {
   if (compact) {
+    if (rail) {
+      return (
+        <div
+          className={[
+            "flex min-h-16 items-center justify-center rounded-2xl border border-slate-200 bg-white shadow-[0_14px_32px_-26px_rgba(15,42,91,0.35)]",
+            className,
+          ].join(" ")}
+        >
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-[12px] font-black uppercase tracking-[-0.08em] text-white shadow-sm">
+            <span>J</span>
+            <span className="text-cta">&amp;</span>
+            <span>T</span>
+          </div>
+          <span className="sr-only">{workspaceName}</span>
+        </div>
+      );
+    }
+
     return (
       <div
         className={[
