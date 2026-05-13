@@ -56,11 +56,9 @@ class EnsureGecElectionDayReadinessSchema < ActiveRecord::Migration[8.1]
     ensure_reference :poll_watcher_precinct_assignments, :user, null: false, foreign_table: :users
     ensure_reference :poll_watcher_precinct_assignments, :precinct, null: false, foreign_table: :precincts
     ensure_reference :poll_watcher_precinct_assignments, :assigned_by_user, foreign_table: :users
-    unless column_exists?(:poll_watcher_precinct_assignments, :assigned_at)
-      add_column :poll_watcher_precinct_assignments, :assigned_at, :datetime
-      update("UPDATE poll_watcher_precinct_assignments SET assigned_at = CURRENT_TIMESTAMP WHERE assigned_at IS NULL")
-      change_column_null :poll_watcher_precinct_assignments, :assigned_at, false
-    end
+    ensure_datetime_column :poll_watcher_precinct_assignments, :assigned_at, null: false
+    ensure_datetime_column :poll_watcher_precinct_assignments, :created_at, null: false
+    ensure_datetime_column :poll_watcher_precinct_assignments, :updated_at, null: false
 
     unless index_exists?(:poll_watcher_precinct_assignments, [ :user_id, :precinct_id ], name: "index_poll_watcher_assignments_on_user_and_precinct")
       add_index :poll_watcher_precinct_assignments,
@@ -110,5 +108,15 @@ class EnsureGecElectionDayReadinessSchema < ActiveRecord::Migration[8.1]
 
     add_index table, column unless index_exists?(table, column)
     add_foreign_key table, foreign_table, column: column unless foreign_key_exists?(table, foreign_table, column: column)
+    change_column_null table, column, false unless null
+  end
+
+  def ensure_datetime_column(table, column, null:)
+    add_column table, column, :datetime unless column_exists?(table, column)
+
+    unless null
+      update("UPDATE #{quote_table_name(table)} SET #{quote_column_name(column)} = CURRENT_TIMESTAMP WHERE #{quote_column_name(column)} IS NULL")
+      change_column_null table, column, false
+    end
   end
 end
