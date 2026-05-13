@@ -102,13 +102,21 @@ class EnsureGecElectionDayReadinessSchema < ActiveRecord::Migration[8.1]
   def ensure_reference(table, reference, null: true, foreign_table:)
     column = :"#{reference}_id"
     unless column_exists?(table, column)
-      add_reference table, reference, null: null, foreign_key: { to_table: foreign_table }
-      return
+      if !null && table_has_rows?(table)
+        raise ActiveRecord::MigrationError,
+          "Cannot safely add required #{table}.#{column}: #{table} already has rows and there is no reliable backfill value"
+      end
+
+      add_reference table, reference, null: true, foreign_key: { to_table: foreign_table }
+    end
+
+    unless null
+      ensure_no_null_values!(table, column)
+      change_column_null table, column, false
     end
 
     add_index table, column unless index_exists?(table, column)
     add_foreign_key table, foreign_table, column: column unless foreign_key_exists?(table, foreign_table, column: column)
-    change_column_null table, column, false unless null
   end
 
   def ensure_datetime_column(table, column, null:)
@@ -118,5 +126,16 @@ class EnsureGecElectionDayReadinessSchema < ActiveRecord::Migration[8.1]
       update("UPDATE #{quote_table_name(table)} SET #{quote_column_name(column)} = CURRENT_TIMESTAMP WHERE #{quote_column_name(column)} IS NULL")
       change_column_null table, column, false
     end
+  end
+
+  def table_has_rows?(table)
+    select_value("SELECT 1 FROM #{quote_table_name(table)} LIMIT 1").present?
+  end
+
+  def ensure_no_null_values!(table, column)
+    return unless select_value("SELECT 1 FROM #{quote_table_name(table)} WHERE #{quote_column_name(column)} IS NULL LIMIT 1").present?
+
+    raise ActiveRecord::MigrationError,
+      "Cannot enforce NOT NULL on #{table}.#{column}: existing rows contain NULL and there is no reliable backfill value"
   end
 end
