@@ -16,6 +16,7 @@ import {
   resolveGecImportSkippedRow,
   dismissGecImportSkippedRow,
   activateGecElectionDayImport,
+  deactivateGecElectionDayImport,
 } from '../../lib/api';
 import {
   Database,
@@ -753,6 +754,17 @@ export default function TeamGecPage() {
     onError: (err: Error) => setErrorMessage(`Could not set election-day list: ${err.message}`),
   });
 
+  const deactivateElectionDayMutation = useMutation({
+    mutationFn: (importId: number) => deactivateGecElectionDayImport(importId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gec-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['gec-imports'] });
+      setErrorMessage(null);
+      setSuccessMessage('Election-day GEC list cleared. Election-day tools will now fall back to the latest active GEC list.');
+    },
+    onError: (err: Error) => setErrorMessage(`Could not clear election-day list: ${err.message}`),
+  });
+
   const openViewer = (imp: ImportRecord) => {
     const initialTab: ViewerTab = imp.has_import_artifact
       ? 'parsed'
@@ -790,6 +802,9 @@ export default function TeamGecPage() {
     setSkippedViewerFilter('all');
   };
 
+  const hasActiveGecData = Number(stats?.total_voters || 0) > 0;
+  const hasCompletedGecImports = Boolean(stats?.has_completed_imports || stats?.completed_import_count || stats?.latest_import);
+
   return (
     <WorkspacePage width="full" className="space-y-6">
       <div>
@@ -805,7 +820,7 @@ export default function TeamGecPage() {
         </h2>
         {statsLoading ? (
           <div className="animate-pulse h-20 bg-gray-100 rounded-lg" />
-        ) : stats?.total_voters ? (
+        ) : hasActiveGecData ? (
           <>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-8 gap-x-6 gap-y-4">
             <div className="min-w-0">
@@ -857,12 +872,23 @@ export default function TeamGecPage() {
           {/* Last import change summary */}
           <ChangeSummary summary={stats.last_change_summary} />
           {stats.active_election_day_import ? (
-            <div className="mt-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800">
-              Election-day voter list is explicitly set to import #{stats.active_election_day_import.id}
-              {stats.active_election_day_import.activated_for_election_at
-                ? `, activated ${formatCampaignDateTime(stats.active_election_day_import.activated_for_election_at)}`
-                : ''}
-              .
+            <div className="mt-3 flex flex-col gap-2 rounded-lg border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                Election-day voter list is explicitly set to import #{stats.active_election_day_import.id}
+                {stats.active_election_day_import.activated_for_election_at
+                  ? `, activated ${formatCampaignDateTime(stats.active_election_day_import.activated_for_election_at)}`
+                  : ''}
+                .
+              </div>
+              <button
+                type="button"
+                onClick={() => deactivateElectionDayMutation.mutate(stats.active_election_day_import.id)}
+                disabled={deactivateElectionDayMutation.isPending}
+                className="inline-flex min-h-8 items-center justify-center gap-1.5 rounded-md border border-green-300 bg-white px-2.5 text-xs font-semibold text-green-800 hover:bg-green-100 disabled:opacity-60"
+              >
+                {deactivateElectionDayMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <X className="h-3.5 w-3.5" />}
+                Clear Election-Day List
+              </button>
             </div>
           ) : (
             <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -873,6 +899,19 @@ export default function TeamGecPage() {
             `Current Removed GEC Voters` and `Unassigned GEC Voters` show the current live totals. `Last Import Changes` below shows what changed during the latest import only.
           </div>
           </>
+        ) : hasCompletedGecImports ? (
+          <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-100 rounded-lg">
+            <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-medium text-amber-800">GEC import history exists, but no active voter rows are loaded</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                The latest completed import
+                {stats?.latest_import?.id ? ` #${stats.latest_import.id}` : ''}
+                {stats?.latest_import?.total_records ? ` has ${Number(stats.latest_import.total_records).toLocaleString()} recorded rows` : ''}
+                , but the active voter table is empty. Re-run or repair the latest import before relying on auto-vetting.
+              </p>
+            </div>
+          </div>
         ) : (
           <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-100 rounded-lg">
             <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
@@ -1258,7 +1297,9 @@ export default function TeamGecPage() {
                             errorMsg={errorMsg}
                             onOpenViewer={openViewer}
                             onActivateElectionDay={(importId) => activateElectionDayMutation.mutate(importId)}
+                            onDeactivateElectionDay={(importId) => deactivateElectionDayMutation.mutate(importId)}
                             activatingElectionDay={activateElectionDayMutation.isPending}
+                            deactivatingElectionDay={deactivateElectionDayMutation.isPending}
                           />
                         </td>
                       </tr>
@@ -1339,7 +1380,9 @@ function ImportDetailPanel({
   errorMsg,
   onOpenViewer,
   onActivateElectionDay,
+  onDeactivateElectionDay,
   activatingElectionDay,
+  deactivatingElectionDay,
 }: {
   imp: ImportRecord;
   matchedUnchanged: number;
@@ -1350,7 +1393,9 @@ function ImportDetailPanel({
   errorMsg?: string;
   onOpenViewer: (imp: ImportRecord) => void;
   onActivateElectionDay: (importId: number) => void;
+  onDeactivateElectionDay: (importId: number) => void;
   activatingElectionDay: boolean;
+  deactivatingElectionDay: boolean;
 }) {
   return (
     <div className="px-6 py-4 bg-gray-50 border-t border-gray-100">
@@ -1421,7 +1466,7 @@ function ImportDetailPanel({
             </div>
           )}
           {imp.status === 'completed' && (
-            <div className="mt-2">
+            <div className="mt-2 flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={(e) => {
@@ -1438,6 +1483,20 @@ function ImportDetailPanel({
                 {activatingElectionDay ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Calendar className="w-3.5 h-3.5" />}
                 {imp.active_election_day ? 'Election-Day List' : 'Use For Election Day'}
               </button>
+              {imp.active_election_day && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeactivateElectionDay(imp.id);
+                  }}
+                  disabled={deactivatingElectionDay}
+                  className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-60"
+                >
+                  {deactivatingElectionDay ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <X className="w-3.5 h-3.5" />}
+                  Clear
+                </button>
+              )}
             </div>
           )}
         </div>

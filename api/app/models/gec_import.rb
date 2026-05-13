@@ -36,6 +36,10 @@ class GecImport < ApplicationRecord
     end
   end
 
+  def deactivate_for_election!
+    update!(active_election_day: false)
+  end
+
   def raw_source_available?
     raw_file_s3_key.present?
   end

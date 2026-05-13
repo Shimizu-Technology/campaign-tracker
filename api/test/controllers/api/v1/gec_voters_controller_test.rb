@@ -94,6 +94,49 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
     assert_equal @admin.id, new_import.activated_for_election_by_user_id
   end
 
+  test "deactivates the election-day GEC list without removing voter data" do
+    active_import = GecImport.create!(
+      gec_list_date: Date.new(2026, 2, 25),
+      filename: "active.csv",
+      status: "completed",
+      import_type: "full_list",
+      active_election_day: true,
+      activated_for_election_at: Time.zone.parse("2026-04-01 08:30:00"),
+      activated_for_election_by_user: @admin
+    )
+
+    assert_no_difference -> { GecVoter.active.count } do
+      post "/api/v1/gec_voters/imports/#{active_import.id}/deactivate_election_day", headers: auth_headers(@admin)
+    end
+
+    assert_response :success
+    json = JSON.parse(response.body)
+    assert_equal active_import.id, json.dig("import", "id")
+    assert_equal false, json.dig("import", "active_election_day")
+    assert_equal false, active_import.reload.active_election_day
+    assert_equal Time.zone.parse("2026-04-01 08:30:00"), active_import.activated_for_election_at
+    audit_log = AuditLog.where(auditable: active_import, action: "gec_election_day_import_deactivated").order(:created_at).last
+    assert_equal [ true, false ], audit_log.changed_data["active_election_day"]
+  end
+
+  test "does not deactivate an import that is not the election-day GEC list" do
+    inactive_import = GecImport.create!(
+      gec_list_date: Date.new(2026, 2, 25),
+      filename: "inactive.csv",
+      status: "completed",
+      import_type: "full_list",
+      active_election_day: false
+    )
+
+    assert_no_difference -> { AuditLog.where(auditable: inactive_import, action: "gec_election_day_import_deactivated").count } do
+      post "/api/v1/gec_voters/imports/#{inactive_import.id}/deactivate_election_day", headers: auth_headers(@admin)
+    end
+
+    assert_response :unprocessable_entity
+    json = JSON.parse(response.body)
+    assert_equal "import_not_active_election_day", json["code"]
+  end
+
   test "does not activate an incomplete import as election-day list" do
     pending_import = GecImport.create!(
       gec_list_date: Date.new(2026, 2, 25),
@@ -249,6 +292,28 @@ class Api::V1::GecVotersControllerTest < ActionDispatch::IntegrationTest
 
     assert villages.key?(unassigned.name)
     assert_not villages.key?("FPO")
+  end
+
+  test "stats distinguishes completed imports from active voter data" do
+    GecVoter.delete_all
+    GecImport.create!(
+      gec_list_date: Date.new(2026, 2, 25),
+      filename: "2026 Volunteer Voter Registrar Application_as of 25-FEB-2026.pdf",
+      status: "completed",
+      import_type: "full_list",
+      total_records: 52_547
+    )
+
+    get "/api/v1/gec_voters/stats", headers: auth_headers(@admin)
+
+    assert_response :success
+    json = JSON.parse(response.body)
+    assert_equal 0, json["total_voters"]
+    assert_equal true, json["has_completed_imports"]
+    assert_equal 1, json["completed_import_count"]
+    assert_equal "import_history_without_active_rows", json["data_health"]
+    assert_equal "2026-02-25", json["latest_list_date"]
+    assert_equal 52_547, json.dig("latest_import", "total_records")
   end
 
   test "match finds exact match by name + dob + village" do

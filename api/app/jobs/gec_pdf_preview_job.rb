@@ -10,6 +10,8 @@ class GecPdfPreviewJob < ApplicationJob
     source_s3_key = preview.file_s3_key.presence
     temp = Tempfile.new([ "gec_pdf_preview", ".pdf" ])
     temp.binmode
+    preview.update!(status: "processing", error_message: nil)
+
     unless write_preview_source_to_tempfile(preview, temp, source_s3_key)
       finalize_preview!(
         preview,
@@ -20,8 +22,6 @@ class GecPdfPreviewJob < ApplicationJob
       )
       return
     end
-
-    preview.update!(status: "processing", error_message: nil)
 
     parsed = GecPdfParserService.new(file_path: temp.path).parse_preview_sample
     if parsed.errors.any?

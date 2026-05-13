@@ -5,6 +5,49 @@ class GecVoterTest < ActiveSupport::TestCase
     @village = Village.find_or_create_by!(name: "Barrigada")
   end
 
+  test "election day list date uses active voter rows when they exist" do
+    GecImport.create!(
+      gec_list_date: Date.new(2026, 2, 25),
+      filename: "february.csv",
+      status: "completed",
+      import_type: "full_list"
+    )
+    february_voter = GecVoter.create!(
+      first_name: "February",
+      last_name: "Voter",
+      village_name: @village.name,
+      voter_registration_number: "VRFEB",
+      gec_list_date: Date.new(2026, 2, 25),
+      imported_at: Time.current,
+      status: "active"
+    )
+    stray_voter = GecVoter.create!(
+      first_name: "Stray",
+      last_name: "Voter",
+      village_name: @village.name,
+      voter_registration_number: "VRSTRAY",
+      gec_list_date: Date.new(2026, 5, 8),
+      imported_at: Time.current,
+      status: "active"
+    )
+
+    assert_equal Date.new(2026, 5, 8), GecVoter.election_day_list_date
+    assert_not_includes GecVoter.election_day_active, february_voter
+    assert_includes GecVoter.election_day_active, stray_voter
+  end
+
+  test "election day list date falls back to the latest completed import when active voter rows are empty" do
+    GecImport.create!(
+      gec_list_date: Date.new(2026, 2, 25),
+      filename: "february.csv",
+      status: "completed",
+      import_type: "full_list"
+    )
+
+    assert_equal Date.new(2026, 2, 25), GecVoter.election_day_list_date
+    assert_empty GecVoter.election_day_active
+  end
+
   test "find_matches_for_supporters resolves fuzzy name matches without SQL errors" do
     GecVoter.create!(
       first_name: "John",

@@ -112,6 +112,7 @@ Rails.application.routes.draw do
           get "imports/:id/changes", action: :view_import_changes, as: :view_import_changes
           get "imports/:id/skipped_rows", action: :view_import_skipped_rows, as: :view_import_skipped_rows
           post "imports/:id/activate_election_day", action: :activate_election_day_import, as: :activate_election_day_import
+          post "imports/:id/deactivate_election_day", action: :deactivate_election_day_import, as: :deactivate_election_day_import
           post "imports/:id/skipped_rows/:skipped_row_id/preview_resolution", action: :preview_skipped_row_resolution, as: :preview_skipped_row_resolution
           post "imports/:id/skipped_rows/:skipped_row_id/resolve", action: :resolve_skipped_row, as: :resolve_skipped_row
           post "imports/:id/skipped_rows/:skipped_row_id/dismiss", action: :dismiss_skipped_row, as: :dismiss_skipped_row
