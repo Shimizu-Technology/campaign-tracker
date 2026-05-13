@@ -275,6 +275,8 @@ export const getGecPdfPreviewStatus = (previewRequestId: string) =>
 export const bulkVetSupporters = (params?: QueryParams) => api.post('/gec_voters/bulk_vet', params).then(r => r.data);
 export const activateGecElectionDayImport = (importId: number) =>
   api.post(`/gec_voters/imports/${importId}/activate_election_day`).then(r => r.data);
+export const deactivateGecElectionDayImport = (importId: number) =>
+  api.post(`/gec_voters/imports/${importId}/deactivate_election_day`).then(r => r.data);
 export const downloadGecImportFile = (importId: number) =>
   api.get<{ download_url: string; filename: string }>(`/gec_voters/imports/${importId}/download`).then(r => {
     const { download_url, filename } = r.data;

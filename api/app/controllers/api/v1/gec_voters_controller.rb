@@ -49,29 +49,42 @@ module Api
       # Overview stats about the current GEC voter list
       def stats
         election_day_import = GecImport.active_election_day_import
-        latest_date = GecVoter.active.maximum(:gec_list_date)
+        active_scope = GecVoter.active
+        active_count = active_scope.count
         latest_import = GecImport.completed.latest.first
+        completed_import_count = GecImport.completed.count
+        latest_date = active_scope.maximum(:gec_list_date) || latest_import&.gec_list_date
 
-        village_counts = GecVoter.active.includes(:village).each_with_object(Hash.new(0)) do |voter, counts|
-          name = voter.village&.name || GecImportService.normalize_village_name(voter.village_name, allow_unknown: false) || GecImportService::UNASSIGNED_VILLAGE_NAME
-          counts[name] += 1 if name.present?
+        village_counts = active_scope.group(:village_name).count.each_with_object(Hash.new(0)) do |(raw_name, count), counts|
+          name = GecImportService.normalize_village_name(raw_name, allow_unknown: false) || GecImportService::UNASSIGNED_VILLAGE_NAME
+          counts[name] += count if name.present?
         end.sort_by { |(_name, count)| -count }
         unassigned_name = GecImportService::UNASSIGNED_VILLAGE_NAME
         official_village_count = village_counts.count { |(name, _count)| name != unassigned_name }
         unassigned_gec_voters = village_counts.find { |(name, _count)| name == unassigned_name }&.last.to_i
+        data_health = if active_count.positive?
+          "ready"
+        elsif completed_import_count.positive?
+          "import_history_without_active_rows"
+        else
+          "empty"
+        end
 
         render json: {
-          total_voters: GecVoter.active.count,
+          total_voters: active_count,
           removed_voters: GecVoter.removed.count,
           transferred_voters: GecVoter.transferred.count,
           latest_list_date: latest_date,
           election_day_list_date: GecVoter.election_day_list_date,
           active_election_day_import: election_day_import && import_json(election_day_import),
           latest_import: latest_import&.as_json(only: [ :id, :gec_list_date, :filename, :total_records, :new_records, :updated_records, :removed_records, :transferred_records, :re_vetted_count, :ambiguous_dob_count, :import_type, :status, :created_at ]),
+          has_completed_imports: completed_import_count.positive?,
+          completed_import_count: completed_import_count,
+          data_health: data_health,
           villages: village_counts.map { |name, count| { name: name, count: count } },
           official_village_count: official_village_count,
           unassigned_gec_voters: unassigned_gec_voters,
-          ambiguous_dob_count: GecVoter.active.with_ambiguous_dob.count,
+          ambiguous_dob_count: active_scope.with_ambiguous_dob.count,
           last_change_summary: latest_import&.change_summary
         }
       end
@@ -540,6 +553,38 @@ module Api
         }
       end
 
+      # POST /api/v1/gec_voters/imports/:id/deactivate_election_day
+      def deactivate_election_day_import
+        gec_import = GecImport.includes(:uploaded_by_user).find_by(id: params[:id])
+        unless gec_import
+          return render_api_error(message: "Import not found", status: :not_found, code: "not_found")
+        end
+
+        unless gec_import.active_election_day?
+          return render_api_error(
+            message: "This import is not the active election-day GEC list",
+            status: :unprocessable_entity,
+            code: "import_not_active_election_day"
+          )
+        end
+
+        previous_active = gec_import.active_election_day
+        gec_import.deactivate_for_election!
+        log_audit!(
+          gec_import,
+          action: "gec_election_day_import_deactivated",
+          changed_data: {
+            active_election_day: [ previous_active, false ],
+            gec_list_date: [ previous_active ? gec_import.gec_list_date : nil, nil ]
+          }
+        )
+
+        render json: {
+          message: "Election-day GEC list cleared",
+          import: import_json(gec_import.reload)
+        }
+      end
+
       # GET /api/v1/gec_voters/imports/:id/view_data
       # Preview the parsed import artifact for an existing import.
       def view_import_data
@@ -949,7 +994,7 @@ module Api
       end
 
       def pdf_preview_storage_attributes(file, preview_request_id)
-        return { file_data: File.binread(file.tempfile.path) } unless S3Service.enabled?
+        return { file_data: File.binread(file.tempfile.path) } if Rails.env.development? || !S3Service.enabled?
 
         filename = File.basename(file.original_filename.to_s.presence || "upload.pdf")
         safe_filename = S3Service.safe_filename(filename, fallback: "preview.pdf")

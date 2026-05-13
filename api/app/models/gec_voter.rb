@@ -33,7 +33,8 @@ class GecVoter < ApplicationRecord
   scope :observed_elsewhere, -> { where(turnout_status: "observed_elsewhere") }
 
   def self.election_day_list_date
-    GecImport.active_election_day_import&.gec_list_date || active.maximum(:gec_list_date)
+    GecImport.active_election_day_import&.gec_list_date ||
+      (active.exists? ? active.maximum(:gec_list_date) : GecImport.completed.latest.first&.gec_list_date)
   end
 
   def self.election_day_active
